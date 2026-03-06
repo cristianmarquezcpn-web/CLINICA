@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>C.E.T. PRO - Sistema de Salas</title>
+    <link rel="manifest" href="../manifest.json">
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root { --rojo: #ff4d4d; --verde: #2ecc71; --azul: #3498db; --oscuro: #2c3e50; --whatsapp: #25d366; --naranja: #f39c12; --violeta: #8e44ad; --amarillo: #f1c40f; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; font-size: 11px; }
+        .header { background: var(--oscuro); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top:0; z-index: 500; }
+        .main-wrapper { display: grid; grid-template-columns: 1fr 350px; gap: 15px; padding: 15px; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 10px; }
+        
+        .turno-container { margin-bottom: 10px; border-radius: 8px; overflow: hidden; border: 1px solid #ddd; }
+        .turno-header { background: #eee; padding: 10px; cursor: pointer; font-weight: bold; display: flex; justify-content: space-between; }
+        .turno-content { display: none; padding: 10px; background: white; }
+        .turno-content.active { display: block; }
+
+        .grid-cet { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; background: #ddd; }
+        .cell { background: white; padding: 8px; text-align: center; min-height: 35px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 0.1px solid #eee; font-size: 9px; }
+        .h-cell { background: var(--oscuro); color: white; font-weight: bold; }
+        
+        .paciente-celda { background: #e3f2fd !important; font-weight: bold; color: #01579b; border: 1.5px solid var(--azul) !important; }
+        .vence-30, .alerta-23 { background: var(--rojo) !important; color: white !important; }
+        .vence-60 { background: var(--amarillo) !important; color: black !important; }
+
+        .btn { padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; font-size: 10px; transition: 0.3s; }
+        .btn:disabled { background: #ccc !important; cursor: not-allowed; }
+        input, select, textarea { width: 100%; padding: 6px; margin: 3px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 10px; box-sizing: border-box; }
+        
+        .overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; display:none; }
+        #modal, #panel-renov, #panel-fac, #modal-masivo { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 750px; background: white; z-index: 3000; padding: 25px; border-radius: 15px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 50px rgba(0,0,0,0.6); }
+        .chat-area { height: 150px; border: 1px solid #ddd; overflow-y: auto; padding: 5px; background: #fafafa; margin-bottom: 5px; border-radius: 8px; }
+        .msg { margin-bottom: 5px; padding: 4px 8px; border-radius: 5px; background: #eee; font-size: 9px; }
+
+        /* MÓDULO SALAS */
+        .modulo-salas { display: none; position: fixed; top: 2%; left: 2%; width: 96%; height: 96%; background: white; z-index: 4000; border-radius: 15px; box-shadow: 0 0 50px rgba(0,0,0,0.5); flex-direction: column; }
+        .salas-nav { background: #f8f9fa; padding: 12px; border-bottom: 1px solid #ddd; display: flex; gap: 10px; align-items: center; border-radius: 15px 15px 0 0; }
+        .salas-content { flex: 1; display: grid; grid-template-columns: 280px 1fr; overflow: hidden; border-radius: 0 0 15px 15px; }
+        .sidebar-pacs { border-right: 1px solid #ddd; overflow-y: auto; padding: 10px; background: #fafafa; }
+        .area-carga { padding: 20px; overflow-y: auto; background: #fff; }
+        .grid-docs { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 10px; }
+        .doc-box { background: #f9f9f9; border: 1px solid #ddd; padding: 10px; border-radius: 8px; text-align: center; }
+        .tab-btn { padding: 8px 15px; border: none; cursor: pointer; background: #eee; border-radius: 5px; font-weight: bold; }
+        .tab-btn.active { background: var(--azul); color: white; }
+        .paciente-item { padding: 8px; border: 1px solid #eee; margin-bottom: 4px; border-radius: 5px; cursor: pointer; background: white; }
+        .paciente-item.selected { background: var(--azul); color: white; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <strong>C.E.T. PRO - SISTEMA DE SALAS</strong>
+    <div style="display:flex; gap:8px">
+        <button class="btn" style="background:var(--violeta)" onclick="abrirModuloSalas()">🏫 SALA POR TURNO</button>
+        <button class="btn" style="background:var(--verde)" onclick="abrirPanelFac()">📂 VALIDAR</button>
+        <button class="btn" style="background:var(--azul)" onclick="abrirPanelRenov()">📄 RENOVACIONES</button>
+        <button class="btn" style="background:var(--naranja)" onclick="abrirMasivo()">⚡ IMPORTAR/LEGAJOS</button>
+        <button class="btn" style="background:var(--rojo)" onclick="borradoMasivoSalas()">🗑️ RESET SALAS</button>
+        <button class="btn" style="background:black" onclick="location.href='index.html'">SALIR</button>
+    </div>
+</div>
+
+<div id="mod-salas" class="modulo-salas">
+    <div class="salas-nav">
+        <h3 style="margin:0; color:var(--violeta)">SALA POR TURNO</h3>
+        <select id="sel-turno-sala" style="width:120px" onchange="actualizarModuloSalas()">
+            <option value="manana">Mañana</option><option value="tarde">Tarde</option><option value="vespertino">Vespertino</option>
+        </select>
+        <select id="sel-num-sala" style="width:80px" onchange="actualizarModuloSalas()">
+            <option value="1">Sala 1</option><option value="2">Sala 2</option><option value="3">Sala 3</option><option value="4">Sala 4</option>
+        </select>
+        <button class="tab-btn active" id="btn-orient" onclick="switchModo('orientador')">👤 ORIENTADORES (GRUPAL)</button>
+        <button class="tab-btn" id="btn-terap" onclick="switchModo('terapeuta')">👨‍⚕️ TERAPEUTAS (INDIVIDUAL)</button>
+        <button class="btn" style="background:black; margin-left:auto" onclick="cerrar()">CERRAR MÓDULO</button>
+    </div>
+    <div class="salas-content">
+        <div class="sidebar-pacs" id="sidebar-pacs"></div>
+        <div class="area-carga" id="area-carga"></div>
+    </div>
+</div>
+
+<div class="main-wrapper">
+    <div>
+        <div class="card">
+            <h3 style="margin-top:0">🏠 DISTRIBUCIÓN POR TURNOS</h3>
+            <div class="turno-container">
+                <div class="turno-header" onclick="toggleTurno('manana')">🌅 TURNO MAÑANA <span>▼</span></div>
+                <div id="manana" class="turno-content active"><div class="grid-cet" id="grid-manana"></div></div>
+            </div>
+            <div class="turno-container">
+                <div class="turno-header" onclick="toggleTurno('tarde')">☀️ TURNO TARDE <span>▼</span></div>
+                <div id="tarde" class="turno-content"><div class="grid-cet" id="grid-tarde"></div></div>
+            </div>
+            <div class="turno-container">
+                <div class="turno-header" onclick="toggleTurno('vesp')">🌆 TURNO VESPERTINO <span>▼</span></div>
+                <div id="vesp" class="turno-content"><div class="grid-cet" id="grid-vesp"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <h3>➕ ALTA CONCURRENTE</h3>
+            <input type="text" id="p-nom" placeholder="Nombre Completo">
+            <input type="text" id="p-dni" placeholder="DNI">
+            <label>Nacimiento:</label><input type="date" id="p-nac" onchange="actualizarEdad(this.value, 'p-edad')">
+            <input type="text" id="p-edad" placeholder="Edad" readonly style="background:#eee">
+            <input type="text" id="p-padre" placeholder="Nombre Padre/Tutor">
+            <input type="text" id="p-tel" placeholder="WhatsApp Padre/Tutor">
+            <input type="text" id="p-os" placeholder="Obra Social">
+            <label>Turno y Sala:</label>
+            <div style="display:flex; gap:5px">
+                <select id="p-turno" style="flex:1"><option value="manana">Mañana</option><option value="tarde">Tarde</option><option value="vespertino">Vespertino</option></select>
+                <select id="p-sala" style="flex:1"><option value="1">Sala 1</option><option value="2">Sala 2</option><option value="3">Sala 3</option><option value="4">Sala 4</option></select>
+            </div>
+            <label>CUD Vence:</label><input type="date" id="p-cud">
+            <button class="btn" style="background:var(--verde); width:100%; margin-top:10px" onclick="registrar()">GUARDAR EN SISTEMA</button>
+        </div>
+
+        <div class="card">
+            <h3>📂 FICHERO</h3>
+            <input type="text" id="search" placeholder="Buscar..." onkeyup="renderLista()">
+            <div id="lista-pacs" style="overflow-y:auto; max-height: 250px; margin-top:10px"></div>
+            <hr>
+            <h3>💬 NOTAS INTERNAS</h3>
+            <div class="chat-area" id="chat-box"></div>
+            <div style="display:flex; gap:5px">
+                <input type="text" id="chat-in" placeholder="Escribir nota...">
+                <button class="btn" style="background:var(--azul)" onclick="enviarMsg()">ENVIAR</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="cerrar()"></div>
+
+<div id="modal">
+    <div style="display:flex; gap:15px; align-items:center">
+        <div style="text-align:center">
+            <img id="m-foto" style="width:80px; height:80px; border-radius:50%; object-fit:cover; border:2px solid var(--azul); background:#eee">
+            <input type="file" id="f-foto" style="display:none" onchange="subPre('foto',this)">
+            <button class="btn" style="background:var(--oscuro); font-size:7px; display:block; margin:5px auto" onclick="document.getElementById('f-foto').click()">FOTO</button>
+        </div>
+        <div style="flex:1"><h2 id="m-titulo" style="margin:0"></h2></div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; background:#f1f1f1; padding:10px; border-radius:8px">
+        <div>
+            <label>DNI:</label><input type="text" id="ed-dni">
+            <label>Nacimiento:</label><input type="date" id="ed-nac" onchange="actualizarEdad(this.value, 'ed-edad')">
+            <label>Edad:</label><input type="text" id="ed-edad" readonly style="background:#eee">
+            <label>Padre/Tutor:</label><input type="text" id="ed-padre">
+            <label>AUDITORÍA:</label><select id="ed-audit"><option value="P">P</option><option value="A">A</option><option value="AC">AC</option></select>
+        </div>
+        <div>
+            <label>WhatsApp:</label>
+            <div style="display:flex; gap:2px">
+                <input type="text" id="ed-tel">
+                <button class="btn" style="background:var(--whatsapp)" onclick="window.open('https://wa.me/54'+document.getElementById('ed-tel').value)">📱</button>
+            </div>
+            <label>OS:</label><input type="text" id="ed-os">
+            <label>CUD Vence:</label><input type="date" id="ed-cud">
+            <label>Turno y Sala:</label>
+            <div style="display:flex; gap:2px">
+                <select id="ed-turno"><option value="manana">Mañana</option><option value="tarde">Tarde</option><option value="vespertino">Vespertino</option></select>
+                <select id="ed-sala"><option value="1">Sala 1</option><option value="2">Sala 2</option><option value="3">Sala 3</option><option value="4">Sala 4</option></select>
+            </div>
+        </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px; margin-top:15px" id="f-grid-main"></div>
+    <div style="display:flex; gap:10px; margin-top:15px">
+        <button class="btn" style="background:var(--verde); flex:2" id="btn-save" onclick="guardarCambios()">💾 GUARDAR</button>
+        <button class="btn" style="background:var(--rojo); flex:1" onclick="eliminarPaciente()">🗑️ BORRAR</button>
+    </div>
+</div>
+
+<div id="modal-masivo">
+    <h2 style="color:var(--azul)">⚡ GESTIÓN DE BASE DE DATOS</h2>
+    <div style="background:#eef7ff; padding:15px; border-radius:10px; border:1px solid var(--azul)">
+        <h4 style="margin-top:0">📥 IMPORTAR PACIENTES (EXCEL)</h4>
+        <input type="file" id="excel-file" accept=".xlsx, .xls">
+        <button class="btn" style="background:var(--azul); width:100%; margin-top:10px" onclick="procesarExcel()">🚀 EJECUTAR IMPORTACIÓN</button>
+    </div>
+    <hr style="margin:20px 0">
+    <h4 style="color:var(--rojo)">🗑️ OPCIONES DE LIMPIEZA</h4>
+    <button class="btn" style="background:var(--naranja); width:100%; margin-bottom:10px" onclick="borradoMasivoLegajos()">📄 BORRAR SOLO PDFs / DOCUMENTOS</button>
+    <button class="btn" style="background:var(--rojo); width:100%" onclick="borradoPacientesFichero()">👥 ELIMINAR TODOS LOS PACIENTES (FICHERO)</button>
+    <button class="btn" onclick="cerrar()" style="background:black; width:100%; margin-top:20px">CERRAR VENTANA</button>
+</div>
+
+<div id="panel-fac">
+    <h2>📂 VALIDACIÓN DE ASISTENCIAS</h2>
+    <div id="lista-asistencias-completa"></div>
+    <button class="btn" onclick="cerrar()" style="background:black; width:100%; margin-top:15px">CERRAR</button>
+</div>
+
+<div id="panel-renov">
+    <h2>📄 RENOVACIONES</h2>
+    <div id="lista-renovaciones-completa"></div>
+    <button class="btn" onclick="cerrar()" style="background:black; width:100%; margin-top:15px">CERRAR</button>
+</div>
+
+<script>
+    const firebaseConfig = { apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8", authDomain: "clinicaintegral-5c488.firebaseapp.com", databaseURL: "https://clinicaintegral-5c488-default-rtdb.firebaseio.com", projectId: "clinicaintegral-5c488", storageBucket: "clinicaintegral-5c488.firebasestorage.app", messagingSenderId: "184090967634", appId: "1:184090967634:web:09715937b33ea48288698b" };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database().ref('/cet');
+
+    const legajosDef = [ {id:'asistF', n:'ASISTENCIA', s:'As'}, {id:'infMenF', n:'INF MENSUAL', s:'Im'}, {id:'infoF', n:'INF SEM', s:'Is'}, {id:'pmF', n:'P.M', s:'Pm'}, {id:'rhcF', n:'RHC', s:'Rh'}, {id:'confF', n:'CONF', s:'Cf'}, {id:'iiieF', n:'I.I/I.E', s:'Ii'}, {id:'planF', n:'TRABAJO', s:'Pl'}, {id:'presuF', n:'PRESUPUESTO', s:'Pr'}, {id:'dniDoc', n:'DNI', s:'D'}, {id:'cudDoc', n:'CUD', s:'C'} ];
+    
+    // Variables principales y del módulo
+    let pacs = {}, msgs = {}, nF = "", tempFiles = {};
+    let modoActual = 'orientador', seleccionadoId = null, tallerSeleccionado = 1;
+
+    database.on('value', (s) => {
+        const d = s.val() || {}; pacs = d.pacientes || {}; msgs = d.mensajes || {};
+        renderTableros(); renderLista(); renderChat();
+        if(document.getElementById('mod-salas').style.display === 'flex') actualizarModuloSalas();
+    });
+
+    function cerrar() { 
+        document.querySelectorAll('#modal, #panel-fac, #panel-renov, #overlay, #modal-masivo, #mod-salas').forEach(e=>e.style.display="none"); 
+    }
+
+    function abrirMasivo() { document.getElementById('modal-masivo').style.display='block'; document.getElementById('overlay').style.display='block'; }
+    
+    // CORRECCIÓN 3: Acordeón se minimiza si se toca el mismo
+    function toggleTurno(id) { 
+        const el = document.getElementById(id);
+        const estabaActivo = el.classList.contains('active');
+        document.querySelectorAll('.turno-content').forEach(c => c.classList.remove('active')); 
+        if(!estabaActivo) el.classList.add('active'); 
+    }
+
+    function actualizarEdad(f, id) { 
+        if(!f) return;
+        const hoy = new Date(); const nac = new Date(f); let e = hoy.getFullYear() - nac.getFullYear();
+        if (hoy.getMonth() < nac.getMonth() || (hoy.getMonth() === nac.getMonth() && hoy.getDate() < nac.getDate())) e--; document.getElementById(id).value = e;
+    }
+
+    function renderTableros() {
+        const turnosArr = ['manana', 'tarde', 'vespertino'];
+        const hoy = new Date();
+        turnosArr.forEach(t => {
+            const grid = document.getElementById('grid-' + (t === 'vespertino' ? 'vesp' : t));
+            grid.innerHTML = '<div class="cell h-cell">S1</div><div class="cell h-cell">S2</div><div class="cell h-cell">S3</div><div class="cell h-cell">S4</div>';
+            for(let f=1; f<=10; f++) {
+                for(let s=1; s<=4; s++) {
+                    const n = Object.keys(pacs).find(nom => pacs[nom].turno === t && pacs[nom].sala == s && pacs[nom].fila == f);
+                    let cl = "", txt = "---";
+                    if(n) {
+                        txt = n.split(' ')[0]; cl = "paciente-celda";
+                        const dCud = (new Date(pacs[n].cud) - hoy) / 86400000;
+                        if(dCud <= 30) cl += " vence-30"; else if(dCud <= 60) cl += " vence-60";
+                        if(pacs[n].edad >= 23) cl += " alerta-23";
+                    }
+                    grid.innerHTML += `<div class="cell ${cl}" onclick="abrir('${n||''}')">${txt}</div>`;
+                }
+            }
+        });
+    }
+
+    function abrir(n) { 
+        if(!n || !pacs[n]) return;
+        nF = n; const p = pacs[n]; tempFiles = {}; 
+        document.getElementById('m-titulo').innerText = n; 
+        document.getElementById('ed-dni').value = p.dni||""; 
+        document.getElementById('ed-nac').value = p.nac||"";
+        document.getElementById('ed-edad').value = p.edad||""; 
+        
+        // CORRECCIÓN 1: Agregar Padre, Turno y Sala en Legajo
+        document.getElementById('ed-padre').value = p.padre||""; 
+        document.getElementById('ed-tel').value = p.tel||""; 
+        document.getElementById('ed-os').value = p.os||""; 
+        document.getElementById('ed-cud').value = p.cud||""; 
+        document.getElementById('ed-turno').value = p.turno||"manana"; 
+        document.getElementById('ed-sala').value = p.sala||"1"; 
+        document.getElementById('ed-audit').value = p.audit||"P"; 
+        document.getElementById('m-foto').src = p.foto || ""; 
+        
+        const g = document.getElementById('f-grid-main'); g.innerHTML = "";
+        legajosDef.forEach(l => { 
+            const link = p[l.id + "_link"] || ""; 
+            const tiene = (p[l.id] || link);
+            g.innerHTML += `<div style="background:#f9f9f9; padding:5px; border:1px solid #ddd; text-align:center">
+                <b>${l.n}</b>
+                <div id="st-${l.id}" style="font-size:8px; color:${tiene?'green':'#aaa'}">${tiene?'● CARGADO':'○ VACÍO'}</div>
+                <input type="file" style="font-size:7px" onchange="subPre('${l.id}',this)">
+                <input type="text" placeholder="Drive" value="${link}" onchange="tempFiles['${l.id}_link']=this.value">
+                <button class="btn" style="background:var(--azul); width:100%; margin-top:2px" onclick="verArchP('${l.id}','${n}')">VER ORIGINAL</button>
+            </div>`; 
+        });
+        
+        const asist = chequearEstadoAsistencia(p);
+        let alertaM = document.getElementById('alerta-asistencia-modal');
+        if(!alertaM) {
+            alertaM = document.createElement('div');
+            alertaM.id = 'alerta-asistencia-modal';
+            alertaM.style = "padding:10px; margin-bottom:10px; border-radius:8px; text-align:center; font-weight:bold; color:white;";
+            document.getElementById('m-titulo').before(alertaM);
+        }
+        if(asist.mostrar) { alertaM.style.display = "block"; alertaM.style.background = asist.color; alertaM.innerText = asist.mensaje; } 
+        else { alertaM.style.display = "none"; } 
+
+        document.getElementById('modal').style.display="block"; document.getElementById('overlay').style.display="block"; 
+    }
+
+    async function subirACloudinary(file) {
+        const formData = new FormData();
+        const nombreLimpio = file.name.split('.').slice(0, -1).join('.');
+        formData.append('file', file);
+        formData.append('upload_preset', 'clinic_preset');
+        formData.append('public_id', nombreLimpio);
+        try { const resp = await fetch('https://api.cloudinary.com/v1_1/duscmxxws/auto/upload', { method: 'POST', body: formData }); const data = await resp.json(); return data.secure_url || null; } 
+        catch (e) { return null; }
+    }
+
+    function subPre(t, i) { 
+        if(!i.files[0]) return;
+        tempFiles[t] = i.files[0]; 
+        const st = document.getElementById('st-'+t); 
+        if(st) { st.innerText = "● CARGADO"; st.style.color = "orange"; }
+        if(t === 'foto') { const r = new FileReader(); r.onload = (e) => document.getElementById('m-foto').src = e.target.result; r.readAsDataURL(i.files[0]); }
+    }
+
+    async function guardarCambios() { 
+        if(!nF) return;
+        const btn = document.getElementById('btn-save'); btn.disabled = true; btn.innerText = "⏳ SUBIENDO...";
+        
+        let up = { 
+            dni: document.getElementById('ed-dni').value, 
+            nac: document.getElementById('ed-nac').value, 
+            edad: document.getElementById('ed-edad').value, 
+            padre: document.getElementById('ed-padre').value,
+            tel: document.getElementById('ed-tel').value, 
+            os: document.getElementById('ed-os').value, 
+            cud: document.getElementById('ed-cud').value, 
+            audit: document.getElementById('ed-audit').value,
+            turno: document.getElementById('ed-turno').value,
+            sala: document.getElementById('ed-sala').value
+        };
+
+        // Si cambiamos el turno o sala desde el legajo, busca fila libre nueva
+        if (pacs[nF].turno !== up.turno || String(pacs[nF].sala) !== String(up.sala)) {
+            let filaLibre = 1;
+            for(let i=1; i<=10; i++) { if(!Object.values(pacs).some(p => p.turno === up.turno && p.sala == up.sala && p.fila == i)) { filaLibre = i; break; } }
+            up.fila = filaLibre;
+        }
+
+        for (let key in tempFiles) {
+            if (tempFiles[key] instanceof File) {
+                const url = await subirACloudinary(tempFiles[key]);
+                if (url) { if(key === 'foto') up.foto = url; else up[key + "_link"] = url; }
+            } else { up[key] = tempFiles[key]; }
+        }
+        database.child('pacientes').child(nF).update(up).then(() => { alert("✅ GUARDADO"); btn.disabled = false; btn.innerText = "💾 GUARDAR"; tempFiles = {}; cerrar(); });
+    }
+
+    function verArchP(t, n) {
+        const p = pacs[n] || {};
+        const link = tempFiles[t + "_link"] || p[t + "_link"];
+        const fileObj = tempFiles[t];
+        const oldData = p[t];
+
+        if (!link && !fileObj && !oldData) { alert("Vacío"); return; }
+
+        if (fileObj instanceof File) {
+            window.open(URL.createObjectURL(fileObj), '_blank');
+            return;
+        }
+
+        if (link) {
+            window.open(link.startsWith('http') ? link : 'https://' + link, '_blank');
+        } 
+        else if (oldData) {
+            let w = window.open();
+            w.document.write(`<iframe src="${oldData}" width="100%" height="100%" style="border:none"></iframe>`);
+        }
+    }
+
+    function borradoMasivoLegajos() {
+        if(!confirm("⚠️ ¿BORRAR TODOS LOS PDFs/FOTOS?")) return;
+        if(prompt("Escribe BORRAR:") !== "BORRAR") return;
+        let act = {};
+        Object.keys(pacs).forEach(n => { ['foto', 'asistF', 'infMenF', 'infoF', 'pmF', 'rhcF', 'confF', 'iiieF', 'planF', 'presuF', 'dniDoc', 'cudDoc'].forEach(c => { act[`pacientes/${n}/${c}`] = null; act[`pacientes/${n}/${c}_link`] = null; }); });
+        database.update(act).then(() => { alert("Legajos Limpios"); cerrar(); });
+    }
+
+    function borradoMasivoSalas() {
+        if(confirm("¿Limpiar todos los concurrentes de las salas?")) {
+            database.child('pacientes').once('value', s => { let updates = {}; s.forEach(p => { updates[`pacientes/${p.key}/sala`] = null; updates[`pacientes/${p.key}/fila`] = null; updates[`pacientes/${p.key}/turno`] = null; }); database.update(updates).then(() => { alert("Salas vaciadas"); cerrar(); }); });
+        }
+    }
+
+    function borradoPacientesFichero() {
+        if (!confirm("⚠️ ¿ESTÁS SEGURO? Vas a eliminar a TODOS los pacientes del fichero.")) return;
+        if (prompt("Escribí: BORRAR PACIENTES") === "BORRAR PACIENTES") { database.child('pacientes').set(null).then(() => { alert("✅ Fichero eliminado."); cerrar(); }); }
+    }
+
+    function registrar() {
+        const nom = document.getElementById('p-nom').value.trim(); if(!nom) return;
+        const t = document.getElementById('p-turno').value; const s = document.getElementById('p-sala').value;
+        let filaLibre = 1;
+        for(let i=1; i<=10; i++) { if(!Object.values(pacs).some(p => p.turno === t && p.sala == s && p.fila == i)) { filaLibre = i; break; } }
+        
+        pacs[nom] = { 
+            dni: document.getElementById('p-dni').value, 
+            nac: document.getElementById('p-nac').value, 
+            edad: document.getElementById('p-edad').value, 
+            padre: document.getElementById('p-padre').value,
+            tel: document.getElementById('p-tel').value, 
+            os:document.getElementById('p-os').value, 
+            cud:document.getElementById('p-cud').value, 
+            turno: t, 
+            sala: s, 
+            fila: filaLibre, 
+            audit: 'P' 
+        };
+        database.child('pacientes').set(pacs).then(() => { alert("Guardado en Sala " + s); });
+    }
+
+    function enviarMsg() { const i = document.getElementById('chat-in'); if(!i.value) return; database.child('mensajes').push({ txt: i.value, time: new Date().toLocaleTimeString() }); i.value = ""; }
+    function renderChat() { const b = document.getElementById('chat-box'); b.innerHTML = ""; Object.values(msgs).forEach(m => { b.innerHTML += `<div class="msg"><b>${m.time}:</b> ${m.txt}</div>`; }); b.scrollTop = b.scrollHeight; }
+    function eliminarPaciente() { if(!confirm("¿Borrar definitivamente a " + nF + "?")) return; database.child(`pacientes/${nF}`).set(null).then(() => { alert("Eliminado"); cerrar(); }); }
+
+    function renderLista() {
+        const l = document.getElementById('lista-pacs'); const b = document.getElementById('search').value.toLowerCase(); l.innerHTML = "";
+        let cP=0, cA=0, cAC=0;
+        Object.keys(pacs).sort().forEach(n => {
+            const p = pacs[n]; const est = p.audit || 'P';
+            if(est==='P') cP++; else if(est==='A') cA++; else cAC++;
+            if(n.toLowerCase().includes(b)) {
+                const color = est==='A' ? '#ff4d4d' : (est==='AC' ? '#3498db' : '#2ecc71');
+                const asist = chequearEstadoAsistencia(p); const badge = asist.mostrar ? `<span style="background:${asist.color}; color:white; font-size:7px; padding:1px 3px; border-radius:3px; margin-left:4px">ASIST</span>` : "";
+                l.innerHTML += `<div style="padding:8px; border-bottom:1px solid #eee; cursor:pointer; display:flex; justify-content:space-between; align-items:center" onclick="abrir('${n}')"><span><b>${n}</b> ${badge}</span><span style="background:${color}; color:white; padding:2px 6px; border-radius:10px; font-size:9px; font-weight:bold">${est}</span></div>`;
+            }
+        });
+        let rDiv = document.getElementById('reporte-auditoria');
+        if(!rDiv) { rDiv = document.createElement('div'); rDiv.id = 'reporte-auditoria'; document.getElementById('search').after(rDiv); }
+        rDiv.innerHTML = `<div style="display:flex; justify-content:space-around; background:#eee; padding:8px; border-radius:8px; margin:10px 0; font-size:10px"><span><b style="color:var(--verde)">P:</b> ${cP}</span><span><b style="color:var(--rojo)">A:</b> ${cA}</span><span><b style="color:var(--azul)">AC:</b> ${cAC}</span><span style="border-left:1px solid #ccc; padding-left:5px"><b>Total:</b> ${cP+cA+cAC}</span></div>`;
+    }
+
+    function obtenerUltimoLunesDelMes() { const hoy = new Date(); const ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0); let d = ultimoDia.getDay(); let dif = (d >= 1) ? (d - 1) : 6; ultimoDia.setDate(ultimoDia.getDate() - dif); return ultimoDia; }
+    function chequearEstadoAsistencia(p) {
+        if (p.asistF || p.asistF_link) return { mostrar: false };
+        const hoy = new Date(); const lim = obtenerUltimoLunesDelMes(); const d = Math.ceil((lim - hoy) / 86400000);
+        if (d <= 0) return { mostrar: true, mensaje: "🚨 ASISTENCIA VENCIDA", color: "#ff4d4d" };
+        if (d <= 7) return { mostrar: true, mensaje: "⚠️ ASISTENCIA EN 7 DÍAS", color: "#e67e22" };
+        if (d <= 15) return { mostrar: true, mensaje: "🔔 ASISTENCIA EN 15 DÍAS", color: "#f1c40f" };
+        return { mostrar: false };
+    }
+
+    function abrirPanelFac() { 
+        const c = document.getElementById('lista-asistencias-completa'); c.innerHTML = ""; 
+        Object.keys(pacs).sort().forEach(n => { 
+            const p = pacs[n]; const tieneAsist = (p.asistF || p.asistF_link);
+            c.innerHTML += `<div style="display:grid; grid-template-columns: 1.2fr 1fr 0.8fr 1fr; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center"><b>${n}</b><button class="btn" style="background:${tieneAsist ? 'var(--oscuro)' : '#ccc'}" onclick="verArchP('asistF','${n}')">1. VER ASISTENCIA</button><input type="password" placeholder="Clave" id="pass-${n.replace(/\s/g,'')}" style="width:60px" onkeyup="validarClave('${n}')"><button class="btn" id="btn-desc-${n.replace(/\s/g,'')}" style="background:var(--verde)" disabled onclick="verArchP('asistF','${n}')">3. DESCARGAR</button></div>`; 
+        }); 
+        document.getElementById('panel-fac').style.display="block"; document.getElementById('overlay').style.display="block";
+    }
+    
+    function validarClave(n) { const id = n.replace(/\s/g,''); const pass = document.getElementById('pass-'+id).value; const btn = document.getElementById('btn-desc-'+id); if(pass === "1234") { btn.disabled = false; btn.style.background = "var(--verde)"; } else { btn.disabled = true; } }
+
+    function abrirPanelRenov() { 
+        const c = document.getElementById('lista-renovaciones-completa'); c.innerHTML = ""; const listaPacientes = Object.keys(pacs).sort();
+        c.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; background:#eee; padding:10px; border-radius:8px; margin-bottom:10px"><strong style="font-size:14px">TOTAL: ${listaPacientes.length} LEGAJOS</strong><button class="btn" style="background:var(--verde)" onclick="descargarInformeExcel()">📊 DESCARGAR INFORME EXCEL</button></div>`;
+        listaPacientes.forEach((n, index) => { 
+            let b = ""; legajosDef.forEach(l => { const cargado = (pacs[n][l.id] || pacs[n][l.id+'_link']) ? "cargado" : ""; b += `<button onclick="verArchP('${l.id}','${n}')" title="${l.n}" style="background:${cargado?'var(--azul)':'#ccc'}; border:none; color:white; font-size:7px; width:18px; height:18px; margin:1px">${l.s}</button>`; }); 
+            c.innerHTML += `<div style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee; align-items:center"><span><b>${index + 1}.</b> ${n}</span><div>${b}</div></div>`; 
+        });
+        document.getElementById('panel-renov').style.display="block"; document.getElementById('overlay').style.display="block"; 
+    }
+
+    function descargarInformeExcel() {
+        const data = []; const listaPacientes = Object.keys(pacs).sort();
+        listaPacientes.forEach(n => {
+            const p = pacs[n]; const fila = { "PACIENTE": n, "SALA": p.sala || "S/D", "TURNO": p.turno || "S/D", "PADRE": p.padre || "S/D", "VENCE CUD": p.cud || "SIN FECHA" };
+            legajosDef.forEach(l => { fila[l.n] = (p[l.id] || p[l.id + '_link']) ? "SI" : "FALTA"; });
+            data.push(fila);
+        });
+        const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Control Clínica");
+        XLSX.writeFile(wb, `Informe_General_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
+    }
+
+    // ==========================================
+    // FUNCIONES DEL NUEVO MÓDULO DE SALAS
+    // ==========================================
+    function abrirModuloSalas() { 
+        document.getElementById('mod-salas').style.display = 'flex'; 
+        document.getElementById('overlay').style.display = 'block';
+        actualizarModuloSalas();
+    }
+
+    function switchModo(m) {
+        modoActual = m;
+        document.getElementById('btn-orient').classList.toggle('active', m === 'orientador');
+        document.getElementById('btn-terap').classList.toggle('active', m === 'terapeuta');
+        actualizarModuloSalas();
+    }
+
+    function actualizarModuloSalas() {
+        const t = document.getElementById('sel-turno-sala').value;
+        const s = document.getElementById('sel-num-sala').value;
+        const side = document.getElementById('sidebar-pacs');
+        
+        side.innerHTML = `<h4 style="margin-top:0; color:var(--oscuro)">CONCURRENTES</h4>`;
+        const filtrados = Object.keys(pacs).filter(n => pacs[n].turno === t && String(pacs[n].sala) === String(s)).sort();
+        
+        // CORRECCIÓN 2: Si el niño estaba seleccionado pero ya no pertenece a la sala actual, lo limpiamos
+        if (seleccionadoId && !filtrados.includes(seleccionadoId)) {
+            seleccionadoId = null;
+        }
+
+        filtrados.forEach(n => {
+            const isSelected = seleccionadoId === n;
+            side.innerHTML += `<div class="paciente-item ${isSelected ? 'selected':''}" onclick="seleccionarNiño('${n}')">${n}</div>`;
+        });
+
+        if (modoActual === 'orientador') renderOrientador(t, s); else renderTerapeuta();
+    }
+
+    function seleccionarNiño(n) { 
+        seleccionadoId = n; 
+        actualizarModuloSalas(); 
+    }
+
+    function renderOrientador(t, s) {
+        const area = document.getElementById('area-carga');
+        const salaKey = `SALA_T${t}_S${s}`;
+        area.innerHTML = `
+            <div style="background:#eef7ff; padding:15px; border-radius:10px; margin-bottom:20px; border:1px solid var(--azul)">
+                <h3 style="margin:0; color:var(--azul)">📁 PLANIFICACIONES DE TALLERES (SALA ${s})</h3>
+                <div class="grid-docs">
+                    ${renderDocBoxModulo('TALLER 1', 'plan_t1', salaKey)}
+                    ${renderDocBoxModulo('TALLER 2', 'plan_t2', salaKey)}
+                    ${renderDocBoxModulo('TALLER 3', 'plan_t3', salaKey)}
+                    ${renderDocBoxModulo('TALLER 4', 'plan_t4', salaKey)}
+                </div>
+            </div>
+            <div style="background:white; padding:15px; border-radius:10px; border:1px solid #ddd">
+                <h3 style="margin:0">📑 INFORMES TRIMESTRALES DE SALA</h3>
+                ${seleccionadoId ? `<p>Niño: <b style="color:var(--azul)">${seleccionadoId}</b></p><div class="grid-docs">
+                    ${renderDocBoxModulo('1° TRIM', 'inf_s_t1', seleccionadoId)}
+                    ${renderDocBoxModulo('2° TRIM', 'inf_s_t2', seleccionadoId)}
+                    ${renderDocBoxModulo('3° TRIM', 'inf_s_t3', seleccionadoId)}
+                    ${renderDocBoxModulo('4° TRIM', 'inf_s_t4', seleccionadoId)}
+                </div>` : '<p style="color:red; font-weight:bold; margin-top:10px;">⬅️ Selecciona un niño a la izquierda</p>'}
+            </div>`;
+    }
+
+    function renderTerapeuta() {
+        const area = document.getElementById('area-carga');
+        area.innerHTML = `
+            <div style="margin-bottom:15px; display:flex; gap:5px; align-items:center">
+                <b>SELECCIONAR TALLER:</b>
+                ${[1,2,3,4].map(n => `<button class="btn" style="background:${tallerSeleccionado==n?'var(--violeta)':'#ccc'}; font-size:11px; padding:10px 15px;" onclick="tallerSeleccionado=${n};actualizarModuloSalas()">TALLER ${n}</button>`).join('')}
+            </div>
+            <div style="background:#fff4e6; padding:15px; border-radius:10px; border:1px solid var(--naranja)">
+                <h3 style="margin:0; color:var(--naranja)">👨‍⚕️ EJE TERAPÉUTICO - TALLER ${tallerSeleccionado}</h3>
+                ${seleccionadoId ? `<p>Paciente: <b style="color:var(--oscuro)">${seleccionadoId}</b></p><div class="grid-docs">
+                    ${renderDocBoxModulo('PLAN DE TRABAJO', `t${tallerSeleccionado}_plan`, seleccionadoId)}
+                    ${renderDocBoxModulo('DIAGNÓSTICO', `t${tallerSeleccionado}_diag`, seleccionadoId)}
+                    ${renderDocBoxModulo('INF. TRIMESTRAL', `t${tallerSeleccionado}_trim`, seleccionadoId)}
+                    ${renderDocBoxModulo('INF. ANUAL', `t${tallerSeleccionado}_anual`, seleccionadoId)}
+                    ${renderDocBoxModulo('EXTRA 1', `t${tallerSeleccionado}_ex1`, seleccionadoId)}
+                    ${renderDocBoxModulo('EXTRA 2', `t${tallerSeleccionado}_ex2`, seleccionadoId)}
+                </div>` : '<p style="color:red; font-weight:bold; margin-top:10px;">⬅️ Selecciona un niño a la izquierda</p>'}
+            </div>`;
+    }
+
+    function renderDocBoxModulo(label, id, key) {
+        const url = (pacs[key] && pacs[key][id + "_link"]) ? pacs[key][id + "_link"] : "";
+        return `
+            <div class="doc-box">
+                <b style="font-size:10px">${label}</b>
+                <div style="font-size:8px; font-weight:bold; color:${url?'var(--verde)':'#aaa'}">${url?'● CARGADO':'○ VACÍO'}</div>
+                <input type="file" style="font-size:9px" onchange="subirDocModulo('${id}', '${key}', this)">
+                <input type="text" placeholder="Drive" value="${url}" onchange="guardarLinkModulo('${id}', '${key}', this.value)">
+                ${url ? `<button class="btn" style="background:var(--azul); width:100%; margin-top:5px" onclick="window.open('${url}','_blank')">VER ORIGINAL</button>` : ''}
+            </div>`;
+    }
+
+    async function subirDocModulo(docId, key, input) {
+        if(!input.files[0]) return;
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', 'clinic_preset');
+        formData.append('public_id', file.name.split('.').slice(0, -1).join('.'));
+        try {
+            const resp = await fetch('https://api.cloudinary.com/v1_1/duscmxxws/auto/upload', { method: 'POST', body: formData });
+            const data = await resp.json();
+            if(data.secure_url) guardarLinkModulo(docId, key, data.secure_url);
+        } catch (e) { alert("Error al subir archivo"); }
+    }
+
+    function guardarLinkModulo(docId, key, valor) {
+        let update = {}; update[docId + "_link"] = valor;
+        database.child('pacientes').child(key).update(update);
+    }
+
+    if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(err => console.log("SW error", err)); }); }
+</script>
+</body>
+</html>

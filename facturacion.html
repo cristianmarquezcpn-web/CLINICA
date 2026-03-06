@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Facturación Pro - Clínica Integral</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root { --oscuro: #2c3e50; --azul: #2980b9; --verde: #27ae60; --rojo: #c0392b; --naranja: #f39c12; }
+        body { font-family: 'Segoe UI', sans-serif; background: #eaeff2; margin: 0; padding: 20px; font-size: 12px; }
+        .main-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); max-width: 1600px; margin: auto; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--oscuro); padding-bottom: 10px; margin-bottom: 20px; }
+        
+        .toolbar { background: #f8f9fa; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: center; border: 1px solid #ddd; margin-bottom: 15px; flex-wrap: wrap; }
+        
+        .stats-bar { display: flex; gap: 10px; margin-bottom: 15px; }
+        .stat-btn { flex: 1; padding: 10px; border-radius: 6px; color: white; font-weight: bold; text-align: center; border: none; }
+
+        .btn { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; display: flex; align-items: center; gap: 5px; }
+        .filter-btn { background: #ddd; color: #333; }
+        .filter-btn.active { background: var(--oscuro); color: white; }
+
+        /* Panel de Obras Sociales */
+        #panel-os { background: #edf2f7; border: 1px solid #cbd5e0; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; }
+
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th { background: var(--oscuro); color: white; padding: 10px; text-align: left; position: sticky; top: 0; z-index: 10; }
+        td { padding: 8px; border-bottom: 1px solid #eee; }
+        
+        .input-tab { width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px; }
+        .neto-edit { font-weight: bold; color: var(--azul); text-align: right; }
+        
+        .bg-P { background: var(--verde); color: white; padding: 3px 7px; border-radius: 10px; font-weight: bold; }
+        .bg-A { background: var(--rojo); color: white; padding: 3px 7px; border-radius: 10px; font-weight: bold; }
+        .bg-AC { background: var(--azul); color: white; padding: 3px 7px; border-radius: 10px; font-weight: bold; }
+
+        .no-asistencia { background: #ffebee; color: #c62828; font-size: 10px; font-weight: bold; padding: 2px; border-radius: 3px; display: block; margin-top: 3px; }
+    </style>
+</head>
+<body>
+
+<div class="main-card">
+    <div class="header">
+        <h1 style="margin:0">📊 GESTIÓN DE FACTURACIÓN INTEGRAL</h1>
+        <div style="display:flex; gap:10px">
+            <button class="btn" style="background:var(--naranja)" onclick="toggleOS()">🏢 BASE OBRAS SOCIALES</button>
+            <button class="btn" style="background:var(--rojo)" onclick="location.href='index.html'">SALIR</button>
+        </div>
+    </div>
+
+    <div id="panel-os">
+        <h3>🏢 Registro de Obras Sociales (CUITs)</h3>
+        <div style="display:flex; gap:10px; margin-bottom:10px">
+            <input type="text" id="os-nombre" placeholder="Nombre OS (ej: IOMA)" class="input-tab">
+            <input type="text" id="os-cuit" placeholder="CUIT (sin guiones)" class="input-tab">
+            <button class="btn" style="background:var(--verde)" onclick="guardarOS()">AÑADIR / ACTUALIZAR</button>
+        </div>
+        <div id="lista-os-config" style="display:flex; flex-wrap:wrap; gap:5px"></div>
+    </div>
+
+    <div class="stats-bar" id="stats-panel"></div>
+
+    <div class="toolbar">
+        <button class="btn filter-btn active" onclick="setFiltro('TODOS', this)">TODOS</button>
+        <button class="btn filter-btn" onclick="setFiltro('CET', this)">CET</button>
+        <button class="btn filter-btn" onclick="setFiltro('CD', this)">CD</button>
+        <button class="btn filter-btn" onclick="setFiltro('REHAB', this)">REHAB</button>
+        
+        <input type="text" id="busc" placeholder="🔍 Buscar legajo u obra social..." onkeyup="render()" style="flex-grow:1; padding:8px; border-radius:4px; border:1px solid #ccc">
+        
+        <select id="tipo_comp" style="padding:8px">
+            <option value="006">Factura B (Exento / Cons. Final)</option>
+            <option value="001">Factura A (RI a RI)</option>
+        </select>
+
+        <button class="btn" style="background:#1d6f42" onclick="exportarExcel()">Excel</button>
+        <button class="btn" style="background:var(--azul)" onclick="descargarLoteAFIP()">🚀 GENERAR TXT AFIP</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="mstr" onclick="tgl(this)"></th>
+                <th>PACIENTE / OS</th>
+                <th style="text-align:center">AUDIT.</th>
+                <th>CUIT RECEPTOR</th>
+                <th>CONCEPTO</th>
+                <th style="text-align:right">NETO ($)</th>
+                <th>IVA</th>
+                <th style="text-align:right">TOTAL</th>
+            </tr>
+        </thead>
+        <tbody id="tabla-body"></tbody>
+    </table>
+</div>
+
+<script>
+    // CONFIG FIREBASE
+    const firebaseConfig = {
+        apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8",
+        authDomain: "clinicaintegral-5c488.firebaseapp.com",
+        databaseURL: "https://clinicaintegral-5c488-default-rtdb.firebaseio.com",
+        projectId: "clinicaintegral-5c488",
+        storageBucket: "clinicaintegral-5c488.firebasestorage.app",
+        messagingSenderId: "184090967634",
+        appId: "1:184090967634:web:09715937b33ea48288698b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const VALORES = { "CET": 250000, "CD": 200000, "REHAB": 180000, "SAEI": 120000 };
+    let dataFull = [];
+    let dictOS = {};
+    let filtroModulo = 'TODOS';
+
+    async function cargarTodo() {
+        // 1. Cargar Diccionario de OS de Firebase
+        const osSnap = await db.ref('/config/obras_sociales').once('value');
+        dictOS = osSnap.val() || {};
+        actualizarListaOS();
+
+        // 2. Cargar Pacientes
+        const paths = ['cet', 'cd', 'rehab'];
+        dataFull = [];
+        for(let p of paths) {
+            const s = await db.ref(`/${p}/pacientes`).once('value');
+            const d = s.val() || {};
+            Object.keys(d).forEach(k => dataFull.push({...d[k], id: k, mod: p.toUpperCase()}));
+        }
+        render();
+    }
+
+    function render() {
+        const b = document.getElementById('tabla-body');
+        const search = document.getElementById('busc').value.toLowerCase();
+        b.innerHTML = "";
+        let pCount=0, aCount=0, acCount=0;
+
+        dataFull.sort((x,y)=>x.id.localeCompare(y.id)).forEach(p => {
+            const osName = (p.os || "").toUpperCase().trim();
+            if(filtroModulo !== 'TODOS' && p.mod !== filtroModulo) return;
+            if(search && !p.id.toLowerCase().includes(search) && !osName.toLowerCase().includes(search)) return;
+
+            // Conteos para stats
+            if(p.audit === 'P') pCount++; else if(p.audit === 'A') aCount++; else acCount++;
+
+            // Validación de asistencia
+            const tieneAsistencia = p.asistF || p.asistF_link;
+            const cuitSugerido = dictOS[osName] || p.dni || "";
+            const netoDef = (VALORES[p.pres === "SAEI" ? "SAEI" : p.mod] || 0) * (p.pres === "SAEI" ? 2 : 1);
+
+            const tr = document.createElement('tr');
+            if(!tieneAsistencia) tr.style.background = "#fff5f5";
+
+            tr.innerHTML = `
+                <td>
+                    <input type="checkbox" class="ck" data-id="${p.id}" data-mod="${p.mod.toLowerCase()}" ${(!tieneAsistencia || p.facturado==='SI') ? 'disabled' : ''}>
+                    ${!tieneAsistencia ? '<span class="no-asistencia">SIN ASIST.</span>' : ''}
+                </td>
+                <td><b>${p.id}</b><br><small>${p.mod} | ${osName || 'S/D'}</small></td>
+                <td style="text-align:center"><span class="bg-${p.audit || 'P'}">${p.audit || 'P'}</span></td>
+                <td><input type="text" class="input-tab cuit-val" value="${cuitSugerido}"></td>
+                <td><input type="text" class="input-tab conc-val" value="Prestación ${p.mod} - ${p.id}"></td>
+                <td><input type="number" class="input-tab neto-edit" value="${netoDef}" oninput="calc(this)"></td>
+                <td>
+                    <select class="input-tab ali-val" onchange="calc(this)">
+                        <option value="0" selected>Exento</option>
+                        <option value="0.21">21%</option>
+                        <option value="0.105">10.5%</option>
+                    </select>
+                </td>
+                <td style="text-align:right; font-weight:bold" class="row-total">$${netoDef.toLocaleString()}</td>
+            `;
+            b.appendChild(tr);
+        });
+
+        document.getElementById('stats-panel').innerHTML = `
+            <div class="stat-btn" style="background:var(--verde)">P: ${pCount}</div>
+            <div class="stat-btn" style="background:var(--rojo)">A: ${aCount}</div>
+            <div class="stat-btn" style="background:var(--azul)">AC: ${acCount}</div>
+        `;
+    }
+
+    // --- FUNCIONES DE OBRAS SOCIALES ---
+    function toggleOS() { 
+        const p = document.getElementById('panel-os');
+        p.style.display = p.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function guardarOS() {
+        const n = document.getElementById('os-nombre').value.toUpperCase().trim();
+        const c = document.getElementById('os-cuit').value.trim();
+        if(!n || !c) return alert("Completar ambos campos");
+        await db.ref('/config/obras_sociales').child(n).set(c);
+        document.getElementById('os-nombre').value = "";
+        document.getElementById('os-cuit').value = "";
+        cargarTodo();
+    }
+
+    function actualizarListaOS() {
+        const cont = document.getElementById('lista-os-config');
+        cont.innerHTML = "";
+        Object.keys(dictOS).forEach(k => {
+            cont.innerHTML += `<span style="background:#cbd5e0; padding:3px 8px; border-radius:4px; font-size:10px">
+                ${k}: ${dictOS[k]} <button onclick="borrarOS('${k}')" style="border:none; cursor:pointer">×</button>
+            </span>`;
+        });
+    }
+
+    async function borrarOS(k) {
+        await db.ref('/config/obras_sociales').child(k).remove();
+        cargarTodo();
+    }
+
+    // --- LÓGICA DE FACTURACIÓN ---
+    function calc(el) {
+        const f = el.closest('tr');
+        const n = parseFloat(f.querySelector('.neto-edit').value) || 0;
+        const a = parseFloat(f.querySelector('.ali-val').value);
+        f.querySelector('.row-total').innerText = "$" + (n * (1 + a)).toLocaleString();
+    }
+
+    function setFiltro(m, btn) {
+        filtroModulo = m;
+        document.querySelectorAll('.filter-btn').forEach(x => x.classList.remove('active'));
+        btn.classList.add('active');
+        render();
+    }
+
+    function tgl(m) { document.querySelectorAll('.ck:not([disabled])').forEach(x => x.checked = m.checked); }
+
+    async function descargarLoteAFIP() {
+        const sel = document.querySelectorAll('.ck:checked');
+        if(sel.length === 0) return alert("No hay legajos seleccionables o con asistencia cargada.");
+
+        let cab = "", det = "";
+        const fecha = new Date().toISOString().split('T')[0].replace(/-/g,'');
+        const pv = "00001";
+        const tipo = document.getElementById('tipo_comp').value;
+
+        for(let i=0; i < sel.length; i++) {
+            const f = sel[i].closest('tr');
+            const cuit = f.querySelector('.cuit-val').value.replace(/\D/g,'').padStart(11,'0');
+            const neto = parseFloat(f.querySelector('.neto-edit').value);
+            const aliVal = f.querySelector('.ali-val').value;
+            const total = neto * (1 + parseFloat(aliVal));
+            const nro = String(i + 1).padStart(8,'0');
+
+            cab += `${tipo}${fecha}${pv}${nro}${cuit}${total.toFixed(2).replace('.','').padStart(15,'0')}\n`;
+            const codAli = aliVal === "0.21" ? "5" : (aliVal === "0.105" ? "4" : "3");
+            det += `${tipo}${pv}${nro}${neto.toFixed(2).replace('.','').padStart(15,'0')}${codAli}\n`;
+
+            await db.ref(`/${sel[i].dataset.mod}/pacientes/${sel[i].dataset.id}`).update({ facturado: "SI" });
+        }
+        desc(cab, `AFIP_CABECERA_${fecha}.txt`);
+        desc(det, `AFIP_DETALLE_${fecha}.txt`);
+        cargarTodo();
+    }
+
+    function desc(c, n) {
+        const blob = new Blob([c], {type: 'text/plain'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = n;
+        a.click();
+    }
+
+    function exportarExcel() {
+        const rows = dataFull.filter(p => filtroModulo === 'TODOS' || p.mod === filtroModulo).map(p => ({
+            Paciente: p.id,
+            Modulo: p.mod,
+            ObraSocial: p.os,
+            Audit: p.audit,
+            Asistencia: (p.asistF || p.asistF_link) ? 'OK' : 'FALTA',
+            Facturado: p.facturado || 'NO'
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Facturación");
+        XLSX.writeFile(wb, `Reporte_Facturacion_${filtroModulo}.xlsx`);
+    }
+
+    window.onload = cargarTodo;
+</script>
+</body>
+</html>
