@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Facturación Pro - Clínica Integral</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <style>
+        :root { --oscuro: #2c3e50; --azul: #2980b9; --verde: #27ae60; --rojo: #c0392b; --naranja: #f39c12; --violeta: #8e44ad; --gris: #7f8c8d; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding: 20px; font-size: 11px; }
+        .main-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 100%; margin: auto; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+        .config-bar { background: #eef2f7; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; gap: 10px; align-items: flex-end; border: 1px solid #d1d9e6; }
+        
+        .panel-flotante { display:none; background:#fff; border:2px solid var(--azul); padding:15px; margin-bottom:20px; border-radius:8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+
+        table { width: 100%; border-collapse: collapse; background: white; table-layout: fixed; }
+        th { background: #f8f9fa; color: var(--oscuro); padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6; font-size: 10px; }
+        td { padding: 8px; border-bottom: 1px solid #eee; overflow: visible; vertical-align: top; }
+        
+        .input-tab { padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; width: 100%; box-sizing: border-box; }
+        
+        .det-val { transition: all 0.2s ease; height: 28px; resize: none; overflow: hidden; }
+        .det-val:focus { position: absolute; width: 350px; height: 80px; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border-color: var(--azul); outline: none; }
+
+        .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; display: inline-flex; align-items: center; gap: 5px; }
+        .row-facturada { background-color: #f8f9fa !important; color: #adb5bd; }
+        .nc-box { background: #fff4e5; border: 1px solid #ffd591; padding: 5px; border-radius: 4px; margin-top: 5px; font-size: 9px; }
+        
+        .os-item { display: flex; justify-content: space-between; padding: 5px; border-bottom: 1px solid #eee; align-items: center; }
+    </style>
+</head>
+<body>
+
+<div class="main-card">
+    <div class="header">
+        <h2 style="margin:0; color:var(--oscuro)">🚀 PANEL DE FACTURACIÓN CLÍNICA</h2>
+        <div style="display:flex; gap:10px">
+            <button class="btn" style="background:var(--violeta)" onclick="toggleArchivo()">📚 ARCHIVO</button>
+            <button class="btn" style="background:var(--naranja)" onclick="toggleOS()">🏢 OBRAS SOCIALES</button>
+            <button class="btn" style="background:var(--rojo)" onclick="location.href='index.html'">SALIR</button>
+	    <button onclick="refacturarTodoElModulo('REHAB')">Refacturar Todo Rehab</button>
+        </div>
+    </div>
+
+    <div id="panel-os" class="panel-flotante">
+        <h3>Gestión de Obras Sociales / Clientes</h3>
+        <div style="display:grid; grid-template-columns: 2fr 1fr 2fr 1.5fr auto; gap:10px; margin-bottom:15px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
+            <input type="text" id="os-nombre" placeholder="Nombre / Razón Social" class="input-tab">
+            <input type="text" id="os-cuit" placeholder="CUIT" class="input-tab">
+            <input type="text" id="os-dom" placeholder="Domicilio" class="input-tab">
+            <select id="os-iva" class="input-tab">
+                <option value="IVA Responsable Inscripto">Responsable Inscripto</option>
+                <option value="IVA Sujeto Exento">Exento</option>
+                <option value="Consumidor Final">Consumidor Final</option>
+                <option value="Responsable Monotributo">Monotributo</option>
+            </select>
+            <button class="btn" style="background:var(--verde)" onclick="guardarOS()">💾 GUARDAR</button>
+        </div>
+        <div id="lista-os" style="max-height: 200px; overflow-y: auto; border-top: 1px solid #ddd; padding-top: 10px;"></div>
+    </div>
+<div id="panel-archivo" class="panel-flotante" style="width: 95%; max-width: 1100px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin:0;">📚 Archivo de Comprobantes</h3>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="month" id="mes_filtro_archivo" class="input-tab" style="width: 150px;">
+                <button class="btn" style="background:var(--azul)" onclick="window.cargarArchivo()">🔍 BUSCAR</button>
+                <button class="btn" style="background:var(--verde)" onclick="window.exportarExcel()">📊 EXCEL</button>
+                <button class="btn" style="background:var(--rojo)" onclick="toggleArchivo()">✖</button>
+            </div>
+        </div>
+
+        <div id="resumen-mensual" style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+            <div style="background:#e3f2fd; padding:10px; border-radius:5px; border:1px solid #2196f3; flex:1; min-width:140px;">
+                <small>TOTAL CD</small><br><b id="tot-cd">$ 0,00</b>
+            </div>
+            <div style="background:#f1f8e9; padding:10px; border-radius:5px; border:1px solid #4caf50; flex:1; min-width:140px;">
+                <small>TOTAL CET</small><br><b id="tot-cet">$ 0,00</b>
+            </div>
+            <div style="background:#fff3e0; padding:10px; border-radius:5px; border:1px solid #ff9800; flex:1; min-width:140px;">
+                <small>TOTAL REHAB.</small><br><b id="tot-rehab">$ 0,00</b>
+            </div>
+            <div style="background:#eceff1; padding:10px; border-radius:5px; border:1px solid #607d8b; flex:1; min-width:140px;">
+                <small>TOTAL GENERAL</small><br><b id="tot-general">$ 0,00</b>
+            </div>
+        </div>
+
+        <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd;">
+            <table class="tabla-archivo">
+                <thead>
+                    <tr style="position: sticky; top: 0; background: #eee; z-index: 10;">
+                        <th style="width:80px">FECHA</th>
+                        <th style="width:120px">COMPROBANTE</th>
+                        <th style="width:110px">CAE</th>
+                        <th>RECEPTOR</th>
+                        <th style="width:110px">TOTAL</th>
+                        <th style="width:60px">VER</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla_archivo_body">
+                    <tr><td colspan="6" style="text-align:center; padding:20px;">Seleccioná un mes y hacé clic en Buscar.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div id="panel-archivo" class="panel-flotante">
+        <h3>Historial de Envíos</h3>
+        <div id="lista-archivo">No hay datos registrados.</div>
+    </div>
+
+    <div class="config-bar">
+        <div style="width:70px"><label>P.Venta</label><input type="number" id="punto_vta" value="5" class="input-tab"></div>
+        <div><label>Desde</label><input type="date" id="per_desde" class="input-tab"></div>
+        <div><label>Hasta</label><input type="date" id="per_hasta" class="input-tab"></div>
+        <div><label>Vencimiento</label><input type="date" id="vto_pago" class="input-tab"></div>
+        <div style="width:130px"><label>Condición Pago</label>
+            <select id="cond_venta" class="input-tab">
+                <option value="Cuenta Corriente">Cuenta Corriente</option>
+                <option value="Contado">Contado</option>
+            </select>
+        </div>
+        <button class="btn" style="background:var(--azul); padding: 10px 20px; margin-left:auto" onclick="enviarAFIP_WS()">🚀 FACTURAR SELECCIONADOS</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width:45px"><input type="checkbox" onclick="tgl(this)"></th>
+                <th style="width:120px">PACIENTE</th>
+                <th style="width:105px">TIPO COMP.</th>
+                <th style="width:105px">CUIT</th>
+                <th style="width:150px">RAZÓN SOCIAL</th>
+                <th style="width:150px">DOMICILIO</th>
+                <th style="width:200px">DETALLE</th>
+                <th style="width:85px">NETO ($)</th>
+                <th style="width:85px">IVA</th>
+                <th style="width:100px; text-align:right">TOTAL</th>
+            </tr>
+        </thead>
+        <tbody id="tabla-body"></tbody>
+    </table>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8",
+        authDomain: "clinicaintegral-5c488.firebaseapp.com",
+        databaseURL: "https://clinicaintegral-5c488-default-rtdb.firebaseio.com",
+        projectId: "clinicaintegral-5c488",
+        storageBucket: "clinicaintegral-5c488.firebasestorage.app",
+        messagingSenderId: "184090967634",
+        appId: "1:184090967634:web:09715937b33ea48288698b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const VALORES = { "CET": 250000, "CD": 200000, "REHAB": 180000, "SAEI": 120000 };
+    let dataFull = [];
+    let dictOS = {};
+window.autocompletarPorCuit = function(el) {
+    const tr = el.closest('tr');
+    const cuitIngresado = el.value.replace(/\D/g, '').trim(); 
+    
+    if (cuitIngresado.length < 11) return; 
+
+    const nombreEncontrado = Object.keys(dictOS).find(key => {
+        const os = dictOS[key];
+        return os.cuit && os.cuit.replace(/\D/g, '') === cuitIngresado;
+    });
+
+    if (nombreEncontrado) {
+        const info = dictOS[nombreEncontrado];
+        tr.querySelector('.rs-val').value = nombreEncontrado;
+        tr.querySelector('.dom-val').value = info.domicilio || "";
+        
+        // Extracción inteligente de IVA desde el diccionario
+        const ivaOS = (info.condicion_iva || "").toUpperCase();
+        tr.querySelector('.iva-val').innerText = ivaOS || "EXENTO";
+        
+        if (ivaOS.includes("RI") || ivaOS.includes("RESPONSABLE INSCRIPTO")) {
+            tr.querySelector('.sel-tipo').value = "1"; // Factura A
+        } else {
+            tr.querySelector('.sel-tipo').value = "6"; // Factura B
+        }
+        
+        el.style.backgroundColor = "#e8f5e9";
+        setTimeout(() => el.style.backgroundColor = "white", 500);
+    }
+};
+    
+// --- OBRAS SOCIALES ---
+window.guardarOS = async function() {
+    const nombre = document.getElementById('os-nombre').value.toUpperCase().trim();
+    const cuit = document.getElementById('os-cuit').value.trim();
+    const dom = document.getElementById('os-dom').value.trim();
+    const iva = document.getElementById('os-iva').value;
+    if(!nombre || !cuit) return alert("Nombre y CUIT requeridos");
+    await db.ref('/config/obras_sociales/' + nombre).set({ cuit, domicilio: dom, condicion_iva: iva });
+    alert("Guardado");
+    document.getElementById('os-nombre').value = "";
+    window.cargarTodo();
+};
+
+window.borrarOS = async function(nombre) {
+    if(confirm(`¿Borrar ${nombre}?`)) {
+        await db.ref('/config/obras_sociales/' + nombre).remove();
+        window.cargarTodo();
+    }
+};
+
+// --- REFACTURAR ---
+window.refacturar = async (mod, id) => {
+    if(confirm(`¿Desbloquear a ${id} para volver a facturar?`)) {
+        await db.ref(`/${mod.toLowerCase()}/pacientes/${id}`).update({ facturado: 'NO' });
+        window.cargarTodo();
+    }
+};
+
+// --- REFACTURAR (DESBLOQUEO) ---
+window.refacturar = async (mod, id) => {
+    // mod: 'cd', 'cet' o 'rehab'
+    // id: el ID o CUIT del paciente
+    if(confirm(`¿Desbloquear a ${id} para volver a facturar este mes?`)) {
+        try {
+            // Ponemos el estado en NO para que vuelva a aparecer en la lista de pendientes
+            await db.ref(`/${mod.toLowerCase()}/pacientes/${id}`).update({ facturado: 'NO' });
+            alert("Paciente desbloqueado. Ya podés volver a seleccionarlo.");
+            cargarTodo();
+        } catch (e) {
+            alert("Error al intentar desbloquear. Revisá la conexión.");
+        }
+    }
+};
+
+    window.toggleArchivo = () => { const p = document.getElementById('panel-archivo'); p.style.display = p.style.display==='block'?'none':'block'; };
+    window.toggleOS = () => { const p = document.getElementById('panel-os'); p.style.display = p.style.display==='block'?'none':'block'; };
+
+    window.gestionarNC = function(select) {
+        const tr = select.closest('tr');
+        const esNC = (select.value == "3" || select.value == "8");
+        let box = tr.querySelector('.nc-box');
+        if (esNC && !box) {
+            box = document.createElement('div');
+            box.className = 'nc-box';
+            box.innerHTML = `<b>ASOC:</b> PV: <input type="text" class="asoc-pv" value="00005" style="width:30px"> 
+                             Nro: <input type="text" class="asoc-nro" style="width:50px"> 
+                             F: <input type="date" class="asoc-fecha" style="width:85px">`;
+            select.parentNode.appendChild(box);
+        } else if (!esNC && box) box.remove();
+    };
+
+    window.recalcular = (el) => {
+        const tr = el.closest('tr');
+        const neto = parseFloat(tr.querySelector('.neto-edit').value) || 0;
+        const ali = parseFloat(tr.querySelector('.sel-ali').value) || 0;
+        tr.querySelector('.total-row').innerText = `$${(neto * (1 + ali/100)).toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+    };
+   window.cargarTodo = async () => {
+    const tablaBod = document.getElementById('tabla-body'); // El ID que usa tu render
+    if (!tablaBod) return;
+    
+    tablaBod.innerHTML = '<tr><td colspan="10" style="text-align:center;">Cargando pacientes y convenios...</td></tr>';
+
+    try {
+        const [snapFacturas, snapCD, snapCET, snapRehab, snapOS] = await Promise.all([
+            db.ref('facturas_emitidas').once('value'),
+            db.ref('cd/pacientes').once('value'),
+            db.ref('cet/pacientes').once('value'),
+            db.ref('rehab/pacientes').once('value'),
+            db.ref('/config/obras_sociales').once('value')
+        ]);
+
+        // 1. Llenamos el diccionario global para que render() lo vea
+        dictOS = snapOS.val() || {};
+        
+        const facturas = snapFacturas.val() || {};
+        const modulos = { 
+            'CD': snapCD.val() || {}, 
+            'CET': snapCET.val() || {}, 
+            'REHAB': snapRehab.val() || {} 
+        };
+
+        // 2. Limpiamos y llenamos dataFull
+        dataFull = [];
+        for (const [nombreMod, pacientes] of Object.entries(modulos)) {
+            for (const idPac in pacientes) {
+                const p = pacientes[idPac];
+                
+                // Buscamos si ya tiene factura en este mes (o la última)
+                const ultFact = Object.values(facturas)
+                                .reverse()
+                                .find(f => f.id_paciente === idPac);
+
+                dataFull.push({
+                    ...p,
+                    id: idPac,
+                    mod: nombreMod,
+                    ultima_factura: ultFact,
+                    facturado: p.facturado || 'NO'
+                });
+            }
+        }
+
+        // 3. LLAMAMOS AL RENDER (Esto es lo que te faltaba)
+        render();
+
+        // 4. Actualizamos la lista visual de Obras Sociales en el panel
+        const listaOS = document.getElementById('lista-os');
+        if(listaOS) {
+            let htmlOS = "<ul>";
+            for (let nombre in dictOS) {
+                htmlOS += `<li>${nombre} (${dictOS[nombre].cuit}) <button onclick="borrarOS('${nombre}')">❌</button></li>`;
+            }
+            listaOS.innerHTML = htmlOS + "</ul>";
+        }
+
+    } catch (e) {
+        console.error("Error groso:", e);
+        tablaBod.innerHTML = "<tr><td colspan='10'>Error al cargar datos. Mirá la consola.</td></tr>";
+    }
+};
+    function render() {
+
+    const b = document.getElementById('tabla-body');
+    if (!b) return;
+    b.innerHTML = "";
+
+    dataFull.sort((x,y)=>x.id.localeCompare(y.id)).forEach(p => {
+        const facturado = p.facturado === 'SI';
+        const tieneAsist = p.asistF_link && p.asistF_link.length > 5;
+        
+        const osOriginal = (p.os || "").toUpperCase().trim();
+        const cuitPaciente = p.cuit || p.dni || "";
+        
+        // 1. Búsqueda inteligente en el diccionario
+        let infoOS = dictOS[osOriginal];
+        if (!infoOS) {
+            const keyOS = Object.keys(dictOS).find(k => dictOS[k].cuit === cuitPaciente);
+            if(keyOS) infoOS = dictOS[keyOS];
+        }
+        infoOS = infoOS || {};
+
+        // 2. IVA Jerárquico real (sin forzar Consumidor Final de entrada)
+        let condicionIva = infoOS.condicion_iva || p.condicion_iva || p.iva || "";
+        condicionIva = condicionIva.toUpperCase();
+        if (!condicionIva) condicionIva = "CONSUMIDOR FINAL";
+
+        const rsFinal = facturado && p.ultima_factura ? p.ultima_factura.nombre : (infoOS.razon_social || infoOS.nombre || osOriginal);
+        const cuitFinal = facturado && p.ultima_factura ? p.ultima_factura.cuit : (infoOS.cuit || cuitPaciente);
+        const domFinal = facturado && p.ultima_factura ? p.ultima_factura.domicilio : (infoOS.domicilio || 'SAN JUAN');
+        const netoFinal = facturado && p.ultima_factura ? p.ultima_factura.total_facturado : (VALORES[p.pres === "SAEI" ? "SAEI" : p.mod] || 0);
+
+        // 3. Selección estricta A/B por IVA
+        let tipoComp = 6; 
+        if (condicionIva.includes("RI") || condicionIva.includes("RESPONSABLE INSCRIPTO")) {
+            tipoComp = 1; 
+        }
+        if (p.ultima_factura && p.ultima_factura.tipo_cod) {
+            tipoComp = parseInt(p.ultima_factura.tipo_cod);
+        }
+
+        const tr = document.createElement('tr');
+        if(facturado) tr.className = "row-facturada";
+
+        // Módulo extraído de la base de datos (p.mod)
+        let colAccion = `<input type="checkbox" class="ck" data-id="${p.id}" data-mod="${p.mod}" ${(facturado || !tieneAsist) ? 'disabled' : ''}>`;
+        if (facturado) {
+            const idDoc = p.ultima_factura?.id || p.id;
+            colAccion += `<div style="margin-top:5px; display:flex; flex-direction:column; gap:2px;">
+                <button class="btn" style="background:var(--verde); font-size:8px; padding:2px;" onclick="window.descargarFactura('${idDoc}')">PDF</button>
+                <button class="btn" style="background:var(--rojo); font-size:8px; padding:2px;" onclick="window.refacturar('${p.mod}', '${p.id}')">REFACT</button>
+            </div>`;
+        } else if (!tieneAsist) {
+            colAccion += `<br><span style="color:red; font-size:8px; font-weight:bold;">SIN ASISTENCIA</span>`;
+        }
+
+        const esNC = (tipoComp === 3 || tipoComp === 8);
+        const ncHtml = esNC ? `
+            <div class="nc-box">
+                <b>ASOC:</b> PV: <input type="text" class="asoc-pv" value="${p.ultima_factura?.asoc_pv || '00005'}" style="width:30px" disabled> 
+                Nro: <input type="text" class="asoc-nro" value="${p.ultima_factura?.asoc_nro || ''}" style="width:50px" disabled> 
+                F: <input type="text" class="asoc-fecha" value="${p.ultima_factura?.asoc_fecha || ''}" style="width:85px" disabled>
+            </div>` : '';
+
+        tr.innerHTML = `
+            <td style="text-align:center">${colAccion}</td>
+            <td><small>${p.mod}</small><br><b>${p.id}</b></td>
+            
+            <td style="display:none" class="iva-val">${condicionIva}</td>
+
+            <td>
+                <select class="input-tab sel-tipo" onchange="window.gestionarNC(this)" ${facturado?'disabled':''}>
+                    <option value="6" ${tipoComp === 6 ? 'selected' : ''}>Factura B</option>
+                    <option value="1" ${tipoComp === 1 ? 'selected' : ''}>Factura A</option>
+                    <option value="8" ${tipoComp === 8 ? 'selected' : ''}>Nota Crédito B</option>
+                    <option value="3" ${tipoComp === 3 ? 'selected' : ''}>Nota Crédito A</option>
+                </select>
+                ${ncHtml}
+            </td>
+            <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" oninput="window.autocompletarPorCuit(this)" ${facturado?'disabled':''}></td>
+            <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
+            <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
+            <td><textarea class="input-tab det-val" ${facturado?'disabled':''}>${facturado && p.ultima_factura ? p.ultima_factura.concepto : `PRESTACIÓN MÓDULO ${p.mod} - ${p.id}`}</textarea></td>
+            <td><input type="number" class="input-tab neto-edit" value="${netoFinal}" oninput="window.recalcular(this)" ${facturado?'disabled':''}></td>
+            <td>
+                <select class="input-tab sel-ali" onchange="window.recalcular(this)" ${facturado?'disabled':''}>
+                    <option value="0" ${p.ultima_factura?.alicuota == 0 ? 'selected' : ''}>Exento</option>
+                    <option value="10.5" ${p.ultima_factura?.alicuota == 10.5 ? 'selected' : ''}>10.5%</option>
+                    <option value="21" ${p.ultima_factura?.alicuota == 21 ? 'selected' : ''}>21%</option>
+                </select>
+            </td>
+            <td style="text-align:right; font-weight:bold" class="total-row">$${parseFloat(netoFinal).toLocaleString('es-AR')}</td>
+        `;
+        b.appendChild(tr);
+    });
+}
+async function enviarAFIP_WS() {
+    const seleccionados = document.querySelectorAll('.ck:checked');
+    if (seleccionados.length === 0) return alert("Selecciona pacientes");
+    
+    const ptoVta = parseInt(document.getElementById('punto_vta').value) || 5;
+    const fDesde = document.getElementById('per_desde').value; // Mantenemos el guion para que el motor limpie
+    const fHasta = document.getElementById('per_hasta').value;
+    const fVto = document.getElementById('vto_pago').value;
+    const condVenta = document.getElementById('cond_venta').value || "Cuenta Corriente";
+
+    for (let ck of seleccionados) {
+        const fila = ck.closest('tr');
+        
+        fila.classList.add('row-facturada'); 
+        fila.querySelectorAll('input, select, textarea').forEach(el => el.disabled = true);
+        ck.checked = false; 
+
+        const tipo = parseInt(fila.querySelector('.sel-tipo').value);
+        const ivaReal = fila.querySelector('.iva-val').innerText; 
+
+        const pedido = {
+            id_paciente: ck.dataset.id,
+            modulo: ck.dataset.mod,
+            razon_social: fila.querySelector('.rs-val').value,
+            cuit: fila.querySelector('.cuit-val').value.replace(/\D/g, ''),
+            domicilio: fila.querySelector('.dom-val').value,
+            tipo: tipo,
+            descripcion: fila.querySelector('.det-val').value,
+            total: parseFloat(fila.querySelector('.neto-edit').value) || 0,
+            alicuota: parseFloat(fila.querySelector('.sel-ali').value) || 0,
+            ptoVta: ptoVta,
+            // Nombres estandarizados para el motor:
+            periodo_desde: fDesde, 
+            periodo_hasta: fHasta,
+            vto_pago: fVto,
+            condicion_venta: condVenta,
+            condicion_iva: ivaReal,
+            estado: 'PENDIENTE',
+            fecha_peticion: new Date().toISOString()
+        };
+
+        // --- LÓGICA DE NOTA DE CRÉDITO ---
+        if (tipo === 3 || tipo === 8) {
+            // Buscamos los inputs de comprobante asociado que deben estar en la fila
+            const tipoAsoc = (tipo === 8) ? 6 : 1; // Si es NC B (8) asocia a Factura B (6)
+            const pvAsoc = parseInt(fila.querySelector('.asoc-pv')?.value) || ptoVta;
+            const nroAsoc = fila.querySelector('.asoc-nro')?.value || "";
+
+            if (!nroAsoc) {
+                console.warn("⚠️ NC sin número asociado para: " + pedido.razon_social);
+            }
+
+            pedido.tipo_asoc = tipoAsoc;
+            pedido.pv_asoc = pvAsoc;
+            pedido.nro_asoc = nroAsoc; // Ejemplo: "00005-00000001" o solo "1"
+        }
+
+        await db.ref('/cola_facturacion').push(pedido);
+    }
+    alert("🚀 Enviado a la cola. El motor procesará las facturas y notas de crédito.");
+}
+function procesarFacturaAprobada(respuestaAfip, datosPedido) {
+    const nuevaFacturaKey = db.ref().child('facturas_emitidas').push().key;
+    const fechaHoy = new Date().toLocaleDateString('es-AR');
+
+    // IMPORTANTE: Mapeamos los campos EXACTOS que enviamos en el pedido
+    const facturaLegal = {
+        id: nuevaFacturaKey,
+        nro_comp: respuestaAfip.nro_comp || respuestaAfip.CbteDesde, 
+        punto_venta: respuestaAfip.punto_venta || 5,
+        cae: respuestaAfip.cae || respuestaAfip.CAE,
+        cae_vto: respuestaAfip.cae_vto || respuestaAfip.CAEFchVto,
+        fecha_emision: fechaHoy, 
+        tipo_cod: String(datosPedido.tipo).padStart(3, '0'),
+        
+        // PERÍODOS Y VENCIMIENTO (Sincronizado con enviarAFIP_WS)
+        desde: datosPedido.periodo_desde || "", 
+        hasta: datosPedido.periodo_hasta || "", 
+        vto_pago: datosPedido.vto_pago || "", 
+        
+        // DATOS DE NOTA DE CRÉDITO (Si existen)
+        asoc_pv: datosPedido.pv_asoc || "",
+        asoc_nro: datosPedido.nro_asoc || "",
+        
+        // DATOS COMERCIALES
+        concepto: datosPedido.descripcion || "", 
+        total_facturado: parseFloat(datosPedido.total) || 0,
+        alicuota: datosPedido.alicuota || 0,
+        nombre: (datosPedido.razon_social || "").toUpperCase(),
+        cuit: datosPedido.cuit || "",
+        domicilio: datosPedido.domicilio || "",
+        condicion_iva: datosPedido.condicion_iva || "EXENTO",
+        condicion_venta: datosPedido.condicion_venta || "CUENTA CORRIENTE",
+        id_paciente: datosPedido.id_paciente,
+        modulo: datosPedido.modulo 
+    };
+
+    let updates = {};
+    const moduloPath = (datosPedido.modulo || "otros").toLowerCase();
+
+    // 1. Guardar en el archivo general
+    updates['/facturas_emitidas/' + nuevaFacturaKey] = facturaLegal;
+    
+    // 2. Actualizar el estado del paciente para que figure como FACTURADO
+    if (datosPedido.id_paciente) {
+        updates['/' + moduloPath + '/pacientes/' + datosPedido.id_paciente + '/ultima_factura'] = facturaLegal;
+        updates['/' + moduloPath + '/pacientes/' + datosPedido.id_paciente + '/facturado'] = 'SI';
+    }
+
+    return db.ref().update(updates).then(() => {
+        console.log("✅ Factura grabada en Firebase con éxito.");
+        // Disparar la descarga automática del PDF
+        if(typeof descargarFactura === 'function') {
+            descargarFactura(nuevaFacturaKey); 
+        }
+    }).catch(error => {
+        console.error("❌ Error al guardar factura:", error);
+    });
+}
+const MODELO_FACTURA_B = (d) => {
+    const coeficiente = d.alicuota > 0 ? (parseFloat(d.alicuota) / (100 + parseFloat(d.alicuota))) : 0;
+    const ivaContenido = d.total * coeficiente;
+    const valorSubtotal = d.total / (1 + (parseFloat(d.alicuota || 0) / 100));
+
+    const esNC = (d.tipo_cod === "008" || d.tipo_cod === "003");
+    let lineaAsociada = "";
+    if (esNC) {
+        lineaAsociada = `
+            <div style="width: 100%; margin-top: 2mm; font-size: 11px; font-family: 'Arial Narrow', sans-serif;">
+                <b>Fac. Asociada: ${d.asoc_pv}-${d.asoc_nro}</b>
+            </div>`;
+    }
+
+    const datosBase64 = btoa(JSON.stringify(d.datosQr));
+    const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent("https://servicioscf.afip.gob.ar/publico/comprobantes/cae.aspx?p=" + datosBase64)}`;
+
+    return `
+    <div class="hoja-a4">
+        <div class="factura-border">
+            <div class="copia">${d.copia}</div>
+            
+            <div class="header">
+                <div class="empresa">
+                    <div class="emisor-name">${d.emisor_rs}</div>
+                    <div style="margin-top:2mm">
+                        <b>Razón Social:</b> ${d.emisor_rs}<br>
+                        <b>Domicilio Comercial:</b> ${d.emisor_dom}<br>
+                        <b>Condición frente al IVA:</b> ${d.emisor_iva}
+                    </div>
+                </div>
+                <div class="tipo">
+                    <div class="letra">${d.tipo_cod == "001" || d.tipo_cod == "003" ? 'A' : 'B'}</div>
+                    <div class="cod">COD. ${d.tipo_cod}</div>
+                </div>
+                <div class="datos">
+                    <div style="font-size:18px; font-weight:bold; margin-bottom:1mm;">${d.titulo_documento}</div>
+                    <b>Punto de Venta: ${d.ptoVta} &nbsp; Comp. Nro: ${d.nro}</b><br>
+                    <b>Fecha de Emisión: ${d.fecha}</b><br><br>
+                    <b>CUIT:</b> ${d.emisor_cuit}<br>
+                    <b>Ingresos Brutos:</b> ${d.emisor_iibb}<br>
+                    <b>Inicio de Actividades:</b> ${d.emisor_inicio}
+                </div>
+            </div>
+
+            <div class="periodo-blanco">
+                <div><b>Período Facturado Desde:</b> ${d.desde}</div>
+                <div><b>Hasta:</b> ${d.hasta}</div>
+                <div><b>Fecha de Vto. para el pago:</b> ${d.vto_pago}</div>
+            </div>
+
+            <div class="cliente-container">
+                <div class="cliente-izq">
+                    <b>CUIT:</b> ${d.receptor_cuit}<br>
+                    <b>Condición frente al IVA:</b> ${d.receptor_iva}<br>
+                    <b>Condición de venta:</b> ${d.condicion_venta}
+                </div>
+                <div class="cliente-der">
+                    <b>Apellido y Nombre / Razón Social:</b> ${d.receptor_rs}<br>
+                    <b>Domicilio:</b> ${d.receptor_dom}
+                    ${lineaAsociada}
+                </div>
+            </div>
+
+            <div class="detalle">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:45%">Código / Producto / Servicio</th>
+                            <th style="width:8%">Cant.</th>
+                            <th style="width:10%">U. Medida</th>
+                            <th style="width:12%">Precio Unit.</th>
+                            <th style="width:8%">% Bonif</th>
+                            <th style="width:17%">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>${d.concepto}</td>
+                            <td>1,00</td>
+                            <td>unidades</td>
+                            <td style="text-align:right">$ ${d.total.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                            <td>0,00</td>
+                            <td style="text-align:right">$ ${d.total.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                        </tr>
+                        <tr class="relleno"><td colspan="6"></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="totales-box">
+                <div class="ley-box">
+                    <b>Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)</b><br>
+                    IVA Contenido: $ ${ivaContenido.toLocaleString('es-AR', {minimumFractionDigits:2})}
+                </div>
+                <div class="tabla-totales">
+                    <div class="linea-total">
+                        <span>Subtotal: $</span>
+                        <span>${valorSubtotal.toLocaleString('es-AR', {minimumFractionDigits:2})}</span>
+                    </div>
+                    <div class="linea-total">
+                        <span>Importe Otros Tributos: $</span>
+                        <span>0,00</span>
+                    </div>
+                    <div class="linea-total bold">
+                        <span>Importe Total: $</span>
+                        <span>${d.total.toLocaleString('es-AR', {minimumFractionDigits:2})}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-final">
+                <div class="qr-container">
+                    <img src="${qrImgUrl}" width="85">
+                    <div style="text-align:center">
+                        <div style="font-weight:900; font-size:24px; font-style:italic; line-height:0.8;">ARCA</div>
+                        <div style="font-size:6.5px; font-weight:bold; letter-spacing:0.1px;">AGENCIA DE RECAUDACIÓN Y CONTROL ADUANERO</div>
+                        <div style="border-top:1.2px solid black; margin-top:1.2mm; padding-top:1mm; font-weight:bold; font-size:10px;">Comprobante Autorizado</div>
+                    </div>
+                </div>
+                
+                <div style="font-size:9px; max-width:35%; text-align:center;">
+                    Esta Agencia no se responsabiliza por los datos ingresados en el detalle de la operación.<br><br>
+                    <b>Pág. 1/1</b>
+                </div>
+
+                <div class="f-right">
+                    <b>CAE Nº:</b> ${d.cae}<br>
+                    <b>Fecha de Vto. de CAE:</b> ${d.cae_vto}
+                </div>
+            </div>
+        </div>
+    </div>`;
+};
+window.descargarFactura = (id) => {
+    db.ref('facturas_emitidas/' + id).once('value').then((snap) => {
+        const p = snap.val();
+        if (!p || !p.cae) return alert("Error: No hay datos de CAE.");
+
+        const cuitEmisor = "30714900192";
+        
+        // Formateador de fechas interno
+        const f = (val) => {
+            if (!val) return "";
+            let s = String(val).replace(/-/g, '');
+            if (s.length === 8 && !isNaN(s)) {
+                return `${s.substring(6,8)}/${s.substring(4,6)}/${s.substring(0,4)}`;
+            }
+            return val;
+        };
+
+        const datos = {
+            emisor_rs: "ESENCIAL S.R.L.",
+            emisor_dom: "25 De Mayo 30 - San Juan, San Juan",
+            emisor_cuit: cuitEmisor,
+            emisor_iva: "IVA Responsable Inscripto",
+            titulo_documento: (p.tipo_cod == "008" || p.tipo_cod == "003") ? "NOTA DE CRÉDITO" : "FACTURA",
+            tipo_cod: p.tipo_cod,
+            ptoVta: String(p.punto_venta || 5).padStart(5, '0'),
+            nro: String(p.nro_comp).padStart(8, '0'),
+            fecha: p.fecha_emision || p.fecha || new Date().toLocaleDateString('es-AR'),
+            desde: f(p.periodo_desde || p.desde || ""), 
+            hasta: f(p.periodo_hasta || p.hasta || ""),
+            vto_pago: f(p.vto_pago || p.vto || ""),
+            receptor_rs: (p.nombre || "").toUpperCase(),
+            receptor_cuit: p.cuit || "",
+            receptor_dom: p.domicilio || "",
+            receptor_iva: p.condicion_iva || "EXENTO",
+            condicion_venta: p.condicion_venta || "CUENTA CORRIENTE",
+            concepto: p.concepto || "",
+            total: parseFloat(p.total_facturado || p.total || 0),
+            cae: p.cae,
+            cae_vto: f(p.cae_vto),
+            asoc_pv: p.asoc_pv ? String(p.asoc_pv).padStart(5, '0') : "",
+            asoc_nro: p.asoc_nro ? String(p.asoc_nro).padStart(8, '0') : ""
+        };
+
+        const nombreArchivo = `Factura_${datos.nro}.html`;
+
+        // ABRIR VENTANA Y ESCRIBIR EL PDF/HTML
+        const win = window.open('', '_blank');
+        win.document.write(`<html><head><title>${nombreArchivo}</title>
+            <style>
+                @media print { @page { size: A4; margin: 0; } body { margin: 0; } }
+                body { font-family: "Arial Narrow", Arial, sans-serif; margin: 0; padding: 0; color: black; }
+                .hoja-a4 { width: 210mm; height: 297mm; padding: 10mm; box-sizing: border-box; margin: auto; page-break-after: always; position: relative; }
+                .factura-border { border: 1.5px solid black; height: 100%; display: flex; flex-direction: column; }
+                .copia { text-align: center; font-weight: bold; border-bottom: 1.5px solid black; padding: 1.5mm; font-size: 11px; text-transform: uppercase; }
+                .header { display: flex; border-bottom: 1.5px solid black; }
+                .empresa { width: 45%; padding: 3mm; border-right: 1.5px solid black; font-size: 10px; }
+                .emisor-name { font-size: 17px; font-weight: bold; }
+                .tipo { width: 10%; text-align: center; border-right: 1.5px solid black; position: relative; background: white; }
+                .letra { border: 1.5px solid black; width: 12mm; height: 12mm; margin: 2mm auto 0; font-size: 24px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+                .cod { font-size: 8px; font-weight: bold; margin-top: 1mm; }
+                .datos { width: 45%; padding: 3mm; font-size: 10px; }
+                .periodo-blanco { display: flex; justify-content: space-between; border-bottom: 1.5px solid black; padding: 2mm 3mm; font-size: 10px; }
+                .cliente-container { display: flex; border-bottom: 1.5px solid black; font-size: 10.5px; min-height: 25mm; }
+                .cliente-izq { width: 45%; padding: 3mm; }
+                .cliente-der { width: 55%; padding: 3mm; }
+                .detalle { flex-grow: 1; }
+                .detalle table { width: 100%; border-collapse: collapse; }
+                .detalle th { background: #eeeeee; border-bottom: 1.5px solid black; font-size: 9px; padding: 1.5mm; text-align: left; }
+                .detalle td { padding: 2mm; font-size: 10.5px; }
+                .totales-box { display: flex; border-top: 1.5px solid black; border-bottom: 1.5px solid black; min-height: 22mm; }
+                .ley-box { width: 65%; padding: 3mm; font-size: 9px; border-right: 1.5px solid black; }
+                .tabla-totales { width: 35%; padding: 2mm 0; display: flex; flex-direction: column; justify-content: center; }
+                .linea-total { display: flex; justify-content: space-between; padding: 0.5mm 4mm; font-size: 11px; }
+                .linea-total.bold { font-weight: bold; font-size: 14px; margin-top: 1mm; }
+                .footer-final { display: flex; justify-content: space-between; padding: 3mm; align-items: center; min-height: 30mm; }
+                .f-right { text-align: right; font-size: 11px; width: 40%; }
+            </style>
+            </head><body>
+                ${typeof MODELO_FACTURA_B === 'function' ? MODELO_FACTURA_B({...datos, copia: "ORIGINAL"}) : "Falta función MODELO_FACTURA_B"}
+                ${typeof MODELO_FACTURA_B === 'function' ? MODELO_FACTURA_B({...datos, copia: "DUPLICADO"}) : ""}
+            </body></html>`);
+        win.document.close();
+        win.onload = () => { setTimeout(() => win.print(), 800); };
+    });
+};
+// FUNCIONES AUXILIARES (Fuera de descargarFactura)
+function tgl(m) { 
+    document.querySelectorAll('.ck:not(:disabled)').forEach(x => x.checked = m.checked); 
+}
+
+window.onload = () => {
+    const h = new Date().toISOString().split('T')[0];
+    if(document.getElementById('per_desde')) document.getElementById('per_desde').value = h; 
+    if(document.getElementById('per_hasta')) document.getElementById('per_hasta').value = h; 
+    if(document.getElementById('vto_pago')) document.getElementById('vto_pago').value = h;
+    if(typeof cargarTodo === 'function') cargarTodo();
+};
+
+// Listener para errores (por si AFIP rechaza)
+db.ref('/cola_facturacion').on('child_changed', (snapshot) => {
+    const data = snapshot.val();
+    if (data.estado === "ERROR_AFIP") {
+        alert("❌ Error en AFIP para " + data.razon_social + ": " + data.error);
+        const ck = document.querySelector(`.ck[data-id="${data.id_paciente}"]`);
+        if (ck) {
+            const tr = ck.closest('tr');
+            tr.classList.remove('row-facturada');
+            tr.querySelectorAll('input, select, textarea').forEach(el => el.disabled = false);
+        }
+    }
+});
+window.exportarExcel = () => {
+    const tabla = document.querySelector(".tabla-archivo");
+    const filtro = document.getElementById('mes_filtro_archivo').value || "archivo";
+    let html = tabla.outerHTML;
+    html = html.replace(/<button[^>]*>.*?<\/button>/g, '');
+    const uri = 'data:application/vnd.ms-excel;base64,';
+    const template = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"></head><body><table>${html}</table></body></html>`;
+    const link = document.createElement("a");
+    link.href = uri + btoa(unescape(encodeURIComponent(template)));
+    link.download = `Facturacion_${filtro}.xls`;
+    link.click();
+};
+// Usamos window. para que sea "global" y el HTML lo encuentre siempre
+window.refacturarTodoElModulo = async (modulo) => {
+    // Buscamos todas las filas que el sistema puso en gris (.row-facturada)
+    const filasFacturadas = document.querySelectorAll('.row-facturada');
+    
+    if (filasFacturadas.length === 0) {
+        return alert("No hay pacientes facturados (en gris) para replicar.");
+    }
+
+    if (!confirm(`¿Deseas volver a facturar a los ${filasFacturadas.length} pacientes de ${modulo}?`)) return;
+
+    const updates = {};
+    let contador = 0;
+
+    filasFacturadas.forEach(tr => {
+        const ck = tr.querySelector('.ck');
+        
+        // Verificamos que la fila pertenezca al módulo que queremos (Rehab, CET, etc.)
+        if (ck && ck.dataset.mod.toUpperCase() === modulo.toUpperCase()) {
+            const idPaciente = ck.dataset.id;
+            const nuevaKey = db.ref().child('cola_facturacion').push().key;
+            
+            updates['/cola_facturacion/' + nuevaKey] = {
+                id_paciente: idPaciente,
+                modulo: modulo.toUpperCase(),
+                razon_social: tr.querySelector('.rs-val')?.value || "",
+                cuit: tr.querySelector('.cuit-val')?.value || "",
+                total: tr.querySelector('.total-val')?.value || 0,
+                descripcion: tr.querySelector('.desc-val')?.value || "MENSUALIDAD " + modulo.toUpperCase(),
+                // Dejamos las fechas listas para que el motor las procese
+                desde: tr.querySelector('.desde-val')?.value || "", 
+                hasta: tr.querySelector('.hasta-val')?.value || "",
+                vto: tr.querySelector('.vto-val')?.value || "",
+                estado: "PENDIENTE",
+                fecha_pedido: new Date().toISOString()
+            };
+            contador++;
+
+            // OPCIONAL: Si querés que la fila deje de estar en gris al refacturar
+            // tr.classList.remove('row-facturada');
+            // tr.querySelectorAll('input').forEach(i => i.disabled = false);
+        }
+    });
+
+    if (contador > 0) {
+        await db.ref().update(updates);
+        alert(`🚀 ¡Listo! Se enviaron ${contador} pedidos de ${modulo} a la cola.`);
+    } else {
+        alert("No se encontraron pacientes facturados para el módulo: " + modulo);
+    }
+};
+// Esta es la función que el botón busca al hacer click
+window.toggleArchivo = () => {
+    const div = document.getElementById('panel-archivo');
+    
+    if (!div) {
+        const divFallback = document.getElementById('seccion-archivo');
+        if (!divFallback) return alert("Culiado, no encuentro el panel. Revisá el ID en el HTML.");
+        toggle(divFallback);
+    } else {
+        toggle(div);
+    }
+
+    function toggle(elemento) {
+        if (elemento.style.display === 'none' || elemento.style.display === '') {
+            elemento.style.display = 'block';
+            if (typeof window.cargarArchivo === 'function') window.cargarArchivo();
+        } else {
+            elemento.style.display = 'none';
+        }
+    }
+};
+
+// Esta es la que repara los totales y muestra las facturas nuevas
+window.cargarArchivo = () => {
+    const filtro = document.getElementById('mes_filtro_archivo').value;
+    const body = document.getElementById('tabla_archivo_body');
+    const elGral = document.getElementById('tot-general');
+
+    if (!filtro) return alert("Seleccioná un mes.");
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;">Cargando...</td></tr>';
+
+    db.ref('facturas_emitidas').once('value').then((snap) => {
+        const facturas = snap.val() || {};
+        let html = "";
+        let tGral = 0;
+
+        const llaves = Object.keys(facturas).reverse();
+
+        llaves.forEach(id => {
+            const f = facturas[id];
+            const fecha = f.fecha_emision || f.fecha || "";
+            const partes = fecha.split('/');
+            
+            if (partes.length === 3) {
+                const mesAnio = `${partes[2]}-${partes[1].padStart(2, '0')}`;
+                
+                if (mesAnio === filtro) {
+                    const imp = parseFloat(f.total_facturado || f.total || 0);
+                    const esNC = (f.tipo_cod === "003" || f.tipo_cod === "008" || f.tipo === 3 || f.tipo === 8);
+                    const valorEfectivo = esNC ? -imp : imp;
+                    
+                    tGral += valorEfectivo;
+                    const estiloFila = esNC ? 'style="color:red; font-weight:bold; font-style:italic;"' : '';
+
+                    html += `<tr ${estiloFila}>
+                        <td style="text-align:center">${partes[0]}/${partes[1]}</td>
+                        <td>${String(f.punto_venta || 5).padStart(4,'0')}-${String(f.nro_comp).padStart(8, '0')}</td>
+                        <td>${f.cae}</td>
+                        <td>${f.nombre} <br><small>${f.modulo || ''}</small></td>
+                        <td style="text-align:right">$ ${imp.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                        <td style="text-align:center">
+                            <button onclick="window.descargarFactura('${id}')" style="cursor:pointer;">PDF</button>
+                        </td>
+                    </tr>`;
+                }
+            }
+        });
+        body.innerHTML = html || '<tr><td colspan="6">Sin datos este mes.</td></tr>';
+        if(elGral) elGral.innerText = `$ ${tGral.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+    });
+};
+function seleccionarPacienteParaFacturar(idPaciente) {
+        const p = pacs[idPaciente]; // Datos del niño
+        if (!p) return;
+
+        // Buscamos la Obra Social que el niño tiene cargada en su legajo
+        // Supongamos que en el legajo el campo se llama 'os' (ej: "OSDE", "PROVINCIA")
+        const nombreOS = p.os; 
+        const datosOS = obrasSociales[nombreOS]; // Buscamos en tu base de Obras Sociales
+
+        if (!datosOS) {
+            alert("⚠️ La Obra Social '" + nombreOS + "' no está configurada en la base de facturación.");
+            return;
+        }
+
+        // --- CARGA AUTOMÁTICA DEL RECEPTOR (LA O.S.) ---
+        document.getElementById('f-dni-cuit').value = datosOS.cuit || ''; 
+        document.getElementById('f-nombre').value = datosOS.razonSocial || nombreOS;
+        document.getElementById('f-domicilio').value = datosOS.domicilio || '';
+        document.getElementById('f-condicion-iva').value = datosOS.condicionIva || 'EX';
+
+        // --- LÓGICA DE COMPROBANTE ---
+        // Si la O.S. es Responsable Inscripto -> Factura A (001), si no -> Factura B (006)
+        document.getElementById('f-tipo').value = (datosOS.condicionIva === 'RI') ? "001" : "006";
+
+        // --- DETALLE DE LA FACTURA (EL NIÑO) ---
+        const mesActual = new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(new Date());
+        document.getElementById('f-concepto').value = `Prestación servicio de salud: ${idPaciente}. Mes: ${mesActual.toUpperCase()}`;
+        
+        // --- VALIDACIÓN DE ASISTENCIA ---
+        // Aquí chequeamos si el niño tuvo asistencia para poder cobrarle a la O.S.
+        validarAsistenciaParaFactura(idPaciente);
+    }
+</script>
+</body>
+</html>
