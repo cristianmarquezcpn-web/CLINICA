@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Esencial SRL - Gestión Integral</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        :root {
+            --primary: #1a2a6c;
+            --secondary: #b21f1f;
+            --accent: #fdbb2d;
+            /* Glassmorphism oscuro */
+            --glass: rgba(15, 23, 42, 0.6);
+            --shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        
+        body {
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            /* FONDO OSCURO PREMIUM DE BASE */
+            background-color: #020617;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            color: #f1f5f9;
+            overflow-x: hidden;
+        }
+        
+        #login-screen {
+            /* DEGRADADO PREMIUM EXCLUSIVO EN EL LOGIN - SIN FOTOS */
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            background-size: 400% 400%;
+            animation: gradientBG 10s ease infinite;
+            padding: 60px 50px;
+            border-radius: 35px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+            text-align: center;
+            width: 340px;
+            border: 1px solid rgba(255,255,255,0.2);
+            animation: fadeInLogin 0.8s ease-out;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes fadeInLogin {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo-fallback {
+            font-size: 80px;
+            margin-bottom: 20px;
+            display: block;
+            filter: drop-shadow(0 5px 15px rgba(0,0,0,0.3));
+        }
+
+        #login-screen h2 { 
+            color: white; 
+            margin-top: 0; 
+            font-weight: 900; 
+            letter-spacing: -1.5px; 
+            font-size: 32px;
+            text-shadow: 0 3px 6px rgba(0,0,0,0.3);
+        }
+
+        #login-screen input {
+            padding: 18px;
+            font-size: 18px;
+            border-radius: 18px;
+            border: none;
+            background: rgba(255,255,255,1);
+            width: 90%;
+            text-align: center;
+            margin: 25px 0;
+            outline: none;
+            transition: 0.3s;
+            color: #1a2a6c;
+            font-weight: 700;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+        #login-screen input:focus { 
+            box-shadow: 0 0 25px rgba(253, 187, 45, 0.7); 
+        }
+
+        .btn-login {
+            background: #1a2a6c;
+            color: white;
+            padding: 18px;
+            border: none;
+            border-radius: 18px;
+            font-weight: 900;
+            cursor: pointer;
+            width: 100%;
+            letter-spacing: 1.5px;
+            transition: 0.3s;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .btn-login:hover { 
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            background: #2a3b8f;
+        }
+
+        /* Contenedor principal (Menú) - PURE DARK */
+        .container {
+            display: none;
+            width: 95%;
+            max-width: 1050px;
+            background: var(--glass);
+            padding: 50px;
+            border-radius: 45px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+            animation: fadeInMain 0.6s ease-out;
+        }
+
+        @keyframes fadeInMain { from { opacity: 0; } to { opacity: 1; } }
+
+        h1 { 
+            font-size: 50px; 
+            font-weight: 900; 
+            margin: 0; 
+            background: linear-gradient(to right, #ffffff, #94a3b8); 
+            -webkit-background-clip: text; 
+            -webkit-text-fill-color: transparent; 
+            letter-spacing: -2px;
+        }
+        
+        .welcome-title { font-size: 26px; color: var(--accent); margin-top: 12px; font-weight: 700; letter-spacing: -0.5px; }
+        .welcome-sub { font-size: 18px; color: #94a3b8; margin-top: 5px; opacity: 0.9; font-style: italic; }
+
+        .grid-menu {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            margin-top: 55px;
+        }
+
+        .btn-menu {
+            aspect-ratio: 1/1;
+            border: none;
+            border-radius: 35px;
+            color: white;
+            font-weight: 800;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.03);
+        }
+
+        /* Efecto de Brillo Interior Moderno */
+        .btn-menu::after {
+            content: "";
+            position: absolute;
+            top: -60%;
+            left: -60%;
+            width: 220%;
+            height: 220%;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+            opacity: 0;
+            transition: 0.5s;
+        }
+
+        .btn-menu:hover {
+            transform: translateY(-15px) scale(1.02);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+            border-color: rgba(255,255,255,0.15);
+        }
+        
+        .btn-menu:hover::after { opacity: 1; }
+
+        .btn-menu span { 
+            font-size: 65px; 
+            filter: drop-shadow(0 5px 15px rgba(0,0,0,0.5)); 
+            transition: 0.4s;
+        }
+        
+        .btn-menu:hover span {
+            transform: scale(1.15) rotate(3deg);
+        }
+
+        /* Degradados profundos y sólidos para los botones (Modo Oscuro) */
+        .cet { background: linear-gradient(145deg, #1e293b, #0f172a); }
+        .cd { background: linear-gradient(145deg, #065f46, #064e3b); }
+        .rehab { background: linear-gradient(145deg, #7e22ce, #4c1d95); }
+        .fac { background: linear-gradient(145deg, #166534, #14532d); }
+        .saei { background: linear-gradient(145deg, #3730a3, #1e1b4b); }
+        .cobranzas { background: linear-gradient(145deg, #a16207, #713f12); }
+        
+        /* Botón de Tesorería destaca con Borde Dorado */
+        .teso { background: linear-gradient(145deg, #0f172a, #000000); border: 2px solid var(--accent); }
+        .teso:hover { box-shadow: 0 30px 60px rgba(253, 187, 45, 0.3); }
+
+        .footer { margin-top: 70px; font-size: 14px; color: #475569; text-transform: uppercase; letter-spacing: 4px; font-weight: 700; }
+    </style>
+</head>
+<body>
+
+<div id="login-screen">
+    <div class="logo-fallback">🏢</div>
+    <h2>ESENCIAL SRL</h2>
+    <input type="password" id="passInput" placeholder="Clave de Seguridad">
+    <button class="btn-login" onclick="validarAcceso()">INGRESAR AL SISTEMA</button>
+</div>
+
+<div class="container" id="main-container">
+    <div class="welcome-card">
+        <h1 id="titulo-principal">ESENCIAL SRL</h1>
+        <div id="msg-container">
+            <p id="p-saludo" class="welcome-title"></p>
+            <p id="p-frase" class="welcome-sub"></p>
+        </div>
+    </div>
+    
+    <div id="menu-dinamico" class="grid-menu"></div>
+
+    <div class="footer">
+        © 2026 | UNIDAD DE GESTIÓN ADMINISTRATIVA
+    </div>
+</div>
+
+<script>
+    const claves = { PRO: "1234", ADMIN: "OSA7910" };
+
+    function validarAcceso() {
+        const input = document.getElementById('passInput').value;
+        const login = document.getElementById('login-screen');
+        const main = document.getElementById('main-container');
+        
+        if (input === claves.PRO || input === claves.ADMIN) {
+            login.style.display = 'none';
+            main.style.display = 'block';
+            
+            if (input === claves.PRO) {
+                setupUI("✨ PANEL OPERATIVO", "Compromiso y calidez en cada atención.");
+                renderMenu(false);
+            } else {
+                setupUI("🚀 CONTROL DE MANDO", "Decisiones estratégicas para el crecimiento.");
+                renderMenu(true);
+            }
+        } else {
+            alert("❌ Acceso Denegado");
+            document.getElementById('passInput').value = '';
+        }
+
+        function setupUI(saludo, frase) {
+            document.getElementById('p-saludo').innerHTML = `<strong>${saludo}</strong>`;
+            document.getElementById('p-frase').innerText = frase;
+        }
+    }
+
+    function renderMenu(isAdmin) {
+        const menu = document.getElementById('menu-dinamico');
+        let html = `
+            <button class="btn-menu cet" onclick="location.href='cet.html'"><span>🏠</span>C.E.T.</button>
+            <button class="btn-menu cd" onclick="location.href='cd.html'"><span>🏫</span>CENTRO DE DÍA</button>
+            <button class="btn-menu rehab" onclick="location.href='rehab.html'"><span>♿</span>REHABILITACIÓN</button>
+        `;
+        
+        if (isAdmin) {
+            html += `
+                <button class="btn-menu fac" onclick="location.href='facturacion.html'"><span>📂</span>FACTURACIÓN</button>
+                <button class="btn-menu saei" onclick="location.href='saei.html'"><span>🎒</span>SAEI</button>
+                <button class="btn-menu cobranzas" onclick="location.href='cobranzas.html'"><span>💰</span>COBRANZAS</button>
+                <button class="btn-menu teso" onclick="location.href='tesoreria.html'"><span>📊</span>TESORERÍA IA</button>
+            `;
+        }
+        menu.innerHTML = html;
+    }
+
+    document.getElementById('passInput').addEventListener("keyup", e => { if (e.key === "Enter") validarAcceso(); });
+
+    // Código de actualización oculta
+    let clics = 0;
+    document.getElementById('titulo-principal').onclick = () => {
+        clics++;
+        if(clics >= 5) {
+            if(confirm("¿Forzar actualización de caché y reiniciar?")) {
+                navigator.serviceWorker.getRegistrations().then(rs => {
+                    for(let r of rs) r.unregister();
+                    caches.keys().then(ns => { for(let n of ns) caches.delete(n); window.location.reload(true); });
+                });
+            }
+            clics = 0;
+        }
+        setTimeout(() => clics = 0, 3000);
+    };
+</script>
+
+</body>
+</html>

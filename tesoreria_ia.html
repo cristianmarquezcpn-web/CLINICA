@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>CFO TITANIUM v7.5 - INTELIGENCIA FULL</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+    <style>
+        :root { --bg: #05070a; --panel: #111827; --acento: #3b82f6; --verde: #10b981; --rojo: #ef4444; --oro: #f59e0b; --texto: #f8fafc; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--texto); margin: 0; padding: 20px; font-size: 13px; }
+        .grid-master { display: grid; grid-template-columns: 340px 1fr 320px; gap: 15px; }
+        .card { background: var(--panel); padding: 15px; border-radius: 12px; border: 1px solid #1f2937; margin-bottom: 15px; }
+        h3 { margin: 0 0 10px 0; font-size: 10px; text-transform: uppercase; color: var(--acento); letter-spacing: 1px; }
+        input { background: #05070a; border: 1px solid #374151; color: white; padding: 10px; border-radius: 8px; width: 100%; margin-bottom: 8px; box-sizing: border-box; font-weight: 600; }
+        .btn { background: var(--acento); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
+        .sem-card { background: #1f2937; padding: 15px; border-radius: 10px; text-align: center; border-bottom: 4px solid var(--acento); }
+        .monto-final { font-size: 16px; font-weight: 800; display: block; margin-top: 5px; }
+        .alerta-ia { padding: 15px; border-radius: 10px; margin-bottom: 15px; font-size: 12px; border-left: 5px solid; line-height: 1.4; }
+    </style>
+</head>
+<body>
+
+<div id="iaBanner"></div>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <h2 style="margin:0">🧠 CFO <span style="color:var(--acento)">INTELLIGENCE v7.5</span></h2>
+    <div style="display:flex; gap:10px;">
+        <input type="month" id="mesFiltro" onchange="conectarMes()" style="margin:0; width:180px;">
+        <button class="btn" onclick="conectarMes()" style="background:#374151; width:auto;">🔄 RECONECTAR</button>
+	<div style="padding: 10px 20px 0 20px;">
+        <button onclick="window.location.href='index.html'" style="background: transparent; border: 1px solid #374151; color: #94a3b8; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; transition: 0.2s;" onmouseover="this.style.borderColor='var(--acento)'; this.style.color='white'" onmouseout="this.style.borderColor='#374151'; this.style.color='#94a3b8'">
+        ← VOLVER AL MENÚ
+    </button>
+</div>    
+	</div>
+</div>
+
+<div class="grid-master">
+    <div>
+        <div class="card">
+            <h3>🏦 Saldo Inicial (Arrastre)</h3>
+            <div id="infoArrastre" style="font-size:10px; color:var(--oro); margin-bottom:10px; font-weight:bold;"></div>
+            <label style="font-size:9px">CAJA GALICIA</label>
+            <input type="number" id="bancoGalicia" onchange="guardarBancos()">
+            <label style="font-size:9px">CAJA SANTANDER</label>
+            <input type="number" id="bancoSantander" onchange="guardarBancos()">
+        </div>
+        <div class="card">
+            <h3>💸 Gastos Operativos</h3>
+            <div id="contGastos"></div>
+            <button class="btn" style="background:#1f2937" onclick="nuevaCategoria()">+ RUBRO</button>
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <h3>📈 Flujo Semanal (Con Arrastre de Cierre)</h3>
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;" id="gridSemanas"></div>
+        </div>
+
+        <div class="card">
+            <h3>🧪 Simulador de Impacto a Largo Plazo</h3>
+            <p style="font-size:10px; color:#94a3b8; margin-top:0">¿Cómo afecta un gasto recurrente la solvencia futura?</p>
+            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <input type="number" id="simMonto" placeholder="$ Gasto Mensual">
+                <input type="number" id="simMeses" placeholder="Meses" style="width:100px">
+            </div>
+            <button class="btn" style="background:var(--oro); color:black" onclick="simularImpacto()">ANALIZAR SOLVENCIA</button>
+            <div id="resSim" style="margin-top:10px; font-weight:bold;"></div>
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <h3>📊 Resumen de Salud</h3>
+            <div id="saludNegocio" style="font-size:13px; line-height:2.5"></div>
+        </div>
+        <div class="card">
+            <h3>🧬 Variables del Motor</h3>
+            <div id="motorVars" style="font-size:11px; line-height:2.5"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = { databaseURL: "https://clinicaintegral-5c488-default-rtdb.firebaseio.com" };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let datosMes = { bancos: {galicia:0, santander:0}, gastos: {} };
+    let motorGlobal = { indice_cobranza: 0.85, delay_historico: 65, fci_tna: 0 };
+    let refMes = null;
+    let saldoFinalProyectado = 0;
+
+    // 1. ESCUCHA MOTOR IA (TNA, DELAY, COBRANZA)
+    db.ref('tesoreria/motor_ia').on('value', snap => {
+        motorGlobal = snap.val() || motorGlobal;
+        document.getElementById('motorVars').innerHTML = `
+            Efectividad: <b>${(motorGlobal.indice_cobranza*100).toFixed(1)}%</b><br>
+            Delay Promedio: <b>${motorGlobal.delay_historico} días</b><br>
+            Rinde Inversión: <b>${motorGlobal.fci_tna}% TNA</b>`;
+        proyectarTodo();
+    });
+
+    // 2. CONECTAR MES Y TRAER ARRASTRE REAL
+    async function conectarMes() {
+        const mes = document.getElementById('mesFiltro').value;
+        if(refMes) refMes.off();
+
+        const [y, m] = mes.split('-').map(Number);
+        const mAnt = `${m===1?y-1:y}-${String(m===1?12:m-1).padStart(2,'0')}`;
+        const snapAnt = await db.ref(`tesoreria/meses/${mAnt}/cierre`).once('value');
+        const arrastre = snapAnt.val() || 0;
+        
+        document.getElementById('infoArrastre').innerText = `⚠ Arrastre de ${mAnt}: $${Math.round(arrastre).toLocaleString()}`;
+
+        refMes = db.ref(`tesoreria/meses/${mes}`);
+        refMes.on('value', snap => {
+            const data = snap.val();
+            if(data) {
+                datosMes = data;
+                document.getElementById('bancoGalicia').value = data.bancos?.galicia || 0;
+                document.getElementById('bancoSantander').value = data.bancos?.santander || 0;
+            } else {
+                document.getElementById('bancoGalicia').value = arrastre;
+                document.getElementById('bancoSantander').value = 0;
+                datosMes = { bancos: {galicia: arrastre, santander:0}, gastos: {} };
+            }
+            dibujarGastos();
+            proyectarTodo();
+        });
+    }
+
+    // 3. PROYECCIÓN INTELIGENTE + SIMULADOR FCI
+    async function proyectarTodo() {
+        const mes = document.getElementById('mesFiltro').value;
+        let saldo = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
+        let ingS = {1:0, 2:0, 3:0, 4:0}, gasS = {1:0, 2:0, 3:0, 4:0};
+        let totalF = 0, totalG = 0;
+
+        const snapF = await db.ref('facturas_emitidas').once('value');
+        const facts = snapF.val() || {};
+
+        Object.values(facts).forEach(f => {
+            if (!f || !f.fecha_emision || !f.total) return; // ESCUDO ANTI-ERROR
+            try {
+                const p = f.fecha_emision.split('/');
+                const fCobro = new Date(p[2], p[1]-1, p[0]);
+                fCobro.setDate(fCobro.getDate() + (motorGlobal.delay_historico || 65));
+                if (`${fCobro.getFullYear()}-${String(fCobro.getMonth()+1).padStart(2,'0')}` === mes) {
+                    const s = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
+                    ingS[s] += (parseFloat(f.total) * (motorGlobal.indice_cobranza || 0.85));
+                }
+            } catch(e) {}
+        });
+
+        Object.values(datosMes.gastos || {}).forEach(cat => {
+            if(cat.items) cat.items.forEach(i => { gasS[cat.semana || 1] += (parseFloat(i.monto) || 0); totalG += (parseFloat(i.monto) || 0); });
+        });
+
+        const grid = document.getElementById('gridSemanas');
+        grid.innerHTML = "";
+        for(let i=1; i<=4; i++) {
+            saldo += (ingS[i] - gasS[i]);
+            grid.innerHTML += `<div class="sem-card" style="border-color:${saldo < 0 ? 'var(--rojo)':'var(--verde)'}"><span style="font-size:9px">SEM ${i}</span><b class="monto-final" style="color:${saldo < 0 ? 'var(--rojo)':'white'}">$${Math.round(saldo).toLocaleString()}</b></div>`;
+        }
+
+        saldoFinalProyectado = saldo;
+        db.ref(`tesoreria/meses/${mes}/cierre`).set(saldo);
+
+        // IA: SIMULADOR DE INVERSIÓN FCI
+        const banner = document.getElementById('iaBanner');
+        if(saldo > 1000000) {
+            let ganancia = (saldo * (motorGlobal.fci_tna/100) / 12);
+            banner.innerHTML = `<div class="alerta-ia" style="background:rgba(16,185,129,0.1); border-color:var(--verde); color:var(--verde)"><b>💰 OPORTUNIDAD:</b> Tenés excedente. Invertir hoy generaría <b>$${Math.round(ganancia).toLocaleString()}</b> extras este mes (TNA ${motorGlobal.fci_tna}%).</div>`;
+        } else if(saldo < 0) {
+            banner.innerHTML = `<div class="alerta-ia" style="background:rgba(239,68,68,0.1); border-color:var(--rojo); color:var(--rojo)"><b>🚨 RIESGO DE ILIQUIDEZ:</b> El mes cierra con un rojo de $${Math.round(Math.abs(saldo)).toLocaleString()}. Revisar cobranzas urgentes.</div>`;
+        } else { banner.innerHTML = ""; }
+
+        document.getElementById('saludNegocio').innerHTML = `Egresos Totales: <b style="color:var(--rojo)">$${Math.round(totalG).toLocaleString()}</b><br>Resultado Neto: <b style="color:var(--verde)">$${Math.round(saldo).toLocaleString()}</b>`;
+    }
+
+    // 4. SIMULADOR DE IMPACTO A LARGO PLAZO
+    function simularImpacto() {
+        const monto = parseFloat(document.getElementById('simMonto').value) || 0;
+        const meses = parseInt(document.getElementById('simMeses').value) || 1;
+        const res = document.getElementById('resSim');
+        let tempSaldo = saldoFinalProyectado;
+        let mesesResistidos = 0;
+
+        for(let i=0; i<meses; i++) {
+            tempSaldo -= monto;
+            if(tempSaldo >= 0) mesesResistidos++;
+        }
+
+        if(mesesResistidos >= meses) {
+            res.style.color = "var(--verde)";
+            res.innerText = `✅ VIABLE: La caja soporta este gasto recurrente por ${meses} meses.`;
+        } else {
+            res.style.color = "var(--rojo)";
+            res.innerText = `❌ INVIABLE: El flujo quiebra en el mes ${mesesResistidos + 1}.`;
+        }
+    }
+
+    function dibujarGastos() {
+        const cont = document.getElementById('contGastos');
+        cont.innerHTML = "";
+        Object.keys(datosMes.gastos || {}).forEach(cat => {
+            let items = (datosMes.gastos[cat].items || []).map((it, i) => `
+                <div style="display:flex; gap:5px; margin-bottom:5px;">
+                    <input value="${it.nombre}" onchange="updateItem('${cat}', ${i}, 'nombre', this.value)">
+                    <input type="number" value="${it.monto}" style="width:110px" onchange="updateItem('${cat}', ${i}, 'monto', this.value)">
+                </div>`).join('');
+            cont.innerHTML += `<div class="card" style="background:rgba(255,255,255,0.03);"><b>${cat}</b>${items}</div>`;
+        });
+    }
+
+    function updateItem(cat, idx, campo, valor) {
+        if(campo==='monto') valor = parseFloat(valor)||0;
+        db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/gastos/${cat}/items/${idx}`).update({[campo]: valor});
+    }
+
+    function guardarBancos() {
+        db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/bancos`).update({
+            galicia: parseFloat(document.getElementById('bancoGalicia').value)||0,
+            santander: parseFloat(document.getElementById('bancoSantander').value)||0
+        });
+    }
+
+    function nuevaCategoria() {
+        const n = prompt("Nombre Rubro:");
+        if(n) db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/gastos/${n.toUpperCase()}`).set({ semana: 1, items: [{nombre: n, monto: 0}] });
+    }
+// --- LÓGICA DE ALTO RENDIMIENTO PARA >350 FACTURAS ---
+
+async function verificarYEntrenar() {
+    console.log("🔍 IA: Verificando integridad de datos...");
+    
+    // 1. Pedimos SOLO las llaves de las facturas (no el contenido) para que sea veloz
+    const fSnap = await db.ref('facturas_emitidas').once('value');
+    const facturas = fSnap.val() || {};
+    const cantidadActual = Object.keys(facturas).length;
+
+    // 2. Traemos el último estado del motor
+    const motorSnap = await db.ref('tesoreria/motor_ia').once('value');
+    const motorData = motorSnap.val() || { cantidad_entrenada: 0 };
+
+    // 3. COMPARACIÓN INTELIGENTE: Si no cambió el número, no gastamos recursos
+    if (cantidadActual !== motorData.cantidad_entrenada) {
+        document.getElementById('statusIA').innerText = "🤖 IA: Sincronizando nuevas facturas...";
+        
+        // Ejecutamos el entrenamiento pesado solo si hay cambios
+        const cSnap = await db.ref('cobranzas').once('value');
+        const cobranzas = cSnap.val() || {};
+        
+        await ejecutarIA(facturas, cobranzas);
+
+        // Guardamos el nuevo "Checkpoint"
+        await db.ref('tesoreria/motor_ia').update({
+            cantidad_entrenada: cantidadActual,
+            ultima_sincro: new Date().toLocaleString()
+        });
+        
+        document.getElementById('statusIA').innerText = "✅ Motor Sincronizado";
+    } else {
+        console.log("⚡ IA: Datos optimizados. Usando motor actual.");
+    }
+}
+
+async function ejecutarIA(f, c) {
+    let delays = [];
+    let cobradas = 0;
+    let emitidas = Object.keys(f).length;
+
+    Object.keys(f).forEach(id => {
+        if (c[id] && c[id].fecha_pago && f[id].fecha_emision) {
+            const fEmi = parseFecha(f[id].fecha_emision);
+            const fPag = parseFecha(c[id].fecha_pago);
+            if (fEmi && fPag) {
+                const diff = (fPag - fEmi) / 86400000;
+                if (diff > 0 && diff < 200) delays.push(diff);
+                cobradas++;
+            }
+        }
+    });
+
+    // Filtramos ruidos y calculamos promedios reales
+    const delayReal = mediaPonderada(limpiarOutliers(delays));
+    const efectividadReal = emitidas > 0 ? (cobradas / emitidas) : 0.85;
+
+    await db.ref('tesoreria/motor_ia').update({
+        delay_historico: delayReal,
+        indice_cobranza: efectividadReal
+    });
+}
+
+// Inicialización del sistema
+window.onload = async () => {
+    // 1. Cargamos el mes actual (rápido)
+    document.getElementById('mesFiltro').value = "2026-03"; 
+    await conectarMes();
+    
+    // 2. Lanzamos la IA de fondo (sin molestar al usuario)
+    verificarYEntrenar(); 
+};
+    window.onload = () => { document.getElementById('mesFiltro').value = "2026-03"; conectarMes(); };
+</script>
+</body>
+</html>
