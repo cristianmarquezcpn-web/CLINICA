@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>CFO TITANIUM v8.5 - INTELIGENCIA FULL</title>
+    <link rel="manifest" href="manifest.json">
+
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg: #05070a; --panel: #111827; --acento: #3b82f6; --verde: #10b981; --rojo: #ef4444; --oro: #f59e0b; --texto: #f8fafc; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--texto); margin: 0; padding: 20px; font-size: 13px; }
+        .grid-master { display: grid; grid-template-columns: 340px 1fr 320px; gap: 15px; }
+        .card { background: var(--panel); padding: 15px; border-radius: 12px; border: 1px solid #1f2937; margin-bottom: 15px; }
+        h3 { margin: 0 0 10px 0; font-size: 10px; text-transform: uppercase; color: var(--acento); letter-spacing: 1px; }
+        input { background: #05070a; border: 1px solid #374151; color: white; padding: 10px; border-radius: 8px; width: 100%; margin-bottom: 8px; box-sizing: border-box; font-weight: 600; }
+        .btn { background: var(--acento); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
+        .sem-card { background: #1f2937; padding: 15px; border-radius: 10px; text-align: center; border-bottom: 4px solid var(--acento); }
+        .monto-final { font-size: 16px; font-weight: 800; display: block; margin-top: 5px; }
+        .alerta-ia { padding: 15px; border-radius: 10px; margin-bottom: 15px; font-size: 13px; border-left: 5px solid; line-height: 1.4; display:none; }
+    </style>
+</head>
+<body>
+
+<div id="iaBanner"></div>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <h2 style="margin:0">🧠 CFO <span style="color:var(--acento)">TITANIUM v8.5</span></h2>
+    <div style="display:flex; gap:10px;">
+        <input type="month" id="mesFiltro" onchange="conectarMes()" style="margin:0; width:180px;">
+        <button class="btn" onclick="conectarMes()" style="background:#374151; width:auto;">🔄 RECONECTAR</button>
+        <button onclick="window.location.href='index.html'" style="background: transparent; border: 1px solid #374151; color: #94a3b8; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 11px;">← VOLVER</button>
+    </div>
+</div>
+
+<div class="grid-master">
+    <div>
+        <div class="card">
+            <h3>🏦 Saldo Inicial (Arrastre)</h3>
+            <div id="infoArrastre" style="font-size:10px; color:var(--oro); margin-bottom:10px; font-weight:bold;"></div>
+            <label style="font-size:9px">CAJA GALICIA</label>
+            <input type="number" id="bancoGalicia" onchange="guardarBancos()">
+            <label style="font-size:9px">CAJA SANTANDER</label>
+            <input type="number" id="bancoSantander" onchange="guardarBancos()">
+        </div>
+        <div class="card">
+            <h3>💸 Gastos Operativos</h3>
+            <div id="contGastos"></div>
+            <button class="btn" style="background:#1f2937" onclick="nuevaCategoria()">+ RUBRO</button>
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <h3>📈 Flujo Semanal (Proyectado desde Cobranzas)</h3>
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;" id="gridSemanas"></div>
+        </div>
+        <div class="card">
+            <h3>🧪 Simulador de Impacto</h3>
+            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <input type="number" id="simMonto" placeholder="$ Gasto Mensual">
+                <input type="number" id="simMeses" placeholder="Meses" style="width:100px">
+            </div>
+            <button class="btn" style="background:var(--oro); color:black" onclick="simularImpacto()">ANALIZAR SOLVENCIA</button>
+            <div id="resSim" style="margin-top:10px; font-weight:bold;"></div>
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <h3>📊 Resumen de Salud</h3>
+            <div id="saludNegocio" style="font-size:13px; line-height:2.5"></div>
+        </div>
+        <div class="card">
+            <h3>🧬 Variables del Motor</h3>
+            <div id="motorVars" style="font-size:11px; line-height:2.5"></div>
+            <div id="statusIA" style="font-size:9px; color:var(--acento); margin-top:10px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    const firebaseConfig = { 
+        apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8", 
+        authDomain: "clinicaintegral-5c488.firebaseapp.com", 
+        databaseURL: "https://clinicaintegral-5c488-default-rtdb.firebaseio.com", 
+        projectId: "clinicaintegral-5c488", 
+        storageBucket: "clinicaintegral-5c488.firebasestorage.app", 
+        messagingSenderId: "184090967634", 
+        appId: "1:184090967634:web:09715937b33ea48288698b" 
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    
+    
+    const auth = firebase.auth(); 
+    
+    
+    const db = firebase.database(); 
+
+    
+    let datosMes = { bancos: {galicia:0, santander:0}, gastos: {} };
+    let motorGlobal = { indice_cobranza: 0.85, delay_historico: 65 };
+    let refMes = null;
+    let saldoFinalProyectado = 0;
+
+    // 1. ESCUCHA MOTOR IA (BANNERS Y VARIABLES)
+    db.ref('tesoreria/motor_ia').on('value', snap => {
+        motorGlobal = snap.val() || motorGlobal;
+        document.getElementById('motorVars').innerHTML = `
+            Efectividad: <b>${(motorGlobal.indice_cobranza*100).toFixed(1)}%</b><br>
+            Delay Promedio: <b>${motorGlobal.delay_historico} días</b><br>
+            Dólar MEP: <b>$${motorGlobal.mercado?.dolar_mep || '-'}</b><br>
+            Rinde Inversión: <b>${motorGlobal.mercado?.tasa_pf || 0}% TNA</b>`;
+
+        const banner = document.getElementById('iaBanner');
+        if (motorGlobal.oportunidades) {
+            const op = motorGlobal.oportunidades;
+            banner.style.display = "block";
+            if (op.monto_sugerido > 0) {
+                banner.innerHTML = `<div class="alerta-ia" style="display:block; background:rgba(16,185,129,0.1); border-color:var(--verde); color:white; border-left:10px solid var(--verde)">
+                    <h2 style="margin:0; color:var(--verde)">🚀 ¡INVERTÍ PELOTUDO! Ganás guita hoy.</h2>
+                    <p style="margin:5px 0">Tenés <b>$${op.monto_sugerido.toLocaleString()}</b> libres. Metelos en <b>${op.instrumento}</b>.</p>
+                </div>`;
+            } else {
+                banner.innerHTML = `<div class="alerta-ia" style="display:block; background:rgba(239,68,68,0.1); border-color:var(--rojo); color:white">
+                    <b>🛡️ MODO PROTECCIÓN:</b> No sobra un peso. Priorizar caja. <br><small>${op.instrumento}</small>
+                </div>`;
+            }
+        }
+        proyectarTodo();
+    });
+
+    // 2. CONECTAR MES Y ARRASTRE
+    async function conectarMes() {
+        const mes = document.getElementById('mesFiltro').value;
+        if(refMes) refMes.off();
+
+        const [y, m] = mes.split('-').map(Number);
+        const mAnt = `${m===1?y-1:y}-${String(m===1?12:m-1).padStart(2,'0')}`;
+        const snapAnt = await db.ref(`tesoreria/meses/${mAnt}/cierre`).once('value');
+        const arrastre = snapAnt.val() || 0;
+        
+        document.getElementById('infoArrastre').innerText = `⚠ Arrastre de ${mAnt}: $${Math.round(arrastre).toLocaleString()}`;
+
+        refMes = db.ref(`tesoreria/meses/${mes}`);
+        refMes.on('value', snap => {
+            const data = snap.val();
+            if(data) {
+                datosMes = data;
+                document.getElementById('bancoGalicia').value = data.bancos?.galicia || 0;
+                document.getElementById('bancoSantander').value = data.bancos?.santander || 0;
+            } else {
+                document.getElementById('bancoGalicia').value = arrastre;
+                document.getElementById('bancoSantander').value = 0;
+                datosMes = { bancos: {galicia: arrastre, santander:0}, gastos: {} };
+            }
+            dibujarGastos();
+            proyectarTodo();
+        });
+    }
+
+    // 3. PROYECCIÓN BASADA EN COBRANZAS PENDIENTES (TU FLUJO)
+async function proyectarTodo() {
+    const mesSeleccionado = document.getElementById('mesFiltro').value;
+    if(!mesSeleccionado) return;
+    
+    let saldo = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
+    let ingS = {1:0, 2:0, 3:0, 4:0}, gasS = {1:0, 2:0, 3:0, 4:0};
+    let detalleFacturas = {1:[], 2:[], 3:[], 4:[]}; 
+    let totalG = 0;
+
+    // 1. OBTENEMOS AMBOS NODOS PARA CRUZAR DATOS
+    const [snapFacts, snapCobros] = await Promise.all([
+        db.ref('facturas_emitidas').once('value'),
+        db.ref('cobranzas').once('value')
+    ]);
+    
+    const facturas = snapFacts.val() || {};
+    const cobranzas = snapCobros.val() || {};
+
+    // 2. ESCANEAMOS FACTURAS EMITIDAS QUE NO TIENEN COBRO REGISTRADO
+    Object.keys(facturas).forEach(id => {
+        const f = facturas[id];
+        // Si la factura NO está en cobranzas (o está pero no tiene fecha_pago)
+        if (!cobranzas[id] || !cobranzas[id].fecha_pago) {
+            
+            let fechaBase = f.fecha_emision || f.fecha;
+            if (!fechaBase) return;
+
+            // Parseo flexible de fecha
+            let partes = fechaBase.includes('/') ? fechaBase.split('/') : fechaBase.split('-');
+            let fCobro = fechaBase.includes('/') ? 
+                new Date(partes[2], partes[1]-1, partes[0]) : 
+                new Date(partes[0], partes[1]-1, partes[2]);
+
+            // Aplicamos el delay de tu motor (65 días promedio)
+            fCobro.setDate(fCobro.getDate() + (motorGlobal.delay_historico || 65));
+            
+            const mesCobro = `${fCobro.getFullYear()}-${String(fCobro.getMonth()+1).padStart(2,'0')}`;
+
+            if (mesCobro === mesSeleccionado) {
+                const s = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
+                const montoProyectado = parseFloat(f.total || f.monto || 0) * (motorGlobal.indice_cobranza || 0.85);
+                
+                ingS[s] += montoProyectado;
+                const cliente = f.cliente || f.receptor || "Factura";
+                detalleFacturas[s].push(`<div class="detalle-factura">${cliente.substring(0,12)}: <b>$${Math.round(montoProyectado/1000)}k</b></div>`);
+            }
+        }
+    });
+
+    // 3. PROCESAR GASTOS CARGADOS EN ESTE MES
+    Object.values(datosMes.gastos || {}).forEach(cat => {
+        if(cat.items) cat.items.forEach(i => { 
+            gasS[cat.semana || 1] += (parseFloat(i.monto) || 0); 
+            totalG += (parseFloat(i.monto) || 0); 
+        });
+    });
+
+    // 4. DIBUJAR GRID SEMANAL
+    const grid = document.getElementById('gridSemanas');
+    grid.innerHTML = "";
+    for(let i=1; i<=4; i++) {
+        saldo += (ingS[i] - gasS[i]);
+        const lista = detalleFacturas[i].length > 0 ? `<div style="margin-top:auto; background:#0a0f18; padding:5px; border-radius:5px;">${detalleFacturas[i].join('')}</div>` : "";
+        grid.innerHTML += `
+            <div class="sem-card" style="border-color:${saldo < 0 ? 'var(--rojo)':'var(--verde)'}">
+                <div>
+                    <span style="font-size:9px">SEM ${i}</span>
+                    <b class="monto-final" style="color:${saldo < 0 ? 'var(--rojo)':'white'}">$${Math.round(saldo).toLocaleString()}</b>
+                    <small style="color:var(--verde)">+ $${Math.round(ingS[i]).toLocaleString()}</small>
+                </div>
+                ${lista}
+            </div>`;
+    }
+
+    saldoFinalProyectado = saldo;
+    db.ref(`tesoreria/meses/${mesSeleccionado}/cierre`).set(saldo);
+    actualizarBannerDinamico(mesSeleccionado); 
+}
+
+// --- BANNER INTELIGENTE: CRUZANDO DATOS DE FIREBASE CON PROYECCIÓN ---
+function actualizarBannerDinamico(mesActual) {
+    const banner = document.getElementById('iaBanner');
+    const op = motorGlobal.oportunidades || {};
+    const hoy = new Date();
+    const mesHoy = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}`;
+
+    if (mesActual === mesHoy) {
+        // MODO HOY: Trae la data literal de Firebase
+        banner.style.display = "block";
+        banner.innerHTML = `
+            <div class="alerta-ia" style="display:block; background:rgba(245,158,11,0.1); border-color:var(--oro); color:white; border-left:10px solid var(--oro)">
+                <h2 style="margin:0; color:var(--oro)">💡 CONSEJO IA PARA HOY</h2>
+                <p style="margin:5px 0">${op.alerta_inflacion || ''}</p>
+                <p style="margin:5px 0"><b>Sugerencia:</b> ${op.consejo_uva || ''} | <b>Instrumento:</b> ${op.instrumento || 'Caja'}</p>
+            </div>`;
+    } else {
+        // MODO FUTURO: Cálculo matemático basado en lo que sobra
+        if (saldoFinalProyectado > 1000000) {
+            const gananciaEstimada = Math.round(saldoFinalProyectado * (motorGlobal.mercado?.tasa_pf / 100 / 12));
+            banner.style.display = "block";
+            banner.innerHTML = `
+                <div class="alerta-ia" style="display:block; background:rgba(16,185,129,0.1); border-color:var(--verde); color:white; border-left:10px solid var(--verde)">
+                    <h2 style="margin:0; color:var(--verde)">💰 PROYECCIÓN DE RENDIMIENTO</h2>
+                    <p style="margin:5px 0">En ${mesActual} te sobrarían <b>$${Math.round(saldoFinalProyectado).toLocaleString()}</b>.</p>
+                    <p style="margin:5px 0">A la tasa de hoy (${motorGlobal.mercado?.tasa_pf || 35}%), ganarías <b>$${gananciaEstimada.toLocaleString()} extras</b> en 30 días.</p>
+                </div>`;
+        } else {
+            banner.style.display = "block";
+            banner.innerHTML = `<div class="alerta-ia" style="display:block; background:rgba(239,68,68,0.1); border-color:var(--rojo); color:white"><b>🛡️ ALERTA DE LIQUIDEZ:</b> Saldo proyectado bajo para ${mesActual}. No se recomienda invertir.</div>`;
+        }
+    }
+}	   
+    // --- ENTRENAMIENTO Y MANTENIMIENTO ---
+    function parseFecha(s) { if(!s) return null; const p=s.split('/'); return new Date(p[2],p[1]-1,p[0]); }
+    function limpiarOutliers(arr) { if(arr.length<4) return arr; arr.sort((a,b)=>a-b); return arr.slice(Math.floor(arr.length*0.1), Math.ceil(arr.length*0.9)); }
+    function mediaPonderada(arr) { if(!arr.length) return 65; const sum = arr.reduce((a,b)=>a+b,0); return Math.round(sum/arr.length); }
+
+    async function verificarYEntrenar() {
+        const fSnap = await db.ref('facturas_emitidas').once('value');
+        const facturas = fSnap.val() || {};
+        const cantidadActual = Object.keys(facturas).length;
+        const motorSnap = await db.ref('tesoreria/motor_ia').once('value');
+        const motorData = motorSnap.val() || { cantidad_entrenada: 0 };
+
+        if (cantidadActual !== motorData.cantidad_entrenada) {
+            document.getElementById('statusIA').innerText = "🤖 IA: Sincronizando facturas...";
+            const cSnap = await db.ref('cobranzas').once('value');
+            const cobranzas = cSnap.val() || {};
+            await ejecutarIA(facturas, cobranzas);
+            await db.ref('tesoreria/motor_ia').update({ cantidad_entrenada: cantidadActual, ultima_sincro: new Date().toLocaleString() });
+            document.getElementById('statusIA').innerText = "✅ Motor Sincronizado";
+        }
+    }
+
+    async function ejecutarIA(f, c) {
+        let delays = []; let cobradas = 0; let emitidas = Object.keys(f).length;
+        Object.keys(f).forEach(id => {
+            if (c[id] && c[id].fecha_pago && f[id].fecha_emision) {
+                const fEmi = parseFecha(f[id].fecha_emision);
+                const fPag = parseFecha(c[id].fecha_pago);
+                if (fEmi && fPag) {
+                    const diff = (fPag - fEmi) / 86400000;
+                    if (diff > 0 && diff < 200) delays.push(diff);
+                    cobradas++;
+                }
+            }
+        });
+        const delayReal = mediaPonderada(limpiarOutliers(delays));
+        const efectividadReal = emitidas > 0 ? (cobradas / emitidas) : 0.85;
+        await db.ref('tesoreria/motor_ia').update({ delay_historico: delayReal, indice_cobranza: efectividadReal });
+    }
+
+    // --- GESTIÓN DE UI ---
+    function dibujarGastos() {
+        const cont = document.getElementById('contGastos');
+        cont.innerHTML = "";
+        Object.keys(datosMes.gastos || {}).forEach(cat => {
+            let items = (datosMes.gastos[cat].items || []).map((it, i) => `
+                <div style="display:flex; gap:5px; margin-bottom:5px;">
+                    <input value="${it.nombre}" onchange="updateItem('${cat}', ${i}, 'nombre', this.value)">
+                    <input type="number" value="${it.monto}" style="width:110px" onchange="updateItem('${cat}', ${i}, 'monto', this.value)">
+                </div>`).join('');
+            cont.innerHTML += `<div class="card" style="background:rgba(255,255,255,0.03);"><b>${cat}</b>${items}</div>`;
+        });
+    }
+
+    function updateItem(cat, idx, campo, valor) {
+        if(campo==='monto') valor = parseFloat(valor)||0;
+        db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/gastos/${cat}/items/${idx}`).update({[campo]: valor});
+    }
+
+    function guardarBancos() {
+        db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/bancos`).update({
+            galicia: parseFloat(document.getElementById('bancoGalicia').value)||0,
+            santander: parseFloat(document.getElementById('bancoSantander').value)||0
+        });
+    }
+
+    function nuevaCategoria() {
+        const n = prompt("Nombre Rubro:");
+        if(n) db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/gastos/${n.toUpperCase()}`).set({ semana: 1, items: [{nombre: n, monto: 0}] });
+    }
+
+    function simularImpacto() {
+        const monto = parseFloat(document.getElementById('simMonto').value) || 0;
+        const meses = parseInt(document.getElementById('simMeses').value) || 1;
+        const res = document.getElementById('resSim');
+        let tempSaldo = saldoFinalProyectado;
+        let mesesResistidos = 0;
+        for(let i=0; i<meses; i++) { tempSaldo -= monto; if(tempSaldo >= 0) mesesResistidos++; }
+        res.style.color = mesesResistidos >= meses ? "var(--verde)" : "var(--rojo)";
+        res.innerText = mesesResistidos >= meses ? `✅ VIABLE por ${meses} meses.` : `❌ QUIEBRA en mes ${mesesResistidos + 1}.`;
+    }
+
+    window.onload = async () => {
+        document.getElementById('mesFiltro').value = "2026-03"; 
+        await conectarMes();
+        verificarYEntrenar();
+    };
+
+auth.onAuthStateChanged((user) => {
+    if (user) {
+        console.log("Tesorería autorizada para:", user.email);
+        
+        setTimeout(() => {
+            // Ejecutamos la carga de datos de caja y balances
+            if (typeof cargarTodo === 'function') {
+                cargarTodo();
+            } else if (typeof renderizarTodo === 'function') {
+                renderizarTodo();
+            }
+        }, 700); // Le damos un pelín más de tiempo porque Tesorería suele cargar más datos
+        
+    } else {
+        // Si no hay login, al index
+        window.location.href = "index.html";
+    }
+});
+</script>
+</body>
+</html>
