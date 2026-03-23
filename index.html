@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Esencial SRL - Gestión Integral</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --primary: #1a2a6c; --secondary: #b21f1f; --accent: #fdbb2d;
+            --glass: rgba(15, 23, 42, 0.6); --shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        body {
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            background-color: #020617; margin: 0; display: flex;
+            align-items: center; justify-content: center; min-height: 100vh;
+            color: #f1f5f9; overflow-x: hidden;
+        }
+        #login-screen {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            background-size: 400% 400%; animation: gradientBG 10s ease infinite;
+            padding: 60px 50px; border-radius: 35px; text-align: center; width: 340px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+        }
+        @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        
+        .btn-google {
+            background: white; color: #444; padding: 18px; border: none;
+            border-radius: 18px; font-weight: 700; cursor: pointer; width: 100%;
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: 0.3s; font-size: 16px;
+        }
+        .btn-google:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
+
+        .container { display: none; width: 95%; max-width: 1050px; background: var(--glass); padding: 50px; border-radius: 45px; backdrop-filter: blur(25px); text-align: center; }
+        .grid-menu { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px; margin-top: 50px; }
+        
+        .btn-menu { 
+            aspect-ratio: 1/1; border: none; border-radius: 35px; color: white; 
+            font-weight: 800; cursor: pointer; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; gap: 15px; transition: 0.4s; 
+        }
+        .btn-menu span { font-size: 60px; }
+        .btn-menu:hover { transform: translateY(-10px); filter: brightness(1.2); }
+        
+        .cet { background: linear-gradient(145deg, #1e293b, #0f172a); }
+        .cd { background: linear-gradient(145deg, #065f46, #064e3b); }
+        .rehab { background: linear-gradient(145deg, #7e22ce, #4c1d95); }
+        .fac { background: linear-gradient(145deg, #166534, #14532d); }
+        .saei { background: linear-gradient(145deg, #3730a3, #1e1b4b); }
+        .cobranzas { background: linear-gradient(145deg, #a16207, #713f12); }
+        .teso { background: linear-gradient(145deg, #0f172a, #000000); border: 2px solid var(--accent); }
+    </style>
+</head>
+<body>
+
+<div id="login-screen">
+    <div style="font-size: 80px; margin-bottom: 20px;">🏢</div>
+    <h2 style="color:white; margin-bottom: 30px; font-weight: 900;">ESENCIAL SRL</h2>
+    <button class="btn-google" onclick="ingresarConGoogle()">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="22">
+        ACCEDER CON GMAIL
+    </button>
+</div>
+
+<div class="container" id="main-container">
+    <h1 id="saludo" style="font-size: 45px; margin:0; font-weight: 900;">ESENCIAL SRL</h1>
+    <p id="subtitulo" style="color: var(--accent); font-weight: 700; font-size: 20px; margin-top: 10px;"></p>
+    <div id="menu-dinamico" class="grid-menu"></div>
+    <button onclick="auth.signOut()" style="margin-top: 50px; background: none; border: 1px solid #444; color: #888; cursor: pointer; border-radius: 10px; padding: 8px 20px;">Cerrar Sesión Segura</button>
+</div>
+
+<script>
+    // CONFIGURACIÓN FIREBASE APLICADA
+    const firebaseConfig = {
+        apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8",
+        authDomain: "clinicaintegral-5c488.firebaseapp.com",
+        databaseURL: "https://clinicaintegral-5c488-default-rtdb.firebaseio.com",
+        projectId: "clinicaintegral-5c488",
+        storageBucket: "clinicaintegral-5c488.firebasestorage.app",
+        messagingSenderId: "184090967634",
+        appId: "1:184090967634:web:09715937b33ea48288698b"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    function ingresarConGoogle() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider).catch(err => alert("Error al ingresar: " + err.message));
+    }
+
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            const emailKey = user.email.replace(/\./g, ',');
+            db.ref('usuarios/' + emailKey).once('value', snapshot => {
+                const userData = snapshot.val();
+                if (userData) {
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('main-container').style.display = 'block';
+                    mostrarInterfaz(userData);
+                } else {
+                    alert("Acceso denegado. Usuario no registrado.");
+                    auth.signOut();
+                }
+            });
+        } else {
+            document.getElementById('login-screen').style.display = 'block';
+            document.getElementById('main-container').style.display = 'none';
+        }
+    });
+
+    function mostrarInterfaz(user) {
+        document.getElementById('subtitulo').innerText = `Bienvenido/a, ${user.nombre || 'Usuario'}`;
+        const menu = document.getElementById('menu-dinamico');
+        const p = user.permisos || {};
+        let html = "";
+
+        if (p.cet) html += `<button class="btn-menu cet" onclick="validarHorario('cet.html', 'cet')"><span>🏠</span>C.E.T.</button>`;
+        if (p.cd) html += `<button class="btn-menu cd" onclick="validarHorario('cd.html', 'cd')"><span>🏫</span>CENTRO DE DÍA</button>`;
+        if (p.rehab) html += `<button class="btn-menu rehab" onclick="validarHorario('rehab.html', 'rehab')"><span>♿</span>REHABILITACIÓN</button>`;
+        if (p.facturacion) html += `<button class="btn-menu fac" onclick="validarHorario('facturacion.html', 'fac')"><span>📂</span>FACTURACIÓN</button>`;
+        if (p.saei) html += `<button class="btn-menu saei" onclick="validarHorario('saei.html', 'saei')"><span>🎒</span>SAEI</button>`;
+        if (p.cobranzas) html += `<button class="btn-menu cobranzas" onclick="validarHorario('cobranzas.html', 'cob')"><span>💰</span>COBRANZAS</button>`;
+        if (p.tesoreria) html += `<button class="btn-menu teso" onclick="location.href='tesoreria.html'"><span>📊</span>TESORERÍA</button>`;
+
+        menu.innerHTML = html;
+    }
+
+    function validarHorario(url, mod) {
+        const ahora = new Date();
+        const hora = ahora.getHours() + ahora.getMinutes() / 60;
+        const dia = ahora.getDay();
+        const email = auth.currentUser.email;
+
+        if (email === "cristianmarquezcpn@gmail.com" || email === "mariamicaela95@gmail.com" || email === "esencialsaludfacturacion@gmail.com") {
+            location.href = url; return;
+        }
+
+        if (dia === 0 || dia === 6) { alert("Acceso cerrado fines de semana."); return; }
+
+        let ok = false;
+        if (mod === 'cet' && hora >= 8 && hora <= 21.5) ok = true;
+        if (mod === 'cd' && hora >= 8 && hora <= 12.5) ok = true;
+        if (mod === 'rehab' && hora >= 13 && hora <= 21.5) ok = true;
+        if (['fac', 'saei', 'cob'].includes(mod) && hora >= 8 && hora <= 21.5) ok = true;
+
+        if (ok) location.href = url;
+        else alert("Módulo fuera de horario operativo.");
+    }
+</script>
+</body>
+</html>
