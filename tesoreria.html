@@ -83,7 +83,7 @@
 </div>
 
 <script>
-    <script>
+
     const firebaseConfig = { 
         apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8", 
         authDomain: "clinicaintegral-5c488.firebaseapp.com", 
@@ -376,7 +376,7 @@ auth.onAuthStateChanged((user) => {
             } else if (typeof renderizarTodo === 'function') {
                 renderizarTodo();
             }
-        }, 600); // Le damos un pelín más de tiempo porque Tesorería suele cargar más datos
+        }, 700); // Le damos un pelín más de tiempo porque Tesorería suele cargar más datos
         
     } else {
         // Si no hay login, al index
