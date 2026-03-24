@@ -142,18 +142,16 @@
 </div>
 
 <script>
-// 1. LIMPIEZA INICIAL
+// 1. LIMPIEZA E INICIALIZACIÓN GLOBAL
 window.dictOS = {}; 
 
 function inicializarCarga() {
-    // Usamos la ruta correcta donde se guardan las OS en tu Firebase
+    console.log("Iniciando carga de configuración...");
     db.ref('/config/obras_sociales').once('value').then(snap => {
         const datos = snap.val();
         if (datos) {
             Object.keys(datos).forEach(nombreKey => {
                 const os = datos[nombreKey];
-                // Guardamos en el diccionario global usando el NOMBRE como clave
-                // Importante: guardamos CUIT y Domicilio
                 window.dictOS[nombreKey.toUpperCase().trim()] = {
                     cuit: os.cuit || "",
                     domicilio: os.domicilio || os.dom || "SAN JUAN",
@@ -164,13 +162,17 @@ function inicializarCarga() {
         }
         console.log("Diccionario OS sincronizado:", window.dictOS);
         
-        // 2. Ahora sí, llamamos a cargarTodo para que traiga pacientes y facturas
-        if (typeof window.cargarTodo === 'function') window.cargarTodo();
-
+        // Llamamos a cargarTodo que es la que trae los pacientes
+        if (typeof window.cargarTodo === 'function') {
+            window.cargarTodo();
+        } else {
+            console.error("La función cargarTodo no existe.");
+        }
     }).catch(err => console.error("Error en inicializarCarga:", err));
 }
-let filtroActual = 'TODOS'; 
 
+// 2. FILTROS Y VARIABLES DE ESTADO
+let filtroActual = 'TODOS';
 // 1. FILTRADO (Se mantiene igual por si usas botones de filtro visual)
 function filtrarPor(tipo) {
     filtroActual = tipo.toUpperCase();
@@ -287,25 +289,21 @@ function actualizarListaOSUI() {
     if(!listaOS) return;
     
     let htmlOS = '<div style="display: flex; flex-direction: column; gap: 5px;">';
-    for (let nombre in dictOS) {
+    // Usamos window.dictOS que es donde cargamos todo desde /config/
+    for (let nombre in window.dictOS) {
+        const datosOS = window.dictOS[nombre];
         htmlOS += `
             <div class="os-item" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:8px; border-radius:5px; border:1px solid #eee; margin-bottom:5px">
-                <span style="font-size:10px"><b>${nombre}</b> (${dictOS[nombre].cuit})</span>
+                <span style="font-size:10px"><b>${nombre}</b> (${datosOS.cuit || 'S/C'})</span>
                 <div style="display:flex; gap:5px">
                     <button class="btn" style="background:var(--azul); padding:2px 8px; font-size:9px" onclick="prepararEdicionOS('${nombre}')">EDITAR</button>
                     <button class="btn" style="background:var(--rojo); padding:2px 8px; font-size:9px" onclick="borrarOS('${nombre}')">❌</button>
                 </div>
             </div>`;
     }
-  // Buscamos en el diccionario global que llenamos al principio
-    let infoOS = window.dictOS[osOriginal] || {};
-    
-    // Si no encontró por nombre, buscamos si hay algo parecido
-    if (!infoOS.cuit) {
-        const coincidencia = Object.keys(window.dictOS).find(k => k.includes(osOriginal) || osOriginal.includes(k));
-        if (coincidencia) infoOS = window.dictOS[coincidencia];
-    }
-
+    htmlOS += '</div>';
+    listaOS.innerHTML = htmlOS;
+}
 // --- GESTIÓN DE OBRAS SOCIALES (IDÉNTICO A TU ORIGINAL) ---
 window.guardarOS = async function() {
     const nombre = document.getElementById('os-nombre').value.toUpperCase().trim();
@@ -442,30 +440,34 @@ window.render = function() {
         if (filtroActual === 'TODOS') return true;
         return p.mod.toUpperCase() === filtroActual;
     })
-        .forEach(p => {
-    const facturaExiste = p.ultima_factura && p.ultima_factura.id;
-    const facturado = p.facturado === 'SI' || facturaExiste; 
-    
-    const tieneAsist = true;
-    const osOriginal = (p.os || "").toUpperCase().trim();
-    
-    // 1. Buscamos la Obra Social en el diccionario
-    // 1. Buscamos la Obra Social en el diccionario
-    let infoOS = dictOS[osOriginal] || {};
-    
-    // --- ESTA ES LA LINEA CLAVE: DEFINIMOS condicionIva SI O SI ---
-    const condicionIva = infoOS.condicion_iva || infoOS.condicionIva || "IVA SUJETO EXENTO"; 
+    .forEach(p => {
+        const facturaExiste = p.ultima_factura && (p.ultima_factura.id || p.ultima_factura.cae);
+        const facturado = p.facturado === 'SI' || facturaExiste; 
+        
+        const tieneAsist = true;
+        const osOriginal = (p.os || p.obra_social || "").toUpperCase().trim();
+        
+        // 1. Buscamos la Obra Social en el diccionario global
+        let infoOS = window.dictOS[osOriginal] || {};
+        
+        // Búsqueda inteligente por si el nombre no es idéntico
+        if (!infoOS.cuit) {
+            const coincidencia = Object.keys(window.dictOS).find(k => k.includes(osOriginal) || osOriginal.includes(k));
+            if (coincidencia) infoOS = window.dictOS[coincidencia];
+        }
+        
+        // --- DEFINIMOS condicionIva SI O SI ---
+        const condicionIva = infoOS.condicion_iva || infoOS.condicionIva || "IVA SUJETO EXENTO"; 
 
-    // 2. Extraemos los datos probando AMBOS nombres
-    const rsBD = infoOS.razonSocial || infoOS.razon_social || infoOS.nombre || osOriginal;
-    const cuitBD = infoOS.cuit || infoOS.CUIT || p.cuit || p.dni || "";
-    const domBD = infoOS.domicilio || infoOS.direccion || 'SAN JUAN';
+        // 2. Extraemos los datos de la base de Obras Sociales (o fallback a datos del paciente)
+        const rsBD   = infoOS.razon_social || infoOS.razonSocial || infoOS.nombre || osOriginal;
+        const cuitBD = infoOS.cuit || infoOS.CUIT || p.cuit || p.dni || "";
+        const domBD  = infoOS.domicilio || infoOS.direccion || 'SAN JUAN';
 
-    // 3. Definimos qué mostrar finalmente (agregamos una protección para facturado)
-    const rsFinal = facturado ? (p.ultima_factura?.nombre || p.ultima_factura?.razon_social || rsBD) : rsBD;
-    const cuitFinal = facturado ? (p.ultima_factura?.cuit || cuitBD) : cuitBD;
-    const domFinal = facturado ? (p.ultima_factura?.domicilio || domBD) : domBD;
-    
+        // 3. Definimos qué mostrar finalmente (Datos de factura si existe, sino los de la base)
+        const rsFinal   = facturado ? (p.ultima_factura?.nombre || p.ultima_factura?.razon_social || rsBD) : rsBD;
+        const cuitFinal = facturado ? (p.ultima_factura?.cuit || cuitBD) : cuitBD;
+        const domFinal  = facturado ? (p.ultima_factura?.domicilio || domBD) : domBD;    
     // --- Resto de tu lógica de montos ---
     const montoBase = facturado ? (p.ultima_factura?.total_facturado || p.ultima_factura?.total || 0) : (p.neto || p.total || 0);
     const aliFinal = facturado ? (p.ultima_factura?.alicuota || 0) : 0;
