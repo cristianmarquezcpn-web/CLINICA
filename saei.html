@@ -443,23 +443,23 @@ window.recalculer = (el) => {
         const facturado = p.facturado === 'SI' || facturaExiste; 
         
         // 1. Lógica de búsqueda (DICCIONARIO POR ID O NOMBRE)
-        const osID = p.os_id || p.obra_social_id;
-        const osNombre = (p.os || p.obra_social || "").toUpperCase().trim();
-        let infoOS = null;
+        // --- DENTRO DEL RENDER (FOREACH) ---
+		let osID = p.os_id || p.obra_social_id;
+		let osNombre = (p.os || p.obra_social || "").toUpperCase().trim();
+		let o_s = null;
 
-        if (osID && window.dictOS && window.dictOS[osID]) {
-            infoOS = window.dictOS[osID];
-        } else if (window.dictOS && window.dictOS[osNombre]) {
-            infoOS = window.dictOS[osNombre];
-        }
+// Lógica idéntica a facturacion.html
+		if (osID && window.dictOS && window.dictOS[osID]) {
+    	o_s = window.dictOS[osID];
+		} else if (window.dictOS && window.dictOS[osNombre]) {
+    	o_s = window.dictOS[osNombre];
+	}
 
-        const condicionIva = infoOS?.condicion_iva || "IVA SUJETO EXENTO";
-
-        // 2. Definimos los valores finales (CORREGIDO: Solo una declaración por variable)
-        const rsFinal   = facturado ? (p.ultima_factura?.nombre || p.ultima_factura?.razon_social || osNombre) : (infoOS?.razon_social || osNombre);
-        const cuitFinal = facturado ? (p.ultima_factura?.cuit || "") : (infoOS?.cuit || p.cuit || "");
-        const domFinal  = facturado ? (p.ultima_factura?.domicilio || "SAN JUAN") : (infoOS?.domicilio || p.domicilio || "SAN JUAN");
-
+// Variables con nombres únicos para que NO explote el SyntaxError
+		let valRS   = facturado ? (p.ultima_factura?.nombre || osNombre) : (o_s?.razon_social || osNombre);
+		let valCUIT = facturado ? (p.ultima_factura?.cuit || "") : (o_s?.cuit || p.cuit || "");
+		let valDOM  = facturado ? (p.ultima_factura?.domicilio || "SAN JUAN") : (o_s?.domicilio || "SAN JUAN");
+		let valIVA  = o_s?.condicion_iva || "IVA SUJETO EXENTO";
         // --- Lógica de montos ---
         const montoBase = facturado ? (p.ultima_factura?.total_facturado || p.ultima_factura?.total || 0) : (p.neto || p.total || 0);
         const aliFinal = facturado ? (p.ultima_factura?.alicuota || 0) : 0;
@@ -546,25 +546,31 @@ window.recalculer = (el) => {
         // BLOQUEO VISUAL
         fila.style.opacity = "0.5";
         fila.style.pointerEvents = "none"; 
-        ck.checked = false;
-
+        
         const idDelPaciente = ck.getAttribute('data-id'); 
-        const moduloDelPaciente = ck.getAttribute('data-mod') || "SAEI"; // <--- Aseguramos que viaje el módulo
+        const moduloDelPaciente = ck.getAttribute('data-mod') || "SAEI";
         const nombreDelPaciente = ck.getAttribute('data-nombre') || idDelPaciente;
         
-        const montoNeto = parseFloat(fila.querySelector('.neto-edit').value) || 0;
-        const montoExento = parseFloat(fila.querySelector('.exento-edit').value) || 0;
-        const alicuota = parseFloat(fila.querySelector('.sel-ali').value) || 0;
-        const detalleEscrito = fila.querySelector('.det-val').value;
+        // --- CORRECCIÓN DE MONTOS ---
+        // Leemos EXACTAMENTE lo que hay en las cajas de la fila
+        const netoInput = fila.querySelector('.neto-edit');
+        const exentoInput = fila.querySelector('.exento-edit');
+        const aliSelect = fila.querySelector('.sel-ali');
 
-        const totalReal = montoNeto + (montoNeto * (alicuota / 100)) + montoExento;
+        const montoNeto = parseFloat(netoInput?.value) || 0;
+        const montoExento = parseFloat(exentoInput?.value) || 0;
+        const alicuota = parseFloat(aliSelect?.value) || 0;
+        const detalleEscrito = fila.querySelector('.det-val')?.value || "";
+
+        // Cálculo de IVA (Solo si hay neto)
         const montoIva = montoNeto * (alicuota / 100);
+        const totalReal = montoNeto + montoIva + montoExento;
+        
         const tipo = parseInt(fila.querySelector('.sel-tipo').value);
 
         const pedido = {
-            // AJUSTE CLAVE: id_paciente debe ser el ID de Firebase para que 'cargarTodo' lo encuentre
             id_paciente: idDelPaciente, 
-            nombre_paciente: nombreDelPaciente, // Guardamos el nombre aparte si querés
+            nombre_paciente: nombreDelPaciente,
             modulo: moduloDelPaciente.toUpperCase(), 
             
             razon_social: fila.querySelector('.rs-val').value,
@@ -572,22 +578,25 @@ window.recalculer = (el) => {
             domicilio: fila.querySelector('.dom-val').value,
             tipo: tipo,
             descripcion: detalleEscrito,
+            
+            // VALORES CLAVE PARA AFIP
             total: totalReal, 
-            alicuota: alicuota,
             neto: montoNeto,     
             exento: montoExento, 
             iva: montoIva,
+            alicuota: alicuota,
+
             ptoVta: ptoVta,
             periodo_desde: fDesde, 
             periodo_hasta: fHasta,
             vto_pago: fVto,
             condicion_venta: condVenta,
-            condicion_iva: "IVA Sujeto Exento",
+            condicion_iva: (tipo === 1 || tipo === 3) ? "IVA Responsable Inscripto" : "IVA Sujeto Exento",
             estado: 'PENDIENTE',
             fecha_peticion: new Date().toISOString()
         };
 
-        // Lógica de Notas de Crédito (Tu lógica original está perfecta)
+        // Notas de Crédito
         if (tipo === 3 || tipo === 8) {
             const tipoAsoc = (tipo === 8) ? 6 : 1;
             const pvAsoc = parseInt(fila.querySelector('.asoc-pv')?.value) || 5; 
@@ -602,10 +611,7 @@ window.recalculer = (el) => {
 
         try {
             await db.ref('/cola_facturacion').push(pedido);
-            
-            // Ya no hace falta forzar fila.classList.add('row-facturada') 
-            // porque cuando el motor de AFIP termine, 'cargarTodo' lo va a pintar solo.
-            
+            ck.checked = false; // Solo lo desmarco si el push fue exitoso
         } catch (error) {
             console.error("Error al enviar a la cola:", error);
             fila.style.opacity = "1";
@@ -613,7 +619,7 @@ window.recalculer = (el) => {
             alert(`Error con el paciente ${nombreDelPaciente}. Reintentá.`);
         }
     }
-    alert("🚀 Lote enviado. El sistema se actualizará automáticamente cuando AFIP responda.");
+    alert("🚀 Lote enviado. Chequeá el Monitor de AFIP.");
 };
 function procesarFacturaAprobada(respuestaAfip, datosPedido) {
     const nuevaFacturaKey = db.ref().child('facturas_emitidas').push().key;
