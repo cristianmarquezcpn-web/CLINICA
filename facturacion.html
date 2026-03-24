@@ -503,52 +503,50 @@ window.render = function() {
     .sort((x, y) => x.id.localeCompare(y.id))
     .filter(p => {
         if (filtroActual === 'TODOS') return true;
-        return p.mod.toUpperCase() === filtroActual;
+        return (p.mod || "").toUpperCase() === filtroActual.toUpperCase();
     })
     .forEach(p => {
-        // --- 1. LÓGICA DE DETECCIÓN DOBLE (GRIS vs AZUL) ---
-        
-        // Factura en módulo actual (CET, CD, Rehab, etc.)
+        // --- 1. LÓGICA DE DETECCIÓN (GRIS vs AZUL) ---
         const miFactura = p.ultima_factura; 
-        const facturadoAqui = miFactura && miFactura.cae;
+        const facturadoAqui = !!(miFactura && miFactura.cae);
 
-        // Factura en módulo SAEI (escrita por el motor v9.0)
         const facturaSaei = p.ultima_factura_saei;
-        const facturadoEnSaei = p.facturado_saei === 'SI' || (facturaSaei && facturaSaei.cae);
+        const facturadoEnSaei = !!(p.facturado_saei === 'SI' || (facturaSaei && facturaSaei.cae));
 
-        // --- 2. DEFINICIÓN DE CLASE PARA EL TR (COLORES) ---
         const tr = document.createElement('tr');
         
+        // --- 2. COLORES ---
         if (facturadoAqui) {
             tr.className = "row-facturada"; // GRIS
         } else if (facturadoEnSaei) {
-            tr.className = "row-saei";      // AZUL (Clase nueva que debes tener en CSS)
+            tr.className = "row-saei";      // AZUL
         }
 
-        // --- 3. DATOS DE OBRA SOCIAL Y MONTOS ---
+        // --- 3. DATOS Y MONTOS ---
         const tieneAsist = p.asistF_link && p.asistF_link.length > 5;
         const osOriginal = (p.os || "").toUpperCase().trim();
         let infoOS = dictOS[osOriginal] || {};
         const condicionIva = infoOS.condicion_iva || infoOS.condicionIva || "IVA SUJETO EXENTO";
 
-        const rsFinal = facturadoAqui ? miFactura.razon_social : (facturadoEnSaei ? facturaSaei.razon_social : (infoOS.razon_social || infoOS.nombre || osOriginal));
-        const cuitFinal = facturadoAqui ? miFactura.cuit : (facturadoEnSaei ? facturaSaei.cuit : (infoOS.cuit || ""));
-        const domFinal = facturadoAqui ? miFactura.domicilio : (infoOS.domicilio || 'SAN JUAN');
+        const fActiva = facturadoAqui ? miFactura : (facturadoEnSaei ? facturaSaei : null);
+
+        const rsFinal = fActiva ? (fActiva.razon_social || fActiva.nombre || "") : (infoOS.razon_social || infoOS.nombre || osOriginal);
+        const cuitFinal = fActiva ? (fActiva.cuit || "") : (infoOS.cuit || "");
+        const domFinal = fActiva ? (fActiva.domicilio || "") : (infoOS.domicilio || 'SAN JUAN');
         
-        // El monto base: si ya está facturado (donde sea), usamos el total de esa factura
-        const fActiva = miFactura || facturaSaei;
-        const montoBase = (facturadoAqui || facturadoEnSaei) 
-            ? (fActiva.neto || fActiva.exento || fActiva.total) 
+        // El monto base con SEGURO (|| 0) para que no rompa el toLocaleString
+        const montoBase = fActiva 
+            ? (fActiva.neto || fActiva.exento || fActiva.total || 0) 
             : (p.neto || p.total || 0);
         
-        const aliFinal = (facturadoAqui || facturadoEnSaei) ? (fActiva.alicuota || 0) : 0;
+        const aliFinal = fActiva ? (fActiva.alicuota || 0) : 0;
         const valNetoIn = (aliFinal > 0) ? montoBase : 0;
         const valExeIn = (aliFinal == 0) ? montoBase : 0;
 
         let tipoComp = (condicionIva.toUpperCase().includes("RI")) ? 1 : 6;
-        if (fActiva?.tipo) tipoComp = parseInt(fActiva.tipo);
+        if (fActiva && fActiva.tipo) tipoComp = parseInt(fActiva.tipo);
 
-        // --- 4. ESTADO VISUAL (ETIQUETAS) ---
+        // --- 4. ESTADO VISUAL ---
         let estadoVisual = "";
         if (facturadoAqui) {
             estadoVisual = `<br><b style="color:green; font-size:9px;">FACTURADO (${p.mod})</b>`;
@@ -559,7 +557,6 @@ window.render = function() {
         }
 
         // --- 5. COLUMNA DE ACCIÓN ---
-        // Deshabilitamos el checkbox si está facturado en CUALQUIER módulo
         let colAccion = `<input type="checkbox" class="ck" 
                             data-id="${p.id}" 
                             data-mod="${p.mod}" 
@@ -578,38 +575,39 @@ window.render = function() {
                 </div>`;
         }
         
-        const totalCalculado = (facturadoAqui || facturadoEnSaei) ? fActiva.total : parseFloat(montoBase) * (1 + (parseFloat(aliFinal) / 100));
+        // CÁLCULO FINAL CON SEGURO ANTI-ERROR
+        const totalCalculado = fActiva ? (fActiva.total || 0) : (parseFloat(montoBase || 0) * (1 + (parseFloat(aliFinal || 0) / 100)));
 
         tr.innerHTML = `
             <td style="text-align:center">${colAccion}</td>
             <td><small>${p.mod}</small><br><b>${p.id}</b></td>
             <td>
-                <select class="input-tab sel-tipo" ${ (facturadoAqui || facturadoEnSaei)?'disabled':''}>
+                <select class="input-tab sel-tipo" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>
                     <option value="6" ${tipoComp === 6 ? 'selected' : ''}>Factura B</option>
                     <option value="1" ${tipoComp === 1 ? 'selected' : ''}>Factura A</option>
                 </select>
             </td>
-            <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${ (facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
-            <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${ (facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
-            <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${ (facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
-            <td><textarea class="input-tab det-val" ${ (facturadoAqui || facturadoEnSaei)?'disabled':''}>${(facturadoAqui || facturadoEnSaei) ? fActiva.descripcion : (p.detalle || `PRESTACIÓN MÓDULO ${p.mod} - ${p.id}`)}</textarea></td>
-            <td><input type="number" class="input-tab neto-edit" value="${valNetoIn}" ${ (facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
+            <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
+            <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
+            <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
+            <td><textarea class="input-tab det-val" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>${fActiva ? (fActiva.descripcion || fActiva.concepto || "") : (p.detalle || `PRESTACIÓN MÓDULO ${p.mod} - ${p.id}`)}</textarea></td>
+            <td><input type="number" class="input-tab neto-edit" value="${valNetoIn}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
             <td>
-                <select class="input-tab sel-ali" ${ (facturadoAqui || facturadoEnSaei)?'disabled':''}>
+                <select class="input-tab sel-ali" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>
                     <option value="0" ${aliFinal == 0 ? 'selected' : ''}>Exento</option>
                     <option value="10.5" ${aliFinal == 10.5 ? 'selected' : ''}>10.5%</option>
                     <option value="21" ${aliFinal == 21 ? 'selected' : ''}>21%</option>
                 </select>
             </td>
-            <td><input type="number" class="input-tab exento-edit" value="${valExeIn}" ${ (facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
+            <td><input type="number" class="input-tab exento-edit" value="${valExeIn}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
             <td style="text-align:right; font-weight:bold" class="total-row">
-                $${totalCalculado.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                $ ${(totalCalculado || 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}
             </td>
         `;
         b.appendChild(tr);
     });
 };
-async function enviarAFIP_WS() {
+	async function enviarAFIP_WS() {
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("Selecciona pacientes");
     
