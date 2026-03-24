@@ -439,12 +439,16 @@ window.recalculer = (el) => {
         return (p.mod || "").toUpperCase() === filtroActual;
     })
     .forEach(p => {
-        const facturaExiste = p.ultima_factura && (p.ultima_factura.id || p.ultima_factura.cae);
-        const facturado = p.facturado === 'SI' || facturaExiste; 
+        // --- 1. FIX DE DETECCIÓN (GRIS Y BOTONES) ---
+        // Buscamos tanto ultima_factura como ultima_factura_saei (por si acaso)
+        const uFact = p.ultima_factura_saei || p.ultima_factura;
+        const facturaExiste = uFact && (uFact.id || uFact.cae);
+        const facturado = (p.facturado === 'SI' || p.facturado_saei === 'SI' || facturaExiste); 
         
-        // 1. BUSQUEDA DE OBRA SOCIAL (COMO EN FACTURACION.HTML)
+        // --- 2. FIX AUTOCOMPLETADO OBRA SOCIAL ---
+        // Agregamos p.obra_social_nombre y p.obra_social_cuit que son comunes en SAEI
         const osID = p.os_id || p.obra_social_id;
-        const osNombre = (p.os || p.obra_social || "").toUpperCase().trim();
+        const osNombre = (p.obra_social_nombre || p.os || p.obra_social || "").toUpperCase().trim();
         let infoOS = null;
 
         if (osID && window.dictOS && window.dictOS[osID]) {
@@ -453,36 +457,35 @@ window.recalculer = (el) => {
             infoOS = window.dictOS[osNombre];
         }
 
-        // 2. DEFINICION DE VARIABLES (PARA EVITAR REFERENCE ERROR)
-        const conIva = infoOS?.condicion_iva || infoOS?.condicionIva || "IVA SUJETO EXENTO"; 
-        const cuitFinal = facturado ? (p.ultima_factura?.cuit || "") : (infoOS?.cuit || p.cuit || "");
-        const rsFinal   = facturado ? (p.ultima_factura?.nombre || p.ultima_factura?.razon_social || osNombre) : (infoOS?.razon_social || osNombre);
-        const domFinal  = facturado ? (p.ultima_factura?.domicilio || "SAN JUAN") : (infoOS?.domicilio || p.domicilio || "SAN JUAN");
+        const conIva = infoOS?.condicion_iva || infoOS?.condicionIva || p.obra_social_condicion_iva || "IVA SUJETO EXENTO"; 
+        const cuitFinal = facturado ? (uFact?.cuit || "") : (infoOS?.cuit || p.obra_social_cuit || p.cuit || "");
+        const rsFinal   = facturado ? (uFact?.nombre || uFact?.razon_social || osNombre) : (infoOS?.razon_social || osNombre);
+        const domFinal  = facturado ? (uFact?.domicilio || "SAN JUAN") : (infoOS?.domicilio || p.obra_social_domicilio || p.domicilio || "SAN JUAN");
 
-        // 3. LOGICA DE MONTOS PARA NO FACTURAR EN 0
-        const montoBase = facturado ? (p.ultima_factura?.total_facturado || p.ultima_factura?.total || 0) : (p.neto || p.total || 0);
-        const aliFinal = facturado ? (p.ultima_factura?.alicuota || 0) : 0;
+        // --- 3. LOGICA DE MONTOS ---
+        const montoBase = facturado ? (uFact?.total || 0) : (p.neto || p.total || 0);
+        const aliFinal = facturado ? (uFact?.alicuota || 0) : 0;
         
-        // Si es exento (ali 0), el valor va a la caja de exento, sino a neto.
         const valNetoIn = (aliFinal > 0) ? montoBase : 0;
         const valExeIn  = (aliFinal === 0) ? montoBase : 0;
 
         let tipoComp = (conIva.toUpperCase().includes("RI") || conIva.toUpperCase().includes("INSCRIPTO")) ? 1 : 6;
-        if (facturado && p.ultima_factura?.tipo_cod) tipoComp = parseInt(p.ultima_factura.tipo_cod);
+        if (facturado && uFact?.tipo_comp) tipoComp = parseInt(uFact.tipo_comp);
 
         const totalCalculado = parseFloat(montoBase) * (1 + (parseFloat(aliFinal) / 100));
 
         const tr = document.createElement('tr');
-        if(facturado) tr.className = "row-facturada"; 
+        if(facturado) tr.className = "row-facturada"; // Esto lo pone GRIS (asegurate que el CSS tenga .row-facturada { background: #eee; })
 
         // 4. COLUMNA ACCION (PDF Y REFACTURAR)
         let colAccion = `<input type="checkbox" class="ck" data-id="${p.id}" data-mod="${p.mod}" data-nombre="${p.nombre || p.id}" ${facturado ? 'disabled' : ''}>`;
         if (facturado) {
+            // Usamos uFact.id que es el ID de transacción de Firebase
             colAccion += `
                 <div style="margin-top:5px; display:flex; flex-direction:column; gap:2px;">
-                    <button class="btn" style="background:var(--verde); font-size:8px; padding:2px;" 
-                        onclick="window.descargarFactura('${p.ultima_factura.id}', true)">PDF</button>
-                    <button class="btn" style="background:var(--naranja); font-size:8px; padding:2px;" 
+                    <button class="btn" style="background:var(--verde); font-size:10px; padding:4px; color:white; border:none; cursor:pointer;" 
+                        onclick="window.descargarFactura('${uFact.id}', true)">PDF</button>
+                    <button class="btn" style="background:var(--naranja); font-size:10px; padding:4px; color:white; border:none; cursor:pointer;" 
                         onclick="window.refacturar('${p.mod}', '${p.id}')">Refac</button>
                 </div>`;
         } else {
@@ -493,7 +496,7 @@ window.recalculer = (el) => {
             <td style="text-align:center">${colAccion}</td>
             <td><small>${p.mod}</small><br><b>${p.id}</b></td>
             <td>
-                <select class="input-tab sel-tipo" onchange="window.gestionarNC(this)" ${facturado?'disabled':''}>
+                <select class="input-tab sel-tipo" ${facturado?'disabled':''}>
                     <option value="6" ${tipoComp === 6 ? 'selected' : ''}>Factura B</option>
                     <option value="1" ${tipoComp === 1 ? 'selected' : ''}>Factura A</option>
                     <option value="8" ${tipoComp === 8 ? 'selected' : ''}>NC B</option>
@@ -503,7 +506,7 @@ window.recalculer = (el) => {
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
-            <td><textarea class="input-tab det-val" ${facturado?'disabled':''}>${facturado ? (p.ultima_factura.concepto || "") : (p.detalle || `PRESTACIÓN MÓDULO ${p.mod} - ${p.id}`)}</textarea></td>
+            <td><textarea class="input-tab det-val" ${facturado?'disabled':''}>${facturado ? (uFact.descripcion || "PRESTACION") : (p.detalle || `PRESTACIÓN MÓDULO ${p.mod} - ${p.id}`)}</textarea></td>
             <td><input type="number" class="input-tab neto-edit" value="${valNetoIn}" oninput="window.recalcular(this)" ${facturado?'disabled':''}></td>
             <td>
                 <select class="input-tab sel-ali" onchange="window.recalcular(this)" ${facturado?'disabled':''}>
@@ -549,7 +552,7 @@ window.recalculer = (el) => {
         const pedido = {
             id_paciente: idDelPaciente, 
             id_paciente_db: idDelPaciente, // PARA EL COLOR AZUL
-            modulo: "SAEI", 
+            modulo: "saei", 
             razon_social: fila.querySelector('.rs-val').value,
             cuit: fila.querySelector('.cuit-val').value.replace(/\D/g, ''),
             domicilio: fila.querySelector('.dom-val').value,
@@ -1056,98 +1059,147 @@ window.toggleArchivo = () => {
         }
     }
 };
-window.cargarArchivo = () => {
+window.cargarArchivo = async () => {
     const filtro = document.getElementById('mes_filtro_archivo').value;
     const body = document.getElementById('tabla_archivo_body');
-    const elGral = document.getElementById('tot-general'); // El total de abajo
+    const elGral = document.getElementById('tot-general'); // Total general del historial
+    const elSaeiTotal = document.getElementById('tot-saei'); // Cuadrito de total SAEI
 
     if (!filtro) return alert("Seleccioná un mes para ver el historial.");
-    body.innerHTML = '<tr><td colspan="6" style="text-align:center;">Cargando facturas de SAEI...</td></tr>';
+    
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;">Cargando historial de SAEI...</td></tr>';
 
-    db.ref('facturas_emitidas').once('value').then((snap) => {
-        const facturas = snap.val() || {};
+    try {
+        // --- 1. BUSQUEDA EN AMBAS RUTAS ---
+        const [snapGral, snapSaei] = await Promise.all([
+            db.ref('facturas_emitidas').once('value'),
+            db.ref('facturas_emitidas_saei').once('value')
+        ]);
+
+        // Combinamos todos los registros en un solo objeto
+        const todas = { ...snapGral.val(), ...snapSaei.val() };
+        
         let html = "";
         let tSaei = 0; 
 
-        // Invertimos para ver las más nuevas primero
-        const llaves = Object.keys(facturas).reverse();
+        // Invertimos el orden para mostrar lo más reciente arriba
+        const llaves = Object.keys(todas).reverse();
 
         llaves.forEach(id => {
-            const f = facturas[id];
-            
-            // --- EL FILTRO MAESTRO ---
-            // Solo entra si el módulo guardado es exactamente SAEI
+            const f = todas[id];
+            if (!f) return;
+
+            // --- 2. FILTRO DE MÓDULO ---
+            // Solo procesamos si el módulo es SAEI (independientemente de la carpeta donde esté)
             if (String(f.modulo).toUpperCase() !== "SAEI") return;
 
+            // --- 3. FILTRO DE FECHA ---
             const fecha = f.fecha_emision || f.fecha || "";
             const partes = fecha.split('/');
             
             if (partes.length === 3) {
+                // Formato YYYY-MM para comparar con el input 'month'
                 const mesAnio = `${partes[2]}-${partes[1].padStart(2, '0')}`;
                 
                 if (mesAnio === filtro) {
-                    const imp = parseFloat(f.total_facturado || f.total || 0);
-                    const tComp = String(f.tipo_comp || f.tipo_cod || "").trim();
+                    // --- 4. GESTIÓN DE IMPORTES Y TIPOS ---
+                    const imp = parseFloat(f.total || f.total_facturado || 0);
+                    const tComp = parseInt(f.tipo_comp || f.tipo_cod || 6);
                     
-                    // Nota de Crédito (Códigos 3 u 8)
-                    const esNC = (tComp === "8" || tComp === "008" || tComp === "3" || tComp === "003");
+                    // Códigos de Nota de Crédito: 3 (A), 8 (B), 13 (C)
+                    const esNC = [3, 8, 13].includes(tComp);
                     const valorEfectivo = esNC ? -imp : imp;
                     
                     tSaei += valorEfectivo;
 
+                    // Estilo visual para Notas de Crédito (Rojo)
                     const estiloFila = esNC 
                         ? 'style="color: #d9534f !important; font-weight: bold; background-color: #fff5f5;"' 
                         : '';
                     const signo = esNC ? "- " : "";
 
-                    html += `<tr ${estiloFila}>
-                        <td style="text-align:center">${partes[0]}/${partes[1]}</td>
-                        <td>${String(f.punto_venta || 5).padStart(4,'0')}-${String(f.nro_comp || f.nro || 0).padStart(8, '0')}</td>
-                        <td>${f.cae || '<span style="color:orange">PROCESANDO...</span>'}</td>
-                        <td>${f.receptor_nombre || f.nombre || "PACIENTE SAEI"}</td>
-                        <td style="text-align:right">${signo}$ ${imp.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
-                        <td style="text-align:center">
-                            <button onclick="window.descargarFactura('${id}')" class="btn-pdf-historial">PDF</button>
-                        </td>
-                    </tr>`;
+                    html += `
+                        <tr ${estiloFila}>
+                            <td style="text-align:center">${partes[0]}/${partes[1]}</td>
+                            <td>${String(f.punto_venta || 5).padStart(4,'0')}-${String(f.nro_comp || f.nro || 0).padStart(8, '0')}</td>
+                            <td><small>${f.cae || '<span style="color:orange">PROCESANDO...</span>'}</small></td>
+                            <td>${f.receptor_nombre || f.nombre || "PACIENTE SAEI"}</td>
+                            <td style="text-align:right; font-family: monospace;">
+                                ${signo}$ ${imp.toLocaleString('es-AR', {minimumFractionDigits:2})}
+                            </td>
+                            <td style="text-align:center">
+                                <button onclick="window.descargarFactura('${id}')" 
+                                        class="btn" 
+                                        style="background:var(--azul); color:white; padding:2px 8px; font-size:10px;">
+                                    PDF
+                                </button>
+                            </td>
+                        </tr>`;
                 }
             }
         });
 
-        body.innerHTML = html || '<tr><td colspan="6" style="text-align:center;">No hay facturas de SAEI este mes.</td></tr>';
+        // --- 5. RENDERIZADO FINAL ---
+        body.innerHTML = html || '<tr><td colspan="6" style="text-align:center;">No hay facturas de SAEI en este período.</td></tr>';
         
-        // Actualiza el total general del panel de archivo
-        if(elGral) elGral.innerText = `$ ${tSaei.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+        // Actualizamos los totales en la interfaz
+        const totalFormateado = `$ ${tSaei.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
         
-        // Si tenés un ID específico para el total de SAEI en los cuadritos de arriba
-        const elSaeiTotal = document.getElementById('tot-saei');
-        if(elSaeiTotal) elSaeiTotal.innerText = `$ ${tSaei.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
-    });
+        if (elGral) elGral.innerText = totalFormateado;
+        if (elSaeiTotal) elSaeiTotal.innerText = totalFormateado;
+
+    } catch (error) {
+        console.error("Error al cargar archivo SAEI:", error);
+        body.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Error de conexión con la base de datos.</td></tr>';
+    }
 };
-// --- 1. SELECCIÓN DE PACIENTE (Versión Blindada) ---
+// --- 1. SELECCIÓN DE PACIENTE SAEI (Versión Blindada y Autocompletable) ---
 function seleccionarPacienteParaFacturar(idPaciente) {
-    // 1. Buscamos al paciente en dataFull (donde ya unificamos todos los módulos)
+    // 1. Buscamos al paciente en dataFull
     const p = dataFull.find(item => item.id === idPaciente); 
     if (!p) return;
 
-    const datosOS = dictOS[p.os]; // Usamos dictOS que es el que cargamos en cargarTodo
-    if (!datosOS) return alert("Obra Social no configurada en el sistema.");
-
-    // 2. Llenamos los campos visibles de la interfaz
-    document.getElementById('f-dni-cuit').value = datosOS.cuit || ''; 
-    document.getElementById('f-nombre').value = datosOS.razonSocial || p.os;
-    document.getElementById('f-domicilio').value = datosOS.domicilio || '';
-    document.getElementById('f-condicion-iva').value = datosOS.condicionIva || 'IVA Sujeto Exento';
-
+    // 2. BUSQUEDA INTELIGENTE EN EL DICCIONARIO DE OBRAS SOCIALES
+    // Buscamos por ID o por Nombre (limpiando espacios y mayúsculas)
+    const osID = p.os_id || p.obra_social_id;
+    const osNombre = (p.obra_social_nombre || p.os || p.obra_social || "").toUpperCase().trim();
     
-    // Guardamos el ID y el MODULO en atributos ocultos para usarlos al enviar a AFIP
+    let datosOS = null;
+    if (osID && window.dictOS && window.dictOS[osID]) {
+        datosOS = window.dictOS[osID];
+    } else if (window.dictOS && window.dictOS[osNombre]) {
+        datosOS = window.dictOS[osNombre];
+    }
+
+    // 3. LLENADO DE CAMPOS (Prioriza Diccionario > Datos del Paciente > Vacío)
+    // Usamos los IDs de los inputs que suelen estar en tu HTML
+    const campoCuit = document.getElementById('f-dni-cuit');
+    const campoNombre = document.getElementById('f-nombre');
+    const campoDom = document.getElementById('f-domicilio');
+    const campoIva = document.getElementById('f-condicion-iva');
+
+    if (campoCuit) campoCuit.value = datosOS?.cuit || p.obra_social_cuit || p.cuit || ''; 
+    if (campoNombre) campoNombre.value = datosOS?.razon_social || datosOS?.razonSocial || osNombre;
+    if (campoDom) campoDom.value = datosOS?.domicilio || p.obra_social_domicilio || p.domicilio || 'SAN JUAN';
+    if (campoIva) campoIva.value = datosOS?.condicion_iva || datosOS?.condicionIva || p.obra_social_condicion_iva || 'IVA Sujeto Exento';
+
+    // 4. SETEO DE ATRIBUTOS PARA EL ENVÍO
     const btnFacturar = document.getElementById('btn-enviar-afip');
     if (btnFacturar) {
         btnFacturar.setAttribute('data-id-paciente', idPaciente);
-        btnFacturar.setAttribute('data-modulo-paciente', p.mod); // Aquí guardamos 'CET', 'SAEI', etc.
+        // IMPORTANTE: Siempre en minúsculas para que el motor v9.0 no falle con las rutas
+        btnFacturar.setAttribute('data-modulo-paciente', (p.mod || "saei").toLowerCase()); 
     }
+
+    // Opcional: Si tenés un campo de detalle, lo pre-llenamos
+    const campoDetalle = document.getElementById('f-detalle');
+    if (campoDetalle) {
+        campoDetalle.value = `PRESTACIÓN MÓDULO ${p.mod || 'SAEI'} - ${p.id}`;
+    }
+
+    console.log(`✅ Paciente ${idPaciente} seleccionado. Datos de OS cargados.`);
 }
-// --- 3. REFACTURAR MASIVO (Limpia el estado para el nuevo mes) ---
+	// --- 3. REFACTURAR MASIVO (Limpia el estado para el nuevo mes) ---
 window.refacturarMasivoSAEI = async function() {
     if(!confirm("¿Habilitar TODOS los pacientes de SAEI para el próximo mes? (Las facturas anteriores no se borran)")) return;
     try {
