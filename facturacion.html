@@ -35,7 +35,21 @@
         .nc-box { background: #fff4e5; border: 1px solid #ffd591; padding: 5px; border-radius: 4px; margin-top: 5px; font-size: 9px; }
         
         .os-item { display: flex; justify-content: space-between; padding: 5px; border-bottom: 1px solid #eee; align-items: center; }
-    </style>
+		/* --- EFECTO AZUL PARA SAEI --- */
+.row-saei { 
+    background-color: #e3f2fd !important; 
+    border-left: 5px solid #2196f3 !important; 
+}
+
+.row-saei td { 
+    color: #0d47a1 !important; 
+}
+
+.row-saei .input-tab {
+    background-color: #f0f7ff; 
+    border-color: #bbdefb;
+}
+</style>
 </head>
 <body>
 
@@ -80,20 +94,26 @@
         </div>
 
         <div id="resumen-mensual" style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
-            <div style="background:#e3f2fd; padding:10px; border-radius:5px; border:1px solid #2196f3; flex:1; min-width:140px;">
-                <small>TOTAL CD</small><br><b id="tot-cd">$ 0,00</b>
-            </div>
-            <div style="background:#f1f8e9; padding:10px; border-radius:5px; border:1px solid #4caf50; flex:1; min-width:140px;">
-                <small>TOTAL CET</small><br><b id="tot-cet">$ 0,00</b>
-            </div>
-            <div style="background:#fff3e0; padding:10px; border-radius:5px; border:1px solid #ff9800; flex:1; min-width:140px;">
-                <small>TOTAL REHAB.</small><br><b id="tot-rehab">$ 0,00</b>
-            </div>
-            <div style="background:#eceff1; padding:10px; border-radius:5px; border:1px solid #607d8b; flex:1; min-width:140px;">
-                <small>TOTAL GENERAL</small><br><b id="tot-general">$ 0,00</b>
-            </div>
-        </div>
+    <div style="background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #dee2e6; flex:1; min-width:130px;">
+        <small style="color:#666;">TOTAL CD</small><br><b id="tot-cd" style="font-size:14px;">$ 0,00</b>
+    </div>
 
+    <div style="background:#f1f8e9; padding:10px; border-radius:5px; border:1px solid #4caf50; flex:1; min-width:130px;">
+        <small style="color:#2e7d32;">TOTAL CET</small><br><b id="tot-cet" style="font-size:14px;">$ 0,00</b>
+    </div>
+
+    <div style="background:#fff3e0; padding:10px; border-radius:5px; border:1px solid #ff9800; flex:1; min-width:130px;">
+        <small style="color:#ef6c00;">TOTAL REHAB.</small><br><b id="tot-rehab" style="font-size:14px;">$ 0,00</b>
+    </div>
+
+    <div style="background:#e3f2fd; padding:10px; border-radius:5px; border:1px solid #2196f3; flex:1; min-width:130px;">
+        <small style="color:#1565c0;">TOTAL SAEI</small><br><b id="tot-saei" style="font-size:14px;">$ 0,00</b>
+    </div>
+
+    <div style="background:#eceff1; padding:10px; border-radius:5px; border:2px solid #607d8b; flex:1; min-width:150px;">
+        <small style="color:#37474f; font-weight:bold;">TOTAL GENERAL</small><br><b id="tot-general" style="font-size:16px; color:#263238;">$ 0,00</b>
+    </div>
+</div>
         <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd;">
             <table class="tabla-archivo">
                 <thead>
@@ -672,11 +692,16 @@ async function enviarAFIP_WS() {
     alert("🚀 Enviado a la cola de procesamiento.");
 }
 function procesarFacturaAprobada(respuestaAfip, datosPedido) {
-    const nuevaFacturaKey = db.ref().child('facturas_emitidas').push().key;
+    const moduloReal = (datosPedido.modulo || "otros").toLowerCase();
+    const esSaei = (moduloReal === "saei");
+    
+    // 1. Definimos la ruta de guardado según el módulo
+    const rutaHistorial = esSaei ? 'facturas_emitidas_saei' : 'facturas_emitidas';
+    const nuevaFacturaKey = db.ref().child(rutaHistorial).push().key;
+    
     const fechaHoy = new Date().toLocaleDateString('es-AR');
     const cuitEmisor = "30714900192";
 
-    // Formateamos para el nombre del archivo y consistencia de datos
     const ptoVtaFormateado = String(respuestaAfip.punto_venta || respuestaAfip.PtoVta || 5).padStart(5, '0');
     const nroCompFormateado = String(respuestaAfip.nro_comp || respuestaAfip.CbteDesde).padStart(8, '0');
     const tipoCodFormateado = String(datosPedido.tipo).padStart(3, '0');
@@ -689,59 +714,61 @@ function procesarFacturaAprobada(respuestaAfip, datosPedido) {
         cae_vto: respuestaAfip.cae_vto || respuestaAfip.CAEFchVto,
         fecha_emision: fechaHoy, 
         tipo_cod: tipoCodFormateado,
-        
-        // NOMBRE DE ARCHIVO ESTILO AFIP
+        tipo_comp: tipoCodFormateado, // Duplicamos para asegurar compatibilidad con el render
         nombre_archivo: `${cuitEmisor}-${tipoCodFormateado}-${ptoVtaFormateado}-${nroCompFormateado}.html`,
-
-        // PERÍODOS Y VENCIMIENTO (Aseguramos que no sean undefined para el f(val))
         periodo_desde: datosPedido.periodo_desde || datosPedido.desde || "", 
         periodo_hasta: datosPedido.periodo_hasta || datosPedido.hasta || "", 
         vto_pago: datosPedido.vto_pago || datosPedido.vto || "", 
-        
-        // DATOS DE NOTA DE CRÉDITO
         asoc_pv: datosPedido.pv_asoc || "",
         asoc_nro: datosPedido.nro_asoc || "",
-        
-        // DATOS COMERCIALES
         concepto: (datosPedido.descripcion || datosPedido.concepto || "").toUpperCase(), 
-        
-        // Montos
+        total: parseFloat(datosPedido.total) || 0, // Campo estándar
         total_facturado: parseFloat(datosPedido.total) || 0,
         neto: parseFloat(datosPedido.neto) || 0,
         exento: parseFloat(datosPedido.exento) || 0,
         alicuota: datosPedido.alicuota || 0,
-
-        // Datos del Receptor (Mapeo exacto para el modelo)
         nombre: (datosPedido.razon_social || datosPedido.nombre || "").toUpperCase(),
+        razon_social: (datosPedido.razon_social || datosPedido.nombre || "").toUpperCase(),
         cuit: datosPedido.cuit || "",
         domicilio: datosPedido.domicilio || "",
         condicion_iva: datosPedido.condicion_iva || "EXENTO",
         condicion_venta: datosPedido.condicion_venta || "CUENTA CORRIENTE",
         id_paciente: datosPedido.id_paciente || null,
-        modulo: datosPedido.modulo || "otros"
+        modulo: moduloReal
     };
 
     let updates = {};
-    const moduloPath = facturaLegal.modulo.toLowerCase();
 
-    // 1. Guardar en el historial general
-    updates['/facturas_emitidas/' + nuevaFacturaKey] = facturaLegal;
+    // --- LOGICA DE GUARDADO INTELIGENTE ---
     
-    // 2. Actualizar el estado del paciente si existe
+    // 1. Guardar en el historial que corresponda (General o SAEI)
+    updates['/' + rutaHistorial + '/' + nuevaFacturaKey] = facturaLegal;
+    
+    // 2. Actualizar la ficha del paciente
     if (facturaLegal.id_paciente) {
-        updates['/' + moduloPath + '/pacientes/' + facturaLegal.id_paciente + '/ultima_factura'] = facturaLegal;
-        updates['/' + moduloPath + '/pacientes/' + facturaLegal.id_paciente + '/facturado'] = 'SI';
+        const basePaq = '/' + moduloReal + '/pacientes/' + facturaLegal.id_paciente;
+        
+        if (esSaei) {
+            // SI ES SAEI: Marcamos los campos que disparan el color AZUL en la otra pantalla
+            updates[basePaq + '/ultima_factura_saei'] = facturaLegal;
+            updates[basePaq + '/facturado_saei'] = 'SI';
+        } else {
+            // SI ES NORMAL (CET, CD, etc): Marcamos para color GRIS
+            updates[basePaq + '/ultima_factura'] = facturaLegal;
+            updates[basePaq + '/facturado'] = 'SI';
+        }
     }
 
     return db.ref().update(updates).then(() => {
-        console.log("✅ Factura guardada en Firebase: " + facturaLegal.nombre_archivo);
-        // Llamada automática a la descarga/impresión
+        console.log("✅ Factura " + moduloReal.toUpperCase() + " guardada con éxito.");
+        
+        // Llamada a la descarga usando la key generada
         if(typeof descargarFactura === 'function') {
             descargarFactura(nuevaFacturaKey); 
         }
     }).catch(error => {
-        console.error("❌ Error al guardar factura:", error);
-        alert("La factura se autorizó pero hubo un error al guardar en la base de datos.");
+        console.error("❌ Error al guardar:", error);
+        alert("Error crítico al actualizar base de datos.");
     });
 }
 const MODELO_FACTURA_B = (d) => {
@@ -1133,30 +1160,35 @@ window.toggleArchivo = () => {
         }
     }
 };
-window.cargarArchivo = () => {
+window.cargarArchivo = async () => {
     const filtro = document.getElementById('mes_filtro_archivo').value;
     const body = document.getElementById('tabla_archivo_body');
     const elGral = document.getElementById('tot-general');
 
-    if (!filtro) return alert("Seleccioná un mes.");
-    body.innerHTML = '<tr><td colspan="6" style="text-align:center;">Cargando...</td></tr>';
+    if (!filtro) return alert("Seleccioná un mes para ver el historial.");
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;">Cargando historial unificado...</td></tr>';
 
-    db.ref('facturas_emitidas').once('value').then((snap) => {
-        const facturas = snap.val() || {};
+    try {
+        // --- 1. TRAEMOS DE LAS DOS RUTAS (General y SAEI) ---
+        const [snapGral, snapSaei] = await Promise.all([
+            db.ref('facturas_emitidas').once('value'),
+            db.ref('facturas_emitidas_saei').once('value')
+        ]);
+
+        const facturas = { ...snapGral.val(), ...snapSaei.val() };
         let html = "";
         let tGral = 0;
         
         const totalesPorModulo = {
-            "REHAB": 0,
-            "CET": 0,
-            "CD": 0,
-            "OTROS": 0
+            "REHAB": 0, "CET": 0, "CD": 0, "SAEI": 0, "OTROS": 0
         };
 
         const llaves = Object.keys(facturas).reverse();
 
         llaves.forEach(id => {
             const f = facturas[id];
+            if (!f) return;
+
             const fecha = f.fecha_emision || f.fecha || "";
             const partes = fecha.split('/');
             
@@ -1166,21 +1198,21 @@ window.cargarArchivo = () => {
                 if (mesAnio === filtro) {
                     const imp = parseFloat(f.total_facturado || f.total || 0);
                     
-                    // --- DETECCIÓN CORREGIDA PARA TU FIREBASE (tipo_comp) ---
-                    // Buscamos en 'tipo_comp' que es como me dijiste que aparece ahora
-                    const tComp = String(f.tipo_comp || f.tipo_cod || f.tipo || "").trim();
-                    const nombreTipo = String(f.tipo_nombre || f.tipo_txt || "").toUpperCase();
+                    // --- DETECCIÓN DE NOTA DE CRÉDITO (RESTAN) ---
+                    const tComp = String(f.tipo_comp || f.tipo_cod || "").trim();
+                    const nombreTipo = String(f.tipo_nombre || "").toUpperCase();
                     
                     const esNC = (
                         tComp === "8" || tComp === "008" || 
                         tComp === "3" || tComp === "003" ||
+                        tComp === "13" || // NC C
                         nombreTipo.includes("CREDITO")
                     );
 
                     const valorEfectivo = esNC ? -imp : imp;
-                    
                     tGral += valorEfectivo;
 
+                    // Sumamos al módulo correspondiente
                     const mod = (f.modulo || "OTROS").toUpperCase();
                     if (totalesPorModulo.hasOwnProperty(mod)) {
                         totalesPorModulo[mod] += valorEfectivo;
@@ -1188,28 +1220,29 @@ window.cargarArchivo = () => {
                         totalesPorModulo["OTROS"] += valorEfectivo;
                     }
 
-                    // --- ESTILO ROJO PARA NC B ---
+                    // --- DISEÑO DE FILA ---
                     const estiloFila = esNC 
-                        ? 'style="color: #d9534f !important; font-weight: bold; font-style: italic; background-color: #fff5f5;"' 
+                        ? 'style="color: #d9534f !important; font-weight: bold; background-color: #fff5f5;"' 
                         : '';
                     const signo = esNC ? "- " : "";
 
                     html += `<tr ${estiloFila}>
                         <td style="text-align:center">${partes[0]}/${partes[1]}</td>
                         <td>${String(f.punto_venta || 5).padStart(4,'0')}-${String(f.nro_comp || f.nro || 0).padStart(8, '0')}</td>
-                        <td>${f.cae || '<span style="color:orange">PROCESANDO...</span>'}</td>
-                        <td>${f.receptor_nombre || f.id_paciente || "SIN NOMBRE"} <br><small>${f.modulo || ''}</small></td>
+                        <td><small>${f.cae || '<span style="color:orange">PROCESANDO...</span>'}</small></td>
+                        <td>${f.receptor_nombre || f.nombre || "SIN NOMBRE"} <br><small>${mod}</small></td>
                         <td style="text-align:right">${signo}$ ${imp.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
                         <td style="text-align:center">
-                            <button onclick="window.descargarFactura('${id}')" style="cursor:pointer;">PDF</button>
+                            <button onclick="window.descargarFactura('${id}')" class="btn" style="background:var(--azul); padding:2px 5px; font-size:9px;">PDF</button>
                         </td>
                     </tr>`;
                 }
             }
         });
 
-        body.innerHTML = html || '<tr><td colspan="6" style="text-align:center;">Sin datos.</td></tr>';
+        body.innerHTML = html || '<tr><td colspan="6" style="text-align:center;">No hay movimientos en este mes.</td></tr>';
         
+        // --- 2. ACTUALIZACIÓN DE TODOS LOS CUADRITOS DE TOTALES ---
         if(elGral) elGral.innerText = `$ ${tGral.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
 
         const actualizar = (idDiv, monto) => {
@@ -1220,7 +1253,12 @@ window.cargarArchivo = () => {
         actualizar('tot-rehab', totalesPorModulo["REHAB"]);
         actualizar('tot-cet', totalesPorModulo["CET"]);
         actualizar('tot-cd', totalesPorModulo["CD"]);
-    });
+        actualizar('tot-saei', totalesPorModulo["SAEI"]); // <-- AHORA SÍ SE VA A MOVER ESTE
+
+    } catch (error) {
+        console.error("Error en cargarArchivo:", error);
+        body.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Error al cargar datos.</td></tr>';
+    }
 };
 function seleccionarPacienteParaFacturar(idPaciente) {
     // 1. Buscamos al paciente en dataFull (donde unificamos todo en cargarTodo)
@@ -1354,21 +1392,40 @@ window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVie
 };
 // Pegala tal cual al final de tu script
 window.descargarUltimaDePaciente = async (idPac) => {
-    // Traemos de los dos lados
-    const snapG = await db.ref('facturas_emitidas').once('value');
-    const snapS = await db.ref('facturas_emitidas_saei').once('value');
-    
-    const todas = {...snapG.val(), ...snapS.val()};
-    let ultimaId = null;
+    try {
+        // 1. Traemos de los dos lados en simultáneo
+        const [snapG, snapS] = await Promise.all([
+            db.ref('facturas_emitidas').once('value'),
+            db.ref('facturas_emitidas_saei').once('value')
+        ]);
+        
+        // Unificamos los datos
+        const todas = {...snapG.val(), ...snapS.val()};
+        let ultimaId = null;
 
-    Object.keys(todas).forEach(id => {
-        if (todas[id].id_paciente === idPac || todas[id].id_paciente_db === idPac) {
-            ultimaId = id; 
+        // 2. Ordenamos las llaves (IDs de Firebase) de mayor a menor 
+        // para asegurarnos de que la primera que coincida sea la más nueva.
+        const llavesOrdenadas = Object.keys(todas).sort().reverse();
+
+        for (let id of llavesOrdenadas) {
+            const f = todas[id];
+            // Verificamos coincidencia de ID de paciente en cualquiera de sus variantes
+            if (f.id_paciente === idPac || f.id_paciente_db === idPac || f.receptor_id === idPac) {
+                ultimaId = id; 
+                break; // Encontramos la más nueva, dejamos de buscar
+            }
         }
-    });
 
-    if (ultimaId) window.descargarFactura(ultimaId);
-    else alert("No hay facturas para este paciente.");
+        if (ultimaId) {
+            window.descargarFactura(ultimaId);
+        } else {
+            alert("No se encontró ninguna factura emitida para el paciente: " + idPac);
+        }
+
+    } catch (error) {
+        console.error("Error al buscar última factura:", error);
+        alert("Error de conexión al intentar recuperar la factura.");
+    }
 };
 auth.onAuthStateChanged((user) => {
     if (user) {
