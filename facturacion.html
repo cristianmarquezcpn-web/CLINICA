@@ -500,7 +500,7 @@ window.render = function() {
         const tieneAsist = p.asistF_link && p.asistF_link.length > 5;
         const osOriginal = (p.os || "").toUpperCase().trim();
     	let infoOS = dictOS[osOriginal] || {};
-
+		const condicionIva = infoOS.condicion_iva || infoOS.condicionIva || "IVA SUJETO EXENTO";
     // --- EL ARREGLO PARA EL AUTOCOMPLETADO ---
         const rsBD = infoOS.razonSocial || infoOS.razon_social || infoOS.nombre || osOriginal;
     	const cuitBD = infoOS.cuit || infoOS.CUIT || p.cuit || p.dni || "";
