@@ -529,28 +529,37 @@ window.render = function() {
     if (!b) return;
     b.innerHTML = "";
 
-    dataFull
-    .sort((x, y) => x.id.localeCompare(y.id))
+    // --- 1. ORDENAMIENTO SEGURO (Anti-Error localeCompare) ---
+    dataFull.sort((x, y) => {
+        const nombreX = (x.id || "").toString();
+        const nombreY = (y.id || "").toString();
+        return nombreX.localeCompare(nombreY);
+    })
     .filter(p => {
         if (filtroActual === 'TODOS') return true;
         return (p.mod || "").toUpperCase() === filtroActual.toUpperCase();
     })
     .forEach(p => {
-        // --- 1. LÓGICA DE DETECCIÓN ---
-        // Si el legajo dice 'NO', ignoramos facturas viejas para que la fila esté blanca
+        // --- 2. LÓGICA DE DETECCIÓN DE ESTADO ---
         const forzadoNoFacturado = (p.facturado === 'NO');
 
         const miFactura = forzadoNoFacturado ? null : p.ultima_factura; 
         const facturadoAqui = !!(miFactura && miFactura.cae);
 
         const facturaSaei = forzadoNoFacturado ? null : p.ultima_factura_saei;
+        // Detectamos si es SAEI por el flag o por si tiene factura con CAE en esa ruta
         const facturadoEnSaei = !!(!forzadoNoFacturado && (p.facturado_saei === 'SI' || (facturaSaei && facturaSaei.cae)));
 
         const tr = document.createElement('tr');
         
-        // --- 2. COLORES DE FILA ---
-        if (facturadoAqui) tr.className = "row-facturada"; // GRIS
-        else if (facturadoEnSaei) tr.className = "row-saei"; // AZUL
+        // --- 3. COLORES DE FILA (CSS CLASSES) ---
+        if (facturadoAqui) {
+            tr.style.backgroundColor = "#e9ecef"; // GRIS (Manual)
+            tr.style.color = "#6c757d";
+        } else if (facturadoEnSaei) {
+            tr.style.backgroundColor = "#e7f1ff"; // AZUL (SAEI)
+            tr.style.color = "#004085";
+        }
 
         const tieneAsist = p.asistF_link && p.asistF_link.length > 5;
         const osOriginal = (p.os || "").toUpperCase().trim();
@@ -558,17 +567,16 @@ window.render = function() {
         
         const fActiva = facturadoAqui ? miFactura : (facturadoEnSaei ? facturaSaei : null);
 
-        // --- 3. DATOS DE IDENTIDAD ---
+        // --- 4. DATOS DE IDENTIDAD Y MONTOS ---
         const rsFinal = fActiva ? (fActiva.razon_social || fActiva.nombre || "") : (infoOS.nombre || osOriginal);
         const cuitFinal = fActiva ? (fActiva.cuit || "") : (infoOS.cuit || "");
         const domFinal = fActiva ? (fActiva.domicilio || "") : (infoOS.domicilio || 'SAN JUAN');
         
-        // --- 4. LÓGICA DE MONTOS (HABILITADOS PARA EL FUTURO) ---
         const nIn = fActiva ? (fActiva.neto || 0) : (p.neto || 0);
         const eIn = fActiva ? (fActiva.exento || 0) : (p.monto_fijo || p.total || 0);
         const aIn = fActiva ? (fActiva.alicuota || 0) : 0;
 
-        // --- 5. COLUMNA DE ACCIÓN (AQUÍ SE CREAN LOS BOTONES) ---
+        // --- 5. COLUMNA DE ACCIÓN Y ESTADOS ---
         let estadoVisual = "";
         if (facturadoAqui) estadoVisual = `<br><b style="color:green; font-size:9px;">FACTURADO</b>`;
         else if (facturadoEnSaei) estadoVisual = `<br><b style="color:#007bff; font-size:9px;">AUTO-SAEI</b>`;
@@ -576,41 +584,42 @@ window.render = function() {
 
         let colAccion = `<input type="checkbox" class="ck" data-id="${p.id}" data-mod="${p.mod}" ${(facturadoAqui || facturadoEnSaei || !tieneAsist) ? 'disabled' : ''}>${estadoVisual}`;
         
-        // SI YA ESTÁ FACTURADO, DIBUJAMOS PDF Y REFACTURAR
+        // BOTONES DE PDF Y REFACTURAR (Solo si ya está facturado)
         if (facturadoAqui || facturadoEnSaei) {
             colAccion += `
                 <div style="margin-top:5px; display:flex; flex-direction:column; gap:3px;">
-                    <button class="btn" style="background:var(--verde); font-size:8px; padding:2px;" 
+                    <button class="btn" style="background:#2ecc71; color:white; font-size:8px; padding:2px; border:none; border-radius:3px; cursor:pointer;" 
                         onclick="window.descargarFactura('${fActiva?.id || p.id}')">PDF</button>
-                    <button class="btn" style="background:var(--naranja); font-size:8px; padding:2px;" 
-                        onclick="window.refacturar('${p.mod}', '${p.id}')">Refacturar</button>
+                    <button class="btn" style="background:#e67e22; color:white; font-size:8px; padding:2px; border:none; border-radius:3px; cursor:pointer;" 
+                        onclick="window.habilitarParaRefacturar('${p.id}', '${p.mod}', '${fActiva?.id}')">Habilitar</button>
                 </div>`;
         }
         
+        // --- 6. CONSTRUCCIÓN DEL HTML DE LA FILA ---
         tr.innerHTML = `
             <td style="text-align:center">${colAccion}</td>
             <td><small>${p.mod}</small><br><b>${p.id}</b></td>
             <td>
                 <select class="input-tab sel-tipo" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>
-                    <option value="6" ${fActiva?.tipo == 6 ? 'selected' : ''}>Factura B</option>
-                    <option value="8" ${fActiva?.tipo == 8 ? 'selected' : ''}>Nota Crédito B</option>
-                    <option value="1" ${fActiva?.tipo == 1 ? 'selected' : ''}>Factura A</option>
+                    <option value="6" ${fActiva?.tipo == 6 || fActiva?.tipo_comp == 6 ? 'selected' : ''}>Factura B</option>
+                    <option value="8" ${fActiva?.tipo == 8 || fActiva?.tipo_comp == 8 ? 'selected' : ''}>Nota Crédito B</option>
+                    <option value="1" ${fActiva?.tipo == 1 || fActiva?.tipo_comp == 1 ? 'selected' : ''}>Factura A</option>
                 </select>
             </td>
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
             <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
-            <td><textarea class="input-tab det-val" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>${fActiva ? (fActiva.descripcion || fActiva.concepto || "") : `SERVICIO DE SALUD - PACIENTE: ${p.id}`}</textarea></td>
+            <td><textarea class="input-tab det-val" onchange="window.fijarDatoPermanente('${p.id}', this.value, 'detalle')" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>${fActiva ? (fActiva.descripcion || fActiva.concepto || "") : `SERVICIO DE SALUD - PACIENTE: ${p.id}`}</textarea></td>
             
-            <td><input type="number" class="input-tab neto-edit" value="${nIn}" onchange="recalcular(this)" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
+            <td><input type="number" class="input-tab neto-edit" value="${nIn}" onchange="window.fijarDatoPermanente('${p.id}', this.value, 'neto')" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
             <td>
-                <select class="input-tab sel-ali" onchange="recalcular(this)" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>
+                <select class="input-tab sel-ali" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>
                     <option value="0" ${aIn == 0 ? 'selected' : ''}>Exento</option>
                     <option value="10.5" ${aIn == 10.5 ? 'selected' : ''}>10.5%</option>
                     <option value="21" ${aIn == 21 ? 'selected' : ''}>21%</option>
                 </select>
             </td>
-            <td><input type="number" class="input-tab exento-edit" value="${eIn}" onchange="recalcular(this)" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
+            <td><input type="number" class="input-tab exento-edit" value="${eIn}" onchange="window.fijarDatoPermanente('${p.id}', this.value, 'total')" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
             
             <td style="text-align:right; font-weight:bold" class="total-row">
                 $ ${(fActiva?.total || (nIn * (1 + aIn/100) + eIn)).toLocaleString('es-AR', {minimumFractionDigits: 2})}
