@@ -390,90 +390,120 @@ window.recalcular = (el) => {
         })}`;
     }
 };
-window.cargarTodo = () => {
+window.cargarTodo = async () => {
     const tablaBod = document.getElementById('tabla-body');
     if (!tablaBod) return;
     
-    tablaBod.innerHTML = '<tr><td colspan="10" style="text-align:center;">Sincronizando con motores de facturación...</td></tr>';
+    tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando con motores de facturación...</td></tr>';
 
-    // 1. ESCUCHADOR DE OBRAS SOCIALES
-    db.ref('/config/obras_sociales').on('value', snapOS => {
-        dictOS = snapOS.val() || {};
-        if (typeof actualizarPanelOS === "function") actualizarPanelOS(); 
-    });
-
-    // 2. ESCUCHADOR DE FACTURAS (Unificamos General y SAEI para la búsqueda)
-    // Usamos Promise.all para traer ambos nodos y combinarlos en un solo array
-    const refGral = db.ref('facturas_emitidas');
-    const refSaei = db.ref('facturas_emitidas_saei');
-
-    // Escuchamos ambos nodos. Cuando cualquiera cambie, re-procesamos todo.
-    refGral.on('value', () => procesarTodo());
-    refSaei.on('value', () => procesarTodo());
-
-    async function procesarTodo() {
-        const snapGral = await refGral.once('value');
-        const snapSaei = await refSaei.once('value');
-        
-        const todasLasFacturas = {
-            ...(snapGral.val() || {}),
-            ...(snapSaei.val() || {})
-        };
-        const facturasArray = Object.values(todasLasFacturas);
-
-        // 3. RUTAS DE LOS MÓDULOS DE PACIENTES
-        const rutas = [
-            { path: 'cd/pacientes', mod: 'CD' },
-            { path: 'cet/pacientes', mod: 'CET' },
-            { path: 'rehab/pacientes', mod: 'REHAB' },
-            { path: 'saei/pacientes', mod: 'SAEI' }
-        ];
-
-        let datosModulos = {};
-        let modulosCargados = 0;
-
-        rutas.forEach(obj => {
-            db.ref(obj.path).on('value', snap => {
-                datosModulos[obj.mod] = snap.val() || {};
-                
-                // Procesamiento unificado
-                const tempFull = [];
-                for (const [nombreMod, pacientes] of Object.entries(datosModulos)) {
-                    for (const idPac in pacientes) {
-                        const p = pacientes[idPac];
-                        
-                        // BUSQUEDA BLINDADA: Filtramos por ID de paciente y que el MÓDULO coincida
-                        let ultFact = facturasArray.slice().reverse().find(f => 
-                            (f.id_paciente_db === idPac || f.id_paciente === idPac) && 
-                            String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase()
-                        );
-
-                        // Lógica de REFACTURAR: Si el ID de la factura encontrada es el que marcamos para ignorar
-                        if (ultFact && p.ignorar_factura === ultFact.id) {
-                            ultFact = null; 
-                        }
-
-                        tempFull.push({
-                            ...p,
-                            id: idPac,
-                            mod: nombreMod,
-                            ultima_factura: ultFact,
-                            // Si tiene factura con CAE y no fue "ignorada", está facturado
-                            facturado: (ultFact && ultFact.cae) ? 'SI' : 'NO'
-                        });
-                    }
-                }
-                
-                dataFull = tempFull;
-                
-                // Disparamos el renderizado de la tabla
-                if (typeof render === "function") {
-                    render();
-                }
-            });
+    try {
+        // 1. ESCUCHADOR DE OBRAS SOCIALES (Mantenemos el .on para que refresque si agregás una)
+        db.ref('/config/obras_sociales').on('value', snapOS => {
+            dictOS = snapOS.val() || {};
+            // Si tenés la función para mostrar la lista de OS en el panel, la llamamos
+            if (typeof actualizarPanelOS === "function") actualizarPanelOS(); 
         });
+
+        // 2. CARGA MASIVA DE PACIENTES (Traemos los 4 módulos de una)
+        const nodos = ['cd', 'cet', 'rehab', 'SAEI']; // Ojo: SAEI en mayúsculas como en tu JSON
+        const promesas = nodos.map(n => db.ref(`${n}/pacientes`).once('value'));
+        
+        const snapshots = await Promise.all(promesas);
+        
+        // LIMPIAMOS dataFull antes de llenarlo para que no se dupliquen datos al refacturar
+        dataFull = []; 
+
+        snapshots.forEach((snap, index) => {
+            const modulo = nodos[index];
+            const pacientes = snap.val() || {};
+            
+            for (let id in pacientes) {
+                // Metemos todo en el array global para el render
+                dataFull.push({
+                    id_db: id,
+                    modulo: modulo,
+                    ...pacientes[id]
+                });
+            }
+        });
+
+        console.log("✅ Datos cargados:", dataFull.length, "pacientes.");
+        
+        // 3. LLAMAMOS AL RENDER (La función que dibuja la tabla)
+        if (typeof render === "function") {
+            render();
+        } else {
+            tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error: No se encuentra la función render()</td></tr>';
+        }
+
+    } catch (error) {
+        console.error("Error en cargarTodo:", error);
+        tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error de conexión con Firebase.</td></tr>';
     }
 };
+  async function procesarTodo() {
+    const snapGral = await db.ref('facturas_emitidas').once('value');
+    const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
+    
+    const todasLasFacturas = {
+        ...(snapGral.val() || {}),
+        ...(snapSaei.val() || {})
+    };
+    const facturasArray = Object.values(todasLasFacturas);
+
+    const rutas = [
+        { path: 'cd/pacientes', mod: 'CD' },
+        { path: 'cet/pacientes', mod: 'CET' },
+        { path: 'rehab/pacientes', mod: 'REHAB' },
+        { path: 'SAEI/pacientes', mod: 'SAEI' } // Respetando mayúsculas de tu JSON
+    ];
+
+    let datosModulos = {};
+
+    // Usamos promesas para cargar todo antes de renderizar
+    const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
+    const snapsPacientes = await Promise.all(promesas);
+
+    const tempFull = [];
+
+    snapsPacientes.forEach((snap, index) => {
+        const nombreMod = rutas[index].mod;
+        const pacientes = snap.val() || {};
+
+        for (const idPac in pacientes) {
+            const p = pacientes[idPac];
+            
+            // 1. Buscamos la última factura emitida para este paciente
+            let ultFact = facturasArray.slice().reverse().find(f => 
+                (f.id_paciente_db === idPac || f.id_paciente === idPac) && 
+                String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase()
+            );
+
+            // 2. LÓGICA DE CONTROL (EL "FILTRO ANTI-GRIS"):
+            // Si vos en el legajo pusiste facturado: 'NO', mandamos el gris a volar.
+            let estaFacturado = (ultFact && ultFact.cae) ? 'SI' : 'NO';
+            
+            if (p.facturado === 'NO') {
+                estaFacturado = 'NO';
+                ultFact = null; // Limpiamos la factura vieja para que no moleste
+            }
+
+            tempFull.push({
+                ...p,
+                id: idPac,
+                mod: nombreMod,
+                ultima_factura: ultFact,
+                facturado: estaFacturado
+            });
+        }
+    });
+    
+    dataFull = tempFull;
+    
+    if (typeof render === "function") {
+        render();
+    }
+}
 function actualizarPanelOS() {
     const listaOS = document.getElementById('lista-os');
     if(!listaOS) return;
@@ -506,102 +536,84 @@ window.render = function() {
         return (p.mod || "").toUpperCase() === filtroActual.toUpperCase();
     })
     .forEach(p => {
-        // --- 1. LÓGICA DE DETECCIÓN (GRIS vs AZUL) ---
-        const miFactura = p.ultima_factura; 
+        // --- 1. LÓGICA DE DETECCIÓN ---
+        // Si el legajo dice 'NO', ignoramos facturas viejas para que la fila esté blanca
+        const forzadoNoFacturado = (p.facturado === 'NO');
+
+        const miFactura = forzadoNoFacturado ? null : p.ultima_factura; 
         const facturadoAqui = !!(miFactura && miFactura.cae);
 
-        const facturaSaei = p.ultima_factura_saei;
-        const facturadoEnSaei = !!(p.facturado_saei === 'SI' || (facturaSaei && facturaSaei.cae));
+        const facturaSaei = forzadoNoFacturado ? null : p.ultima_factura_saei;
+        const facturadoEnSaei = !!(!forzadoNoFacturado && (p.facturado_saei === 'SI' || (facturaSaei && facturaSaei.cae)));
 
         const tr = document.createElement('tr');
         
-        // --- 2. COLORES ---
-        if (facturadoAqui) {
-            tr.className = "row-facturada"; // GRIS
-        } else if (facturadoEnSaei) {
-            tr.className = "row-saei";      // AZUL
-        }
+        // --- 2. COLORES DE FILA ---
+        if (facturadoAqui) tr.className = "row-facturada"; // GRIS
+        else if (facturadoEnSaei) tr.className = "row-saei"; // AZUL
 
-        // --- 3. DATOS Y MONTOS ---
         const tieneAsist = p.asistF_link && p.asistF_link.length > 5;
         const osOriginal = (p.os || "").toUpperCase().trim();
         let infoOS = dictOS[osOriginal] || {};
-        const condicionIva = infoOS.condicion_iva || infoOS.condicionIva || "IVA SUJETO EXENTO";
-
+        
         const fActiva = facturadoAqui ? miFactura : (facturadoEnSaei ? facturaSaei : null);
 
-        const rsFinal = fActiva ? (fActiva.razon_social || fActiva.nombre || "") : (infoOS.razon_social || infoOS.nombre || osOriginal);
+        // --- 3. DATOS DE IDENTIDAD ---
+        const rsFinal = fActiva ? (fActiva.razon_social || fActiva.nombre || "") : (infoOS.nombre || osOriginal);
         const cuitFinal = fActiva ? (fActiva.cuit || "") : (infoOS.cuit || "");
         const domFinal = fActiva ? (fActiva.domicilio || "") : (infoOS.domicilio || 'SAN JUAN');
         
-        // El monto base con SEGURO (|| 0) para que no rompa el toLocaleString
-        const montoBase = fActiva 
-            ? (fActiva.neto || fActiva.exento || fActiva.total || 0) 
-            : (p.neto || p.total || 0);
-        
-        const aliFinal = fActiva ? (fActiva.alicuota || 0) : 0;
-        const valNetoIn = (aliFinal > 0) ? montoBase : 0;
-        const valExeIn = (aliFinal == 0) ? montoBase : 0;
+        // --- 4. LÓGICA DE MONTOS (HABILITADOS PARA EL FUTURO) ---
+        const nIn = fActiva ? (fActiva.neto || 0) : (p.neto || 0);
+        const eIn = fActiva ? (fActiva.exento || 0) : (p.monto_fijo || p.total || 0);
+        const aIn = fActiva ? (fActiva.alicuota || 0) : 0;
 
-        let tipoComp = (condicionIva.toUpperCase().includes("RI")) ? 1 : 6;
-        if (fActiva && fActiva.tipo) tipoComp = parseInt(fActiva.tipo);
-
-        // --- 4. ESTADO VISUAL ---
+        // --- 5. COLUMNA DE ACCIÓN (AQUÍ SE CREAN LOS BOTONES) ---
         let estadoVisual = "";
-        if (facturadoAqui) {
-            estadoVisual = `<br><b style="color:green; font-size:9px;">FACTURADO (${p.mod})</b>`;
-        } else if (facturadoEnSaei) {
-            estadoVisual = `<br><b style="color:#007bff; font-size:9px;">AUTO-SAEI</b>`;
-        } else if (!tieneAsist) {
-            estadoVisual = `<br><b style="color:red; font-size:9px;">SIN ASISTENCIA</b>`;
-        }
+        if (facturadoAqui) estadoVisual = `<br><b style="color:green; font-size:9px;">FACTURADO</b>`;
+        else if (facturadoEnSaei) estadoVisual = `<br><b style="color:#007bff; font-size:9px;">AUTO-SAEI</b>`;
+        else if (!tieneAsist) estadoVisual = `<br><b style="color:red; font-size:9px;">SIN ASISTENCIA</b>`;
 
-        // --- 5. COLUMNA DE ACCIÓN ---
-        let colAccion = `<input type="checkbox" class="ck" 
-                            data-id="${p.id}" 
-                            data-mod="${p.mod}" 
-                            data-nombre="${p.nombre || p.id}" 
-                            ${(facturadoAqui || facturadoEnSaei || !tieneAsist) ? 'disabled' : ''}>
-                         ${estadoVisual}`;
+        let colAccion = `<input type="checkbox" class="ck" data-id="${p.id}" data-mod="${p.mod}" ${(facturadoAqui || facturadoEnSaei || !tieneAsist) ? 'disabled' : ''}>${estadoVisual}`;
         
+        // SI YA ESTÁ FACTURADO, DIBUJAMOS PDF Y REFACTURAR
         if (facturadoAqui || facturadoEnSaei) {
-            const idParaPDF = fActiva.id || p.id;
             colAccion += `
                 <div style="margin-top:5px; display:flex; flex-direction:column; gap:3px;">
                     <button class="btn" style="background:var(--verde); font-size:8px; padding:2px;" 
-                        onclick="window.descargarFactura('${idParaPDF}')">PDF</button>
+                        onclick="window.descargarFactura('${fActiva?.id || p.id}')">PDF</button>
                     <button class="btn" style="background:var(--naranja); font-size:8px; padding:2px;" 
-                        onclick="window.habilitarParaRefacturar('${p.id}', '${p.mod}')">Refacturar</button>
+                        onclick="window.refacturar('${p.mod}', '${p.id}')">Refacturar</button>
                 </div>`;
         }
         
-        // CÁLCULO FINAL CON SEGURO ANTI-ERROR
-        const totalCalculado = fActiva ? (fActiva.total || 0) : (parseFloat(montoBase || 0) * (1 + (parseFloat(aliFinal || 0) / 100)));
-
         tr.innerHTML = `
             <td style="text-align:center">${colAccion}</td>
             <td><small>${p.mod}</small><br><b>${p.id}</b></td>
             <td>
                 <select class="input-tab sel-tipo" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>
-                    <option value="6" ${tipoComp === 6 ? 'selected' : ''}>Factura B</option>
-                    <option value="1" ${tipoComp === 1 ? 'selected' : ''}>Factura A</option>
+                    <option value="6" ${fActiva?.tipo == 6 ? 'selected' : ''}>Factura B</option>
+                    <option value="8" ${fActiva?.tipo == 8 ? 'selected' : ''}>Nota Crédito B</option>
+                    <option value="1" ${fActiva?.tipo == 1 ? 'selected' : ''}>Factura A</option>
                 </select>
             </td>
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
             <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
-            <td><textarea class="input-tab det-val" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>${fActiva ? (fActiva.descripcion || fActiva.concepto || "") : (p.detalle || `PRESTACIÓN MÓDULO ${p.mod} - ${p.id}`)}</textarea></td>
-            <td><input type="number" class="input-tab neto-edit" value="${valNetoIn}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
+            <td><textarea class="input-tab det-val" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>${fActiva ? (fActiva.descripcion || fActiva.concepto || "") : `SERVICIO DE SALUD - PACIENTE: ${p.id}`}</textarea></td>
+            
+            <td><input type="number" class="input-tab neto-edit" value="${nIn}" onchange="recalcular(this)" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
             <td>
-                <select class="input-tab sel-ali" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>
-                    <option value="0" ${aliFinal == 0 ? 'selected' : ''}>Exento</option>
-                    <option value="10.5" ${aliFinal == 10.5 ? 'selected' : ''}>10.5%</option>
-                    <option value="21" ${aliFinal == 21 ? 'selected' : ''}>21%</option>
+                <select class="input-tab sel-ali" onchange="recalcular(this)" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>
+                    <option value="0" ${aIn == 0 ? 'selected' : ''}>Exento</option>
+                    <option value="10.5" ${aIn == 10.5 ? 'selected' : ''}>10.5%</option>
+                    <option value="21" ${aIn == 21 ? 'selected' : ''}>21%</option>
                 </select>
             </td>
-            <td><input type="number" class="input-tab exento-edit" value="${valExeIn}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
+            <td><input type="number" class="input-tab exento-edit" value="${eIn}" onchange="recalcular(this)" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
+            
             <td style="text-align:right; font-weight:bold" class="total-row">
-                $ ${(totalCalculado || 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                $ ${(fActiva?.total || (nIn * (1 + aIn/100) + eIn)).toLocaleString('es-AR', {minimumFractionDigits: 2})}
             </td>
         `;
         b.appendChild(tr);
@@ -692,7 +704,7 @@ window.render = function() {
 function procesarFacturaAprobada(respuestaAfip, datosPedido) {
     const moduloReal = (datosPedido.modulo || "otros").toLowerCase();
     const esSaei = (moduloReal === "saei");
-    
+    const carpetaModuloFirebase = esSaei ? 'SAEI' : moduloReal;
     // 1. Definimos la ruta de guardado según el módulo
     const rutaHistorial = esSaei ? 'facturas_emitidas_saei' : 'facturas_emitidas';
     const nuevaFacturaKey = db.ref().child(rutaHistorial).push().key;
@@ -934,7 +946,7 @@ const MODELO_FACTURA_B = (d) => {
     </div>`;
 };
 window.descargarFactura = async (id) => {
-    // 1. BUSQUEDA DOBLE: Primero en facturacion, si no está, en saei
+    // 1. BÚSQUEDA DOBLE: Primero en facturacion, si no está, en saei
     let snap = await db.ref('facturas_emitidas/' + id).once('value');
     let p = snap.val();
 
@@ -945,112 +957,110 @@ window.descargarFactura = async (id) => {
 
     // Si después de buscar en los dos lados no hay nada, avisamos
     if (!p || !p.cae) return alert("Error: No se encontró la factura o no tiene datos de CAE.");        
-	
-	const cuitEmisor = "30714900192";
-        
-        const f = (val) => {
-            if (!val) return "";
-            let s = String(val).replace(/-/g, '');
-            if (s.length === 8 && !isNaN(s)) {
-                return `${s.substring(6,8)}/${s.substring(4,6)}/${s.substring(0,4)}`;
-            }
-            return val;
-        };
-
-        const datos = {
-            emisor_rs: "ESENCIAL S.R.L.",
-            emisor_dom: "25 De Mayo 30 - San Juan, San Juan",
-            emisor_cuit: cuitEmisor,
-            emisor_iibb: "000-143318-7",
-            emisor_inicio: "06/07/2015",
-            emisor_iva: "IVA Responsable Inscripto", // 
-            
-            
-            titulo_documento: ([3, 8, 13].includes(parseInt(p.tipo_comp || p.tipo_cod))) ? "NOTA DE CRÉDITO" : "FACTURA",
-    	    tipo_cod: String(p.tipo_comp || p.tipo_cod || 6).padStart(3, '0'),
     
-            ptoVta: String(p.punto_venta || 5).padStart(5, '0'),
-            nro: String(p.nro_comp || 0).padStart(8, '0'),
-    
-            
-            fecha: p.fecha_emision || p.fecha || new Date().toLocaleDateString('es-AR'),
-            ptoVta: String(p.punto_venta || 5).padStart(5, '0'),
-            nro: String(p.nro_comp).padStart(8, '0'),
-            fecha: p.fecha_emision || new Date().toLocaleDateString('es-AR'),
-            
-            desde: f(p.periodo_desde), 
-            hasta: f(p.periodo_hasta),
-            vto_pago: f(p.vto_pago),
-
-            // Sincronización con los nombres exactos que guarda tu MOTOR
-            receptor_rs: (p.receptor_nombre || "CONSUMIDOR FINAL").toUpperCase(),
-            receptor_cuit: p.receptor_cuit || "",
-            receptor_dom: p.receptor_domicilio || "SAN JUAN",
-            receptor_iva: p.receptor_condicion_iva || "IVA Sujeto Exento",
-            
-            condicion_venta: p.condicion_venta || "CUENTA CORRIENTE",
-            concepto: p.concepto || "",
-            
-            // Importes: Usamos p.total que es como lo guarda el motor
-            total: parseFloat(p.total || 0),
-            neto: parseFloat(p.neto || 0),
-            iva: parseFloat(p.iva || 0),
-            exento: parseFloat(p.exento || 0),
-            
-            cae: p.cae,
-            cae_vto: f(p.cae_vto),
-            qr_url: p.qr_url || "",
-	    asoc_pv: p.pv_asoc || p.punto_venta || "00005",
-            asoc_nro: p.nro_asoc || p.comprobante_asociado_nro || ""
-        };
-
-        const nombreArchivo = `${datos.emisor_cuit}_${datos.tipo_cod}_${datos.ptoVta}_${datos.nro}.pdf`;
+    const cuitEmisor = "30714900192";
         
-        const win = window.open('', '_blank');
-        win.document.write(`<html><head><title>${nombreArchivo}</title>
-            <style>
-                @media print { @page { size: A4; margin: 0; } body { margin: 0; } }
-                body { font-family: "Arial Narrow", Arial, sans-serif; margin: 0; padding: 0; color: black; }
-                .hoja-a4 { width: 210mm; height: 297mm; padding: 10mm; box-sizing: border-box; margin: auto; page-break-after: always; position: relative; }
-                .factura-border { border: 1.5px solid black; height: 100%; display: flex; flex-direction: column; }
-                .copia { text-align: center; font-weight: bold; border-bottom: 1.5px solid black; padding: 1.5mm; font-size: 11px; text-transform: uppercase; }
-                .header { display: flex; border-bottom: 1.5px solid black; }
-                
-                /* ESPACIADO DEL EMISOR SOLICITADO */
-                .empresa { width: 45%; padding: 3mm; border-right: 1.5px solid black; font-size: 10px; }
-                .empresa div { margin-bottom: 4px; } 
-                .emisor-name { font-size: 17px; font-weight: bold; margin-bottom: 8px !important; }
-                
-                .tipo { width: 10%; text-align: center; border-right: 1.5px solid black; position: relative; background: white; }
-                .letra { border: 1.5px solid black; width: 12mm; height: 12mm; margin: 2mm auto 0; font-size: 24px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-                .cod { font-size: 8px; font-weight: bold; margin-top: 1mm; }
-                .datos { width: 45%; padding: 3mm; font-size: 10px; }
-                .periodo-blanco { display: flex; justify-content: space-between; border-bottom: 1.5px solid black; padding: 2mm 3mm; font-size: 10px; }
-                .cliente-container { display: flex; border-bottom: 1.5px solid black; font-size: 10.5px; min-height: 25mm; }
-                .cliente-izq { width: 45%; padding: 3mm; }
-                .cliente-der { width: 55%; padding: 3mm; }
-                .detalle { flex-grow: 1; }
-                .detalle table { width: 100%; border-collapse: collapse; }
-                .detalle th { background: #eeeeee; border-bottom: 1.5px solid black; font-size: 9px; padding: 1.5mm; text-align: left; }
-                .detalle td { padding: 2mm; font-size: 10.5px; }
-                
-                /* AJUSTE TABLA TOTALES */
-                .totales-box { display: flex; border-top: 1.5px solid black; border-bottom: 1.5px solid black; min-height: 22mm; }
-                .ley-box { width: 65%; padding: 3mm; font-size: 9px; border-right: 1.5px solid black; }
-                .tabla-totales { width: 35%; padding: 2mm 0; display: flex; flex-direction: column; justify-content: center; }
-                .linea-total { display: flex; justify-content: space-between; padding: 0.5mm 4mm; font-size: 11px; }
-                .linea-total.bold { font-weight: bold; font-size: 14px; margin-top: 1mm; }
-                .footer-final { display: flex; justify-content: space-between; padding: 3mm; align-items: center; min-height: 30mm; }
-                .f-right { text-align: right; font-size: 11px; width: 40%; }
-            </style>
-            </head><body>
-                ${typeof MODELO_FACTURA_B === 'function' ? MODELO_FACTURA_B({...datos, copia: "ORIGINAL"}) : "Falta función MODELO_FACTURA_B"}
-                ${typeof MODELO_FACTURA_B === 'function' ? MODELO_FACTURA_B({...datos, copia: "DUPLICADO"}) : ""}
-                ${typeof MODELO_FACTURA_B === 'function' ? MODELO_FACTURA_B({...datos, copia: "TRIPLICADO"}) : ""}
-            </body></html>`);
-        win.document.close();
-        win.onload = () => { setTimeout(() => win.print(), 800); };
+    const f = (val) => {
+        if (!val) return "";
+        let s = String(val).replace(/-/g, '');
+        if (s.length === 8 && !isNaN(s)) {
+            return `${s.substring(6,8)}/${s.substring(4,6)}/${s.substring(0,4)}`;
+        }
+        return val;
+    };
 
+    // --- LÓGICA DE COMPROBANTES ASOCIADOS DINÁMICA ---
+    const pvAsoc = String(p.asoc_pv || 5).padStart(4, '0');
+    const nroAsoc = String(p.asoc_nro || p.comprobante_asociado_nro || 0).padStart(8, '0');
+    // Solo se crea si hay un número de factura asociado
+    const textoAsociado = (p.asoc_nro && p.asoc_nro !== "0") ? `Comp. Asociados: ${pvAsoc}-${nroAsoc}` : "";
+
+    const datos = {
+        emisor_rs: "ESENCIAL S.R.L.",
+        emisor_dom: "25 De Mayo 30 - San Juan, San Juan",
+        emisor_cuit: cuitEmisor,
+        emisor_iibb: "000-143318-7",
+        emisor_inicio: "06/07/2015",
+        emisor_iva: "IVA Responsable Inscripto", 
+        
+        titulo_documento: ([3, 8, 13].includes(parseInt(p.tipo_comp || p.tipo_cod))) ? "NOTA DE CRÉDITO" : "FACTURA",
+        tipo_cod: String(p.tipo_comp || p.tipo_cod || 6).padStart(3, '0'),
+
+        ptoVta: String(p.punto_venta || 5).padStart(5, '0'),
+        nro: String(p.nro_comp || 0).padStart(8, '0'),
+        fecha: p.fecha_emision || p.fecha || new Date().toLocaleDateString('es-AR'),
+        
+        desde: f(p.periodo_desde), 
+        hasta: f(p.periodo_hasta),
+        vto_pago: f(p.vto_pago),
+
+        // Mapeo corregido para que coincida con la base
+        receptor_rs: (p.razon_social || p.nombre || "CONSUMIDOR FINAL").toUpperCase(),
+        receptor_cuit: p.cuit || "",
+        receptor_dom: p.domicilio || "SAN JUAN",
+        receptor_iva: p.condicion_iva || "IVA Sujeto Exento",
+        
+        asoc_linea: textoAsociado, // <--- Esto es lo que pediste debajo del domicilio
+        
+        condicion_venta: p.condicion_venta || "CUENTA CORRIENTE",
+        concepto: (p.concepto || p.descripcion || "").toUpperCase(),
+        
+        total: parseFloat(p.total || 0),
+        neto: parseFloat(p.neto || 0),
+        iva: parseFloat(p.iva || 0),
+        exento: parseFloat(p.exento || 0),
+        
+        cae: p.cae,
+        cae_vto: f(p.cae_vto),
+        qr_url: p.qr_url || ""
+    };
+
+    const nombreArchivo = `${datos.emisor_cuit}_${datos.tipo_cod}_${datos.ptoVta}_${datos.nro}.pdf`;
+        
+    const win = window.open('', '_blank');
+    win.document.write(`<html><head><title>${nombreArchivo}</title>
+        <style>
+            @media print { @page { size: A4; margin: 0; } body { margin: 0; } }
+            body { font-family: "Arial Narrow", Arial, sans-serif; margin: 0; padding: 0; color: black; }
+            .hoja-a4 { width: 210mm; height: 297mm; padding: 10mm; box-sizing: border-box; margin: auto; page-break-after: always; position: relative; }
+            .factura-border { border: 1.5px solid black; height: 100%; display: flex; flex-direction: column; }
+            .copia { text-align: center; font-weight: bold; border-bottom: 1.5px solid black; padding: 1.5mm; font-size: 11px; text-transform: uppercase; }
+            .header { display: flex; border-bottom: 1.5px solid black; }
+            
+            /* ESPACIADO DEL EMISOR SOLICITADO */
+            .empresa { width: 45%; padding: 3mm; border-right: 1.5px solid black; font-size: 10px; }
+            .empresa div { margin-bottom: 4px; } 
+            .emisor-name { font-size: 17px; font-weight: bold; margin-bottom: 8px !important; }
+            
+            .tipo { width: 10%; text-align: center; border-right: 1.5px solid black; position: relative; background: white; }
+            .letra { border: 1.5px solid black; width: 12mm; height: 12mm; margin: 2mm auto 0; font-size: 24px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+            .cod { font-size: 8px; font-weight: bold; margin-top: 1mm; }
+            .datos { width: 45%; padding: 3mm; font-size: 10px; }
+            .periodo-blanco { display: flex; justify-content: space-between; border-bottom: 1.5px solid black; padding: 2mm 3mm; font-size: 10px; }
+            .cliente-container { display: flex; border-bottom: 1.5px solid black; font-size: 10.5px; min-height: 25mm; }
+            .cliente-izq { width: 45%; padding: 3mm; }
+            .cliente-der { width: 55%; padding: 3mm; }
+            .detalle { flex-grow: 1; }
+            .detalle table { width: 100%; border-collapse: collapse; }
+            .detalle th { background: #eeeeee; border-bottom: 1.5px solid black; font-size: 9px; padding: 1.5mm; text-align: left; }
+            .detalle td { padding: 2mm; font-size: 10.5px; }
+            
+            /* AJUSTE TABLA TOTALES */
+            .totales-box { display: flex; border-top: 1.5px solid black; border-bottom: 1.5px solid black; min-height: 22mm; }
+            .ley-box { width: 65%; padding: 3mm; font-size: 9px; border-right: 1.5px solid black; }
+            .tabla-totales { width: 35%; padding: 2mm 0; display: flex; flex-direction: column; justify-content: center; }
+            .linea-total { display: flex; justify-content: space-between; padding: 0.5mm 4mm; font-size: 11px; }
+            .linea-total.bold { font-weight: bold; font-size: 14px; margin-top: 1mm; }
+            .footer-final { display: flex; justify-content: space-between; padding: 3mm; align-items: center; min-height: 30mm; }
+            .f-right { text-align: right; font-size: 11px; width: 40%; }
+        </style>
+        </head><body>
+            ${typeof MODELO_FACTURA_B === 'function' ? MODELO_FACTURA_B({...datos, copia: "ORIGINAL"}) : "Falta función MODELO_FACTURA_B"}
+            ${typeof MODELO_FACTURA_B === 'function' ? MODELO_FACTURA_B({...datos, copia: "DUPLICADO"}) : ""}
+            ${typeof MODELO_FACTURA_B === 'function' ? MODELO_FACTURA_B({...datos, copia: "TRIPLICADO"}) : ""}
+        </body></html>`);
+    win.document.close();
+    win.onload = () => { setTimeout(() => win.print(), 800); };
 };
 // FUNCIONES AUXILIARES (Fuera de descargarFactura)
 function tgl(m) { 
@@ -1077,16 +1087,15 @@ window.exportarExcel = () => {
     link.download = `Facturacion_${filtro}.xls`;
     link.click();
 };
-// Usamos window. para que sea "global" y el HTML lo encuentre siempre
 window.refacturarTodoElModulo = async (modulo) => {
-    // Buscamos todas las filas que el sistema puso en gris (.row-facturada)
-    const filasFacturadas = document.querySelectorAll('.row-facturada');
+    // 1. Buscamos grises (.row-facturada) y azules (.row-saei) por las dudas
+    const filasFacturadas = document.querySelectorAll('.row-facturada, .row-saei');
     
     if (filasFacturadas.length === 0) {
-        return alert("No hay pacientes facturados (en gris) para replicar.");
+        return alert("No hay pacientes facturados para replicar en este módulo.");
     }
 
-    if (!confirm(`¿Deseas volver a facturar a los ${filasFacturadas.length} pacientes de ${modulo}?`)) return;
+    if (!confirm(`¿Deseas volver a enviar a la cola de AFIP a los pacientes de ${modulo}?`)) return;
 
     const updates = {};
     let contador = 0;
@@ -1094,50 +1103,63 @@ window.refacturarTodoElModulo = async (modulo) => {
     filasFacturadas.forEach(tr => {
         const ck = tr.querySelector('.ck');
         
-        // Verificamos que la fila pertenezca al módulo que queremos (Rehab, CET, etc.)
+        // Verificamos que sea del módulo correcto
         if (ck && ck.dataset.mod.toUpperCase() === modulo.toUpperCase()) {
             const idPaciente = ck.dataset.id;
             const nuevaKey = db.ref().child('cola_facturacion').push().key;
-            
+
+            // --- SINCRONIZACIÓN TOTAL CON enviarAFIP_WS ---
+            const montoNeto = parseFloat(tr.querySelector('.neto-edit')?.value) || 0;
+            const montoExento = parseFloat(tr.querySelector('.exento-edit')?.value) || 0;
+            const alicuota = parseFloat(tr.querySelector('.sel-ali')?.value) || 0;
+            const tipoComp = parseInt(tr.querySelector('.sel-tipo')?.value) || 6;
+
+            // Calculamos el total real para que el pedido vaya completo
+            const totalReal = montoNeto + (montoNeto * (alicuota / 100)) + montoExento;
+
             updates['/cola_facturacion/' + nuevaKey] = {
                 id_paciente: idPaciente,
+                nombre_paciente: ck.dataset.nombre || idPaciente,
                 modulo: modulo.toUpperCase(),
                 razon_social: tr.querySelector('.rs-val')?.value || "",
-                cuit: tr.querySelector('.cuit-val')?.value || "",
-                total: tr.querySelector('.total-val')?.value || 0,
-                descripcion: tr.querySelector('.desc-val')?.value || "MENSUALIDAD " + modulo.toUpperCase(),
-                // Dejamos las fechas listas para que el motor las procese
-                desde: tr.querySelector('.desde-val')?.value || "", 
-                hasta: tr.querySelector('.hasta-val')?.value || "",
-                vto: tr.querySelector('.vto-val')?.value || "",
+                cuit: (tr.querySelector('.cuit-val')?.value || "").replace(/\D/g, ''),
+                domicilio: tr.querySelector('.dom-val')?.value || "SAN JUAN",
+                tipo: tipoComp,
+                neto: montoNeto,
+                exento: montoExento,
+                alicuota: alicuota,
+                total: totalReal,
+                descripcion: tr.querySelector('.det-val')?.value || "MENSUALIDAD " + modulo.toUpperCase(),
+                // Fechas: El motor usará las que cargaste en los inputs globales del panel
+                periodo_desde: document.getElementById('per_desde')?.value || "", 
+                periodo_hasta: document.getElementById('per_hasta')?.value || "",
+                vto_pago: document.getElementById('vto_pago')?.value || "",
+                condicion_venta: document.getElementById('cond_venta')?.value || "Cuenta Corriente",
+                condicion_iva: "IVA Sujeto Exento",
                 estado: "PENDIENTE",
-                fecha_pedido: new Date().toISOString()
+                fecha_peticion: new Date().toISOString()
             };
             contador++;
-
-            // OPCIONAL: Si querés que la fila deje de estar en gris al refacturar
-            // tr.classList.remove('row-facturada');
-            // tr.querySelectorAll('input').forEach(i => i.disabled = false);
         }
     });
 
     if (contador > 0) {
-        await db.ref().update(updates);
-        
-        // --- NUEVO: Refrescamos la tabla de archivos automáticamente ---
-        if (typeof window.cargarArchivo === 'function') {
-            window.cargarArchivo(); 
-            // Esto hace que la tabla de historial busque los nuevos datos 
-            // mientras vos cerrás el alert.
-        }
-        // ---------------------------------------------------------------
+        try {
+            await db.ref().update(updates);
+            
+            if (typeof window.cargarArchivo === 'function') {
+                window.cargarArchivo(); 
+            }
 
-        alert(`🚀 ¡Listo! Se enviaron ${contador} pedidos de ${modulo} a la cola.`);
+            alert(`🚀 ¡Éxito! Se enviaron ${contador} pedidos de ${modulo} a la cola de procesamiento.`);
+        } catch (e) {
+            console.error("Error en refacturación masiva:", e);
+            alert("Hubo un error al conectar con la base de datos.");
+        }
     } else {
-        alert("No se encontraron pacientes facturados para el módulo: " + modulo);
+        alert("No se encontraron pacientes de " + modulo + " para refacturar.");
     }
 };
-// Esta es la función que el botón busca al hacer click
 window.toggleArchivo = () => {
     const div = document.getElementById('panel-archivo');
     
@@ -1159,15 +1181,17 @@ window.toggleArchivo = () => {
     }
 };
 window.cargarArchivo = async () => {
-    const filtro = document.getElementById('mes_filtro_archivo').value;
-    const body = document.getElementById('tabla_archivo_body');
+    const filtro = document.getElementById('mes_filtro_archivo').value; // Formato esperado: "YYYY-MM"
+    const body = document.getElementById('tabla_archivo_body') || document.getElementById('body-archivo');
     const elGral = document.getElementById('tot-general');
 
     if (!filtro) return alert("Seleccioná un mes para ver el historial.");
+    if (!body) return console.error("No se encontró el body de la tabla (tabla_archivo_body o body-archivo)");
+
     body.innerHTML = '<tr><td colspan="6" style="text-align:center;">Cargando historial unificado...</td></tr>';
 
     try {
-        // --- 1. TRAEMOS DE LAS DOS RUTAS (General y SAEI) ---
+        // --- 1. TRAEMOS DE LAS DOS RUTAS ---
         const [snapGral, snapSaei] = await Promise.all([
             db.ref('facturas_emitidas').once('value'),
             db.ref('facturas_emitidas_saei').once('value')
@@ -1187,60 +1211,69 @@ window.cargarArchivo = async () => {
             const f = facturas[id];
             if (!f) return;
 
-            const fecha = f.fecha_emision || f.fecha || "";
-            const partes = fecha.split('/');
-            
-            if (partes.length === 3) {
-                const mesAnio = `${partes[2]}-${partes[1].padStart(2, '0')}`;
-                
-                if (mesAnio === filtro) {
-                    const imp = parseFloat(f.total_facturado || f.total || 0);
-                    
-                    // --- DETECCIÓN DE NOTA DE CRÉDITO (RESTAN) ---
-                    const tComp = String(f.tipo_comp || f.tipo_cod || "").trim();
-                    const nombreTipo = String(f.tipo_nombre || "").toUpperCase();
-                    
-                    const esNC = (
-                        tComp === "8" || tComp === "008" || 
-                        tComp === "3" || tComp === "003" ||
-                        tComp === "13" || // NC C
-                        nombreTipo.includes("CREDITO")
-                    );
+            // --- CORRECCIÓN DE FECHA TODOTERRENO ---
+            const fechaOriginal = f.fecha_emision || f.fecha || "";
+            let mesAnio = "";
+            let diaMes = "";
 
-                    const valorEfectivo = esNC ? -imp : imp;
-                    tGral += valorEfectivo;
-
-                    // Sumamos al módulo correspondiente
-                    const mod = (f.modulo || "OTROS").toUpperCase();
-                    if (totalesPorModulo.hasOwnProperty(mod)) {
-                        totalesPorModulo[mod] += valorEfectivo;
-                    } else {
-                        totalesPorModulo["OTROS"] += valorEfectivo;
-                    }
-
-                    // --- DISEÑO DE FILA ---
-                    const estiloFila = esNC 
-                        ? 'style="color: #d9534f !important; font-weight: bold; background-color: #fff5f5;"' 
-                        : '';
-                    const signo = esNC ? "- " : "";
-
-                    html += `<tr ${estiloFila}>
-                        <td style="text-align:center">${partes[0]}/${partes[1]}</td>
-                        <td>${String(f.punto_venta || 5).padStart(4,'0')}-${String(f.nro_comp || f.nro || 0).padStart(8, '0')}</td>
-                        <td><small>${f.cae || '<span style="color:orange">PROCESANDO...</span>'}</small></td>
-                        <td>${f.receptor_nombre || f.nombre || "SIN NOMBRE"} <br><small>${mod}</small></td>
-                        <td style="text-align:right">${signo}$ ${imp.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
-                        <td style="text-align:center">
-                            <button onclick="window.descargarFactura('${id}')" class="btn" style="background:var(--azul); padding:2px 5px; font-size:9px;">PDF</button>
-                        </td>
-                    </tr>`;
+            if (fechaOriginal.includes('-')) {
+                // Caso YYYY-MM-DD (ej: 2026-03-24)
+                const p = fechaOriginal.split('-');
+                mesAnio = `${p[0]}-${p[1].padStart(2, '0')}`;
+                diaMes = `${p[2]}/${p[1]}`;
+            } else if (fechaOriginal.includes('/')) {
+                // Caso DD/MM/YYYY (ej: 24/03/2026)
+                const p = fechaOriginal.split('/');
+                if (p.length === 3) {
+                    mesAnio = `${p[2]}-${p[1].padStart(2, '0')}`;
+                    diaMes = `${p[0]}/${p[1]}`;
                 }
+            }
+
+            // --- FILTRADO ---
+            if (mesAnio === filtro) {
+                const imp = parseFloat(f.total_facturado || f.total || 0);
+                
+                // --- DETECCIÓN DE NOTA DE CRÉDITO ---
+                const tComp = String(f.tipo_comp || f.tipo_cod || "").trim();
+                const nombreTipo = String(f.tipo_nombre || "").toUpperCase();
+                
+                const esNC = (
+                    tComp === "8" || tComp === "008" || 
+                    tComp === "3" || tComp === "003" ||
+                    tComp === "13" || 
+                    nombreTipo.includes("CREDITO")
+                );
+
+                const valorEfectivo = esNC ? -imp : imp;
+                tGral += valorEfectivo;
+
+                const mod = (f.modulo || "OTROS").toUpperCase();
+                if (totalesPorModulo.hasOwnProperty(mod)) {
+                    totalesPorModulo[mod] += valorEfectivo;
+                } else {
+                    totalesPorModulo["OTROS"] += valorEfectivo;
+                }
+
+                const estiloFila = esNC ? 'style="color: #d9534f; font-weight: bold; background-color: #fff5f5;"' : '';
+                const signo = esNC ? "- " : "";
+
+                html += `<tr ${estiloFila}>
+                    <td style="text-align:center">${diaMes}</td>
+                    <td>${String(f.punto_venta || 5).padStart(4,'0')}-${String(f.nro_comp || f.nro || 0).padStart(8, '0')}</td>
+                    <td><small>${f.cae || '<span style="color:orange">PROCESANDO...</span>'}</small></td>
+                    <td>${(f.receptor_nombre || f.nombre || f.razon_social || "SIN NOMBRE").toUpperCase()} <br><small>${mod}</small></td>
+                    <td style="text-align:right">${signo}$ ${imp.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                    <td style="text-align:center">
+                        <button onclick="window.descargarFactura('${id}')" class="btn" style="background:#2980b9; color:white; border:none; padding:2px 5px; font-size:9px; cursor:pointer;">PDF</button>
+                    </td>
+                </tr>`;
             }
         });
 
         body.innerHTML = html || '<tr><td colspan="6" style="text-align:center;">No hay movimientos en este mes.</td></tr>';
         
-        // --- 2. ACTUALIZACIÓN DE TODOS LOS CUADRITOS DE TOTALES ---
+        // --- ACTUALIZACIÓN DE TOTALES ---
         if(elGral) elGral.innerText = `$ ${tGral.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
 
         const actualizar = (idDiv, monto) => {
@@ -1251,7 +1284,7 @@ window.cargarArchivo = async () => {
         actualizar('tot-rehab', totalesPorModulo["REHAB"]);
         actualizar('tot-cet', totalesPorModulo["CET"]);
         actualizar('tot-cd', totalesPorModulo["CD"]);
-        actualizar('tot-saei', totalesPorModulo["SAEI"]); // <-- AHORA SÍ SE VA A MOVER ESTE
+        actualizar('tot-saei', totalesPorModulo["SAEI"]);
 
     } catch (error) {
         console.error("Error en cargarArchivo:", error);
