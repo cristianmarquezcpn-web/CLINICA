@@ -449,16 +449,7 @@ window.render = function() {
         
         // 1. Buscamos la Obra Social en el diccionario global
         let infoOS = window.dictOS[osOriginal] || {};
-        
-        // Búsqueda inteligente por si el nombre no es idéntico
-        if (!infoOS.cuit) {
-            const coincidencia = Object.keys(window.dictOS).find(k => 
-                k.includes(osOriginal) || osOriginal.includes(k)
-            );
-            if (coincidencia) infoOS = window.dictOS[coincidencia];
-        }
-        
-        // --- DEFINIMOS condicionIva ---
+         // --- DEFINIMOS condicionIva ---
         const condicionIva = infoOS.condicion_iva || infoOS.condicionIva || "IVA SUJETO EXENTO"; 
 
         // 2. Extraemos los datos (Priorizamos lo que hay en window.dictOS)
