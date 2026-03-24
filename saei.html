@@ -160,27 +160,11 @@ function inicializarCarga() {
                 };
             });
         }
-        console.log("Diccionario OS sincronizado:", window.dictOS);
-
-        // 2. Una vez que el diccionario está listo, cargamos los pacientes
-        if (typeof window.cargarTodo === 'function') {
-            window.cargarTodo();
-        } else {
-            console.error("La función cargarTodo no existe.");
-        }
-        
+		console.log("Diccionario OS sincronizado:", window.dictOS);
+        if (typeof window.cargarTodo === 'function') window.cargarTodo();
     }).catch(err => {
         console.error("Error en inicializarCarga:", err);
     });
-}
-
-	// Llamamos a cargarTodo que es la que trae los pacientes
-        if (typeof window.cargarTodo === 'function') {
-            window.cargarTodo();
-        } else {
-            console.error("La función cargarTodo no existe.");
-        }
-    }).catch(err => console.error("Error en inicializarCarga:", err));
 }
 
 // 2. FILTROS Y VARIABLES DE ESTADO
