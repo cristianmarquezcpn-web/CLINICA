@@ -419,7 +419,7 @@ window.render = function() {
     
     // 1. Buscamos la Obra Social en el diccionario
     let infoOS = dictOS[osOriginal] || {};
-
+    const condicionIva = infoOS.condicion_iva || infoOS.condicionIva || "IVA SUJETO EXENTO"; 
     // 2. Extraemos los datos probando AMBOS nombres (con _ y con mayúsculas)
         const rsBD = infoOS.razonSocial || infoOS.razon_social || infoOS.nombre || osOriginal;
     	const cuitBD = infoOS.cuit || infoOS.CUIT || p.cuit || p.dni || "";
