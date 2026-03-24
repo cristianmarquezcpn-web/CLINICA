@@ -283,18 +283,18 @@ window.cargarTodo = () => {
         });
     }
 };
-
 function actualizarListaOSUI() {
     const listaOS = document.getElementById('lista-os');
     if(!listaOS) return;
     
     let htmlOS = '<div style="display: flex; flex-direction: column; gap: 5px;">';
-    // Usamos window.dictOS que es donde cargamos todo desde /config/
+    
+    // IMPORTANTE: Usamos window.dictOS
     for (let nombre in window.dictOS) {
-        const datosOS = window.dictOS[nombre];
+        const datos = window.dictOS[nombre];
         htmlOS += `
             <div class="os-item" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:8px; border-radius:5px; border:1px solid #eee; margin-bottom:5px">
-                <span style="font-size:10px"><b>${nombre}</b> (${datosOS.cuit || 'S/C'})</span>
+                <span style="font-size:10px"><b>${nombre}</b> (${datos.cuit || 'S/C'})</span>
                 <div style="display:flex; gap:5px">
                     <button class="btn" style="background:var(--azul); padding:2px 8px; font-size:9px" onclick="prepararEdicionOS('${nombre}')">EDITAR</button>
                     <button class="btn" style="background:var(--rojo); padding:2px 8px; font-size:9px" onclick="borrarOS('${nombre}')">❌</button>
@@ -304,6 +304,7 @@ function actualizarListaOSUI() {
     htmlOS += '</div>';
     listaOS.innerHTML = htmlOS;
 }
+
 // --- GESTIÓN DE OBRAS SOCIALES (IDÉNTICO A TU ORIGINAL) ---
 window.guardarOS = async function() {
     const nombre = document.getElementById('os-nombre').value.toUpperCase().trim();
@@ -447,42 +448,45 @@ window.render = function() {
         const tieneAsist = true;
         const osOriginal = (p.os || p.obra_social || "").toUpperCase().trim();
         
-        // 1. Buscamos la Obra Social en el diccionario global
+        // --- CORRECCIÓN CLAVE: Buscamos en window.dictOS ---
         let infoOS = window.dictOS[osOriginal] || {};
         
         // Búsqueda inteligente por si el nombre no es idéntico
         if (!infoOS.cuit) {
-            const coincidencia = Object.keys(window.dictOS).find(k => k.includes(osOriginal) || osOriginal.includes(k));
+            const coincidencia = Object.keys(window.dictOS).find(k => 
+                k.includes(osOriginal) || osOriginal.includes(k)
+            );
             if (coincidencia) infoOS = window.dictOS[coincidencia];
         }
         
-        // --- DEFINIMOS condicionIva SI O SI ---
+        // --- DEFINIMOS condicionIva ---
         const condicionIva = infoOS.condicion_iva || infoOS.condicionIva || "IVA SUJETO EXENTO"; 
 
-        // 2. Extraemos los datos de la base de Obras Sociales (o fallback a datos del paciente)
+        // 2. Extraemos los datos (Priorizamos lo que hay en window.dictOS)
         const rsBD   = infoOS.razon_social || infoOS.razonSocial || infoOS.nombre || osOriginal;
         const cuitBD = infoOS.cuit || infoOS.CUIT || p.cuit || p.dni || "";
         const domBD  = infoOS.domicilio || infoOS.direccion || 'SAN JUAN';
 
-        // 3. Definimos qué mostrar finalmente (Datos de factura si existe, sino los de la base)
+        // 3. Definimos qué mostrar finalmente
         const rsFinal   = facturado ? (p.ultima_factura?.nombre || p.ultima_factura?.razon_social || rsBD) : rsBD;
         const cuitFinal = facturado ? (p.ultima_factura?.cuit || cuitBD) : cuitBD;
         const domFinal  = facturado ? (p.ultima_factura?.domicilio || domBD) : domBD;    
-    // --- Resto de tu lógica de montos ---
-    const montoBase = facturado ? (p.ultima_factura?.total_facturado || p.ultima_factura?.total || 0) : (p.neto || p.total || 0);
-    const aliFinal = facturado ? (p.ultima_factura?.alicuota || 0) : 0;
-    const esExento = (aliFinal == 0);
-    const valNetoIn = esExento ? 0 : montoBase;
-    const valExeIn = esExento ? montoBase : 0;
 
-    // 4. Tipo de Comprobante
-    let tipoComp = (condicionIva.toUpperCase().includes("RI") || condicionIva.toUpperCase().includes("INSCRIPTO")) ? 1 : 6;
-    if (facturado && p.ultima_factura?.tipo_cod) tipoComp = parseInt(p.ultima_factura.tipo_cod);
+        // --- Resto de tu lógica de montos ---
+        const montoBase = facturado ? (p.ultima_factura?.total_facturado || p.ultima_factura?.total || 0) : (p.neto || p.total || 0);
+        const aliFinal = facturado ? (p.ultima_factura?.alicuota || 0) : 0;
+        const esExento = (aliFinal == 0);
+        const valNetoIn = esExento ? 0 : montoBase;
+        const valExeIn = esExento ? montoBase : 0;
 
-    const tr = document.createElement('tr');
-    if(facturado) tr.className = "row-facturada"; 
+        // 4. Tipo de Comprobante
+        let tipoComp = (condicionIva.toUpperCase().includes("RI") || condicionIva.toUpperCase().includes("INSCRIPTO")) ? 1 : 6;
+        if (facturado && p.ultima_factura?.tipo_cod) tipoComp = parseInt(p.ultima_factura.tipo_cod);
 
-    const totalCalculado = parseFloat(montoBase) * (1 + (parseFloat(aliFinal) / 100));
+        const tr = document.createElement('tr');
+        if(facturado) tr.className = "row-facturada"; 
+
+        const totalCalculado = parseFloat(montoBase) * (1 + (parseFloat(aliFinal) / 100));
         let estadoVisual = "";
         if (facturado) {
             estadoVisual = `<br><b style="color:blue; font-size:9px;">FACTURADO</b>`;
@@ -541,7 +545,7 @@ window.render = function() {
         b.appendChild(tr);
     });
 };
-window.enviarAFIP_SAEI = async function() {
+	window.enviarAFIP_SAEI = async function() {
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("⚠️ Seleccioná al menos un paciente para facturar.");
     
