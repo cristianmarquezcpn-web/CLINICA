@@ -426,12 +426,10 @@ window.recalculer = (el) => {
         })}`;
     }
 };
-window.render = function() {
+	window.render = function() {
     const b = document.getElementById('tabla-body');
     if (!b) return;
     b.innerHTML = "";
-
-    // Nos aseguramos de que haya datos para evitar errores
     if (!dataFull) return;
 
     dataFull
@@ -444,30 +442,23 @@ window.render = function() {
         const facturaExiste = p.ultima_factura && (p.ultima_factura.id || p.ultima_factura.cae);
         const facturado = p.facturado === 'SI' || facturaExiste; 
         
-        const tieneAsist = true;
-        // 1. Priorizamos buscar por ID (como hace Facturación)
+        // 1. Lógica de búsqueda (DICCIONARIO POR ID O NOMBRE)
         const osID = p.os_id || p.obra_social_id;
-		const osNombre = (p.os || p.obra_social || "").toUpperCase().trim();
+        const osNombre = (p.os || p.obra_social || "").toUpperCase().trim();
+        let infoOS = null;
 
-		let infoOS = null;
+        if (osID && window.dictOS && window.dictOS[osID]) {
+            infoOS = window.dictOS[osID];
+        } else if (window.dictOS && window.dictOS[osNombre]) {
+            infoOS = window.dictOS[osNombre];
+        }
 
-		if (osID && window.dictOS[osID]) {
-    	// Si tenemos el ID y está en el diccionario, es la posta
-    	infoOS = window.dictOS[osID];
-} else {
-    // Si no, buscamos por nombre pero SIN inventar (Coincidencia exacta)
-    infoOS = window.dictOS[osNombre] || null;
-}
+        const condicionIva = infoOS?.condicion_iva || "IVA SUJETO EXENTO";
 
-// 2. Definimos los valores finales
-const rsFinal   = facturado ? (p.ultima_factura?.nombre || osNombre) : (infoOS?.razon_social || osNombre);
-const cuitFinal = facturado ? (p.ultima_factura?.cuit || "") : (infoOS?.cuit || p.cuit || "");
-const domFinal  = facturado ? (p.ultima_factura?.domicilio || "SAN JUAN") : (infoOS?.domicilio || p.domicilio || "SAN JUAN");
-const condIva   = infoOS?.condicion_iva || "IVA SUJETO EXENTO";
-        // 3. Definimos qué mostrar finalmente
-        const rsFinal   = facturado ? (p.ultima_factura?.nombre || p.ultima_factura?.razon_social || rsBD) : rsBD;
-        const cuitFinal = facturado ? (p.ultima_factura?.cuit || cuitBD) : cuitBD;
-        const domFinal  = facturado ? (p.ultima_factura?.domicilio || domBD) : domBD;    
+        // 2. Definimos los valores finales (CORREGIDO: Solo una declaración por variable)
+        const rsFinal   = facturado ? (p.ultima_factura?.nombre || p.ultima_factura?.razon_social || osNombre) : (infoOS?.razon_social || osNombre);
+        const cuitFinal = facturado ? (p.ultima_factura?.cuit || "") : (infoOS?.cuit || p.cuit || "");
+        const domFinal  = facturado ? (p.ultima_factura?.domicilio || "SAN JUAN") : (infoOS?.domicilio || p.domicilio || "SAN JUAN");
 
         // --- Lógica de montos ---
         const montoBase = facturado ? (p.ultima_factura?.total_facturado || p.ultima_factura?.total || 0) : (p.neto || p.total || 0);
@@ -476,7 +467,7 @@ const condIva   = infoOS?.condicion_iva || "IVA SUJETO EXENTO";
         const valNetoIn = esExento ? 0 : montoBase;
         const valExeIn = esExento ? montoBase : 0;
 
-        // 4. Tipo de Comprobante
+        // 4. Tipo de Comprobante (Mantenemos tu lógica de NC)
         let tipoComp = (condicionIva.toUpperCase().includes("RI") || condicionIva.toUpperCase().includes("INSCRIPTO")) ? 1 : 6;
         if (facturado && p.ultima_factura?.tipo_cod) tipoComp = parseInt(p.ultima_factura.tipo_cod);
 
@@ -485,12 +476,7 @@ const condIva   = infoOS?.condicion_iva || "IVA SUJETO EXENTO";
 
         const totalCalculado = parseFloat(montoBase) * (1 + (parseFloat(aliFinal) / 100));
         
-        let estadoVisual = "";
-        if (facturado) {
-            estadoVisual = `<br><b style="color:blue; font-size:9px;">FACTURADO</b>`;
-        } else {
-            estadoVisual = `<br><b style="color:orange; font-size:9px;">PENDIENTE</b>`;
-        }
+        let estadoVisual = facturado ? `<br><b style="color:blue; font-size:9px;">FACTURADO</b>` : `<br><b style="color:orange; font-size:9px;">PENDIENTE</b>`;
 
         let colAccion = `<input type="checkbox" class="ck" 
                     data-id="${p.id}" 
@@ -503,7 +489,7 @@ const condIva   = infoOS?.condicion_iva || "IVA SUJETO EXENTO";
             colAccion += `
                 <div style="margin-top:5px; display:flex; flex-direction:column; gap:3px;">
                     <button class="btn" style="background:var(--verde); font-size:8px; padding:2px;" 
-                        onclick="window.descargarFactura('${p.ultima_factura.id}')">PDF</button>
+                        onclick="window.descargarFactura('${p.ultima_factura.id}', true)">PDF</button>
                     
                     <button class="btn" style="background:var(--naranja); font-size:8px; padding:2px;" 
                         onclick="window.refacturar('${p.mod}', '${p.id}')">Refacturar</button>
