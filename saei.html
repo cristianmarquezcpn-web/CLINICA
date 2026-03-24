@@ -445,18 +445,25 @@ window.render = function() {
         const facturado = p.facturado === 'SI' || facturaExiste; 
         
         const tieneAsist = true;
-        const osOriginal = (p.os || p.obra_social || "").toUpperCase().trim();
-        
-        // 1. Buscamos la Obra Social en el diccionario global
-        let infoOS = window.dictOS[osOriginal] || {};
-         // --- DEFINIMOS condicionIva ---
-        const condicionIva = infoOS.condicion_iva || infoOS.condicionIva || "IVA SUJETO EXENTO"; 
+        // 1. Priorizamos buscar por ID (como hace Facturación)
+        const osID = p.os_id || p.obra_social_id;
+		const osNombre = (p.os || p.obra_social || "").toUpperCase().trim();
 
-        // 2. Extraemos los datos (Priorizamos lo que hay en window.dictOS)
-        const rsBD   = infoOS.razon_social || infoOS.razonSocial || infoOS.nombre || osOriginal;
-        const cuitBD = infoOS.cuit || infoOS.CUIT || p.cuit || p.dni || "";
-        const domBD  = infoOS.domicilio || infoOS.direccion || 'SAN JUAN';
+		let infoOS = null;
 
+		if (osID && window.dictOS[osID]) {
+    	// Si tenemos el ID y está en el diccionario, es la posta
+    	infoOS = window.dictOS[osID];
+} else {
+    // Si no, buscamos por nombre pero SIN inventar (Coincidencia exacta)
+    infoOS = window.dictOS[osNombre] || null;
+}
+
+// 2. Definimos los valores finales
+const rsFinal   = facturado ? (p.ultima_factura?.nombre || osNombre) : (infoOS?.razon_social || osNombre);
+const cuitFinal = facturado ? (p.ultima_factura?.cuit || "") : (infoOS?.cuit || p.cuit || "");
+const domFinal  = facturado ? (p.ultima_factura?.domicilio || "SAN JUAN") : (infoOS?.domicilio || p.domicilio || "SAN JUAN");
+const condIva   = infoOS?.condicion_iva || "IVA SUJETO EXENTO";
         // 3. Definimos qué mostrar finalmente
         const rsFinal   = facturado ? (p.ultima_factura?.nombre || p.ultima_factura?.razon_social || rsBD) : rsBD;
         const cuitFinal = facturado ? (p.ultima_factura?.cuit || cuitBD) : cuitBD;
