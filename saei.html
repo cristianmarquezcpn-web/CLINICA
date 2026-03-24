@@ -455,7 +455,7 @@ window.recalculer = (el) => {
     	o_s = window.dictOS[osNombre];
 	}
 
-// Variables con nombres únicos para que NO explote el SyntaxError
+		const conIva = infoOS?.condicion_iva || infoOS?.condicionIva || "IVA SUJETO EXENTO";
 		let valRS   = facturado ? (p.ultima_factura?.nombre || osNombre) : (o_s?.razon_social || osNombre);
 		let valCUIT = facturado ? (p.ultima_factura?.cuit || "") : (o_s?.cuit || p.cuit || "");
 		let valDOM  = facturado ? (p.ultima_factura?.domicilio || "SAN JUAN") : (o_s?.domicilio || "SAN JUAN");
