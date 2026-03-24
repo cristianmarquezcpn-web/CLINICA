@@ -142,6 +142,29 @@
 </div>
 
 <script>
+window.dictOS = {}; 
+
+// 2. CARGAMOS LAS OBRAS SOCIALES (Reemplazá tu función de carga inicial por esta)
+function inicializarCarga() {
+    db.ref('obras_sociales').once('value').then(snap => {
+        const datos = snap.val();
+        if (datos) {
+            Object.values(datos).forEach(os => {
+                // Guardamos cada OS usando su nombre en mayúsculas como clave
+                const nombreKey = (os.nombre || os.razon_social || "").toUpperCase().trim();
+                window.dictOS[nombreKey] = os;
+            });
+        }
+        console.log("Diccionario OS cargado en SAEI:", window.dictOS);
+        
+        // 3. RECIÉN CUANDO TENEMOS LAS OS, CARGAMOS LOS PACIENTES
+        return db.ref('saei/pacientes').once('value');
+    }).then(snap => {
+        const pacientes = snap.val();
+        // Llamamos a tu función render habitual
+        window.render(pacientes); 
+    }).catch(err => console.error("Error cargando datos:", err));
+}	
 
 let filtroActual = 'TODOS'; 
 
