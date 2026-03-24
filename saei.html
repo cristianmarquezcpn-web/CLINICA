@@ -142,7 +142,6 @@
 </div>
 
 <script>
-// 1. LIMPIEZA E INICIALIZACIÓN GLOBAL
 window.dictOS = {}; 
 
 function inicializarCarga() {
@@ -153,16 +152,18 @@ function inicializarCarga() {
             Object.keys(datos).forEach(nombreKey => {
                 const os = datos[nombreKey];
                 window.dictOS[nombreKey.toUpperCase().trim()] = {
-                    cuit: os.cuit || "",
-                    domicilio: os.domicilio || os.dom || "SAN JUAN",
-                    razon_social: os.razon_social || nombreKey,
-                    condicion_iva: os.condicion_iva || "IVA Sujeto Exento"
+                    cuit: os.cuit || os.CUIT || "",
+                    domicilio: os.domicilio || os.dom || os.direccion || "SAN JUAN",
+                    razon_social: os.razon_social || os.nombre || nombreKey,
+                    condicion_iva: os.condicion_iva || os.condicionIva || "IVA SUJETO EXENTO"
                 };
             });
         }
         console.log("Diccionario OS sincronizado:", window.dictOS);
-        
-        // Llamamos a cargarTodo que es la que trae los pacientes
+        if (typeof window.cargarTodo === 'function') window.cargarTodo();
+    }).catch(err => console.error("Error en inicializarCarga:", err));
+}
+	// Llamamos a cargarTodo que es la que trae los pacientes
         if (typeof window.cargarTodo === 'function') {
             window.cargarTodo();
         } else {
@@ -435,11 +436,14 @@ window.render = function() {
     if (!b) return;
     b.innerHTML = "";
 
+    // Nos aseguramos de que haya datos para evitar errores
+    if (!dataFull) return;
+
     dataFull
     .sort((x, y) => x.id.localeCompare(y.id))
     .filter(p => {
         if (filtroActual === 'TODOS') return true;
-        return p.mod.toUpperCase() === filtroActual;
+        return (p.mod || "").toUpperCase() === filtroActual;
     })
     .forEach(p => {
         const facturaExiste = p.ultima_factura && (p.ultima_factura.id || p.ultima_factura.cae);
@@ -448,7 +452,7 @@ window.render = function() {
         const tieneAsist = true;
         const osOriginal = (p.os || p.obra_social || "").toUpperCase().trim();
         
-        // --- CORRECCIÓN CLAVE: Buscamos en window.dictOS ---
+        // 1. Buscamos la Obra Social en el diccionario global
         let infoOS = window.dictOS[osOriginal] || {};
         
         // Búsqueda inteligente por si el nombre no es idéntico
@@ -472,7 +476,7 @@ window.render = function() {
         const cuitFinal = facturado ? (p.ultima_factura?.cuit || cuitBD) : cuitBD;
         const domFinal  = facturado ? (p.ultima_factura?.domicilio || domBD) : domBD;    
 
-        // --- Resto de tu lógica de montos ---
+        // --- Lógica de montos ---
         const montoBase = facturado ? (p.ultima_factura?.total_facturado || p.ultima_factura?.total || 0) : (p.neto || p.total || 0);
         const aliFinal = facturado ? (p.ultima_factura?.alicuota || 0) : 0;
         const esExento = (aliFinal == 0);
@@ -487,11 +491,10 @@ window.render = function() {
         if(facturado) tr.className = "row-facturada"; 
 
         const totalCalculado = parseFloat(montoBase) * (1 + (parseFloat(aliFinal) / 100));
+        
         let estadoVisual = "";
         if (facturado) {
             estadoVisual = `<br><b style="color:blue; font-size:9px;">FACTURADO</b>`;
-        } else if (!tieneAsist && (p.mod || "").toUpperCase() !== "SAEI") {
-            estadoVisual = `<br><b style="color:red; font-size:9px;">SIN ASISTENCIA</b>`;
         } else {
             estadoVisual = `<br><b style="color:orange; font-size:9px;">PENDIENTE</b>`;
         }
@@ -1335,10 +1338,12 @@ window.recalcular = function(el) {
 auth.onAuthStateChanged((user) => {
     if (user) {
         console.log("SAEI autorizado para:", user.email);
+        
+        // Ejecutamos la carga del diccionario y después la tabla
         setTimeout(() => {
-            if (typeof cargarTodo === 'function') cargarTodo();
-            else if (typeof renderizarTodo === 'function') renderizarTodo();
+            inicializarCarga(); 
         }, 500);
+        
     } else {
         window.location.href = "index.html";
     }
