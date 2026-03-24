@@ -529,10 +529,10 @@ window.render = function() {
     if (!b) return;
     b.innerHTML = "";
 
-    // 1. ORDENAMIENTO SEGURO
+    // 1. ORDENAMIENTO SEGURO (Por Nombre si existe, sino por ID)
     dataFull.sort((x, y) => {
-        const nombreX = (x.id || "").toString();
-        const nombreY = (y.id || "").toString();
+        const nombreX = (x.nombre || x.id || "").toString();
+        const nombreY = (y.nombre || y.id || "").toString();
         return nombreX.localeCompare(nombreY);
     })
     .filter(p => {
@@ -548,6 +548,7 @@ window.render = function() {
         const facturadoEnSaei = !!(!forzadoNoFacturado && (p.facturado_saei === 'SI' || (facturaSaei && facturaSaei.cae)));
 
         const tr = document.createElement('tr');
+        tr.id = `fila-${p.id}`; // ID para identificar la fila fácilmente
         
         // 3. COLORES DINÁMICOS
         if (facturadoAqui) {
@@ -559,17 +560,18 @@ window.render = function() {
         }
 
         const tieneAsist = p.asistF_link && p.asistF_link.length > 5;
-        const osOriginal = (p.os || "").toUpperCase().trim();
+        const osOriginal = (p.os || p.obra_social || "").toUpperCase().trim();
         let infoOS = dictOS[osOriginal] || {};
         const fActiva = facturadoAqui ? miFactura : (facturadoEnSaei ? facturaSaei : null);
 
-        // 4. IDENTIDAD Y MONTOS
-        const rsFinal = fActiva ? (fActiva.razon_social || fActiva.nombre || "") : (infoOS.nombre || osOriginal);
+        // 4. IDENTIDAD SIN UNDEFINED
+        const nombreMostrar = (p.nombre || p.id || "SIN NOMBRE").toUpperCase();
+        const rsFinal = fActiva ? (fActiva.razon_social || fActiva.nombre || "") : (infoOS.razonSocial || infoOS.nombre || osOriginal || "PARTICULAR");
         const cuitFinal = fActiva ? (fActiva.cuit || "") : (infoOS.cuit || "");
         const domFinal = fActiva ? (fActiva.domicilio || "") : (infoOS.domicilio || 'SAN JUAN');
         
         const nIn = fActiva ? (fActiva.neto || 0) : (p.neto || 0);
-        const eIn = fActiva ? (fActiva.exento || 0) : (p.monto_fijo || p.total || 0);
+        const eIn = fActiva ? (fActiva.exento || fActiva.total || 0) : (p.monto_fijo || p.total || 0);
         const aIn = fActiva ? (fActiva.alicuota || 0) : 0;
 
         // 5. COLUMNA DE ACCIÓN
@@ -583,27 +585,32 @@ window.render = function() {
         if (facturadoAqui || facturadoEnSaei) {
             colAccion += `
                 <div style="margin-top:5px; display:flex; flex-direction:column; gap:3px;">
-                    <button class="btn" style="background:#2ecc71; color:white; font-size:8px; padding:2px; border:none; border-radius:3px;" 
+                    <button class="btn" style="background:#2ecc71; color:white; font-size:8px; padding:2px; border:none; border-radius:3px; cursor:pointer;" 
                         onclick="window.descargarFactura('${fActiva?.id || p.id}')">PDF</button>
-                    <button class="btn" style="background:#e67e22; color:white; font-size:8px; padding:2px; border:none; border-radius:3px;" 
+                    <button class="btn" style="background:#e67e22; color:white; font-size:8px; padding:2px; border:none; border-radius:3px; cursor:pointer;" 
                         onclick="window.habilitarParaRefacturar('${p.id}', '${p.mod}', '${fActiva?.id}')">Habilitar</button>
                 </div>`;
         }
         
         tr.innerHTML = `
             <td style="text-align:center">${colAccion}</td>
-            <td><small>${p.mod}</small><br><b>${p.id}</b></td>
+            <td><small>${p.mod}</small><br><b>${nombreMostrar}</b></td>
             <td>
-                <select class="input-tab sel-tipo" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>
+                <select class="input-tab sel-tipo" onchange="window.toggleCuadroNC(this, '${p.id}')" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>
                     <option value="6" ${fActiva?.tipo == 6 || fActiva?.tipo_comp == 6 ? 'selected' : ''}>Factura B</option>
                     <option value="8" ${fActiva?.tipo == 8 || fActiva?.tipo_comp == 8 ? 'selected' : ''}>Nota Crédito B</option>
                     <option value="1" ${fActiva?.tipo == 1 || fActiva?.tipo_comp == 1 ? 'selected' : ''}>Factura A</option>
+                    <option value="3" ${fActiva?.tipo == 3 || fActiva?.tipo_comp == 3 ? 'selected' : ''}>Nota Crédito A</option>
                 </select>
+                <div id="nc-box-${p.id}" style="display:none; margin-top:5px; background:#fff3cd; padding:4px; border:1px solid #ffeeba; border-radius:3px;">
+                    <input type="text" class="asoc-num" value="00005-" placeholder="Factura" style="width:90%; font-size:10px; margin-bottom:2px;">
+                    <input type="text" class="asoc-fecha" placeholder="Fecha DD/MM/AAAA" style="width:90%; font-size:10px;">
+                </div>
             </td>
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
             <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
-            <td><textarea class="input-tab det-val" onchange="window.fijarDatoPermanente('${p.id}', this.value, 'detalle')" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>${fActiva ? (fActiva.descripcion || fActiva.concepto || "") : `SERVICIO DE SALUD - PACIENTE: ${p.id}`}</textarea></td>
+            <td><textarea class="input-tab det-val" onchange="window.fijarDatoPermanente('${p.id}', this.value, 'detalle')" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>${fActiva ? (fActiva.descripcion || fActiva.concepto || "") : `SERVICIO DE SALUD - PACIENTE: ${nombreMostrar}`}</textarea></td>
             <td><input type="number" class="input-tab neto-edit" value="${nIn}" onchange="window.fijarDatoPermanente('${p.id}', this.value, 'neto')" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}></td>
             <td>
                 <select class="input-tab sel-ali" ${(facturadoAqui || facturadoEnSaei)?'disabled':''}>
@@ -621,29 +628,15 @@ window.render = function() {
     });
 };
 
-// --- EL ESCUCHADOR PARA LAS NOTAS DE CRÉDITO (CON PV 00005 POR DEFECTO) ---
-document.addEventListener('change', function(e) {
-    if (e.target.classList.contains('sel-tipo')) {
-        const tipo = e.target.value;
-        const fila = e.target.closest('tr');
-        const nombrePaciente = fila.querySelector('b').innerText;
-
-        if (tipo === "8" || tipo === "3") {
-            // Aquí seteamos el 00005- por defecto
-            const facturaAsoc = prompt(`NOTA DE CRÉDITO para ${nombrePaciente}\nComplete el número de factura a anular:`, "00005-");
-            const fechaAsoc = prompt(`Ingrese la fecha de la factura original (DD/MM/AAAA):`, "");
-            
-            if (facturaAsoc && facturaAsoc !== "00005-" && fechaAsoc) {
-                e.target.setAttribute('data-asoc-num', facturaAsoc);
-                e.target.setAttribute('data-asoc-fecha', fechaAsoc);
-                alert("✅ Datos vinculados: " + facturaAsoc);
-            } else {
-                alert("⚠️ Error: Debe completar el número de factura y la fecha.");
-                e.target.value = "6"; // Reestablece a Factura B
-            }
-        }
+// --- LÓGICA DE MOSTRAR EL CUADRITO DE NC ---
+window.toggleCuadroNC = function(el, id) {
+    const box = document.getElementById(`nc-box-${id}`);
+    if (el.value === "8" || el.value === "3") {
+        box.style.display = "block";
+    } else {
+        box.style.display = "none";
     }
-});
+};
 async function enviarAFIP_WS() {
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("Selecciona pacientes");
@@ -659,80 +652,63 @@ async function enviarAFIP_WS() {
         if (!fila) continue;
     
         const idDelPaciente = ck.getAttribute('data-id'); 
-        const moduloDelPaciente = ck.getAttribute('data-mod') || "CET"; 
-        
         const montoNeto = parseFloat(fila.querySelector('.neto-edit').value) || 0;
         const montoExento = parseFloat(fila.querySelector('.exento-edit').value) || 0;
         const alicuota = parseFloat(fila.querySelector('.sel-ali').value) || 0;
-        const detalleEscrito = fila.querySelector('.det-val').value.toUpperCase(); // <--- TU DESCRIPCIÓN TIPEADA
+        const tipo = parseInt(fila.querySelector('.sel-tipo').value);
 
-        const totalReal = montoNeto + (montoNeto * (alicuota / 100)) + montoExento;
-        const montoIva = montoNeto * (alicuota / 100);
-        const selTipoElement = fila.querySelector('.sel-tipo');
-        const tipo = parseInt(selTipoElement.value);
-
+        // Objeto base que se va a Firebase
         const pedido = {
             id_paciente: idDelPaciente,
-            modulo: moduloDelPaciente.toUpperCase(), 
-            // LEEMOS LO QUE HAY EN LA FILA (POR SI LO EDITASTE)
+            modulo: (ck.getAttribute('data-mod') || "CET").toUpperCase(), 
             razon_social: fila.querySelector('.rs-val').value.toUpperCase(),
             cuit: fila.querySelector('.cuit-val').value.replace(/\D/g, ''),
             domicilio: fila.querySelector('.dom-val').value.toUpperCase(),
-            
             tipo: tipo,
-            descripcion: detalleEscrito,
-            total: totalReal, 
+            descripcion: fila.querySelector('.det-val').value.toUpperCase(),
+            total: montoNeto + (montoNeto * (alicuota / 100)) + montoExento, 
             alicuota: alicuota,
             neto: montoNeto,     
             exento: montoExento, 
-            iva: montoIva,
             ptoVta: ptoVtaGlobal,
             periodo_desde: fDesde, 
             periodo_hasta: fHasta,
             vto_pago: fVto,
             condicion_venta: condVenta,
-            condicion_iva: "IVA Sujeto Exento", // Ajustar si es Factura A
             estado: 'PENDIENTE',
             fecha_peticion: new Date().toISOString()
         };
 
-        // --- LÓGICA DE NOTA DE CRÉDITO (CON LOS PROMPTS) ---
+        // --- SI ES NOTA DE CRÉDITO: Guardamos como pide tu motor ---
         if (tipo === 3 || tipo === 8) {
-            // Sacamos los datos que guardamos en el atributo cuando saltó el modal
-            const asocCompleto = selTipoElement.getAttribute('data-asoc-num') || ""; // Ej: "00005-00000030"
-            const asocFecha = selTipoElement.getAttribute('data-asoc-fecha') || "";
-
-            if (!asocCompleto) {
-                alert(`Faltan datos de factura asociada para ${idDelPaciente}. Cambie el tipo para que salte el modal.`);
+            const inputNum = fila.querySelector('.asoc-num');
+            const inputFecha = fila.querySelector('.asoc-fecha');
+            const asocCompleto = inputNum ? inputNum.value.trim() : "";
+            
+            if (!asocCompleto || asocCompleto === "00005-" || !inputFecha.value) {
+                alert(`Faltan datos de NC para ${idDelPaciente}`);
                 continue;
             }
 
-            // Separamos el punto de venta del número
             const partes = asocCompleto.split('-');
-            const pvAsoc = partes.length > 1 ? parseInt(partes[0]) : 5;
-            const nroAsoc = partes.length > 1 ? parseInt(partes[1]) : parseInt(partes[0]);
-
-            pedido.comprobantes_asociados = [{
-                Tipo: (tipo === 8) ? 6 : 1, // Si es NC B asocia a Factura B (6)
-                PtoVta: pvAsoc,
-                Nro: nroAsoc
-            }];
             
-            // Guardamos la fecha para que el PDF la muestre
-            pedido.asoc_fecha = asocFecha;
-            pedido.asoc_num = asocCompleto;
+            // ESTOS NOMBRES TIENEN QUE SER IGUALES EN TU MOTOR
+            pedido.tipo_asoc = (tipo === 8) ? 6 : 1; // Si es NC B, anula Factura B (6)
+            pedido.pv_asoc = partes.length > 1 ? parseInt(partes[0]) : 5;
+            pedido.nro_asoc = partes.length > 1 ? parseInt(partes[1]) : parseInt(partes[0]);
+            pedido.asoc_fecha = inputFecha.value; 
+            pedido.asoc_num = asocCompleto; // Para el PDF
         }
 
         try {
             await db.ref('/cola_facturacion').push(pedido);
             fila.style.opacity = "0.6";
-            fila.querySelectorAll('input, select, textarea').forEach(el => el.disabled = true);
             ck.checked = false; 
         } catch (e) {
-            console.error("Error al enviar:", e);
+            console.error("Error:", e);
         }
     }
-    alert("🚀 Enviado a la cola. Los datos ahora incluyen tu descripción y NC.");
+    alert("🚀 Enviado a la cola.");
 }
 	function procesarFacturaAprobada(respuestaAfip, datosPedido) {
     // 1. NORMALIZACIÓN DE RUTAS (El corazón del problema)
@@ -761,8 +737,8 @@ async function enviarAFIP_WS() {
         fecha_emision: fechaHoy, 
         tipo_comp: parseInt(tipoCodFormateado),
         // Guardamos los datos de la Nota de Crédito si existen
-        factura_asoc_num: datosPedido.asoc_num || "",
-        factura_asoc_fecha: datosPedido.asoc_fecha || "",
+        asoc_num: datosPedido.asoc_num || "", 
+        asoc_fecha: datosPedido.asoc_fecha || "",
         
         concepto: (datosPedido.descripcion || datosPedido.concepto || "").toUpperCase(), 
         total: parseFloat(datosPedido.total) || 0,
