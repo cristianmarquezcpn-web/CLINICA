@@ -142,30 +142,33 @@
 </div>
 
 <script>
+// 1. LIMPIEZA INICIAL
 window.dictOS = {}; 
 
-// 2. CARGAMOS LAS OBRAS SOCIALES (Reemplazá tu función de carga inicial por esta)
 function inicializarCarga() {
-    db.ref('obras_sociales').once('value').then(snap => {
+    // Usamos la ruta correcta donde se guardan las OS en tu Firebase
+    db.ref('/config/obras_sociales').once('value').then(snap => {
         const datos = snap.val();
         if (datos) {
-            Object.values(datos).forEach(os => {
-                // Guardamos cada OS usando su nombre en mayúsculas como clave
-                const nombreKey = (os.nombre || os.razon_social || "").toUpperCase().trim();
-                window.dictOS[nombreKey] = os;
+            Object.keys(datos).forEach(nombreKey => {
+                const os = datos[nombreKey];
+                // Guardamos en el diccionario global usando el NOMBRE como clave
+                // Importante: guardamos CUIT y Domicilio
+                window.dictOS[nombreKey.toUpperCase().trim()] = {
+                    cuit: os.cuit || "",
+                    domicilio: os.domicilio || os.dom || "SAN JUAN",
+                    razon_social: os.razon_social || nombreKey,
+                    condicion_iva: os.condicion_iva || "IVA Sujeto Exento"
+                };
             });
         }
-        console.log("Diccionario OS cargado en SAEI:", window.dictOS);
+        console.log("Diccionario OS sincronizado:", window.dictOS);
         
-        // 3. RECIÉN CUANDO TENEMOS LAS OS, CARGAMOS LOS PACIENTES
-        return db.ref('saei/pacientes').once('value');
-    }).then(snap => {
-        const pacientes = snap.val();
-        // Llamamos a tu función render habitual
-        window.render(pacientes); 
-    }).catch(err => console.error("Error cargando datos:", err));
-}	
+        // 2. Ahora sí, llamamos a cargarTodo para que traiga pacientes y facturas
+        if (typeof window.cargarTodo === 'function') window.cargarTodo();
 
+    }).catch(err => console.error("Error en inicializarCarga:", err));
+}
 let filtroActual = 'TODOS'; 
 
 // 1. FILTRADO (Se mantiene igual por si usas botones de filtro visual)
@@ -294,8 +297,14 @@ function actualizarListaOSUI() {
                 </div>
             </div>`;
     }
-    listaOS.innerHTML = htmlOS + "</div>";
-}
+  // Buscamos en el diccionario global que llenamos al principio
+    let infoOS = window.dictOS[osOriginal] || {};
+    
+    // Si no encontró por nombre, buscamos si hay algo parecido
+    if (!infoOS.cuit) {
+        const coincidencia = Object.keys(window.dictOS).find(k => k.includes(osOriginal) || osOriginal.includes(k));
+        if (coincidencia) infoOS = window.dictOS[coincidencia];
+    }
 
 // --- GESTIÓN DE OBRAS SOCIALES (IDÉNTICO A TU ORIGINAL) ---
 window.guardarOS = async function() {
