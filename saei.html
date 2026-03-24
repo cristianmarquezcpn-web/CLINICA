@@ -523,7 +523,7 @@ window.recalculer = (el) => {
 };
 	window.enviarAFIP_SAEI = async function() {
     const seleccionados = document.querySelectorAll('.ck:checked');
-    if (seleccionados.length === 0) return alert("⚠️ Seleccioná al menos un paciente para facturar.");
+    if (seleccionados.length === 0) return alert("⚠️ Seleccioná al menos un paciente.");
     
     const ptoVta = parseInt(document.getElementById('punto_vta')?.value) || 5;
     const fDesde = document.getElementById('per_desde')?.value || ""; 
@@ -531,89 +531,61 @@ window.recalculer = (el) => {
     const fVto = document.getElementById('vto_pago')?.value || "";
     const condVenta = document.getElementById('cond_venta')?.value || "Cuenta Corriente";
 
-    if(!confirm(`¿Enviar ${seleccionados.length} comprobante(s) a AFIP?`)) return;
+    if(!confirm(`¿Enviar ${seleccionados.length} comprobante(s)?`)) return;
 
     for (let ck of seleccionados) {
         const fila = ck.closest('tr');
         if (!fila) continue;
 
-        // BLOQUEO VISUAL
-        fila.style.opacity = "0.5";
-        fila.style.pointerEvents = "none"; 
-        
         const idDelPaciente = ck.getAttribute('data-id'); 
-        const moduloDelPaciente = ck.getAttribute('data-mod') || "SAEI";
-        const nombreDelPaciente = ck.getAttribute('data-nombre') || idDelPaciente;
-        
-        // --- CORRECCIÓN DE MONTOS ---
-        // Leemos EXACTAMENTE lo que hay en las cajas de la fila
-        const netoInput = fila.querySelector('.neto-edit');
-        const exentoInput = fila.querySelector('.exento-edit');
-        const aliSelect = fila.querySelector('.sel-ali');
+        const montoNeto = parseFloat(fila.querySelector('.neto-edit')?.value) || 0;
+        const montoExento = parseFloat(fila.querySelector('.exento-edit')?.value) || 0;
+        const alicuota = parseFloat(fila.querySelector('.sel-ali')?.value) || 0;
+        const tipo = parseInt(fila.querySelector('.sel-tipo').value);
 
-        const montoNeto = parseFloat(netoInput?.value) || 0;
-        const montoExento = parseFloat(exentoInput?.value) || 0;
-        const alicuota = parseFloat(aliSelect?.value) || 0;
-        const detalleEscrito = fila.querySelector('.det-val')?.value || "";
-
-        // Cálculo de IVA (Solo si hay neto)
         const montoIva = montoNeto * (alicuota / 100);
         const totalReal = montoNeto + montoIva + montoExento;
-        
-        const tipo = parseInt(fila.querySelector('.sel-tipo').value);
 
         const pedido = {
             id_paciente: idDelPaciente, 
-            nombre_paciente: nombreDelPaciente,
-            modulo: moduloDelPaciente.toUpperCase(), 
-            
+            id_paciente_db: idDelPaciente, // PARA EL COLOR AZUL
+            modulo: "SAEI", 
             razon_social: fila.querySelector('.rs-val').value,
             cuit: fila.querySelector('.cuit-val').value.replace(/\D/g, ''),
             domicilio: fila.querySelector('.dom-val').value,
             tipo: tipo,
-            descripcion: detalleEscrito,
-            
-            // VALORES CLAVE PARA AFIP
+            descripcion: fila.querySelector('.det-val')?.value || "PRESTACION DE SERVICIOS",
             total: totalReal, 
-            neto: montoNeto,     
+            neto: montoNeto,      
             exento: montoExento, 
             iva: montoIva,
             alicuota: alicuota,
-
             ptoVta: ptoVta,
             periodo_desde: fDesde, 
             periodo_hasta: fHasta,
             vto_pago: fVto,
             condicion_venta: condVenta,
-            condicion_iva: (tipo === 1 || tipo === 3) ? "IVA Responsable Inscripto" : "IVA Sujeto Exento",
             estado: 'PENDIENTE',
             fecha_peticion: new Date().toISOString()
         };
 
-        // Notas de Crédito
-        if (tipo === 3 || tipo === 8) {
-            const tipoAsoc = (tipo === 8) ? 6 : 1;
-            const pvAsoc = parseInt(fila.querySelector('.asoc-pv')?.value) || 5; 
-            const nroAsoc = fila.querySelector('.asoc-nro')?.value || "";
-
-            pedido.comprobantes_asociados = [{
-                Tipo: tipoAsoc,
-                PtoVta: pvAsoc,
-                Nro: parseInt(nroAsoc)
-            }];
+        // --- CORRECCIÓN NOTAS DE CRÉDITO (Sincronizado con el Motor) ---
+        if ([3, 8, 13].includes(tipo)) {
+            pedido.tipo_asoc = (tipo === 8) ? 6 : (tipo === 3 ? 1 : 11);
+            pedido.pv_asoc = parseInt(fila.querySelector('.asoc-pv')?.value) || ptoVta;
+            pedido.nro_asoc = parseInt(fila.querySelector('.asoc-nro')?.value) || 0;
         }
 
         try {
             await db.ref('/cola_facturacion').push(pedido);
-            ck.checked = false; // Solo lo desmarco si el push fue exitoso
+            fila.style.opacity = "0.5";
+            fila.style.background = "#fff3cd";
+            ck.checked = false;
         } catch (error) {
-            console.error("Error al enviar a la cola:", error);
-            fila.style.opacity = "1";
-            fila.style.pointerEvents = "auto";
-            alert(`Error con el paciente ${nombreDelPaciente}. Reintentá.`);
+            alert(`Error con paciente ${idDelPaciente}`);
         }
     }
-    alert("🚀 Lote enviado. Chequeá el Monitor de AFIP.");
+    alert("🚀 Lote enviado. El motor procesará las NC y Facturas ahora.");
 };
 function procesarFacturaAprobada(respuestaAfip, datosPedido) {
     const nuevaFacturaKey = db.ref().child('facturas_emitidas').push().key;
