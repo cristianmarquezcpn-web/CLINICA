@@ -1,4 +1,4 @@
-const CACHE_NAME = 'clinica-v9.7'; 
+const CACHE_NAME = 'clinica-v9.8'; 
 const ASSETS = [
   './',
   './index.html',
