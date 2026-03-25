@@ -12,26 +12,22 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
    <style>
-    :root { --oscuro: #2c3e50; --azul: #2980b9; --verde: #27ae60; --rojo: #c0392b; --naranja: #f39c12; --violeta: #8e44ad; --gris: #7f8c8d; }
-    body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding: 20px; font-size: 11px; }
-    .main-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 100%; margin: auto; }
-    
-    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
-    .config-bar { background: #eef2f7; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; gap: 10px; align-items: flex-end; border: 1px solid #d1d9e6; }
-    
-    .panel-flotante { display:none; background:#fff; border:2px solid var(--azul); padding:15px; margin-bottom:20px; border-radius:8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-
-    table { width: 100%; border-collapse: collapse; background: white; table-layout: fixed; }
-    th { background: #f8f9fa; color: var(--oscuro); padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6; font-size: 10px; }
-    td { padding: 8px; border-bottom: 1px solid #eee; overflow: visible; vertical-align: top; }
-    
-    .input-tab { padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; width: 100%; box-sizing: border-box; }
-    .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; display: inline-flex; align-items: center; gap: 5px; }
-    
-    .os-item { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee; align-items: center; background: #fff; }
-    .row-saei { background-color: #e3f2fd !important; border-left: 5px solid #2196f3 !important; }
-    .row-saei td { color: #0d47a1 !important; }
-</style>
+        :root { --oscuro: #2c3e50; --azul: #2980b9; --verde: #27ae60; --rojo: #c0392b; --naranja: #f39c12; --violeta: #8e44ad; --gris: #7f8c8d; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding: 20px; font-size: 11px; }
+        .main-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 100%; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+        .config-bar { background: #eef2f7; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; gap: 10px; align-items: flex-end; border: 1px solid #d1d9e6; }
+        .panel-flotante { display:none; background:#fff; border:2px solid var(--azul); padding:15px; margin-bottom:20px; border-radius:8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; background: white; table-layout: fixed; }
+        th { background: #f8f9fa; color: var(--oscuro); padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6; font-size: 10px; }
+        td { padding: 8px; border-bottom: 1px solid #eee; overflow: visible; vertical-align: top; }
+        .input-tab { padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; width: 100%; box-sizing: border-box; }
+        .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; display: inline-flex; align-items: center; gap: 5px; }
+        .os-item { display: flex; justify-content: space-between; padding: 5px; border-bottom: 1px solid #eee; align-items: center; }
+        .row-saei { background-color: #e3f2fd !important; border-left: 5px solid #2196f3 !important; }
+    </style>
+</head>
+<body>
 
 <div class="main-card">
     <div class="header">
@@ -43,7 +39,8 @@
             <button class="btn" style="background-color: #5cb85c;" onclick="window.refacturarMasivoProximoMes()">🔄 Habilitar Próximo Mes</button>
         </div>
     </div>
-<div id="panel-os" class="panel-flotante">
+
+    <div id="panel-os" class="panel-flotante">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <h3 style="margin:0;">Gestión de Obras Sociales / Clientes</h3>
             <button class="btn" style="background:var(--gris)" onclick="toggleOS()">✖</button>
@@ -60,50 +57,31 @@
             </select>
             <button class="btn" style="background:var(--verde)" onclick="guardarOS()">💾 GUARDAR</button>
         </div>
-        
-        <div id="lista-os" style="max-height: 250px; overflow-y: auto; border-top: 1px solid #ddd; padding-top: 10px;">
-        </div>
+        <div id="lista-os" style="max-height: 250px; overflow-y: auto; border-top: 1px solid #ddd; padding-top: 10px;"></div>
     </div>
 
     <div id="panel-archivo" class="panel-flotante" style="width: 95%; max-width: 1100px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <h3 style="margin:0;">📚 Archivo de Comprobantes</h3>
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 10px; align-items: center;">
                 <input type="month" id="mes_filtro_archivo" class="input-tab" style="width: 150px;">
                 <button class="btn" style="background:var(--azul)" onclick="window.cargarArchivo()">🔍 BUSCAR</button>
                 <button class="btn" style="background:var(--verde)" onclick="window.exportarExcel()">📊 EXCEL</button>
                 <button class="btn" style="background:var(--rojo)" onclick="toggleArchivo()">✖</button>
             </div>
         </div>
-
         <div id="resumen-mensual" style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
-            <div style="background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #dee2e6; flex:1;">
-                <small>TOTAL CD</small><br><b id="tot-cd">$ 0,00</b>
-            </div>
-            <div style="background:#f1f8e9; padding:10px; border-radius:5px; border:1px solid #4caf50; flex:1;">
-                <small>TOTAL CET</small><br><b id="tot-cet">$ 0,00</b>
-            </div>
-            <div style="background:#fff3e0; padding:10px; border-radius:5px; border:1px solid #ff9800; flex:1;">
-                <small>TOTAL REHAB.</small><br><b id="tot-rehab">$ 0,00</b>
-            </div>
-            <div style="background:#e3f2fd; padding:10px; border-radius:5px; border:1px solid #2196f3; flex:1;">
-                <small>TOTAL SAEI</small><br><b id="tot-saei">$ 0,00</b>
-            </div>
-            <div style="background:#eceff1; padding:10px; border-radius:5px; border:2px solid #607d8b; flex:1;">
-                <small>TOTAL GENERAL</small><br><b id="tot-general">$ 0,00</b>
-            </div>
+            <div style="background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #dee2e6; flex:1;"><small>TOTAL CD</small><br><b id="tot-cd">$ 0,00</b></div>
+            <div style="background:#f1f8e9; padding:10px; border-radius:5px; border:1px solid #4caf50; flex:1;"><small>TOTAL CET</small><br><b id="tot-cet">$ 0,00</b></div>
+            <div style="background:#fff3e0; padding:10px; border-radius:5px; border:1px solid #ff9800; flex:1;"><small>TOTAL REHAB.</small><br><b id="tot-rehab">$ 0,00</b></div>
+            <div style="background:#e3f2fd; padding:10px; border-radius:5px; border:1px solid #2196f3; flex:1;"><small>TOTAL SAEI</small><br><b id="tot-saei">$ 0,00</b></div>
+            <div style="background:#eceff1; padding:10px; border-radius:5px; border:2px solid #607d8b; flex:1;"><small>TOTAL GENERAL</small><br><b id="tot-general">$ 0,00</b></div>
         </div>
-
         <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd;">
             <table>
                 <thead>
-                    <tr style="position: sticky; top: 0; background: #eee;">
-                        <th style="width:80px">FECHA</th>
-                        <th style="width:120px">COMPROBANTE</th>
-                        <th style="width:110px">CAE</th>
-                        <th>RECEPTOR</th>
-                        <th style="width:110px">TOTAL</th>
-                        <th style="width:60px">VER</th>
+                    <tr style="position: sticky; top: 0; background: #eee; z-index: 10;">
+                        <th>FECHA</th><th>COMPROBANTE</th><th>CAE</th><th>RECEPTOR</th><th>TOTAL</th><th>VER</th>
                     </tr>
                 </thead>
                 <tbody id="tabla_archivo_body"></tbody>
@@ -125,17 +103,19 @@
     </div>
 
     <div style="display: flex; gap: 4px; margin: 10px 0; justify-content: space-between;">
-        <button class="btn-filtro" onclick="filtrarPor('TODOS')" style="flex:1; font-size:9px; padding:6px; background:var(--azul); color:white; border-radius:4px; border:1px solid #ccc;">TODOS</button>
-        <button class="btn-filtro" onclick="filtrarPor('CD')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">CD</button>
-        <button class="btn-filtro" onclick="filtrarPor('CET')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">CET</button>
-        <button class="btn-filtro" onclick="filtrarPor('REHAB')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">REHAB</button>
-        <button class="btn" style="background:var(--azul); margin-left:auto" onclick="enviarAFIP_WS()">🚀 FACTURAR SELECCIONADOS</button>
+        <div style="display: flex; gap: 4px;">
+            <button class="btn" style="background:var(--azul)" onclick="filtrarPor('TODOS')">TODOS</button>
+            <button class="btn" style="background:var(--gris)" onclick="filtrarPor('CD')">CD</button>
+            <button class="btn" style="background:var(--gris)" onclick="filtrarPor('CET')">CET</button>
+            <button class="btn" style="background:var(--gris)" onclick="filtrarPor('REHAB')">REHAB</button>
+        </div>
+        <button class="btn" style="background:var(--azul)" onclick="enviarAFIP_WS()">🚀 FACTURAR SELECCIONADOS</button>
     </div>
 
-    <table>
+    <table id="tabla-facturacion">
         <thead>
             <tr>
-                <th style="width: 50px;">Sel</th>
+                <th style="width: 50px; text-align: center;"><input type="checkbox" id="check-all" onclick="window.seleccionarTodo(this)"></th>
                 <th style="width: 120px;">Paciente / Mod</th>
                 <th style="width: 110px;">Tipo Comp.</th>
                 <th style="width: 130px;">CUIT / DNI</th>
@@ -147,10 +127,22 @@
                 <th style="width: 100px; text-align: right;">Exento ($)</th>
                 <th style="width: 110px; text-align: right;">Total</th>
             </tr>
+            <tr style="background: #f1f1f1;">
+                <th><button onclick="window.limpiarFiltros()">🧹</button></th>
+                <th><input type="text" class="f-filtro input-tab" onkeyup="window.filtrarTabla(1, this.value)"></th>
+                <th><input type="text" class="f-filtro input-tab" onkeyup="window.filtrarTabla(2, this.value)"></th>
+                <th><input type="text" class="f-filtro input-tab" onkeyup="window.filtrarTabla(3, this.value)"></th>
+                <th><input type="text" class="f-filtro input-tab" onkeyup="window.filtrarTabla(4, this.value)"></th>
+                <th><input type="text" class="f-filtro input-tab" onkeyup="window.filtrarTabla(5, this.value)"></th>
+                <th><input type="text" class="f-filtro input-tab" onkeyup="window.filtrarTabla(6, this.value)"></th>
+                <th colspan="4"></th>
+            </tr>
         </thead>
         <tbody id="tabla-body"></tbody>
     </table>
 </div>
+
+<script>
 	<script>
 let filtroActual = 'TODOS'; 
 
