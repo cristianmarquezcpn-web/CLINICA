@@ -655,15 +655,16 @@ window.render = function() {
         const montoNeto = parseFloat(fila.querySelector('.neto-edit').value) || 0;
         const montoExento = parseFloat(fila.querySelector('.exento-edit').value) || 0;
         const alicuota = parseFloat(fila.querySelector('.sel-ali').value) || 0;
-        const tipo = parseInt(fila.querySelector('.sel-tipo').value);
+        const tipo = parseInt(fila.querySelector('.sel-tipo').value); // 6 para Factura B, 8 para NC B
 
-        // Objeto base que se va a Firebase
         const pedido = {
             id_paciente: idDelPaciente,
             modulo: (ck.getAttribute('data-mod') || "CET").toUpperCase(), 
             razon_social: fila.querySelector('.rs-val').value.toUpperCase(),
             cuit: fila.querySelector('.cuit-val').value.replace(/\D/g, ''),
             domicilio: fila.querySelector('.dom-val').value.toUpperCase(),
+            // Captura la condición de IVA (Responsable Inscripto, Exento, etc.)
+            iva_condicion: fila.querySelector('.iva-val')?.value || "IVA Sujeto Exento", 
             tipo: tipo,
             descripcion: fila.querySelector('.det-val').value.toUpperCase(),
             total: montoNeto + (montoNeto * (alicuota / 100)) + montoExento, 
@@ -679,36 +680,36 @@ window.render = function() {
             fecha_peticion: new Date().toISOString()
         };
 
-        // --- SI ES NOTA DE CRÉDITO: Guardamos como pide tu motor ---
-        if (tipo === 3 || tipo === 8) {
+        // --- LÓGICA PARA NOTA DE CRÉDITO B (Tipo 8) ---
+        if (tipo === 8) {
             const inputNum = fila.querySelector('.asoc-num');
             const inputFecha = fila.querySelector('.asoc-fecha');
             const asocCompleto = inputNum ? inputNum.value.trim() : "";
             
-            if (!asocCompleto || asocCompleto === "00005-" || !inputFecha.value) {
-                alert(`Faltan datos de NC para ${idDelPaciente}`);
+            if (!asocCompleto || asocCompleto === "" || !inputFecha.value) {
+                alert(`Faltan datos de NC para ${idDelPaciente}. Se requiere Nro de Factura B original.`);
                 continue;
             }
 
-            const partes = asocCompleto.split('-');
+            // Separamos el número. Si no hay guion, usamos el punto de venta por defecto.
+            const partes = asocCompleto.includes('-') ? asocCompleto.split('-') : [ptoVtaGlobal, asocCompleto];
             
-            // ESTOS NOMBRES TIENEN QUE SER IGUALES EN TU MOTOR
-            pedido.tipo_asoc = (tipo === 8) ? 6 : 1; // Si es NC B, anula Factura B (6)
-            pedido.pv_asoc = partes.length > 1 ? parseInt(partes[0]) : 5;
-            pedido.nro_asoc = partes.length > 1 ? parseInt(partes[1]) : parseInt(partes[0]);
+            pedido.tipo_asoc = 6; // Obligatorio: Una NC B (8) siempre anula una Factura B (6)
+            pedido.pv_asoc = parseInt(partes[0]);
+            pedido.nro_asoc = parseInt(partes[partes.length - 1]);
             pedido.asoc_fecha = inputFecha.value; 
-            pedido.asoc_num = asocCompleto; // Para el PDF
+            pedido.asoc_num = asocCompleto; 
         }
 
         try {
             await db.ref('/cola_facturacion').push(pedido);
-            fila.style.opacity = "0.6";
+            fila.style.opacity = "0.5"; // Feedback visual de enviado
             ck.checked = false; 
         } catch (e) {
-            console.error("Error:", e);
+            console.error("Error al enviar a la cola:", e);
         }
     }
-    alert("🚀 Enviado a la cola.");
+    alert("🚀 Cola de Facturación B actualizada.");
 }
 function procesarFacturaAprobada(respuestaAfip, datosPedido) {
     // 1. NORMALIZACIÓN DE RUTAS
