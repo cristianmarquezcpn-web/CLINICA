@@ -200,7 +200,7 @@ if (!firebase.apps.length) {
 	async function renderizarTodo() {
     const [snapGral, snapSaei, snapCobros] = await Promise.all([
         db.ref('facturas_emitidas').once('value'),
-        db.ref('facturas_emitidas/saei').once('value'),
+        db.ref('facturas_emitidas_saei').once('value'),
         db.ref('cobranzas').once('value')
     ]);
 
@@ -450,6 +450,7 @@ tr.innerHTML = `
     async function eliminarFactura(id) {
         if(confirm("⚠️ ¿Eliminar comprobante definitivamente? Esto no se puede deshacer.")) {
             await db.ref(`facturas_emitidas/${id}`).remove();
+			await db.ref(`facturas_emitidas_saei/${id}`).remove();
             await db.ref(`cobranzas/${id}`).remove();
             renderizarTodo();
         }
