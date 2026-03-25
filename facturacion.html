@@ -49,9 +49,37 @@
     background-color: #f0f7ff; 
     border-color: #bbdefb;
 }
+<style>
+    :root { --oscuro: #2c3e50; --azul: #2980b9; --verde: #27ae60; --rojo: #c0392b; --naranja: #f39c12; --violeta: #8e44ad; --gris: #7f8c8d; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding: 20px; font-size: 11px; }
+    .main-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 100%; margin: auto; }
+    
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+    .config-bar { background: #eef2f7; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; gap: 10px; align-items: flex-end; border: 1px solid #d1d9e6; }
+    
+    .panel-flotante { display:none; background:#fff; border:2px solid var(--azul); padding:15px; margin-bottom:20px; border-radius:8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+
+    table { width: 100%; border-collapse: collapse; background: white; table-layout: fixed; }
+    th { background: #f8f9fa; color: var(--oscuro); padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6; font-size: 10px; vertical-align: top; }
+    td { padding: 8px; border-bottom: 1px solid #eee; overflow: visible; vertical-align: top; }
+    
+    .input-tab { padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; width: 100%; box-sizing: border-box; }
+    
+    /* Filtros de encabezado */
+    .f-filtro { width: 100%; font-size: 10px !important; padding: 3px; margin-top: 5px; font-weight: normal; border: 1px solid #ccc; border-radius: 2px; box-sizing: border-box; color: #333; }
+    #check-all { cursor: pointer; transform: scale(1.1); margin-top: 5px; }
+
+    .det-val { transition: all 0.2s ease; height: 28px; resize: none; overflow: hidden; }
+    .det-val:focus { position: absolute; width: 350px; height: 80px; z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border-color: var(--azul); outline: none; }
+
+    .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; display: inline-flex; align-items: center; gap: 5px; }
+    .row-facturada { background-color: #f8f9fa !important; color: #adb5bd; }
+    
+    /* Efecto SAEI */
+    .row-saei { background-color: #e3f2fd !important; border-left: 5px solid #2196f3 !important; }
+    .row-saei td { color: #0d47a1 !important; }
+    .row-saei .input-tab { background-color: #f0f7ff; border-color: #bbdefb; }
 </style>
-</head>
-<body>
 
 <div class="main-card">
     <div class="header">
@@ -60,9 +88,7 @@
             <button class="btn" style="background:var(--violeta)" onclick="toggleArchivo()">📚 ARCHIVO</button>
             <button class="btn" style="background:var(--naranja)" onclick="toggleOS()">🏢 OBRAS SOCIALES</button>
             <button class="btn" style="background:var(--rojo)" onclick="location.href='index.html'">SALIR</button>
-	    <button onclick="window.refacturarMasivoProximoMes()" style="background-color: #5cb85c; color: white; padding: 10px;">
-    	    🔄 Habilitar Próximo Mes (Masivo)
-            
+            <button class="btn" onclick="window.refacturarMasivoProximoMes()" style="background-color: #5cb85c;">🔄 Habilitar Próximo Mes</button>
         </div>
     </div>
 
@@ -82,60 +108,6 @@
         </div>
         <div id="lista-os" style="max-height: 200px; overflow-y: auto; border-top: 1px solid #ddd; padding-top: 10px;"></div>
     </div>
-<div id="panel-archivo" class="panel-flotante" style="width: 95%; max-width: 1100px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3 style="margin:0;">📚 Archivo de Comprobantes</h3>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <input type="month" id="mes_filtro_archivo" class="input-tab" style="width: 150px;">
-                <button class="btn" style="background:var(--azul)" onclick="window.cargarArchivo()">🔍 BUSCAR</button>
-                <button class="btn" style="background:var(--verde)" onclick="window.exportarExcel()">📊 EXCEL</button>
-                <button class="btn" style="background:var(--rojo)" onclick="toggleArchivo()">✖</button>
-            </div>
-        </div>
-
-        <div id="resumen-mensual" style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
-    <div style="background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #dee2e6; flex:1; min-width:130px;">
-        <small style="color:#666;">TOTAL CD</small><br><b id="tot-cd" style="font-size:14px;">$ 0,00</b>
-    </div>
-
-    <div style="background:#f1f8e9; padding:10px; border-radius:5px; border:1px solid #4caf50; flex:1; min-width:130px;">
-        <small style="color:#2e7d32;">TOTAL CET</small><br><b id="tot-cet" style="font-size:14px;">$ 0,00</b>
-    </div>
-
-    <div style="background:#fff3e0; padding:10px; border-radius:5px; border:1px solid #ff9800; flex:1; min-width:130px;">
-        <small style="color:#ef6c00;">TOTAL REHAB.</small><br><b id="tot-rehab" style="font-size:14px;">$ 0,00</b>
-    </div>
-
-    <div style="background:#e3f2fd; padding:10px; border-radius:5px; border:1px solid #2196f3; flex:1; min-width:130px;">
-        <small style="color:#1565c0;">TOTAL SAEI</small><br><b id="tot-saei" style="font-size:14px;">$ 0,00</b>
-    </div>
-
-    <div style="background:#eceff1; padding:10px; border-radius:5px; border:2px solid #607d8b; flex:1; min-width:150px;">
-        <small style="color:#37474f; font-weight:bold;">TOTAL GENERAL</small><br><b id="tot-general" style="font-size:16px; color:#263238;">$ 0,00</b>
-    </div>
-</div>
-        <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd;">
-            <table class="tabla-archivo">
-                <thead>
-                    <tr style="position: sticky; top: 0; background: #eee; z-index: 10;">
-                        <th style="width:80px">FECHA</th>
-                        <th style="width:120px">COMPROBANTE</th>
-                        <th style="width:110px">CAE</th>
-                        <th>RECEPTOR</th>
-                        <th style="width:110px">TOTAL</th>
-                        <th style="width:60px">VER</th>
-                    </tr>
-                </thead>
-                <tbody id="tabla_archivo_body">
-                    <tr><td colspan="6" style="text-align:center; padding:20px;">Seleccioná un mes y hacé clic en Buscar.</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <div id="panel-archivo" class="panel-flotante">
-        <h3>Historial de Envíos</h3>
-        <div id="lista-archivo">No hay datos registrados.</div>
-    </div>
 
     <div class="config-bar">
         <div style="width:70px"><label>P.Venta</label><input type="number" id="punto_vta" value="5" class="input-tab"></div>
@@ -147,36 +119,56 @@
                 <option value="Cuenta Corriente">Cuenta Corriente</option>
                 <option value="Contado">Contado</option>
             </select>
-
-</div>
         </div>
-<div style="display: flex; gap: 4px; margin: 10px 0; justify-content: space-between;">
-    <button class="btn-filtro" onclick="filtrarPor('TODOS')" style="flex:1; font-size:9px; padding:6px; cursor:pointer; border:1px solid #ccc; border-radius:4px; background:var(--azul); color:white;">TODOS</button>
-    <button class="btn-filtro" onclick="filtrarPor('CD')" style="flex:1; font-size:9px; padding:6px; cursor:pointer; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">CD</button>
-    <button class="btn-filtro" onclick="filtrarPor('CET')" style="flex:1; font-size:9px; padding:6px; cursor:pointer; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">CET</button>
-    <button class="btn-filtro" onclick="filtrarPor('REHAB')" style="flex:1; font-size:9px; padding:6px; cursor:pointer; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">REHAB</button>
+    </div>
+
+    <div style="display: flex; gap: 4px; margin: 10px 0; align-items: center;">
+        <button class="btn-filtro" onclick="filtrarPor('TODOS')" style="flex:1; font-size:9px; padding:6px; cursor:pointer; border:1px solid #ccc; border-radius:4px; background:var(--azul); color:white;">TODOS</button>
+        <button class="btn-filtro" onclick="filtrarPor('CD')" style="flex:1; font-size:9px; padding:6px; cursor:pointer; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">CD</button>
+        <button class="btn-filtro" onclick="filtrarPor('CET')" style="flex:1; font-size:9px; padding:6px; cursor:pointer; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">CET</button>
+        <button class="btn-filtro" onclick="filtrarPor('REHAB')" style="flex:1; font-size:9px; padding:6px; cursor:pointer; border:1px solid #ccc; border-radius:4px; background:#f9f9f9;">REHAB</button>
+        
+        <button class="btn" onclick="window.limpiarFiltros()" style="background:#666; color:white; font-size:10px; padding:8px 12px; border:none; border-radius:3px; cursor:pointer; margin-left:10px;">
+            Limpiar Filtros ×
+        </button>
+
         <button class="btn" style="background:var(--azul); padding: 10px 20px; margin-left:auto" onclick="enviarAFIP_WS()">🚀 FACTURAR SELECCIONADOS</button>
     </div>
 
-    <table>
+    <table id="tabla-facturas">
         <thead>
             <tr>
-        	<th style="width: 50px;">Sel</th>
-        	<th style="width: 120px;">Paciente / Mod</th>
-        	<th style="width: 110px;">Tipo Comp.</th>
-        	<th style="width: 130px;">CUIT / DNI</th>
-        	<th style="width: 180px;">Razón Social</th>
-        	<th style="width: 150px;">Domicilio</th>
-        	<th style="width: 250px;">Detalle de Factura</th>
-        	<th style="width: 100px;">Neto ($)</th>
-        	<th style="width: 90px;">Alícuota</th>
-		<th style="width: 100px; text-align: right;">Exento ($)</th>
-        	<th style="width: 110px; text-align: right;">Total</th>
-    	    </tr>
-       </thead>
+                <th style="width: 60px; text-align: center;">
+                    Sel.<br>
+                    <input type="checkbox" id="check-all" onclick="window.seleccionarTodos(this)">
+                </th>
+                <th style="width: 130px;">
+                    Paciente / Mod<br>
+                    <input type="text" class="f-filtro" data-col="1" onkeyup="window.filtrarRender()" placeholder="Buscar...">
+                </th>
+                <th style="width: 110px;">Tipo Comp.</th>
+                <th style="width: 130px;">
+                    CUIT / DNI<br>
+                    <input type="text" class="f-filtro" data-col="3" onkeyup="window.filtrarRender()" placeholder="Buscar...">
+                </th>
+                <th style="width: 180px;">
+                    Razón Social<br>
+                    <input type="text" class="f-filtro" data-col="4" onkeyup="window.filtrarRender()" placeholder="Buscar...">
+                </th>
+                <th style="width: 150px;">
+                    Domicilio<br>
+                    <input type="text" class="f-filtro" data-col="5" onkeyup="window.filtrarRender()" placeholder="Buscar...">
+                </th>
+                <th style="width: 250px;">Detalle de Factura</th>
+                <th style="width: 100px;">Neto ($)</th>
+                <th style="width: 90px;">Alícuota</th>
+                <th style="width: 100px; text-align: right;">Exento ($)</th>
+                <th style="width: 110px; text-align: right;">Total</th>
+            </tr>
+        </thead>
         <tbody id="tabla-body"></tbody>
     </table>
-</div>
+</div>		
 <script>
 let filtroActual = 'TODOS'; 
 
@@ -755,7 +747,7 @@ window.gestionarTipoComp = function(select) {
     }
     alert("🚀 Proceso terminado. Revisá el Motor.");
 }
-function procesarFacturaAprobada(respuestaAfip, datosPedido) {
+	function procesarFacturaAprobada(respuestaAfip, datosPedido) {
     // 1. NORMALIZACIÓN DE RUTAS
     const modOriginal = (datosPedido.modulo || "OTROS");
     const moduloUpper = modOriginal.toUpperCase(); 
@@ -771,7 +763,7 @@ function procesarFacturaAprobada(respuestaAfip, datosPedido) {
     const nroCompFormateado = String(respuestaAfip.nro_comp || respuestaAfip.CbteDesde).padStart(8, '0');
     const tipoCodFormateado = String(datosPedido.tipo).padStart(3, '0');
 
-    // 2. CONSTRUCCIÓN DEL OBJETO (CON FECHAS DE PERIODO)
+    // 2. CONSTRUCCIÓN DEL OBJETO
     const facturaLegal = {
         id: nuevaFacturaKey,
         nro_comp: parseInt(nroCompFormateado), 
@@ -781,16 +773,16 @@ function procesarFacturaAprobada(respuestaAfip, datosPedido) {
         fecha_emision: fechaHoy, 
         tipo_comp: parseInt(tipoCodFormateado),
         
-        // --- AQUÍ ESTÁ EL ARREGLO ---
-        // Grabamos los periodos que vienen del formulario (datosPedido) 
-        // para que después el PDF los encuentre en Firebase
+        // --- FECHAS DE PERIODO (Sincronizadas) ---
         periodo_desde: datosPedido.periodo_desde || "",
         periodo_hasta: datosPedido.periodo_hasta || "",
         vto_pago: datosPedido.vto_pago || "",
-        // ---------------------------
 
-        asoc_num: datosPedido.asoc_num || "", 
-        asoc_fecha: datosPedido.asoc_fecha || "",
+        // --- COMPROBANTES ASOCIADOS (Ajuste para Notas de Crédito) ---
+        // Aquí usamos los nombres que vienen de tus querySelectors (.aso-pv, .aso-num)
+        asoc_num: datosPedido.nro_asoc || datosPedido.asoc_num || "", 
+        asoc_pv: datosPedido.pv_asoc || datosPedido.asoc_pv || 5,
+        asoc_fecha: datosPedido.fec_asoc || datosPedido.asoc_fecha || "",
         
         concepto: (datosPedido.descripcion || datosPedido.concepto || "").toUpperCase(), 
         total: parseFloat(datosPedido.total) || 0,
@@ -824,12 +816,12 @@ function procesarFacturaAprobada(respuestaAfip, datosPedido) {
     }
 
     return db.ref().update(updates).then(() => {
-        console.log("✅ Sincronizado y guardado con periodos: " + moduloUpper);
+        console.log("✅ Sincronizado y guardado con periodos y asociados: " + moduloUpper);
         if(typeof descargarFactura === 'function') {
             descargarFactura(nuevaFacturaKey); 
         }
     }).catch(error => {
-        console.error("❌ Error:", error);
+        console.error("❌ Error en el guardado final:", error);
     });
 }
 const MODELO_FACTURA_B = (d) => {
@@ -840,33 +832,37 @@ const MODELO_FACTURA_B = (d) => {
     const ivaContenido = totalFacturado * coeficiente;
     const valorSubtotal = totalFacturado / (1 + (parseFloat(alicuotaComp) / 100));
 
-    // 2. LÓGICA DE LETRA Y TIPO (CORREGIDO PARA QUE NO SALGA 'A')
+    // 2. LÓGICA DE LETRA Y TIPO
     const codNum = parseInt(d.tipo_cod);
-    // Forzamos B para códigos 6, 7, 8. Si es 11, 12, 13 sale C.
-    let letraFactura = "B";
-    if ([11, 12, 13].includes(codNum)) letraFactura = "C";
+    
+    // Si el código es 1, 2 o 3 es Clase A, sino es B.
+    let letraFactura = [1, 2, 3].includes(codNum) ? "A" : "B";
     
     const esNC = (codNum === 8 || codNum === 3 || codNum === 13);
     const tituloDoc = esNC ? "NOTA DE CRÉDITO" : (d.titulo_documento || "FACTURA");
+
     let lineaAsociada = "";
-    if (esNC && d.asoc_nro) {
+    if (esNC && (d.asoc_nro || d.nro_asoc)) {
+        const pvA = String(d.asoc_pv || 5).padStart(5, '0');
+        const nroA = String(d.asoc_nro || d.nro_asoc).padStart(8, '0');
         lineaAsociada = `
             <div style="width: 100%; margin-top: 2mm; font-size: 11px; font-family: 'Arial Narrow', sans-serif;">
-                <b>Fac. Asociada: ${d.asoc_pv}-${d.asoc_nro}</b>
+                <b>Fac. Asociada: ${pvA}-${nroA}</b>
             </div>`;
     }
 
-   	const fechaHoy = new Date().toISOString().split('T')[0];
-	const fechaParaQr = (d.fecha && d.fecha.includes('/')) 
-    	? d.fecha.split('/').reverse().join('-') 
-    	: (d.fecha && d.fecha.includes('-') ? d.fecha : fechaHoy);
+    const fechaHoy = new Date().toISOString().split('T')[0];
+    const fechaParaQr = (d.fecha && d.fecha.includes('/')) 
+        ? d.fecha.split('/').reverse().join('-') 
+        : (d.fecha && d.fecha.includes('-') ? d.fecha : fechaHoy);
+
     // 2. QR CORREGIDO
     const datosParaQr = {
         ver: 1,
         fecha: fechaParaQr,
         cuit: parseInt(d.emisor_cuit),
         ptoVta: parseInt(d.ptoVta),
-        tipoCmp: parseInt(d.tipo_cod),
+        tipoCmp: codNum,
         nroCmp: parseInt(d.nro),
         importe: totalFacturado,
         moneda: "PES",
@@ -895,11 +891,11 @@ const MODELO_FACTURA_B = (d) => {
                     </div>
                 </div>
                 <div class="tipo">
-                    <div class="letra">B</div>
+                    <div class="letra">${letraFactura}</div>
                     <div class="cod">COD. ${d.tipo_cod}</div>
                 </div>
                 <div class="datos">
-                    <div style="font-size:18px; font-weight:bold; margin-bottom:1mm;">${d.titulo_documento}</div>
+                    <div style="font-size:18px; font-weight:bold; margin-bottom:1mm;">${tituloDoc}</div>
                     <b>Punto de Venta: ${d.ptoVta} &nbsp; Comp. Nro: ${d.nro}</b><br>
                     <b>Fecha de Emisión: ${d.fecha}</b><br><br>
                     <b>CUIT:</b> ${d.emisor_cuit}<br>
@@ -997,7 +993,7 @@ const MODELO_FACTURA_B = (d) => {
     </div>`;
 };
 window.descargarFactura = async (id) => {
-    // 1. BÚSQUEDA DOBLE: Primero en facturacion, si no está, en saei
+    // 1. BÚSQUEDA DOBLE
     let snap = await db.ref('facturas_emitidas/' + id).once('value');
     let p = snap.val();
 
@@ -1006,7 +1002,6 @@ window.descargarFactura = async (id) => {
         p = snap.val();
     }
 
-    // Si después de buscar en los dos lados no hay nada, avisamos
     if (!p || !p.cae) return alert("Error: No se encontró la factura o no tiene datos de CAE.");        
     
     const cuitEmisor = "30714900192";
@@ -1020,11 +1015,7 @@ window.descargarFactura = async (id) => {
         return val;
     };
 
-    // --- LÓGICA DE COMPROBANTES ASOCIADOS ---
-    const pvAsoc = String(p.pv_asoc || p.asoc_pv || 5).padStart(4, '0');
-    const nroAsoc = String(p.nro_asoc || p.asoc_nro || p.comprobante_asociado_nro || 0).padStart(8, '0');
-    const textoAsociado = (nroAsoc !== "00000000") ? `Comp. Asociado: ${pvAsoc}-${nroAsoc}` : "";
-
+    // --- MAPEO DE DATOS PARA EL MODELO ---
     const datos = {
         emisor_rs: "ESENCIAL S.R.L.",
         emisor_dom: "25 De Mayo 30 - San Juan, San Juan",
@@ -1033,41 +1024,35 @@ window.descargarFactura = async (id) => {
         emisor_inicio: "06/07/2015",
         emisor_iva: "IVA Responsable Inscripto", 
         
-        titulo_documento: ([3, 8, 13].includes(parseInt(p.tipo_comp || p.tipo_cod))) ? "NOTA DE CRÉDITO" : "FACTURA",
-        tipo_cod: String(p.tipo_comp || p.tipo_cod || 6).padStart(3, '0'),
+        // Usamos el código tal cual para que el modelo decida el título y la letra
+        tipo_cod: parseInt(p.tipo_comp || p.tipo_cod || 6),
 
-        ptoVta: String(p.punto_venta || 5).padStart(5, '0'),
-        nro: String(p.nro_comp || 0).padStart(8, '0'),
+        ptoVta: p.punto_venta || 5,
+        nro: p.nro_comp || 0,
         fecha: p.fecha_emision || p.fecha || new Date().toLocaleDateString('es-AR'),
         
-        // --- FECHAS: Mapeo directo a lo que guarda tu base ---
         desde: f(p.periodo_desde), 
         hasta: f(p.periodo_hasta),
         vto_pago: f(p.vto_pago),
 
-        // --- RECEPTOR: Sincronizado con el Motor ---
         receptor_rs: (p.receptor_nombre || p.razon_social || "CONSUMIDOR FINAL").toUpperCase(),
         receptor_cuit: p.receptor_cuit || p.cuit || "",
         receptor_dom: p.receptor_domicilio || p.domicilio || "SAN JUAN",
         receptor_iva: p.receptor_condicion_iva || p.condicion_iva || "IVA Sujeto Exento",
         
-        asoc_linea: textoAsociado, 
+        // PASAMOS LOS CAMPOS DE ASOCIACIÓN AL MODELO
+        asoc_pv: p.pv_asoc || p.asoc_pv || 5,
+        asoc_nro: p.nro_asoc || p.asoc_nro || p.comprobante_asociado_nro || null,
         
         condicion_venta: p.condicion_venta || "CUENTA CORRIENTE",
         concepto: (p.concepto || p.descripcion || "").toUpperCase(),
         
-        // Importes
         total: parseFloat(p.total || 0),
-        neto: parseFloat(p.neto || 0),
-        iva: parseFloat(p.iva || 0),
-        exento: parseFloat(p.exento || 0),
-        
         cae: p.cae,
-        cae_vto: f(p.cae_vto),
-        qr_url: p.qr_url || ""
+        cae_vto: f(p.cae_vto)
     };
 
-    const nombreArchivo = `${datos.emisor_cuit}_${datos.tipo_cod}_${datos.ptoVta}_${datos.nro}.pdf`;
+    const nombreArchivo = `${datos.emisor_cuit}_${String(datos.tipo_cod).padStart(3,'0')}_${String(datos.ptoVta).padStart(5,'0')}_${String(datos.nro).padStart(8,'0')}.pdf`;
         
     const win = window.open('', '_blank');
     win.document.write(`<html><head><title>${nombreArchivo}</title>
@@ -1514,6 +1499,67 @@ window.descargarUltimaDePaciente = async (idPac) => {
         console.error("Error al buscar última factura:", error);
         alert("Error de conexión al intentar recuperar la factura.");
     }
+};
+	// --- 1. SELECCIONAR TODOS (Solo visibles y habilitados) ---
+window.seleccionarTodos = function(master) {
+    const filas = document.querySelectorAll('#tabla-body tr');
+    filas.forEach(fila => {
+        // Solo afectamos a las filas que NO están ocultas por el filtro
+        if (fila.style.display !== 'none') {
+            const ck = fila.querySelector('.ck');
+            if (ck && !ck.disabled) {
+                ck.checked = master.checked;
+            }
+        }
+    });
+};
+
+// --- 2. FILTRADO MULTICOLUMNA INTELIGENTE ---
+window.filtrarRender = function() {
+    const filtros = document.querySelectorAll('.f-filtro');
+    const filas = document.querySelectorAll('#tabla-body tr');
+
+    filas.forEach(fila => {
+        let mostrar = true;
+
+        filtros.forEach(inputFiltro => {
+            const valorBusqueda = inputFiltro.value.toLowerCase().trim();
+            if (valorBusqueda === "") return; // Si el filtro está vacío, saltamos
+
+            const colIndex = parseInt(inputFiltro.getAttribute('data-col'));
+            const celda = fila.cells[colIndex];
+            
+            if (celda) {
+                // Lógica especial: Buscar en texto o dentro de inputs/textareas de la celda
+                const inputInterno = celda.querySelector('input, textarea');
+                let textoComparar = inputInterno ? inputInterno.value : celda.innerText;
+                
+                if (textoComparar.toLowerCase().indexOf(valorBusqueda) === -1) {
+                    mostrar = false;
+                }
+            }
+        });
+
+        fila.style.display = mostrar ? "" : "none";
+    });
+};
+
+// --- 3. LIMPIAR TODO ---
+window.limpiarFiltros = function() {
+    // Limpiar textos
+    document.querySelectorAll('.f-filtro').forEach(i => i.value = "");
+    
+    // Resetear checkbox maestro
+    const master = document.getElementById('check-all');
+    if (master) master.checked = false;
+
+    // Mostrar todas las filas y desmarcar checks
+    const filas = document.querySelectorAll('#tabla-body tr');
+    filas.forEach(fila => {
+        fila.style.display = "";
+        const ck = fila.querySelector('.ck');
+        if (ck && !ck.disabled) ck.checked = false;
+    });
 };
 auth.onAuthStateChanged((user) => {
     if (user) {
