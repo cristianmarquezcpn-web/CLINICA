@@ -12,6 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
+    <style>
     :root { --oscuro: #2c3e50; --azul: #2980b9; --verde: #27ae60; --rojo: #c0392b; --naranja: #f39c12; --violeta: #8e44ad; --gris: #7f8c8d; }
     body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding: 20px; font-size: 11px; }
     .main-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 100%; margin: auto; position: relative; }
@@ -19,34 +20,19 @@
     .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
     .config-bar { background: #eef2f7; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; gap: 10px; align-items: flex-end; border: 1px solid #d1d9e6; }
     
-    /* PANELES FLOTANTES CORREGIDOS */
-    .panel-flotante { 
-        display: none; 
-        background: #fff; 
-        border: 2px solid var(--azul); 
-        padding: 20px; 
-        margin-bottom: 20px; 
-        border-radius: 8px; 
-        box-shadow: 0 8px 30px rgba(0,0,0,0.15);
-        z-index: 1000;
-        position: relative;
-    }
+    .panel-flotante { display:none; background:#fff; border:2px solid var(--azul); padding:15px; margin-bottom:20px; border-radius:8px; box-shadow: 0 8px 30px rgba(0,0,0,0.15); z-index: 1000; position: relative; }
 
     table { width: 100%; border-collapse: collapse; background: white; table-layout: fixed; }
     th { background: #f8f9fa; color: var(--oscuro); padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6; font-size: 10px; vertical-align: top; }
     td { padding: 8px; border-bottom: 1px solid #eee; overflow: visible; vertical-align: top; }
     
     .input-tab { padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; width: 100%; box-sizing: border-box; }
-    
-    /* Filtros de columna */
-    .f-filtro { width: 100%; font-size: 10px !important; padding: 3px; margin-top: 5px; font-weight: normal; border: 1px solid #ccc; border-radius: 2px; box-sizing: border-box; color: #333; }
-    
+    .f-filtro { width: 100%; font-size: 10px !important; padding: 3px; margin-top: 5px; font-weight: normal; border: 1px solid #ccc; border-radius: 2px; }
+
     .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; display: inline-flex; align-items: center; gap: 5px; }
-    
-    /* Efecto SAEI */
     .row-saei { background-color: #e3f2fd !important; border-left: 5px solid #2196f3 !important; }
-    .row-saei td { color: #0d47a1 !important; }
 </style>
+
 <div class="main-card">
     <div class="header">
         <h2 style="margin:0; color:var(--oscuro)">🚀 PANEL DE FACTURACIÓN CLÍNICA</h2>
@@ -59,10 +45,7 @@
     </div>
 
     <div id="panel-os" class="panel-flotante">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3>🏢 Gestión de Obras Sociales</h3>
-            <button class="btn" style="background:var(--rojo)" onclick="toggleOS()">✖</button>
-        </div>
+        <h3>🏢 Gestión de Obras Sociales</h3>
         <div style="display:grid; grid-template-columns: 2fr 1fr 2fr 1.5fr auto; gap:10px; margin-bottom:15px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
             <input type="text" id="os-nombre" placeholder="Nombre / Razón Social" class="input-tab">
             <input type="text" id="os-cuit" placeholder="CUIT" class="input-tab">
@@ -75,7 +58,7 @@
             </select>
             <button class="btn" style="background:var(--verde)" onclick="guardarOS()">💾 GUARDAR</button>
         </div>
-        <div id="lista-os" style="max-height: 250px; overflow-y: auto; border: 1px solid #ddd; border-radius:4px; padding: 5px;"></div>
+        <div id="lista-os" style="max-height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #fff;"></div>
     </div>
 
     <div id="panel-archivo" class="panel-flotante" style="width: 98%;">
@@ -88,12 +71,25 @@
                 <button class="btn" style="background:var(--rojo)" onclick="toggleArchivo()">✖</button>
             </div>
         </div>
-        <div id="resumen-mensual" style="display:flex; gap:10px; margin-bottom:15px;">
-            <div style="background:#f8f9fa; padding:8px; border-radius:4px; border:1px solid #ddd; flex:1;"><small>TOTAL CD</small><br><b id="tot-cd">$ 0,00</b></div>
-            <div style="background:#f1f8e9; padding:8px; border-radius:4px; border:1px solid #4caf50; flex:1;"><small>TOTAL CET</small><br><b id="tot-cet">$ 0,00</b></div>
-            <div style="background:#e3f2fd; padding:8px; border-radius:4px; border:1px solid #2196f3; flex:1;"><small>TOTAL SAEI</small><br><b id="tot-saei">$ 0,00</b></div>
-            <div style="background:#eceff1; padding:8px; border-radius:4px; border:2px solid #607d8b; flex:1;"><small>TOTAL GENERAL</small><br><b id="tot-general">$ 0,00</b></div>
+
+        <div id="resumen-mensual" style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+            <div style="background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #dee2e6; flex:1; min-width:120px;">
+                <small>TOTAL CD</small><br><b id="tot-cd">$ 0,00</b>
+            </div>
+            <div style="background:#f1f8e9; padding:10px; border-radius:5px; border:1px solid #4caf50; flex:1; min-width:120px;">
+                <small>TOTAL CET</small><br><b id="tot-cet">$ 0,00</b>
+            </div>
+            <div style="background:#fff3e0; padding:10px; border-radius:5px; border:1px solid #ff9800; flex:1; min-width:120px;">
+                <small>TOTAL REHAB</small><br><b id="tot-rehab">$ 0,00</b>
+            </div>
+            <div style="background:#e3f2fd; padding:10px; border-radius:5px; border:1px solid #2196f3; flex:1; min-width:120px;">
+                <small>TOTAL SAEI</small><br><b id="tot-saei">$ 0,00</b>
+            </div>
+            <div style="background:#eceff1; padding:10px; border-radius:5px; border:2px solid #607d8b; flex:1; min-width:140px;">
+                <small>TOTAL GENERAL</small><br><b id="tot-general">$ 0,00</b>
+            </div>
         </div>
+
         <div style="max-height: 350px; overflow-y: auto; border: 1px solid #ddd;">
             <table>
                 <thead>
@@ -110,7 +106,6 @@
         <div style="width:70px"><label>P.Venta</label><input type="number" id="punto_vta" value="5" class="input-tab"></div>
         <div><label>Desde</label><input type="date" id="per_desde" class="input-tab"></div>
         <div><label>Hasta</label><input type="date" id="per_hasta" class="input-tab"></div>
-        <div><label>Vencimiento</label><input type="date" id="vto_pago" class="input-tab"></div>
         <div style="width:130px"><label>Condición</label>
             <select id="cond_venta" class="input-tab">
                 <option value="Cuenta Corriente">Cuenta Corriente</option>
@@ -124,9 +119,8 @@
         <button class="btn-filtro" onclick="filtrarPor('CD')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">CD</button>
         <button class="btn-filtro" onclick="filtrarPor('CET')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">CET</button>
         <button class="btn-filtro" onclick="filtrarPor('REHAB')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">REHAB</button>
-        
-        <button class="btn" onclick="window.limpiarFiltros()" style="background:#666; font-size:10px; margin-left:10px;">Limpiar Filtros ×</button>
-        <button class="btn" style="background:var(--azul); margin-left:auto" onclick="enviarAFIP_WS()">🚀 FACTURAR SELECCIONADOS</button>
+        <button class="btn" onclick="window.limpiarFiltros()" style="background:#666; font-size:10px; margin-left:10px;">Limpiar ×</button>
+        <button class="btn" style="background:var(--azul); margin-left:auto" onclick="enviarAFIP_WS()">🚀 FACTURAR</button>
     </div>
 
     <table id="tabla-facturas">
@@ -138,9 +132,9 @@
                 <th style="width: 120px;">CUIT / DNI<br><input type="text" class="f-filtro" data-col="3" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
                 <th style="width: 160px;">Razón Social<br><input type="text" class="f-filtro" data-col="4" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
                 <th style="width: 140px;">Domicilio<br><input type="text" class="f-filtro" data-col="5" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
-                <th style="width: 200px;">Detalle de Factura</th>
+                <th style="width: 200px;">Detalle</th>
                 <th style="width: 90px;">Neto ($)</th>
-                <th style="width: 80px;">Alícuota</th>
+                <th style="width: 80px;">IVA</th>
                 <th style="width: 90px; text-align: right;">Exento ($)</th>
                 <th style="width: 100px; text-align: right;">Total</th>
             </tr>
