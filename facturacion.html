@@ -28,9 +28,7 @@
     .input-tab { padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; width: 100%; box-sizing: border-box; }
     .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; display: inline-flex; align-items: center; gap: 5px; }
     
-    /* Estilos para los items de la lista de Obras Sociales (Borrar/Editar) */
     .os-item { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee; align-items: center; background: #fff; }
-    .os-info { flex: 1; }
     .row-saei { background-color: #e3f2fd !important; border-left: 5px solid #2196f3 !important; }
     .row-saei td { color: #0d47a1 !important; }
 </style>
@@ -56,10 +54,10 @@
             <input type="text" id="os-cuit" placeholder="CUIT" class="input-tab">
             <input type="text" id="os-dom" placeholder="Domicilio" class="input-tab">
             <select id="os-iva" class="input-tab">
-                <option value="RI">Responsable Inscripto</option>
-                <option value="EXENTO">Exento</option>
-                <option value="CF">Consumidor Final</option>
-                <option value="MO">Monotributo</option>
+                <option value="IVA Responsable Inscripto">Responsable Inscripto</option>
+                <option value="IVA Sujeto Exento">Exento</option>
+                <option value="Consumidor Final">Consumidor Final</option>
+                <option value="Responsable Monotributo">Monotributo</option>
             </select>
             <button class="btn" style="background:var(--verde)" onclick="guardarOS()">💾 GUARDAR</button>
         </div>
@@ -79,18 +77,33 @@
         </div>
 
         <div id="resumen-mensual" style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
-            <div style="background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #dee2e6; flex:1;"><small>TOTAL CD</small><br><b id="tot-cd">$ 0,00</b></div>
-            <div style="background:#f1f8e9; padding:10px; border-radius:5px; border:1px solid #4caf50; flex:1;"><small>TOTAL CET</small><br><b id="tot-cet">$ 0,00</b></div>
-            <div style="background:#fff3e0; padding:10px; border-radius:5px; border:1px solid #ff9800; flex:1;"><small>TOTAL REHAB.</small><br><b id="tot-rehab">$ 0,00</b></div>
-            <div style="background:#e3f2fd; padding:10px; border-radius:5px; border:1px solid #2196f3; flex:1;"><small>TOTAL SAEI</small><br><b id="tot-saei">$ 0,00</b></div>
-            <div style="background:#eceff1; padding:10px; border-radius:5px; border:2px solid #607d8b; flex:1;"><small>TOTAL GENERAL</small><br><b id="tot-general">$ 0,00</b></div>
+            <div style="background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #dee2e6; flex:1;">
+                <small>TOTAL CD</small><br><b id="tot-cd">$ 0,00</b>
+            </div>
+            <div style="background:#f1f8e9; padding:10px; border-radius:5px; border:1px solid #4caf50; flex:1;">
+                <small>TOTAL CET</small><br><b id="tot-cet">$ 0,00</b>
+            </div>
+            <div style="background:#fff3e0; padding:10px; border-radius:5px; border:1px solid #ff9800; flex:1;">
+                <small>TOTAL REHAB.</small><br><b id="tot-rehab">$ 0,00</b>
+            </div>
+            <div style="background:#e3f2fd; padding:10px; border-radius:5px; border:1px solid #2196f3; flex:1;">
+                <small>TOTAL SAEI</small><br><b id="tot-saei">$ 0,00</b>
+            </div>
+            <div style="background:#eceff1; padding:10px; border-radius:5px; border:2px solid #607d8b; flex:1;">
+                <small>TOTAL GENERAL</small><br><b id="tot-general">$ 0,00</b>
+            </div>
         </div>
 
         <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd;">
             <table>
                 <thead>
                     <tr style="position: sticky; top: 0; background: #eee;">
-                        <th style="width:80px">FECHA</th><th style="width:120px">COMPROBANTE</th><th style="width:110px">CAE</th><th>RECEPTOR</th><th style="width:110px">TOTAL</th><th style="width:60px">VER</th>
+                        <th style="width:80px">FECHA</th>
+                        <th style="width:120px">COMPROBANTE</th>
+                        <th style="width:110px">CAE</th>
+                        <th>RECEPTOR</th>
+                        <th style="width:110px">TOTAL</th>
+                        <th style="width:60px">VER</th>
                     </tr>
                 </thead>
                 <tbody id="tabla_archivo_body"></tbody>
@@ -125,7 +138,9 @@
                 <th style="width: 50px;">Sel</th>
                 <th style="width: 120px;">Paciente / Mod</th>
                 <th style="width: 110px;">Tipo Comp.</th>
-                <th style="width: 130px;">CUIT / DNI</th> <th style="width: 180px;">Razón Social</th> <th style="width: 150px;">Domicilio</th>
+                <th style="width: 130px;">CUIT / DNI</th>
+                <th style="width: 180px;">Razón Social</th>
+                <th style="width: 150px;">Domicilio</th>
                 <th style="width: 250px;">Detalle de Factura</th>
                 <th style="width: 100px;">Neto ($)</th>
                 <th style="width: 90px;">Alícuota</th>
@@ -296,8 +311,7 @@ window.refacturar = async (mod, id) => {
 };
 
 window.toggleArchivo = () => { const p = document.getElementById('panel-archivo'); p.style.display = p.style.display==='block'?'none':'block'; };
-
-window.toggleOS = () => { const p = document.getElementById('panel-os'); p.style.display = p.style.display==='block'?'none':'block'; if(p.style.display==='block') actualizarPanelOS(); }; = p.style.display==='block'?'none':'block'; };
+window.toggleOS = () => { const p = document.getElementById('panel-os'); p.style.display = p.style.display==='block'?'none':'block'; if(p.style.display==='block') actualizarPanelOS(); };
 
 window.gestionarNC = function(select) {
     const tr = select.closest('tr');
