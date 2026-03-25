@@ -597,14 +597,13 @@ window.render = function() {
             <button class="btn" style="background:var(--naranja); font-size:8px; padding:4px; color:white; border:none;" onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button></div>`;
         }
 
-        // --- Lógica para mostrar/ocultar comprobante asociado ---
         const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
 
         tr.innerHTML = `
             <td style="text-align:center">${colAccion}</td>
             <td><small>${nombreMod}</small><br><b>${idPaciente}</b></td>
             <td>
-                <select class="input-tab sel-tipo" ${facturado?'disabled':''} onchange="this.parentElement.parentElement.querySelector('.asociado-box').style.display = (this.value=='3' || this.value=='8') ? 'block' : 'none'">
+                <select class="input-tab sel-tipo" ${facturado?'disabled':''} onchange="window.gestionarTipoComp(this)">
                     <option value="6" ${tipoComp === 6 ? 'selected' : ''}>Factura B</option>
                     <option value="1" ${tipoComp === 1 ? 'selected' : ''}>Factura A</option>
                     <option value="8" ${tipoComp === 8 ? 'selected' : ''}>NC B</option>
@@ -620,22 +619,58 @@ window.render = function() {
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
             <td><textarea class="input-tab det-val" style="min-height:40px; width:100%;" ${facturado?'disabled':''}>${facturado ? (miFactura.concepto || miFactura.descripcion || "") : `PRESTACIÓN MÓDULO ${nombreMod} - PACIENTE: ${idPaciente}`}</textarea></td>
-            <td><input type="number" class="input-tab neto-edit" value="${aFinal > 0 ? mBase : 0}" ${facturado?'disabled':''}></td>
+            <td><input type="number" class="input-tab neto-edit" value="${aFinal > 0 ? mBase : 0}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
             <td>
-                <select class="input-tab sel-ali" ${facturado?'disabled':''}>
+                <select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
                     <option value="0" ${aFinal === 0 ? 'selected' : ''}>Exento</option>
                     <option value="10.5" ${aFinal === 10.5 ? 'selected' : ''}>10.5%</option>
                     <option value="21" ${aFinal === 21 ? 'selected' : ''}>21%</option>
                 </select>
             </td>
-            <td><input type="number" class="input-tab exento-edit" value="${aFinal === 0 ? mBase : 0}" ${facturado?'disabled':''}></td>
-            <td style="text-align:right; font-weight:bold">$ ${totalCalculated.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+            <td><input type="number" class="input-tab exento-edit" value="${aFinal === 0 ? mBase : 0}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
+            <td style="text-align:right; font-weight:bold" class="total-render">$ ${totalCalculated.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
             <input type="hidden" class="f-desde" value="${fDesde}">
             <input type="hidden" class="f-hasta" value="${fHasta}">
             <input type="hidden" class="f-vto" value="${fVto}">
         `;
         b.appendChild(tr);
     });
+};
+	window.recalcularTotales = function(el) {
+    const tr = el.closest('tr');
+    const netoInput = tr.querySelector('.neto-edit');
+    const exentoInput = tr.querySelector('.exento-edit');
+    const aliSelect = tr.querySelector('.sel-ali');
+    const totalTd = tr.querySelector('.total-render');
+
+    let neto = parseFloat(netoInput.value) || 0;
+    let exento = parseFloat(exentoInput.value) || 0;
+    let ali = parseFloat(aliSelect.value) || 0;
+
+    // --- REGLA: Si es EXENTO, el neto se mueve al exento ---
+    if (ali === 0 && neto > 0) {
+        exento = neto;
+        neto = 0;
+        netoInput.value = 0;
+        exentoInput.value = exento;
+    }
+
+    const total = neto + (neto * ali / 100) + exento;
+    totalTd.innerText = `$ ${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+};
+
+window.gestionarTipoComp = function(select) {
+    const tr = select.closest('tr');
+    const box = tr.querySelector('.asociado-box');
+    const pVtaInput = tr.querySelector('.aso-pv');
+    
+    // Mostrar/Ocultar cuadro de asociación
+    box.style.display = (select.value == '3' || select.value == '8') ? 'block' : 'none';
+    
+    // Si es NC (8 o 3), clavamos el Pto Venta en 5
+    if (select.value == '3' || select.value == '8') {
+        pVtaInput.value = 5;
+    }
 };
 	async function enviarAFIP_WS() {
     const seleccionados = document.querySelectorAll('.ck:checked');
