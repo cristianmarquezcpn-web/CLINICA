@@ -435,7 +435,7 @@ async function ejecutarIA(f, c) {
     function updateItem(cat, idx, campo, valor) {
         if(campo==='monto') valor = parseFloat(valor)||0;
         db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/gastos/${cat}/items/${idx}`).update({[campo]: valor});
-        .then(() => proyectarTodo());
+        then(() => proyectarTodo());
     }
 
     function guardarBancos() {
