@@ -397,20 +397,23 @@ window.cargarTodo = async () => {
     tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando con motores de facturación...</td></tr>';
 
     try {
-        // 1. ESCUCHADOR DE OBRAS SOCIALES (Mantenemos el .on para que refresque si agregás una)
-        db.ref('/config/obras_sociales').on('value', snapOS => {
-            dictOS = snapOS.val() || {};
-            // Si tenés la función para mostrar la lista de OS en el panel, la llamamos
-            if (typeof actualizarPanelOS === "function") actualizarPanelOS(); 
-        });
+        // 1. CARGA DE OBRAS SOCIALES (Con espera real)
+        // Usamos .once() para asegurarnos de que TENEMOS los datos antes de seguir
+        const snapOS = await db.ref('/config/obras_sociales').once('value');
+        window.dictOS = snapOS.val() || {}; 
+        // También lo guardamos en window.config por si el render usa esa ruta
+        window.config = { obras_sociales: window.dictOS };
 
-        // 2. CARGA MASIVA DE PACIENTES (Traemos los 4 módulos de una)
-        const nodos = ['cd', 'cet', 'rehab', 'SAEI']; // Ojo: SAEI en mayúsculas como en tu JSON
+        console.log("✅ Obras Sociales cargadas en dictOS:", Object.keys(window.dictOS).length, "entidades.");
+        // Este es el log que te pedí para ver si Firebase está respondiendo
+        console.log("DEBUG OS:", window.dictOS);
+
+        // 2. CARGA MASIVA DE PACIENTES
+        const nodos = ['cd', 'cet', 'rehab', 'SAEI']; 
         const promesas = nodos.map(n => db.ref(`${n}/pacientes`).once('value'));
         
         const snapshots = await Promise.all(promesas);
         
-        // LIMPIAMOS dataFull antes de llenarlo para que no se dupliquen datos al refacturar
         dataFull = []; 
 
         snapshots.forEach((snap, index) => {
@@ -418,7 +421,6 @@ window.cargarTodo = async () => {
             const pacientes = snap.val() || {};
             
             for (let id in pacientes) {
-                // Metemos todo en el array global para el render
                 dataFull.push({
                     id_db: id,
                     modulo: modulo,
@@ -429,7 +431,7 @@ window.cargarTodo = async () => {
 
         console.log("✅ Datos cargados:", dataFull.length, "pacientes.");
         
-        // 3. LLAMAMOS AL RENDER (La función que dibuja la tabla)
+        // 3. LLAMAMOS AL RENDER
         if (typeof render === "function") {
             render();
         } else {
@@ -535,9 +537,8 @@ window.render = function() {
     if (!b || !dataFull) return;
     b.innerHTML = "";
 
-    // Intentamos capturar el diccionario de obras sociales desde la ruta de configuración
-    // Ajustado a: config -> obras_sociales
     const diccOS = (window.config && window.config.obras_sociales) ? window.config.obras_sociales : (window.dictOS || {});
+    const listaNombresOS = Object.keys(diccOS);
 
     dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
@@ -552,28 +553,34 @@ window.render = function() {
         const miFactura = p.ultima_factura_saei || p.ultima_factura; 
         const facturado = !!(miFactura && (miFactura.cae || miFactura.id));
 
-        // --- BÚSQUEDA EN config.obras_sociales ---
-        const osNombre = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
-        
-        // Buscamos el objeto exacto en el diccionario usando el nombre de la OS como llave
-        let infoOS = diccOS[osNombre] || {};
+        const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
+        let infoOS = {};
 
-        // Extraemos los datos exactos que me mostraste en el JSON
+        if (osPaciente) {
+            if (diccOS[osPaciente]) {
+                infoOS = diccOS[osPaciente];
+            } else {
+                const coincidencia = listaNombresOS.find(nombre => 
+                    nombre.toUpperCase().includes(osPaciente) || osPaciente.includes(nombre.toUpperCase())
+                );
+                if (coincidencia) infoOS = diccOS[coincidencia];
+            }
+        }
+
         const cuitDesdeDict = infoOS.cuit || "";
         const domDesdeDict = infoOS.domicilio || "SAN JUAN";
 
-        const rsFinal = facturado ? (miFactura.receptor_nombre || miFactura.razon_social || osNombre) : (infoOS.razon_social || infoOS.nombre || osNombre || "");
-        
+        const rsFinal = facturado ? (miFactura.receptor_nombre || miFactura.razon_social || osPaciente) : (infoOS.razon_social || infoOS.nombre || osPaciente || "");
         const cuitFinal = facturado ? (miFactura.cuit || "") : (cuitDesdeDict || p.cuit || p.obra_social_cuit || "");
         const domFinal = facturado ? (miFactura.domicilio || "SAN JUAN") : (domDesdeDict || p.obra_social_domicilio || "SAN JUAN");
 
-        // --- RESTO DE LA LÓGICA (Montos y Semáforo) ---
         const mBase = parseFloat(facturado ? (miFactura.neto || miFactura.exento || miFactura.total) : (p.monto_fijo || p.total || p.neto || 0)) || 0;
         const aFinal = parseFloat(facturado ? (miFactura.alicuota || 0) : 0) || 0;
         const totalCalculated = facturado ? (parseFloat(miFactura.total) || 0) : mBase;
 
         let tipoComp = 6; 
         if (miFactura?.tipo_comp) tipoComp = parseInt(miFactura.tipo_comp);
+        
         const fDesde = (facturado ? (miFactura.periodo_desde || "") : (p.periodo_desde || "")) || "";
         const fHasta = (facturado ? (miFactura.periodo_hasta || "") : (p.periodo_hasta || "")) || "";
         const fVto   = (facturado ? (miFactura.vto_pago || "") : (p.vto_pago || "")) || "";
@@ -590,14 +597,24 @@ window.render = function() {
             <button class="btn" style="background:var(--naranja); font-size:8px; padding:4px; color:white; border:none;" onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button></div>`;
         }
 
+        // --- Lógica para mostrar/ocultar comprobante asociado ---
+        const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
+
         tr.innerHTML = `
             <td style="text-align:center">${colAccion}</td>
             <td><small>${nombreMod}</small><br><b>${idPaciente}</b></td>
             <td>
-                <select class="input-tab sel-tipo" ${facturado?'disabled':''}>
+                <select class="input-tab sel-tipo" ${facturado?'disabled':''} onchange="this.parentElement.parentElement.querySelector('.asociado-box').style.display = (this.value=='3' || this.value=='8') ? 'block' : 'none'">
                     <option value="6" ${tipoComp === 6 ? 'selected' : ''}>Factura B</option>
                     <option value="1" ${tipoComp === 1 ? 'selected' : ''}>Factura A</option>
+                    <option value="8" ${tipoComp === 8 ? 'selected' : ''}>NC B</option>
+                    <option value="3" ${tipoComp === 3 ? 'selected' : ''}>NC A</option>
                 </select>
+                <div class="asociado-box" style="display:${displayAsociado}; margin-top:5px; background:#f9f9f9; padding:2px; border:1px dashed #ccc; font-size:10px;">
+                    <label>Pto Vta:</label><input type="number" class="aso-pv" value="5" style="width:30px">
+                    <label>Num:</label><input type="number" class="aso-num" placeholder="00001" style="width:50px"><br>
+                    <label>Fecha:</label><input type="date" class="aso-fec" style="width:85px">
+                </div>
             </td>
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
