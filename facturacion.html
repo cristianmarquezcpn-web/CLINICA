@@ -535,6 +535,10 @@ window.render = function() {
     if (!b || !dataFull) return;
     b.innerHTML = "";
 
+    // Intentamos capturar el diccionario de obras sociales desde la ruta de configuración
+    // Ajustado a: config -> obras_sociales
+    const diccOS = (window.config && window.config.obras_sociales) ? window.config.obras_sociales : (window.dictOS || {});
+
     dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
     .filter(p => {
@@ -548,34 +552,32 @@ window.render = function() {
         const miFactura = p.ultima_factura_saei || p.ultima_factura; 
         const facturado = !!(miFactura && (miFactura.cae || miFactura.id));
 
-        // --- RECUPERACIÓN DE DATOS FISCALES REFORZADA ---
+        // --- BÚSQUEDA EN config.obras_sociales ---
         const osNombre = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
-        // Buscamos en el diccionario global
-        let infoOS = (window.dictOS && window.dictOS[osNombre]) ? window.dictOS[osNombre] : {};
+        
+        // Buscamos el objeto exacto en el diccionario usando el nombre de la OS como llave
+        let infoOS = diccOS[osNombre] || {};
 
-        // Intentamos capturar el CUIT de cualquier variante posible en el diccionario
-        const cuitDesdeDict = infoOS.cuit || infoOS.CUIT || infoOS.cuit_os || "";
-        const domDesdeDict = infoOS.domicilio || infoOS.direccion || infoOS.dom || "SAN JUAN";
+        // Extraemos los datos exactos que me mostraste en el JSON
+        const cuitDesdeDict = infoOS.cuit || "";
+        const domDesdeDict = infoOS.domicilio || "SAN JUAN";
 
         const rsFinal = facturado ? (miFactura.receptor_nombre || miFactura.razon_social || osNombre) : (infoOS.razon_social || infoOS.nombre || osNombre || "");
         
-        // Si no está facturado, prioriza el CUIT del diccionario, sino el que traiga el paciente
         const cuitFinal = facturado ? (miFactura.cuit || "") : (cuitDesdeDict || p.cuit || p.obra_social_cuit || "");
         const domFinal = facturado ? (miFactura.domicilio || "SAN JUAN") : (domDesdeDict || p.obra_social_domicilio || "SAN JUAN");
 
-        // --- MONTOS ---
+        // --- RESTO DE LA LÓGICA (Montos y Semáforo) ---
         const mBase = parseFloat(facturado ? (miFactura.neto || miFactura.exento || miFactura.total) : (p.monto_fijo || p.total || p.neto || 0)) || 0;
         const aFinal = parseFloat(facturado ? (miFactura.alicuota || 0) : 0) || 0;
         const totalCalculated = facturado ? (parseFloat(miFactura.total) || 0) : mBase;
 
-        // --- TIPO Y FECHAS ---
         let tipoComp = 6; 
         if (miFactura?.tipo_comp) tipoComp = parseInt(miFactura.tipo_comp);
         const fDesde = (facturado ? (miFactura.periodo_desde || "") : (p.periodo_desde || "")) || "";
         const fHasta = (facturado ? (miFactura.periodo_hasta || "") : (p.periodo_hasta || "")) || "";
         const fVto   = (facturado ? (miFactura.vto_pago || "") : (p.vto_pago || "")) || "";
 
-        // --- VISUAL ---
         const tieneAsist = p.asistF_link && p.asistF_link.length > 5;
         const tr = document.createElement('tr');
         if(facturado) tr.className = "row-facturada";
