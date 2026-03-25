@@ -235,25 +235,30 @@ window.guardarOS = async function() {
 
         alert("✅ Obra Social guardada/actualizada con éxito");
 
-        // --- LIMPIEZA DEL FORMULARIO (Post-Edición) ---
+        // --- LIMPIEZA DEL FORMULARIO ---
         const inputNombre = document.getElementById('os-nombre');
         inputNombre.value = "";
-        inputNombre.readOnly = false; // Importante: desbloquea el nombre para nuevas cargas
-        inputNombre.style.backgroundColor = "#fff"; // Fondo blanco normal
+        inputNombre.readOnly = false; 
+        inputNombre.style.backgroundColor = "#fff"; 
         
         document.getElementById('os-cuit').value = "";
         document.getElementById('os-dom').value = "";
-        document.getElementById('os-iva').selectedIndex = 0; // Vuelve a la primera opción del selector
+        document.getElementById('os-iva').selectedIndex = 0; 
 
-        // Refrescar la tabla para ver el cambio y el botón de editar nuevo
-        window.cargarTodo();
+        // --- ACTUALIZACIÓN DE INTERFAZ ---
+        // 1. Refrescar datos generales
+        await window.cargarTodo();
+
+        // 2. Refrescar el listado visual de Obras Sociales (lo que faltaba)
+        if (typeof actualizarPanelOS === 'function') {
+            actualizarPanelOS();
+        }
 
     } catch (error) {
         console.error(error);
         alert("❌ Error al guardar. Verifica la conexión a la base de datos.");
     }
 };
-
 window.prepararEdicionOS = function(nombre) {
     db.ref('/config/obras_sociales/' + nombre).once('value').then(snap => {
         const d = snap.val();
@@ -291,7 +296,8 @@ window.refacturar = async (mod, id) => {
 };
 
 window.toggleArchivo = () => { const p = document.getElementById('panel-archivo'); p.style.display = p.style.display==='block'?'none':'block'; };
-window.toggleOS = () => { const p = document.getElementById('panel-os'); p.style.display = p.style.display==='block'?'none':'block'; };
+
+window.toggleOS = () => { const p = document.getElementById('panel-os'); p.style.display = p.style.display==='block'?'none':'block'; if(p.style.display==='block') actualizarPanelOS(); }; = p.style.display==='block'?'none':'block'; };
 
 window.gestionarNC = function(select) {
     const tr = select.closest('tr');
