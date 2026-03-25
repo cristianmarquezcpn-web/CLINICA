@@ -21,16 +21,26 @@
     
     .panel-flotante { display:none; background:#fff; border:2px solid var(--azul); padding:15px; margin-bottom:20px; border-radius:8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 
+    /* Estilos para los items de la lista (Donde van los botones de borrar/editar) */
+    .os-item { 
+        display: flex; 
+        justify-content: space-between; 
+        padding: 10px; 
+        border-bottom: 1px solid #eee; 
+        align-items: center; 
+        background: #fff;
+    }
+    .os-info { flex-grow: 1; }
+    .os-actions { display: flex; gap: 5px; }
+
     table { width: 100%; border-collapse: collapse; background: white; table-layout: fixed; }
     th { background: #f8f9fa; color: var(--oscuro); padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6; font-size: 10px; }
-    td { padding: 8px; border-bottom: 1px solid #eee; overflow: visible; vertical-align: top; }
+    td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; }
     
     .input-tab { padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; width: 100%; box-sizing: border-box; }
     .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; display: inline-flex; align-items: center; gap: 5px; }
     
-    .os-item { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee; align-items: center; background: #fff; }
     .row-saei { background-color: #e3f2fd !important; border-left: 5px solid #2196f3 !important; }
-    .row-saei td { color: #0d47a1 !important; }
 </style>
 
 <div class="main-card">
@@ -49,6 +59,7 @@
             <h3 style="margin:0;">Gestión de Obras Sociales / Clientes</h3>
             <button class="btn" style="background:var(--gris)" onclick="toggleOS()">✖</button>
         </div>
+        
         <div style="display:grid; grid-template-columns: 2fr 1fr 2fr 1.5fr auto; gap:10px; margin-bottom:15px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
             <input type="text" id="os-nombre" placeholder="Nombre / Razón Social" class="input-tab">
             <input type="text" id="os-cuit" placeholder="CUIT" class="input-tab">
@@ -59,9 +70,14 @@
                 <option value="Consumidor Final">Consumidor Final</option>
                 <option value="Responsable Monotributo">Monotributo</option>
             </select>
-            <button class="btn" style="background:var(--verde)" onclick="guardarOS()">💾 GUARDAR</button>
+            <button class="btn" id="btn-guardar-os" style="background:var(--verde)" onclick="guardarOS()">💾 GUARDAR</button>
         </div>
-        <div id="lista-os" style="max-height: 250px; min-height: 50px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #fafafa; border-radius: 4px;">
+
+        <div style="background: #eef2f7; padding: 8px; border-radius: 4px; font-weight: bold; margin-bottom: 5px; color: var(--oscuro);">
+            Lista de Obras Sociales Registradas:
+        </div>
+        
+        <div id="lista-os" style="max-height: 250px; min-height: 100px; overflow-y: auto; border: 1px solid #ccc; background: #fff; border-radius: 4px;">
             </div>
     </div>
 
@@ -97,7 +113,7 @@
         <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd;">
             <table>
                 <thead>
-                    <tr style="position: sticky; top: 0; background: #eee;">
+                    <tr style="position: sticky; top: 0; background: #eee; z-index: 10;">
                         <th style="width:80px">FECHA</th>
                         <th style="width:120px">COMPROBANTE</th>
                         <th style="width:110px">CAE</th>
@@ -116,7 +132,7 @@
         <div><label>Desde</label><input type="date" id="per_desde" class="input-tab"></div>
         <div><label>Hasta</label><input type="date" id="per_hasta" class="input-tab"></div>
         <div><label>Vencimiento</label><input type="date" id="vto_pago" class="input-tab"></div>
-        <div style="width:130px"><label>Condición Pago</label>
+        <div style="width:130px"><label>Condición</label>
             <select id="cond_venta" class="input-tab">
                 <option value="Cuenta Corriente">Cuenta Corriente</option>
                 <option value="Contado">Contado</option>
@@ -125,10 +141,10 @@
     </div>
 
     <div style="display: flex; gap: 4px; margin: 10px 0; justify-content: space-between;">
-        <button class="btn-filtro" onclick="filtrarPor('TODOS')" style="flex:1; font-size:9px; padding:6px; background:var(--azul); color:white; border-radius:4px; border:1px solid #ccc;">TODOS</button>
-        <button class="btn-filtro" onclick="filtrarPor('CD')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">CD</button>
-        <button class="btn-filtro" onclick="filtrarPor('CET')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">CET</button>
-        <button class="btn-filtro" onclick="filtrarPor('REHAB')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">REHAB</button>
+        <button class="btn" style="background:var(--azul); flex:1;" onclick="filtrarPor('TODOS')">TODOS</button>
+        <button class="btn" style="background:#f9f9f9; color:#333; border:1px solid #ccc; flex:1;" onclick="filtrarPor('CD')">CD</button>
+        <button class="btn" style="background:#f9f9f9; color:#333; border:1px solid #ccc; flex:1;" onclick="filtrarPor('CET')">CET</button>
+        <button class="btn" style="background:#f9f9f9; color:#333; border:1px solid #ccc; flex:1;" onclick="filtrarPor('REHAB')">REHAB</button>
         <button class="btn" style="background:var(--azul); margin-left:auto" onclick="enviarAFIP_WS()">🚀 FACTURAR SELECCIONADOS</button>
     </div>
 
@@ -136,16 +152,16 @@
         <thead>
             <tr>
                 <th style="width: 50px;">Sel</th>
-                <th style="width: 120px;">Paciente / Mod</th>
-                <th style="width: 110px;">Tipo Comp.</th>
-                <th style="width: 130px;">CUIT / DNI</th>
-                <th style="width: 180px;">Razón Social</th>
-                <th style="width: 150px;">Domicilio</th>
-                <th style="width: 250px;">Detalle de Factura</th>
-                <th style="width: 100px;">Neto ($)</th>
-                <th style="width: 90px;">Alícuota</th>
-                <th style="width: 100px; text-align: right;">Exento ($)</th>
-                <th style="width: 110px; text-align: right;">Total</th>
+                <th style="width: 120px;">Paciente</th>
+                <th style="width: 100px;">Tipo</th>
+                <th style="width: 120px;">CUIT</th>
+                <th style="width: 160px;">Razón Social</th>
+                <th style="width: 130px;">Domicilio</th>
+                <th style="width: 220px;">Detalle</th>
+                <th style="width: 90px;">Neto</th>
+                <th style="width: 70px;">IVA</th>
+                <th style="width: 80px;">Exento</th>
+                <th style="width: 90px;">Total</th>
             </tr>
         </thead>
         <tbody id="tabla-body"></tbody>
