@@ -535,34 +535,34 @@ window.render = function() {
     if (!b) return;
     b.innerHTML = "";
 
+    const miCondicionIva = "RESPONSABLE INSCRIPTO"; 
+
     dataFull
-    .sort((x, y) => (x.id || "").localeCompare(y.id || ""))
+    .sort((x, y) => (x.id || "").toString().localeCompare((y.id || "").toString()))
     .filter(p => {
         if (filtroActual === 'TODOS') return true;
         return (p.mod || "").toUpperCase() === filtroActual;
     })
     .forEach(p => {
         const miFactura = p.ultima_factura; 
-        const facturado = miFactura && miFactura.cae && miFactura.modulo === p.mod;
+        const facturado = !!(miFactura && miFactura.cae && miFactura.modulo === p.mod);
         
         const tieneAsist = p.asistF_link && p.asistF_link.length > 5;
         const osOriginal = (p.os || "").toUpperCase().trim();
         let infoOS = dictOS[osOriginal] || {};
 
-        // --- DATOS FINALES PARA LA TABLA ---
         const rsFinal = facturado ? (miFactura.receptor_nombre || miFactura.razon_social) : (infoOS.razon_social || infoOS.nombre || osOriginal);
         const cuitFinal = facturado ? miFactura.cuit : (infoOS.cuit || p.cuit || "");
-        const domFinal = facturado ? (miFactura.domicilio || 'SAN JUAN') : (infoOS.domicilio || 'SAN JUAN');
         
-        // --- LOGICA DE MONTOS ---
         const montoBase = facturado ? (miFactura.neto || miFactura.exento || miFactura.total) : (p.monto_fijo || p.total || 0);
         const aliFinal = facturado ? (miFactura.alicuota || 0) : 0;
         const totalCalculado = facturado ? miFactura.total : parseFloat(montoBase);
 
-        let tipoComp = (condicionIva.toUpperCase().includes("RI")) ? 1 : 6;
+        // --- CAMBIO CLAVE: POR DEFECTO FACTURA B (6) ---
+        let tipoComp = 6; 
         if (miFactura?.tipo_comp) tipoComp = parseInt(miFactura.tipo_comp);
+        // ----------------------------------------------
 
-        // --- FECHAS (EL SECRETO PARA QUE EL PDF NO SALGA VACÍO) ---
         const fDesde = facturado ? (miFactura.periodo_desde || "") : (p.periodo_desde || "");
         const fHasta = facturado ? (miFactura.periodo_hasta || "") : (p.periodo_hasta || "");
         const fVto = facturado ? (miFactura.vto_pago || "") : (p.vto_pago || "");
@@ -570,14 +570,14 @@ window.render = function() {
         const tr = document.createElement('tr');
         if(facturado) tr.className = "row-facturada";
 
-        let estadoVisual = facturado ? `<br><b style="color:green; font-size:9px;">FACTURADO (${p.mod})</b>` : (!tieneAsist ? `<br><b style="color:red; font-size:9px;">SIN ASISTENCIA</b>` : "");
+        let estadoVisual = facturado ? `<br><b style="color:green; font-size:9px;">FACTURADO</b>` : (!tieneAsist ? `<br><b style="color:red; font-size:9px;">SIN ASISTENCIA</b>` : "");
 
         let colAccion = `<input type="checkbox" class="ck" data-id="${p.id}" data-mod="${p.mod}" ${(facturado || !tieneAsist) ? 'disabled' : ''}> ${estadoVisual}`;
         
         if (facturado) {
             colAccion += `
                 <div style="margin-top:5px; display:flex; flex-direction:column; gap:3px;">
-                    <button class="btn" style="background:var(--verde); font-size:8px; padding:2px;" onclick="window.descargarFactura('${miFactura.id || idPac}')">PDF</button>
+                    <button class="btn" style="background:var(--verde); font-size:8px; padding:2px;" onclick="window.descargarFactura('${miFactura.id}')">PDF</button>
                     <button class="btn" style="background:var(--naranja); font-size:8px; padding:2px;" onclick="window.habilitarParaRefacturar('${p.id}', '${p.mod}')">Refacturar</button>
                 </div>`;
         }
@@ -592,13 +592,9 @@ window.render = function() {
                     <option value="8" ${tipoComp === 8 ? 'selected' : ''}>NC B</option>
                     <option value="3" ${tipoComp === 3 ? 'selected' : ''}>NC A</option>
                 </select>
-                <div class="nc-datos" style="display:${(tipoComp==8||tipoComp==3)?'block':'none'}; margin-top:5px;">
-                    <input type="text" class="asoc-num" value="${miFactura?.asoc_num || '00005-'}" style="width:90%; font-size:10px;">
-                </div>
             </td>
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
-            <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
             
             <input type="hidden" class="f-desde" value="${fDesde}">
             <input type="hidden" class="f-hasta" value="${fHasta}">
@@ -614,14 +610,12 @@ window.render = function() {
                 </select>
             </td>
             <td><input type="number" class="input-tab exento-edit" value="${aliFinal==0?montoBase:0}" ${facturado?'disabled':''}></td>
-            <td style="text-align:right; font-weight:bold" class="total-row">
-                $${parseFloat(totalCalculado).toLocaleString('es-AR', {minimumFractionDigits: 2})}
-            </td>
+            <td style="text-align:right; font-weight:bold">$ ${parseFloat(totalCalculado).toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
         `;
         b.appendChild(tr);
     });
 };
-async function enviarAFIP_WS() {
+	async function enviarAFIP_WS() {
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("Selecciona pacientes");
     
