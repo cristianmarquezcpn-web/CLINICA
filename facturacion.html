@@ -717,8 +717,8 @@ window.gestionarTipoComp = function(select) {
 
         // --- LÓGICA PARA NOTA DE CRÉDITO B (Tipo 8) ---
         if (tipo === 8) {
-            const inputNum = fila.querySelector('.asoc-num');
-            const inputFecha = fila.querySelector('.asoc-fecha');
+            const inputNum = fila.querySelector('.aso-num');
+            const inputFecha = fila.querySelector('.aso-fec');
             const asocCompleto = inputNum ? inputNum.value.trim() : "";
             
             if (!asocCompleto || asocCompleto === "" || !inputFecha.value) {
