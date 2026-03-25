@@ -31,8 +31,9 @@
     <h2 style="margin:0">🧠 CFO <span style="color:var(--acento)">TITANIUM v8.5</span></h2>
     <div style="display:flex; gap:10px;">
         <input type="month" id="mesFiltro" onchange="conectarMes()" style="margin:0; width:180px;">
-        <button class="btn" onclick="conectarMes()" style="background:#374151; width:auto;">🔄 RECONECTAR</button>
-        <button onclick="window.location.href='index.html'" style="background: transparent; border: 1px solid #374151; color: #94a3b8; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 11px;">← VOLVER</button>
+        <button class="btn" onclick="sincronizacionTotal()" style="background:var(--oro); color:black; width:auto; padding: 0 15px;">⚡ SINCRO TOTAL</button>
+        <button class="btn" onclick="conectarMes()" style="background:#374151; width:auto; padding: 0 15px;">🔄 RECONECTAR</button>
+        <button onclick="window.location.href='index.html'" style="background: transparent; border: 1px solid #374151; color: #94a3b8; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 11px;">← VOLVER</button>
     </div>
 </div>
 
@@ -434,6 +435,7 @@ async function ejecutarIA(f, c) {
     function updateItem(cat, idx, campo, valor) {
         if(campo==='monto') valor = parseFloat(valor)||0;
         db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/gastos/${cat}/items/${idx}`).update({[campo]: valor});
+        .then(() => proyectarTodo());
     }
 
     function guardarBancos() {
@@ -458,31 +460,66 @@ async function ejecutarIA(f, c) {
         res.style.color = mesesResistidos >= meses ? "var(--verde)" : "var(--rojo)";
         res.innerText = mesesResistidos >= meses ? `✅ VIABLE por ${meses} meses.` : `❌ QUIEBRA en mes ${mesesResistidos + 1}.`;
     }
-
-    window.onload = async () => {
-        document.getElementById('mesFiltro').value = "2026-03"; 
+// --- INICIALIZACIÓN Y EVENTOS ---
+        window.onload = async () => {
+        const hoy = new Date();
+        const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}`;
+        document.getElementById('mesFiltro').value = mesActual; 
+        
         await conectarMes();
         verificarYEntrenar();
     };
 
-auth.onAuthStateChanged((user) => {
-    if (user) {
-        console.log("Tesorería autorizada para:", user.email);
-        
-        setTimeout(() => {
-            // Ejecutamos la carga de datos de caja y balances
-            if (typeof cargarTodo === 'function') {
-                cargarTodo();
-            } else if (typeof renderizarTodo === 'function') {
-                renderizarTodo();
-            }
-        }, 700); // Le damos un pelín más de tiempo porque Tesorería suele cargar más datos
-        
-    } else {
-        // Si no hay login, al index
-        window.location.href = "index.html";
+    async function sincronizacionTotal() {
+        const btn = event.target;
+        const originalText = btn.innerText;
+        btn.innerText = "⏳ PROCESANDO...";
+        btn.disabled = true;
+
+        try {
+            console.log("--- Iniciando Sincronización Profunda ---");
+            
+            const [fSnap, sSnap, cSnap] = await Promise.all([
+                db.ref('facturas_emitidas').once('value'),
+                db.ref('facturas_emitidas_saei').once('value'),
+                db.ref('cobranzas').once('value')
+            ]);
+            
+            const facturas = { ...(fSnap.val() || {}), ...(sSnap.val() || {}) };
+            const cobranzas = cSnap.val() || {};
+            
+            await ejecutarIA(facturas, cobranzas);
+            await conectarMes();
+            await proyectarTodo();
+
+            document.getElementById('statusIA').innerText = "🚀 Sincronización manual exitosa";
+            btn.innerText = "✅ ¡LISTO!";
+            
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }, 2000);
+
+        } catch (e) {
+            console.error("Error en sincro:", e);
+            btn.innerText = "❌ ERROR";
+            btn.disabled = false;
+        }
     }
-});
+
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            console.log("Tesorería autorizada para:", user.email);
+            setTimeout(() => {
+                if (typeof proyectarTodo === 'function') proyectarTodo();
+            }, 700);
+        } else {
+            window.location.href = "index.html";
+        }
+    });
+</script>
+</body>
+</html>
 </script>
 </body>
 </html>
