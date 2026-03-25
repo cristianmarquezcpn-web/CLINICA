@@ -167,52 +167,70 @@
     // 3. PROYECCIÓN BASADA EN COBRANZAS PENDIENTES (TU FLUJO)
     async function proyectarTodo() {
     const mesSeleccionado = document.getElementById('mesFiltro').value;
-    if(!mesSeleccionado) return;
-    
+    if (!mesSeleccionado) return;
+
     let saldo = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
-    let ingS = {1:0, 2:0, 3:0, 4:0}, gasS = {1:0, 2:0, 3:0, 4:0};
-    let detalleFacturas = {1:[], 2:[], 3:[], 4:[]}; 
+    let ingS = { 1: 0, 2: 0, 3: 0, 4: 0 }, gasS = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    let detalleFacturas = { 1: [], 2: [], 3: [], 4: [] };
     let totalG = 0;
 
-    // 1. Traemos los tres nodos necesarios
+    // 1. LLAMADA UNIFICADA A LOS TRES NODOS
     const [snapFacts, snapSaei, snapCobros] = await Promise.all([
         db.ref('facturas_emitidas').once('value'),
         db.ref('facturas_emitidas_saei').once('value'),
         db.ref('cobranzas').once('value')
     ]);
-    
-    // Unificamos el universo de facturas
-    const todasLasFacturas = { ...(snapFacts.val() || {}), ...(snapSaei.val() || {}) };
+
+    const dataGral = snapFacts.val() || {};
+    const dataSaei = snapSaei.val() || {};
     const cobranzas = snapCobros.val() || {};
 
-    // 2. Escaneamos facturas sin cobro registrado
+    // UNIFICACIÓN DEL UNIVERSO TOTAL
+    const todasLasFacturas = { ...dataGral, ...dataSaei };
+
+    // 2. ESCANEO DE FACTURAS PENDIENTES DE COBRO
     Object.keys(todasLasFacturas).forEach(id => {
         const f = todasLasFacturas[id];
+
+        // Solo procesamos si NO tiene registro de pago en 'cobranzas'
         if (!cobranzas[id] || !cobranzas[id].fecha_pago) {
-            
+
+            // Buscamos cualquier fecha válida en el objeto
             let fechaBase = f.fecha_emision || f.fecha || f.fecha_peticion;
             if (!fechaBase) return;
 
-            // Parseo flexible (soporta / o -)
+            // Parseo inteligente de fecha
             let partes = fechaBase.includes('/') ? fechaBase.split('/') : fechaBase.split('-');
-            let fCobro = fechaBase.includes('/') ? 
-                new Date(partes[2], partes[1]-1, partes[0]) : 
-                new Date(partes[0], partes[1]-1, partes[2]);
+            let fCobro = fechaBase.includes('/') ?
+                new Date(partes[2], partes[1] - 1, partes[0]) :
+                new Date(partes[0], partes[1] - 1, partes[2]);
 
-            // Aplicamos el delay inteligente del motor
+            // Aplicamos el delay histórico calculado por la IA (ej. 65 días)
             fCobro.setDate(fCobro.getDate() + (motorGlobal.delay_historico || 65));
-            
-            const mesCobro = `${fCobro.getFullYear()}-${String(fCobro.getMonth()+1).padStart(2,'0')}`;
 
+            const mesCobro = `${fCobro.getFullYear()}-${String(fCobro.getMonth() + 1).padStart(2, '0')}`;
+
+            // Si la proyección cae en el mes que estamos mirando...
             if (mesCobro === mesSeleccionado) {
-                const s = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
-                const montoProyectado = parseFloat(f.total || f.monto || 0) * (motorGlobal.indice_cobranza || 0.85);
+                const s = Math.min(Math.ceil(fCobro.getDate() / 7), 4); // Determinamos semana 1 a 4
                 
+                // Calculamos monto neto proyectado (Total * Efectividad de Cobranza)
+                const montoOriginal = parseFloat(f.total || f.monto || f.netoCalc || 0);
+                const montoProyectado = montoOriginal * (motorGlobal.indice_cobranza || 0.85);
+
                 ingS[s] += montoProyectado;
-                // Si no está en 'facturas_emitidas' (Gral), le ponemos el prefijo "S-" de SAEI
-                const prefijo = snapFacts.val() && snapFacts.val()[id] ? "" : "S-";
-                const cliente = f.cliente || f.receptor || f.razon_social || "Factura";
-                detalleFacturas[s].push(`<div class="detalle-factura">${prefijo}${cliente.substring(0,10)}: <b>$${Math.round(montoProyectado/1000)}k</b></div>`);
+
+                // Identificamos si es SAEI para el prefijo visual
+                const esSaei = dataSaei[id] ? true : false;
+                const prefijo = esSaei ? "S-" : "";
+                
+                // Mapeo de nombre de cliente/paciente para el cartelito
+                const cliente = f.receptor_nombre || f.cliente || f.id_paciente || f.receptor || "Factura";
+                
+                detalleFacturas[s].push(`
+                    <div class="detalle-factura" style="font-size:9px; border-bottom:1px solid #1f2937; padding:2px 0;">
+                        ${prefijo}${cliente.substring(0, 12)}: <b>$${Math.round(montoProyectado / 1000)}k</b>
+                    </div>`);
             }
         }
     });
@@ -280,68 +298,125 @@ function actualizarBannerDinamico(mesActual) {
     }
 }	   
     // --- ENTRENAMIENTO Y MANTENIMIENTO ---
-  function parseFecha(s) { 
-    if(!s) return null; 
+ // --- FUNCIONES DE APOYO DEL MOTOR IA ---
+function parseFecha(s) { 
+    if (!s) return null;
+    // Si ya es un objeto Date, lo devolvemos tal cual
+    if (s instanceof Date) return s;
+    
+    // Soporta formatos DD/MM/YYYY y YYYY-MM-DD
     const p = s.includes('/') ? s.split('/') : s.split('-'); 
-    return s.includes('/') ? new Date(p[2], p[1]-1, p[0]) : new Date(p[0], p[1]-1, p[2]); 
+    return s.includes('/') ? 
+        new Date(p[2], p[1] - 1, p[0]) : 
+        new Date(p[0], p[1] - 1, p[2]); 
 }
 
 function limpiarOutliers(arr) { 
-    if(arr.length < 4) return arr; 
-    arr.sort((a,b) => a-b); 
+    // Si tenemos pocos datos, no tiene sentido recortar extremos
+    if (arr.length < 4) return arr; 
+    
+    // Ordenamos de menor a mayor
+    arr.sort((a, b) => a - b); 
+    
+    // Eliminamos el 10% de los casos más rápidos y el 10% de los más lentos
+    // Esto quita "ruido" de pagos excepcionales o deudas incobrables
     return arr.slice(Math.floor(arr.length * 0.1), Math.ceil(arr.length * 0.9)); 
 }
 
 function mediaPonderada(arr) { 
-    if(!arr.length) return 65; 
-    const sum = arr.reduce((a,b) => a+b, 0); 
+    // Si no hay datos, devolvemos el estándar de la industria (65 días)
+    if (!arr || !arr.length) return 65; 
+    
+    // Calculamos el promedio simple sobre la lista ya filtrada
+    const sum = arr.reduce((a, b) => a + b, 0); 
     return Math.round(sum / arr.length); 
 }
    async function verificarYEntrenar() {
+    // 1. CAPTURA TOTAL DE DATOS (AMBOS PULMONES)
     const [fSnap, sSnap] = await Promise.all([
         db.ref('facturas_emitidas').once('value'),
         db.ref('facturas_emitidas_saei').once('value')
     ]);
     
+    // Unificamos el universo de facturas para que la IA aprenda del volumen total
     const facturas = { ...(fSnap.val() || {}), ...(sSnap.val() || {}) };
     const cantidadActual = Object.keys(facturas).length;
     
+    // 2. VERIFICACIÓN DE ESTADO DEL MOTOR
     const motorSnap = await db.ref('tesoreria/motor_ia').once('value');
     const motorData = motorSnap.val() || { cantidad_entrenada: 0 };
 
+    // Solo disparamos el entrenamiento si hay facturas nuevas para procesar
     if (cantidadActual !== motorData.cantidad_entrenada) {
         document.getElementById('statusIA').innerText = "🤖 IA: Sincronizando Gral + SAEI...";
+        
+        // Traemos el historial de cobranzas para cruzar fechas
         const cSnap = await db.ref('cobranzas').once('value');
         const cobranzas = cSnap.val() || {};
+        
+        // 3. EJECUCIÓN DEL APRENDIZAJE
+        // Aquí la IA calcula el delay_historico y el indice_cobranza real
         await ejecutarIA(facturas, cobranzas);
+        
+        // 4. ACTUALIZACIÓN DE METADATOS
         await db.ref('tesoreria/motor_ia').update({ 
             cantidad_entrenada: cantidadActual, 
             ultima_sincro: new Date().toLocaleString() 
         });
+        
         document.getElementById('statusIA').innerText = "✅ Motor Sincronizado";
+        
+        // Refrescamos la proyección con los nuevos parámetros aprendidos
+        proyectarTodo(); 
+    } else {
+        document.getElementById('statusIA').innerText = "✅ Motor al día";
     }
 }
-
 async function ejecutarIA(f, c) {
-    let delays = []; let cobradas = 0; let emitidas = Object.keys(f).length;
+    let delays = []; 
+    let cobradas = 0; 
+    let emitidas = Object.keys(f).length;
+
     Object.keys(f).forEach(id => {
         const fact = f[id];
+        // Solo analizamos si existe la cobranza y tiene fecha de pago confirmada
         if (c[id] && c[id].fecha_pago) {
+            
+            // Buscamos la fecha de origen (emisión manual o petición SAEI)
             const fechaEmiStr = fact.fecha_emision || fact.fecha || fact.fecha_peticion;
             const fEmi = parseFecha(fechaEmiStr);
             const fPag = parseFecha(c[id].fecha_pago);
+
             if (fEmi && fPag) {
-                const diff = (fPag - fEmi) / 86400000;
-                if (diff >= 0 && diff < 200) delays.push(diff);
+                // Calculamos la diferencia en días
+                const diff = Math.floor((fPag - fEmi) / 86400000);
+                
+                // Filtro de cordura: descartamos errores de carga (negativos) 
+                // o facturas de más de 200 días que ensucian el promedio actual
+                if (diff >= 0 && diff < 200) {
+                    delays.push(diff);
+                }
                 cobradas++;
             }
         }
     });
-    const delayReal = mediaPonderada(limpiarOutliers(delays));
+
+    // --- CÁLCULOS ESTADÍSTICOS ---
+    
+    // 1. Delay Real: Limpiamos extremos (outliers) y sacamos la media.
+    // Esto evita que una factura que tardó 1 año en pagarse te arruine la proyección.
+    const delayReal = delays.length > 0 ? mediaPonderada(limpiarOutliers(delays)) : 65;
+
+    // 2. Efectividad Real: ¿Qué porcentaje de lo que emitimos realmente se cobra?
+    // Esto ajusta el monto del Cash Flow (si emitís 100k y cobrás el 85%, proyecta 85k).
     const efectividadReal = emitidas > 0 ? (cobradas / emitidas) : 0.85;
-    await db.ref('tesoreria/motor_ia').update({ delay_historico: delayReal, indice_cobranza: efectividadReal });
+
+    // 3. Actualización del Motor en Firebase
+    await db.ref('tesoreria/motor_ia').update({ 
+        delay_historico: delayReal, 
+        indice_cobranza: efectividadReal 
+    });
 }
-  
     // --- GESTIÓN DE UI ---
     function dibujarGastos() {
         const cont = document.getElementById('contGastos');
