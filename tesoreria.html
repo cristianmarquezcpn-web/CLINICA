@@ -95,14 +95,18 @@
         appId: "1:184090967634:web:09715937b33ea48288698b" 
     };
 
+   // 1. Configuración Firebase
+    const firebaseConfig = { ... };
     firebase.initializeApp(firebaseConfig);
-    // ... (tu config de Firebase arriba)
 
-    // 👇 AGREGA ESTA LÍNEA AQUÍ:
-    const db = firebase.database(); 
-
+    // 2. Definición de Instancias y GLOBALES (CRUCIAL)
+    const db = firebase.database();
+    const auth = firebase.auth();
     
-    const auth = firebase.auth(); 
+    let refMes = null; 
+    let datosMes = {};
+    let motorGlobal = {};
+    let saldoFinalProyectado = 0;
     
     
     // 1. ESCUCHA MOTOR IA (ACTUALIZACIÓN EN TIEMPO REAL)
