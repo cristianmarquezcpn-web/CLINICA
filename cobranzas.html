@@ -302,24 +302,26 @@ if (!firebase.apps.length) {
             const comprobanteFormateado = `${pv}-${nc}`;
 
             const tr = document.createElement('tr');
-            if (esNC) tr.className = "nc-row";
-            else if (!estaPagada && mora >= 75) tr.className = "alerta-mora";
-	   let iconoEstado = '⏳'; // Pendiente total
-     let mostrarBotonCobro = true; // Por defecto se puede cobrar
+          const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
+			let iconoEstado = '⏳'; 
+			let mostrarBotonCobro = !esNC; // Si es NC, NUNCA muestra el botón de cobrar
 
-	if (pagado > 0.5 || debito > 0.5) {
-    if (saldo <= 0.5) {
-        iconoEstado = '✅'; // Pagado Total
-        mostrarBotonCobro = false; // Ya no hay deuda, se va la bolsita
-    } else {
-        iconoEstado = '🟡'; // PAGO PARCIAL: queda deuda, aparece la bola amarilla
-        mostrarBotonCobro = true;  // IMPORTANTE: la bolsita SE QUEDA porque falta cobrar
+			if (!esNC) {
+    		if (pagado > 0.5 || debito > 0.5) {
+       		 if (saldo <= 0.5) {
+            iconoEstado = '✅'; 
+            mostrarBotonCobro = false; 
+       		 } else {
+            iconoEstado = '🟡'; // LA PELOTITA AMARILLA
+            mostrarBotonCobro = true; // LA BOLSA SE QUEDA
+        }
     }
+   		    if (mora >= 75 && saldo > 0.5) {
+        	iconoEstado = '🚨';
+    }
+} else {
+    iconoEstado = '🔙'; // Icono para Notas de Crédito
 }
-
-// Si tiene mucha mora y todavía debe dinero, ponemos la alerta
-if (mora >= 75 && saldo > 0.5) {
-    iconoEstado = '🚨';
 }
 // --- 2. Armado de la fila ---
 tr.innerHTML = `
@@ -417,36 +419,29 @@ tr.innerHTML = `
 
     // --- 4. ACCIONES (COBROS, EDICIÓN, CARGA) ---
     async function registrarCobroFull(id, saldoActual) {
-    // 1. Buscamos lo que ya hay en la base para no pisarlo
     const snap = await db.ref(`cobranzas/${id}`).once('value');
     const previo = snap.exists() ? snap.val() : { monto_cobrado: 0, monto_debito: 0, transferencia: "" };
 
-    // 2. Preguntamos cuánto entró al banco
-    let montoNuevo = parseFloat(prompt(`SALDO PENDIENTE: $${saldoActual.toFixed(2)}\n\n¿Cuánto entró al BANCO hoy?`, saldoActual.toFixed(2))) || 0;
+    // 1. Dinero que entró al banco
+    let montoNuevo = parseFloat(prompt(`SALDO PENDIENTE: $${saldoActual.toFixed(2)}\n\n¿Cuánto entró al BANCO?`, "0")) || 0;
     
-    // --- PRIMER CANDADO: No cobrar de más ---
-    if (montoNuevo > (saldoActual + 0.5)) { 
-        alert(`❌ ERROR: El cobro ($${montoNuevo}) supera la deuda ($${saldoActual.toFixed(2)}). Corregilo.`);
+    if (montoNuevo > (saldoActual + 1)) { 
+        alert(`❌ No podés cobrar más de la deuda ($${saldoActual.toFixed(2)})`);
         return; 
     }
 
-    // 3. Lógica de Débito (solo si queda algo de saldo)
-    let montoDebito = 0;
-    let saldoRestante = saldoActual - montoNuevo;
+    // 2. EL DÉBITO VUELVE (Ahora fuera de condiciones raras)
+    let saldoDespuesDeCobro = saldoActual - montoNuevo;
+    let montoDebito = parseFloat(prompt(`¿Hubo DÉBITO / DESCUENTO?\nSaldo máximo para descontar: $${saldoDespuesDeCobro.toFixed(2)}`, "0")) || 0;
     
-    if (saldoRestante > 0.5) {
-        montoDebito = parseFloat(prompt(`¿Hubo DÉBITO / DESCUENTO?\nSaldo sin cubrir: $${saldoRestante.toFixed(2)}`, "0")) || 0;
-        
-        // --- SEGUNDO CANDADO: El débito no puede ser magia ---
-        if (montoDebito > (saldoRestante + 0.5)) {
-            alert(`❌ ERROR: El débito ($${montoDebito}) no puede ser mayor al saldo ($${saldoRestante.toFixed(2)}).`);
-            return;
-        }
+    if (montoDebito > (saldoDespuesDeCobro + 1)) {
+        alert(`❌ El débito no puede superar el saldo restante.`);
+        return;
     }
 
-    const trans = prompt("Referencia (Nro de liquidación o transferencia):");
+    const trans = prompt("Referencia (Liquidación/Transf):");
 
-    // 4. GUARDADO ACUMULATIVO (Suma lo nuevo a lo viejo)
+    // 3. Guardado Acumulativo
     await db.ref(`cobranzas/${id}`).update({
         fecha_pago: new Date().toLocaleDateString('es-AR'),
         mes_cobro_index: new Date().toISOString().slice(0, 7),
@@ -455,9 +450,8 @@ tr.innerHTML = `
         transferencia: previo.transferencia ? previo.transferencia + " | " + (trans || "S/D") : (trans || "S/D")
     });
 
-    // 5. Refrescamos la pantalla para ver la pelota amarilla o el tilde verde
     renderizarTodo();
-}    
+} 
     async function actualizarRetManual(id, campo, valor) {
         const num = parseFloat(valor) || 0;
         await db.ref(`facturas_emitidas/${id}`).update({ [campo]: num });
