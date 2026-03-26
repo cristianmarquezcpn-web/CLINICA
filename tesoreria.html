@@ -109,33 +109,35 @@
     let refMes = null;
     let saldoFinalProyectado = 0;
 
-    // 1. ESCUCHA MOTOR IA (BANNERS Y VARIABLES)
-    db.ref('tesoreria/motor_ia').on('value', snap => {
-        motorGlobal = snap.val() || motorGlobal;
-        document.getElementById('motorVars').innerHTML = `
-            Efectividad: <b>${(motorGlobal.indice_cobranza*100).toFixed(1)}%</b><br>
-            Delay Promedio: <b>${motorGlobal.delay_historico} días</b><br>
-            Dólar MEP: <b>$${motorGlobal.mercado?.dolar_mep || '-'}</b><br>
-            Rinde Inversión: <b>${motorGlobal.mercado?.tasa_pf || 0}% TNA</b>`;
+    // 1. ESCUCHA MOTOR IA (ACTUALIZACIÓN EN TIEMPO REAL)
+db.ref('tesoreria/motor_ia').on('value', snap => {
+    motorGlobal = snap.val() || {};
+    const m = motorGlobal.mercado || {};
+    const intel = motorGlobal.inteligencia_cobro || {};
+    const cli = motorGlobal.clinica || {};
 
-        const banner = document.getElementById('iaBanner');
-        if (motorGlobal.oportunidades) {
-            const op = motorGlobal.oportunidades;
-            banner.style.display = "block";
-            if (op.monto_sugerido > 0) {
-                banner.innerHTML = `<div class="alerta-ia" style="display:block; background:rgba(16,185,129,0.1); border-color:var(--verde); color:white; border-left:10px solid var(--verde)">
-                    <h2 style="margin:0; color:var(--verde)">🚀 ¡INVERTÍ PELOTUDO! Ganás guita hoy.</h2>
-                    <p style="margin:5px 0">Tenés <b>$${op.monto_sugerido.toLocaleString()}</b> libres. Metelos en <b>${op.instrumento}</b>.</p>
-                </div>`;
-            } else {
-                banner.innerHTML = `<div class="alerta-ia" style="display:block; background:rgba(239,68,68,0.1); border-color:var(--rojo); color:white">
-                    <b>🛡️ MODO PROTECCIÓN:</b> No sobra un peso. Priorizar caja. <br><small>${op.instrumento}</small>
-                </div>`;
-            }
-        }
-        proyectarTodo();
-    });
+    // Cálculo del GAP (Diferencia entre tu inflación y la macro)
+    const infIndec = parseFloat(m.inflacion_mensual) || 0;
+    const infClinica = parseFloat(m.inflacion_real_clinica) || 0;
+    const gap = (infClinica - infIndec).toFixed(1);
+    const colorGap = gap > 0 ? 'var(--rojo)' : 'var(--verde)';
 
+    document.getElementById('motorVars').innerHTML = `
+        Efectividad Cobro: <b style="color:var(--verde)">${(cli.indice_cobranza * 100 || 0).toFixed(1)}%</b><br>
+        Delay Entrenado: <b>${intel.delay_entrenado_dias || 60} días</b>
+        <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
+        Inflación INDEC: <b>${infIndec}%</b><br>
+        Inflación Clínica: <b style="color:var(--rojo)">${infClinica}%</b><br>
+        <span style="font-size:10px; color:${colorGap}">⚠ DESFASAJE (GAP): <b>${gap}%</b></span>
+        <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
+        Dólar MEP: <b>$${m.dolar_mep || '-'}</b><br>
+        Tasa Plazo Fijo: <b>${m.tasa_plazo_fijo || 0}% TNA</b>
+    `;
+    
+    document.getElementById('statusIA').innerText = `Última sincronización: ${cli.ultima_sincro || 'Pendiente'}`;
+    actualizarBannerDinamico();
+    proyectarTodo();
+});
     // 2. CONECTAR MES Y ARRASTRE
     async function conectarMes() {
         const mes = document.getElementById('mesFiltro').value;
@@ -166,67 +168,64 @@
     }
 
     // 3. PROYECCIÓN BASADA EN COBRANZAS PENDIENTES (TU FLUJO)
-  async function proyectarTodo() {
+async function proyectarTodo() {
     const mesSeleccionado = document.getElementById('mesFiltro').value;
     if (!mesSeleccionado) return;
 
     let saldo = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
     let ingS = { 1: 0, 2: 0, 3: 0, 4: 0 }, gasS = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    let detalleFacturas = { 1: [], 2: [], 3: [], 4: [] };
-    let totalG = 0;
-
-    const [snapFacts, snapSaei, snapCobros] = await Promise.all([
+    
+    const [snapFacts, snapSaei, snapCobros, snapGastos] = await Promise.all([
         db.ref('facturas_emitidas').once('value'),
         db.ref('facturas_emitidas_saei').once('value'),
-        db.ref('cobranzas').once('value')
+        db.ref('cobranzas').once('value'),
+        db.ref('configuracion/gastos_recurrentes').once('value')
     ]);
 
-    const dataGral = snapFacts.val() || {};
-    const dataSaei = snapSaei.val() || {};
+    const todasLasFacturas = { ...(snapFacts.val() || {}), ...(snapSaei.val() || {}) };
     const cobranzas = snapCobros.val() || {};
-    const todasLasFacturas = { ...dataGral, ...dataSaei };
+    const gastosMaestros = snapGastos.val() || {};
 
-    // PROCESAR INGRESOS (Facturas con Delay IA)
+    // --- CAMBIO CLAVE AQUÍ: Usamos las variables del motor entrenado ---
+    const delayIA = motorGlobal.inteligencia_cobro?.delay_entrenado_dias || motorGlobal.delay_historico || 65;
+    const indiceIA = motorGlobal.clinica?.indice_cobranza || motorGlobal.indice_cobranza || 0.85;
+
     Object.keys(todasLasFacturas).forEach(id => {
         const f = todasLasFacturas[id];
-        if (!cobranzas[id] || !cobranzas[id].fecha_pago) {
-            let fechaBase = f.fecha_emision || f.fecha || f.fecha_peticion;
-            if (!fechaBase) return;
-            let partes = fechaBase.includes('/') ? fechaBase.split('/') : fechaBase.split('-');
-            let fCobro = fechaBase.includes('/') ? 
-                new Date(partes[2], partes[1] - 1, partes[0]) : 
-                new Date(partes[0], partes[1] - 1, partes[2]);
+        // Si el ID es el nodo raíz 'saei' o ya tiene fecha de pago, saltar
+        if (id === 'saei' || (cobranzas[id] && cobranzas[id].fecha_pago)) return;
 
-            fCobro.setDate(fCobro.getDate() + (motorGlobal.delay_historico || 65));
-            const mesCobro = `${fCobro.getFullYear()}-${String(fCobro.getMonth() + 1).padStart(2, '0')}`;
+        let fechaBase = f.fecha_emision || f.fecha || f.fecha_peticion;
+        if (!fechaBase) return;
 
-            if (mesCobro === mesSeleccionado) {
-                const s = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
-                const montoProyectado = parseFloat(f.total || f.monto || 0) * (motorGlobal.indice_cobranza || 0.85);
-                ingS[s] += montoProyectado;
-                const prefijo = dataSaei[id] ? "S-" : "";
-                detalleFacturas[s].push(`<div class="detalle-factura">${prefijo}${f.receptor_nombre?.substring(0,10) || 'Fact'}: <b>$${Math.round(montoProyectado/1000)}k</b></div>`);
-            }
+        let partes = fechaBase.includes('/') ? fechaBase.split('/') : fechaBase.split('-');
+        let fCobro = fechaBase.includes('/') ? new Date(partes[2], partes[1]-1, partes[0]) : new Date(partes[0], partes[1]-1, partes[2]);
+        
+        // Aplicamos el delay exacto que aprendió el motor
+        fCobro.setDate(fCobro.getDate() + delayIA);
+        const mesCobro = fCobro.toISOString().slice(0, 7);
+
+        if (mesCobro === mesSeleccionado) {
+            const s = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
+            // Aplicamos la efectividad de cobro real
+            const montoProyectado = parseFloat(f.total || f.monto || 0) * indiceIA;
+            ingS[s] += montoProyectado;
         }
     });
 
-    // PROCESAR GASTOS (Filtro Ciclo de Vida)
-    Object.values(datosMes.gastos || {}).forEach(cat => {
-        if (cat.items) {
-            cat.items.forEach(i => {
-                const inicia = !i.mesInicio || mesSeleccionado >= i.mesInicio;
-                const termina = !i.mesFin || mesSeleccionado <= i.mesFin;
-
+    Object.values(gastosMaestros).forEach(rubro => {
+        if (rubro.items) {
+            rubro.items.forEach(i => {
+                const inicia = !i.desde || mesSeleccionado >= i.desde;
+                const termina = !i.hasta || mesSeleccionado <= i.hasta;
                 if (inicia && termina) {
                     const s = parseInt(i.semana) || 1;
                     gasS[s] += (parseFloat(i.monto) || 0);
-                    totalG += (parseFloat(i.monto) || 0);
                 }
             });
         }
     });
 
-    // DIBUJAR INTERFAZ DE SEMANAS
     const grid = document.getElementById('gridSemanas');
     grid.innerHTML = "";
     for (let i = 1; i <= 4; i++) {
@@ -239,43 +238,83 @@
                     <span style="color:var(--verde)">+ $${Math.round(ingS[i]/1000)}k</span>
                     <span style="color:var(--rojo)">- $${Math.round(gasS[i]/1000)}k</span>
                 </div>
-                <div class="lista-detalles">${detalleFacturas[i].join('')}</div>
             </div>`;
     }
+
+    saldoFinalProyectado = saldo; 
+    db.ref(`tesoreria/meses/${mesSeleccionado}/cierre`).set(saldo);
+    actualizarBannerDinamico(mesSeleccionado);
 }
-// --- BANNER INTELIGENTE: CRUZANDO DATOS DE FIREBASE CON PROYECCIÓN ---
+// --- FUNCIÓN DEL BANNER (AFUERA, SOLA) ---
 function actualizarBannerDinamico(mesActual) {
     const banner = document.getElementById('iaBanner');
-    const op = motorGlobal.oportunidades || {};
+    const motor = motorGlobal || {};
+    const stress = motor.escenario_stress || {};
+    const op = motor.oportunidades || {};
+    const m = motor.mercado || {};
+    const intel = motor.inteligencia_cobro || {};
+    
+    // 1. CÁLCULO DE LICUACIÓN (Pérdida por tiempo de espera)
+    const infMensual = parseFloat(m.inflacion_mensual) || 0;
+    const delayReal = intel.delay_entrenado_dias || 65;
+    // Tasa de licuación: (Inflación diaria * días de espera)
+    const tasaLicuacion = (infMensual / 30) * delayReal; 
+    const perdidaLicuacion = Math.round(saldoFinalProyectado * (tasaLicuacion / 100));
+
+    const tasaFinal = m.tasa_pf || motor.fci_tna || 35;
     const hoy = new Date();
     const mesHoy = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}`;
 
-    if (mesActual === mesHoy) {
-        // MODO HOY: Trae la data literal de Firebase
-        banner.style.display = "block";
+    banner.style.display = "block";
+
+    // PRIORIDAD 1: SI HAY PELIGRO DE QUIEBRA
+    if (stress.resiste === false) {
         banner.innerHTML = `
-            <div class="alerta-ia" style="display:block; background:rgba(245,158,11,0.1); border-color:var(--oro); color:white; border-left:10px solid var(--oro)">
-                <h2 style="margin:0; color:var(--oro)">💡 CONSEJO IA PARA HOY</h2>
-                <p style="margin:5px 0">${op.alerta_inflacion || ''}</p>
-                <p style="margin:5px 0"><b>Sugerencia:</b> ${op.consejo_uva || ''} | <b>Instrumento:</b> ${op.instrumento || 'Caja'}</p>
+            <div class="alerta-ia" style="display:block; background:rgba(239,68,68,0.1); border-left:10px solid var(--rojo); color:white; padding:15px;">
+                <h2 style="margin:0; color:var(--rojo); font-size:16px">⚠️ ALERTA CRÍTICA: ${stress.alertaCEO || 'RIESGO DE CAJA'}</h2>
+                <p style="margin:5px 0">Saldo proyectado en crisis: <b style="color:var(--rojo)">$${Math.round(stress.saldoFinalStress || 0).toLocaleString()}</b></p>
+                <p style="margin:0; font-size:11px">Fecha estimada de quiebra: ${stress.fechaPeligro || 'Próximas semanas'}</p>
             </div>`;
-    } else {
-        // MODO FUTURO: Cálculo matemático basado en lo que sobra
+    } 
+    // PRIORIDAD 2: CONSEJO PARA EL MES ACTUAL + DATO DE LICUACIÓN
+    else if (mesActual === mesHoy) {
+        banner.innerHTML = `
+            <div class="alerta-ia" style="display:block; background:rgba(245,158,11,0.1); border-left:10px solid var(--oro); padding:15px;">
+                <div style="display:flex; justify-content:space-between; align-items:start;">
+                    <div>
+                        <h2 style="margin:0; color:var(--oro); font-size:14px">💡 CONSEJO IA PARA HOY</h2>
+                        <p style="margin:5px 0; font-size:12px">${op.alerta_inflacion || 'Mercado estable para operar.'}</p>
+                        <p style="margin:5px 0; font-size:11px"><b>Sugerencia:</b> ${op.consejo_uva || 'Mantener liquidez'}</p>
+                    </div>
+                    <div style="text-align:right; border-left:1px solid rgba(255,255,255,0.1); padding-left:10px;">
+                        <span style="font-size:10px; color:#ccc;">Pérdida por Licuación:</span><br>
+                        <b style="color:var(--rojo)">-$${perdidaLicuacion.toLocaleString()}</b><br>
+                        <small style="font-size:9px; color:var(--rojo)">(-${tasaLicuacion.toFixed(1)}% del valor)</small>
+                    </div>
+                </div>
+            </div>`;
+    } 
+    // PRIORIDAD 3: PROYECCIÓN A FUTURO
+    else {
         if (saldoFinalProyectado > 1000000) {
-            const gananciaEstimada = Math.round(saldoFinalProyectado * (motorGlobal.mercado?.tasa_pf / 100 / 12));
-            banner.style.display = "block";
+            const gananciaEstimada = Math.round(saldoFinalProyectado * (tasaFinal / 100 / 12));
             banner.innerHTML = `
-                <div class="alerta-ia" style="display:block; background:rgba(16,185,129,0.1); border-color:var(--verde); color:white; border-left:10px solid var(--verde)">
-                    <h2 style="margin:0; color:var(--verde)">💰 PROYECCIÓN DE RENDIMIENTO</h2>
-                    <p style="margin:5px 0">En ${mesActual} te sobrarían <b>$${Math.round(saldoFinalProyectado).toLocaleString()}</b>.</p>
-                    <p style="margin:5px 0">A la tasa de hoy (${motorGlobal.mercado?.tasa_pf || 35}%), ganarías <b>$${gananciaEstimada.toLocaleString()} extras</b> en 30 días.</p>
+                <div class="alerta-ia" style="display:block; background:rgba(16,185,129,0.1); border-left:10px solid var(--verde); padding:15px;">
+                    <h2 style="margin:0; color:var(--verde); font-size:14px">💰 OPORTUNIDAD DE RENDIMIENTO</h2>
+                    <p style="margin:5px 0">En ${mesActual} sobrarían <b>$${Math.round(saldoFinalProyectado).toLocaleString()}</b>.</p>
+                    <p style="margin:5px 0">Invertilo para ganar <b>$${gananciaEstimada.toLocaleString()} extras</b> (Tasa: ${tasaFinal}% TNA).</p>
+                    <p style="margin:0; font-size:10px; color:#888;">Nota: Ya se descontó la licuación teórica del periodo.</p>
                 </div>`;
         } else {
-            banner.style.display = "block";
-            banner.innerHTML = `<div class="alerta-ia" style="display:block; background:rgba(239,68,68,0.1); border-color:var(--rojo); color:white"><b>🛡️ ALERTA DE LIQUIDEZ:</b> Saldo proyectado bajo para ${mesActual}. No se recomienda invertir.</div>`;
+            banner.innerHTML = `
+                <div class="alerta-ia" style="display:block; background:rgba(59,130,246,0.1); border-left:10px solid var(--acento); padding:15px;">
+                    <h2 style="margin:0; color:var(--acento); font-size:14px">🛡️ MODO PROTECCIÓN</h2>
+                    <p style="margin:5px 0">Saldo bajo para ${mesActual}. Se recomienda priorizar la liquidez.</p>
+                    <p style="margin:0; font-size:10px; opacity:0.8">La espera de ${delayReal} días te está costando <b>$${perdidaLicuacion.toLocaleString()}</b> este mes.</p>
+                </div>`;
         }
     }
-}	   
+}
     // --- ENTRENAMIENTO Y MANTENIMIENTO ---
  // --- FUNCIONES DE APOYO DEL MOTOR IA ---
 function parseFecha(s) { 
@@ -311,36 +350,38 @@ function mediaPonderada(arr) {
     return Math.round(sum / arr.length); 
 }
    async function verificarYEntrenar() {
-    // 1. CAPTURA TOTAL DE DATOS (AMBOS PULMONES)
-    const [fSnap, sSnap] = await Promise.all([
+    // 1. CAPTURA TOTAL DE DATOS (Facturas de ambos pulmones + Gastos Maestros)
+    const [fSnap, sSnap, gSnap] = await Promise.all([
         db.ref('facturas_emitidas').once('value'),
-        db.ref('facturas_emitidas_saei').once('value')
+        db.ref('facturas_emitidas_saei').once('value'),
+        db.ref('configuracion/gastos_recurrentes').once('value') // <--- Nuevo: La IA ahora mira los gastos fijos
     ]);
     
-    // Unificamos el universo de facturas para que la IA aprenda del volumen total
     const facturas = { ...(fSnap.val() || {}), ...(sSnap.val() || {}) };
+    const gastosMaestros = gSnap.val() || {};
     const cantidadActual = Object.keys(facturas).length;
     
     // 2. VERIFICACIÓN DE ESTADO DEL MOTOR
     const motorSnap = await db.ref('tesoreria/motor_ia').once('value');
     const motorData = motorSnap.val() || { cantidad_entrenada: 0 };
 
-    // Solo disparamos el entrenamiento si hay facturas nuevas para procesar
+    // Solo entrenamos si hay facturas nuevas o si queremos forzar el aprendizaje del flujo de gastos
     if (cantidadActual !== motorData.cantidad_entrenada) {
-        document.getElementById('statusIA').innerText = "🤖 IA: Sincronizando Gral + SAEI...";
+        document.getElementById('statusIA').innerText = "🤖 IA: Analizando cobros y gastos fijos...";
         
-        // Traemos el historial de cobranzas para cruzar fechas
+        // Traemos el historial de cobranzas real
         const cSnap = await db.ref('cobranzas').once('value');
         const cobranzas = cSnap.val() || {};
         
         // 3. EJECUCIÓN DEL APRENDIZAJE
-        // Aquí la IA calcula el delay_historico y el indice_cobranza real
-        await ejecutarIA(facturas, cobranzas);
+        // Pasamos facturas, cobranzas y ahora también la estructura de gastos
+        await ejecutarIA(facturas, cobranzas, gastosMaestros);
         
         // 4. ACTUALIZACIÓN DE METADATOS
         await db.ref('tesoreria/motor_ia').update({ 
             cantidad_entrenada: cantidadActual, 
-            ultima_sincro: new Date().toLocaleString() 
+            ultima_sincro: new Date().toLocaleString(),
+            estado: "optimizado"
         });
         
         document.getElementById('statusIA').innerText = "✅ Motor Sincronizado";
@@ -351,86 +392,130 @@ function mediaPonderada(arr) {
         document.getElementById('statusIA').innerText = "✅ Motor al día";
     }
 }
-async function ejecutarIA(f, c) {
+async function ejecutarIA(f, c, g) {
     let delays = []; 
     let cobradas = 0; 
     let emitidas = Object.keys(f).length;
+    let burnRateMensual = 0;
 
+    // 1. ANÁLISIS DE COBRANZAS (Cálculo de eficiencia)
     Object.keys(f).forEach(id => {
         const fact = f[id];
-        // Solo analizamos si existe la cobranza y tiene fecha de pago confirmada
         if (c[id] && c[id].fecha_pago) {
-            
-            // Buscamos la fecha de origen (emisión manual o petición SAEI)
-            const fechaEmiStr = fact.fecha_emision || fact.fecha || fact.fecha_peticion;
-            const fEmi = parseFecha(fechaEmiStr);
+            const fEmi = parseFecha(fact.fecha_emision || fact.fecha || fact.fecha_peticion);
             const fPag = parseFecha(c[id].fecha_pago);
-
             if (fEmi && fPag) {
-                // Calculamos la diferencia en días
                 const diff = Math.floor((fPag - fEmi) / 86400000);
-                
-                // Filtro de cordura: descartamos errores de carga (negativos) 
-                // o facturas de más de 200 días que ensucian el promedio actual
-                if (diff >= 0 && diff < 200) {
-                    delays.push(diff);
-                }
+                if (diff >= 0 && diff < 200) delays.push(diff);
                 cobradas++;
             }
         }
     });
 
-    // --- CÁLCULOS ESTADÍSTICOS ---
-    
-    // 1. Delay Real: Limpiamos extremos (outliers) y sacamos la media.
-    // Esto evita que una factura que tardó 1 año en pagarse te arruine la proyección.
-    const delayReal = delays.length > 0 ? mediaPonderada(limpiarOutliers(delays)) : 65;
+    // 2. CÁLCULOS ESTADÍSTICOS
+    const delayFinal = mediaPonderada(limpiarOutliers(delays));
+    const indiceCobranza = emitidas > 0 ? (cobradas / emitidas) : 0.85;
 
-    // 2. Efectividad Real: ¿Qué porcentaje de lo que emitimos realmente se cobra?
-    // Esto ajusta el monto del Cash Flow (si emitís 100k y cobrás el 85%, proyecta 85k).
-    const efectividadReal = emitidas > 0 ? (cobradas / emitidas) : 0.85;
-
-    // 3. Actualización del Motor en Firebase
-    await db.ref('tesoreria/motor_ia').update({ 
-        delay_historico: delayReal, 
-        indice_cobranza: efectividadReal 
+    // 3. ANÁLISIS DE GASTOS Y STRESS TEST
+    Object.values(g || {}).forEach(rubro => {
+        if (rubro.items) {
+            rubro.items.forEach(i => { if (!i.hasta) burnRateMensual += (parseFloat(i.monto) || 0); });
+        }
     });
+
+    // --- AQUÍ EMPIEZA LA MAGIA: TOMA DE DECISIONES ---
+    
+    // Simulamos un escenario de Stress: ¿Qué pasa si cobramos solo el 70%?
+    const saldoActual = (parseFloat(document.getElementById('bancoGalicia')?.value) || 0) + (parseFloat(document.getElementById('bancoSantander')?.value) || 0);
+    const riesgoQuiebra = saldoActual < (burnRateMensual * 0.5); // Si no cubrimos ni medio mes de gastos fijos
+    
+    const escenario_stress = {
+        resiste: !riesgoQuiebra,
+        alertaCEO: riesgoQuiebra ? "RIESGO DE LIQUIDEZ INMEDIATO" : "FLUJO CONTROLADO",
+        saldoFinalStress: saldoActual - burnRateMensual,
+        fechaPeligro: riesgoQuiebra ? "Próximos 15 días" : "Sin riesgo a la vista"
+    };
+
+    // Calculamos Oportunidades (Si sobra más de un 20% del burn rate)
+    const excedente = saldoActual - (burnRateMensual * 1.2);
+    const oportunidades = {
+        monto_sugerido: excedente > 500000 ? Math.round(excedente) : 0,
+        instrumento: "FCI Galicia / Money Market",
+        alerta_inflacion: "Inflación proyectada estable. No dejar pesos quietos.",
+        consejo_uva: "Usa fondos con rescate inmediato por si surge una emergencia."
+    };
+
+    // 4. GUARDADO COMPLETO EN FIREBASE
+    const dataUpdate = {
+        delay_historico: delayFinal,
+        indice_cobranza: indiceCobranza,
+        burn_rate_fijo: burnRateMensual,
+        salud_financiera: riesgoQuiebra ? "CRÍTICO" : "ESTABLE",
+        escenario_stress: escenario_stress, // <--- Esto hace que salga el cartel rojo
+        oportunidades: oportunidades,       // <--- Esto hace que salga el cartel verde
+        ultima_actualizacion: new Date().toISOString()
+    };
+
+    await db.ref('tesoreria/motor_ia').update(dataUpdate);
+
+    // Actualizamos variables locales
+    motorGlobal = { ...motorGlobal, ...dataUpdate };
+    
+    console.log("🚀 Motor IA: Decisiones actualizadas en Firebase");
 }
-    // --- GESTIÓN DE UI ---
-   function dibujarGastos() {
+       function dibujarGastos() {
     const cont = document.getElementById('contGastos');
     cont.innerHTML = "";
     const mesSeleccionado = document.getElementById('mesFiltro').value;
 
-    Object.keys(datosMes.gastos || {}).forEach(cat => {
-        const rubro = datosMes.gastos[cat];
-        let itemsHtml = (rubro.items || []).map((it, i) => {
-            if (it.mesInicio && mesSeleccionado < it.mesInicio) return '';
-            if (it.mesFin && mesSeleccionado > it.mesFin) return '';
+    // Ahora leemos de un nodo central, no del mes
+    db.ref('configuracion/gastos_recurrentes').once('value', snapshot => {
+        const gastos = snapshot.val() || {};
+        
+        Object.keys(gastos).forEach(cat => {
+            const rubro = gastos[cat];
+            let itemsHtml = (rubro.items || []).map((it, i) => {
+                // FILTRO AUTOMÁTICO DE LÍNEA DE TIEMPO
+                if (it.desde && mesSeleccionado < it.desde) return '';
+                if (it.hasta && mesSeleccionado > it.hasta) return '';
 
-            return `
-            <div class="item-gasto-container">
-                <div style="display:flex; gap:5px; align-items:center;">
-                    <input value="${it.nombre}" onchange="updateItem('${cat}', ${i}, 'nombre', this.value)" style="flex:1">
-                    <input type="number" value="${it.monto}" onchange="updateItem('${cat}', ${i}, 'monto', this.value)" style="width:80px; color:var(--verde);">
-                    <button onclick="eliminarFilaGasto('${cat}', ${i})">✕</button>
-                </div>
-                <div style="display:flex; justify-content:space-between; margin-top:4px;">
-                    <span style="font-size:8px; color:var(--acento);">🚀 ${it.mesInicio || 'Origen'} ${it.mesFin ? ' 🏁 Fin: '+it.mesFin : ''}</span>
-                    <div style="display:flex; gap:4px;">
-                        <select onchange="updateItem('${cat}', ${i}, 'semana', this.value)" style="font-size:9px;">
-                            <option value="1" ${it.semana==1?'selected':''}>S1</option>
-                            <option value="2" ${it.semana==2?'selected':''}>S2</option>
-                            <option value="3" ${it.semana==3?'selected':''}>S3</option>
-                            <option value="4" ${it.semana==4?'selected':''}>S4</option>
-                        </select>
-                        <button onclick="setearFechaFin('${cat}', ${i})" style="font-size:8px; padding:2px 4px;">📅 FIN</button>
+                return `
+                <div class="gasto-row" style="border-left: 4px solid ${it.hasta === mesSeleccionado ? 'var(--rojo)' : 'var(--acento)'}">
+                    <div class="gasto-header">
+                        <input class="gasto-input-txt" value="${it.nombre}" onchange="updateGastoRecurrente('${cat}', ${i}, 'nombre', this.value)">
+                        <button onclick="eliminarGastoRecurrente('${cat}', ${i})" style="color:#ef4444; background:none; border:none; cursor:pointer;">✕</button>
                     </div>
-                </div>
-            </div>`;
-        }).join('');
+                    
+                    <div class="gasto-inputs" style="display:grid; grid-template-columns: 1fr 1fr 80px; gap:10px;">
+                        <div style="position:relative;">
+                            <span style="position:absolute; left:5px; top:8px; color:var(--verde);">$</span>
+                            <input type="number" value="${it.monto}" onchange="updateGastoRecurrente('${cat}', ${i}, 'monto', this.value)" style="padding-left:15px; font-weight:bold;">
+                        </div>
+                        <select onchange="updateGastoRecurrente('${cat}', ${i}, 'semana', this.value)">
+                            <option value="1" ${it.semana==1?'selected':''}>Semana 1</option>
+                            <option value="2" ${it.semana==2?'selected':''}>Semana 2</option>
+                            <option value="3" ${it.semana==3?'selected':''}>Semana 3</option>
+                            <option value="4" ${it.semana==4?'selected':''}>Semana 4</option>
+                        </select>
+                         <button class="btn-mini" style="height:35px" onclick="cambiarPeriodo('${cat}', ${i})">📅 PLAZO</button>
+                    </div>
 
-        cont.innerHTML += `<div class="card"><b>${cat}</b> <button onclick="agregarFilaARubro('${cat}')">+</button> ${itemsHtml}</div>`;
+                    <div style="margin-top:8px; display:flex; gap:10px;">
+                        <span class="gasto-badge badge-inicio">DESDE: ${it.desde || 'SIEMPRE'}</span>
+                        <span class="gasto-badge ${it.hasta ? 'badge-fin' : ''}">${it.hasta ? 'HASTA: ' + it.hasta : 'INDEFINIDO'}</span>
+                    </div>
+                </div>`;
+            }).join('');
+
+            cont.innerHTML += `
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                        <h3 style="margin:0; font-size:14px; letter-spacing:1px;">${cat.toUpperCase()}</h3>
+                        <button class="btn-mini" onclick="nuevoGastoRecurrente('${cat}')" style="background:var(--acento); color:white;">+ AÑADIR</button>
+                    </div>
+                    ${itemsHtml}
+                </div>`;
+        });
     });
 }
     function updateItem(cat, idx, campo, valor) {
@@ -447,9 +532,14 @@ async function ejecutarIA(f, c) {
     }
 
     function nuevaCategoria() {
-        const n = prompt("Nombre Rubro:");
-        if(n) db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/gastos/${n.toUpperCase()}`).set({ semana: 1, items: [{nombre: n, monto: 0}] });
+    const n = prompt("Nombre del nuevo Rubro (ej: IMPUESTOS, SEGUROS):");
+    if(n) {
+        // Guardamos en la configuración global, no solo en el mes
+        db.ref(`configuracion/gastos_recurrentes/${n.toUpperCase()}`).set({ 
+            items: [{ nombre: "Gasto Inicial", monto: 0, semana: 1, desde: document.getElementById('mesFiltro').value }] 
+        }).then(() => dibujarGastos());
     }
+}
 
     function simularImpacto() {
         const monto = parseFloat(document.getElementById('simMonto').value) || 0;
@@ -472,83 +562,96 @@ async function ejecutarIA(f, c) {
     };
 
     async function sincronizacionTotal() {
-        const btn = event.target;
-        const originalText = btn.innerText;
-        btn.innerText = "⏳ PROCESANDO...";
-        btn.disabled = true;
+    const btn = event.target;
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ PROCESANDO...";
+    btn.disabled = true;
 
-        try {
-            console.log("--- Iniciando Sincronización Profunda ---");
-            
-            const [fSnap, sSnap, cSnap] = await Promise.all([
-                db.ref('facturas_emitidas').once('value'),
-                db.ref('facturas_emitidas_saei').once('value'),
-                db.ref('cobranzas').once('value')
-            ]);
-            
-            const facturas = { ...(fSnap.val() || {}), ...(sSnap.val() || {}) };
-            const cobranzas = cSnap.val() || {};
-            
-            await ejecutarIA(facturas, cobranzas);
-            await conectarMes();
-            await proyectarTodo();
+    try {
+        // Traemos TODO: Facturas, Cobranzas y la Lista Maestra de Gastos
+        const [fSnap, sSnap, cSnap, gSnap] = await Promise.all([
+            db.ref('facturas_emitidas').once('value'),
+            db.ref('facturas_emitidas_saei').once('value'),
+            db.ref('cobranzas').once('value'),
+            db.ref('configuracion/gastos_recurrentes').once('value') // <--- Faltaba esto
+        ]);
+        
+        const facturas = { ...(fSnap.val() || {}), ...(sSnap.val() || {}) };
+        const cobranzas = cSnap.val() || {};
+        const gastosMaestros = gSnap.val() || {};
+        
+        // Ahora sí, ejecutamos con los 3 argumentos
+        await ejecutarIA(facturas, cobranzas, gastosMaestros); 
+        await conectarMes();
+        await proyectarTodo();
 
-            document.getElementById('statusIA').innerText = "🚀 Sincronización manual exitosa";
-            btn.innerText = "✅ ¡LISTO!";
-            
-            setTimeout(() => {
-                btn.innerText = originalText;
-                btn.disabled = false;
-            }, 2000);
+        btn.innerText = "✅ ¡LISTO!";
+        setTimeout(() => { btn.innerText = originalText; btn.disabled = false; }, 2000);
 
-        } catch (e) {
-            console.error("Error en sincro:", e);
-            btn.innerText = "❌ ERROR";
-            btn.disabled = false;
-        }
+    } catch (e) {
+        console.error("Error en sincro:", e);
+        btn.innerText = "❌ ERROR";
+        btn.disabled = false;
     }
-function agregarFilaARubro(cat) {
+}
+    function nuevoGastoRecurrente(cat) {
     const mesActual = document.getElementById('mesFiltro').value;
-    if (!datosMes.gastos[cat].items) datosMes.gastos[cat].items = [];
-    
-    datosMes.gastos[cat].items.push({
-        nombre: "Nuevo Gasto",
-        monto: 0,
-        semana: 1,
-        mesInicio: mesActual // <--- IMPORTANTE: Se marca cuándo nació
+    db.ref(`configuracion/gastos_recurrentes/${cat}/items`).once('value', snap => {
+        const items = snap.val() || [];
+        items.push({
+            nombre: "Nuevo Gasto",
+            monto: 0,
+            semana: 1,
+            desde: mesActual, // Nace en el mes que estás viendo
+            hasta: ""         // Por defecto es para siempre
+        });
+        db.ref(`configuracion/gastos_recurrentes/${cat}/items`).set(items).then(() => {
+            dibujarGastos();
+            proyectarTodo();
+        });
     });
+}
+
+function updateGastoRecurrente(cat, idx, campo, valor) {
+    db.ref(`configuracion/gastos_recurrentes/${cat}/items/${idx}`).update({ [campo]: valor })
+      .then(() => proyectarTodo());
+}
+
+function cambiarPeriodo(cat, idx) {
+    const d = prompt("¿Desde qué mes impacta? (YYYY-MM)", "2026-01");
+    const h = prompt("¿Hasta qué mes impacta? (Dejar vacío si es fijo)", "");
     
-    // Guardamos en Firebase y redibujamos
-    db.ref(`tesoreria/meses/${mesActual}/gastos/${cat}`).set(datosMes.gastos[cat])
+    const updates = {};
+    if(d) updates.desde = d;
+    updates.hasta = h || null;
+
+    db.ref(`configuracion/gastos_recurrentes/${cat}/items/${idx}`).update(updates)
       .then(() => {
           dibujarGastos();
           proyectarTodo();
       });
 }
+ function cambiarPeriodo(cat, idx) {
+    const d = prompt("¿Desde qué mes impacta? (YYYY-MM)", "2026-01");
+    const h = prompt("¿Hasta qué mes impacta? (Dejar vacío si es fijo)", "");
+    
+    const updates = {};
+    if(d) updates.desde = d;
+    updates.hasta = h || null;
 
-    function eliminarFilaGasto(cat, idx) {
-        if(!confirm("¿Eliminar este gasto?")) return;
-        const mesActual = document.getElementById('mesFiltro').value;
-        db.ref(`tesoreria/meses/${mesActual}/gastos/${cat}/items/${idx}`).remove()
-          .then(() => proyectarTodo());
-    }
-
-    function updateItem(cat, idx, campo, valor) {
-        const mesActual = document.getElementById('mesFiltro').value;
-        if(campo === 'monto' || campo === 'semana') valor = parseFloat(valor) || 0;
-        db.ref(`tesoreria/meses/${mesActual}/gastos/${cat}/items/${idx}`).update({ [campo]: valor })
-          .then(() => proyectarTodo());
-    }
-    function setearFechaFin(cat, idx) {
-    const mesActual = document.getElementById('mesFiltro').value;
-    if (confirm(`¿Este gasto finaliza en ${mesActual}?`)) {
-        db.ref(`tesoreria/meses/${mesActual}/gastos/${cat}/items/${idx}`)
-          .update({ mesFin: mesActual })
-          .then(() => {
-              proyectarTodo();
-              dibujarGastos();
-          });
-    }
+    db.ref(`configuracion/gastos_recurrentes/${cat}/items/${idx}`).update(updates)
+      .then(() => {
+          dibujarGastos();
+          proyectarTodo();
+      });
+}
+function eliminarGastoRecurrente(cat, idx) {
+    if(!confirm("¿Eliminar este gasto de la lista maestra?")) return;
+    db.ref(`configuracion/gastos_recurrentes/${cat}/items/${idx}`).remove()
+      .then(() => {
+          dibujarGastos();
+          proyectarTodo();
+      });
 }
     auth.onAuthStateChanged((user) => {
         if (user) {
@@ -563,6 +666,4 @@ function agregarFilaARubro(cat) {
 </script>
 </body>
 </html>
-</script>
-</body>
-</html>
+
