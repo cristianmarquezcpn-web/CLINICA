@@ -166,7 +166,7 @@
     }
 
     // 3. PROYECCIÓN BASADA EN COBRANZAS PENDIENTES (TU FLUJO)
-    async function proyectarTodo() {
+  async function proyectarTodo() {
     const mesSeleccionado = document.getElementById('mesFiltro').value;
     if (!mesSeleccionado) return;
 
@@ -175,7 +175,6 @@
     let detalleFacturas = { 1: [], 2: [], 3: [], 4: [] };
     let totalG = 0;
 
-    // 1. LLAMADA UNIFICADA A LOS NODOS
     const [snapFacts, snapSaei, snapCobros] = await Promise.all([
         db.ref('facturas_emitidas').once('value'),
         db.ref('facturas_emitidas_saei').once('value'),
@@ -187,16 +186,15 @@
     const cobranzas = snapCobros.val() || {};
     const todasLasFacturas = { ...dataGral, ...dataSaei };
 
-    // 2. ESCANEO DE FACTURAS PENDIENTES
+    // PROCESAR INGRESOS (Facturas con Delay IA)
     Object.keys(todasLasFacturas).forEach(id => {
         const f = todasLasFacturas[id];
         if (!cobranzas[id] || !cobranzas[id].fecha_pago) {
             let fechaBase = f.fecha_emision || f.fecha || f.fecha_peticion;
             if (!fechaBase) return;
-
             let partes = fechaBase.includes('/') ? fechaBase.split('/') : fechaBase.split('-');
-            let fCobro = fechaBase.includes('/') ?
-                new Date(partes[2], partes[1] - 1, partes[0]) :
+            let fCobro = fechaBase.includes('/') ? 
+                new Date(partes[2], partes[1] - 1, partes[0]) : 
                 new Date(partes[0], partes[1] - 1, partes[2]);
 
             fCobro.setDate(fCobro.getDate() + (motorGlobal.delay_historico || 65));
@@ -206,55 +204,45 @@
                 const s = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
                 const montoProyectado = parseFloat(f.total || f.monto || 0) * (motorGlobal.indice_cobranza || 0.85);
                 ingS[s] += montoProyectado;
-
                 const prefijo = dataSaei[id] ? "S-" : "";
-                const cliente = f.receptor_nombre || f.cliente || f.id_paciente || "Factura";
-                detalleFacturas[s].push(`
-                    <div class="detalle-factura" style="font-size:9px; border-bottom:1px solid #1f2937; padding:2px 0;">
-                        ${prefijo}${cliente.substring(0, 12)}: <b>$${Math.round(montoProyectado / 1000)}k</b>
-                    </div>`);
+                detalleFacturas[s].push(`<div class="detalle-factura">${prefijo}${f.receptor_nombre?.substring(0,10) || 'Fact'}: <b>$${Math.round(montoProyectado/1000)}k</b></div>`);
             }
         }
     });
-   Object.values(datosMes.gastos || {}).forEach(cat => {
+
+    // PROCESAR GASTOS (Filtro Ciclo de Vida)
+    Object.values(datosMes.gastos || {}).forEach(cat => {
         if (cat.items) {
             cat.items.forEach(i => {
-                // Solo impacta si el mes actual es >= al mes de inicio del gasto
-                // Si no tiene mesInicio (gastos viejos), impacta siempre.
-                if (!i.mesInicio || mesSeleccionado >= i.mesInicio) {
+                const inicia = !i.mesInicio || mesSeleccionado >= i.mesInicio;
+                const termina = !i.mesFin || mesSeleccionado <= i.mesFin;
+
+                if (inicia && termina) {
                     const s = parseInt(i.semana) || 1;
-                    const m = parseFloat(i.monto) || 0;
-                    gasS[s] += m;
-                    totalG += m;
+                    gasS[s] += (parseFloat(i.monto) || 0);
+                    totalG += (parseFloat(i.monto) || 0);
                 }
             });
         }
     });
-    // 4. DIBUJAR GRID SEMANAL
+
+    // DIBUJAR INTERFAZ DE SEMANAS
     const grid = document.getElementById('gridSemanas');
     grid.innerHTML = "";
     for (let i = 1; i <= 4; i++) {
-        saldo += (ingS[i] - gasS[i]); // El saldo se acumula semana a semana
-        const lista = detalleFacturas[i].length > 0 ? `<div style="margin-top:auto; background:#0a0f18; padding:5px; border-radius:5px;">${detalleFacturas[i].join('')}</div>` : "";
+        saldo += (ingS[i] - gasS[i]);
         grid.innerHTML += `
             <div class="sem-card" style="border-color:${saldo < 0 ? 'var(--rojo)':'var(--verde)'}">
-                <div>
-                    <span style="font-size:9px">SEM ${i}</span>
-                    <b class="monto-final" style="color:${saldo < 0 ? 'var(--rojo)':'white'}">$${Math.round(saldo).toLocaleString()}</b>
-                    <div style="display:flex; justify-content:space-between; font-size:9px; margin-top:5px;">
-                        <span style="color:var(--verde)">+ $${Math.round(ingS[i] / 1000)}k</span>
-                        <span style="color:var(--rojo)">- $${Math.round(gasS[i] / 1000)}k</span>
-                    </div>
+                <span style="font-size:9px">SEM ${i}</span>
+                <b class="monto-final" style="color:${saldo < 0 ? 'var(--rojo)':'white'}">$${Math.round(saldo).toLocaleString()}</b>
+                <div style="display:flex; justify-content:space-between; font-size:9px; margin-top:5px;">
+                    <span style="color:var(--verde)">+ $${Math.round(ingS[i]/1000)}k</span>
+                    <span style="color:var(--rojo)">- $${Math.round(gasS[i]/1000)}k</span>
                 </div>
-                ${lista}
+                <div class="lista-detalles">${detalleFacturas[i].join('')}</div>
             </div>`;
     }
-
-    saldoFinalProyectado = saldo;
-    db.ref(`tesoreria/meses/${mesSeleccionado}/cierre`).set(saldo);
-    actualizarBannerDinamico(mesSeleccionado); 
 }
-
 // --- BANNER INTELIGENTE: CRUZANDO DATOS DE FIREBASE CON PROYECCIÓN ---
 function actualizarBannerDinamico(mesActual) {
     const banner = document.getElementById('iaBanner');
@@ -409,37 +397,42 @@ async function ejecutarIA(f, c) {
     });
 }
     // --- GESTIÓN DE UI ---
-    function dibujarGastos() {
-        const cont = document.getElementById('contGastos');
-        cont.innerHTML = "";
-        const mesActualCarga = document.getElementById('mesFiltro').value;
+   function dibujarGastos() {
+    const cont = document.getElementById('contGastos');
+    cont.innerHTML = "";
+    const mesSeleccionado = document.getElementById('mesFiltro').value;
 
-        Object.keys(datosMes.gastos || {}).forEach(cat => {
-            const rubro = datosMes.gastos[cat];
-            let itemsHtml = (rubro.items || []).map((it, i) => `
-                <div style="display:flex; gap:5px; margin-bottom:8px; align-items:center;">
-                    <input value="${it.nombre}" placeholder="Nombre" onchange="updateItem('${cat}', ${i}, 'nombre', this.value)" style="margin:0; font-size:11px;">
-                    <input type="number" value="${it.monto}" placeholder="$" style="width:90px; margin:0;" onchange="updateItem('${cat}', ${i}, 'monto', this.value)">
-                    <select onchange="updateItem('${cat}', ${i}, 'semana', this.value)" style="background:#05070a; color:white; border:1px solid #374151; border-radius:4px; padding:5px;">
-                        <option value="1" ${it.semana == 1 ? 'selected' : ''}>S1</option>
-                        <option value="2" ${it.semana == 2 ? 'selected' : ''}>S2</option>
-                        <option value="3" ${it.semana == 3 ? 'selected' : ''}>S3</option>
-                        <option value="4" ${it.semana == 4 ? 'selected' : ''}>S4</option>
-                    </select>
-                    <button onclick="eliminarFilaGasto('${cat}', ${i})" style="background:none; border:none; color:var(--rojo); cursor:pointer;">✕</button>
-                </div>`).join('');
+    Object.keys(datosMes.gastos || {}).forEach(cat => {
+        const rubro = datosMes.gastos[cat];
+        let itemsHtml = (rubro.items || []).map((it, i) => {
+            if (it.mesInicio && mesSeleccionado < it.mesInicio) return '';
+            if (it.mesFin && mesSeleccionado > it.mesFin) return '';
 
-            cont.innerHTML += `
-                <div class="card" style="background:rgba(255,255,255,0.03); border-left:4px solid var(--acento);">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                        <b style="font-size:11px;">${cat}</b>
-                        <button onclick="agregarFilaARubro('${cat}')" style="background:var(--acento); border:none; color:white; border-radius:4px; padding:2px 8px; cursor:pointer; font-size:12px;">+</button>
+            return `
+            <div class="item-gasto-container">
+                <div style="display:flex; gap:5px; align-items:center;">
+                    <input value="${it.nombre}" onchange="updateItem('${cat}', ${i}, 'nombre', this.value)" style="flex:1">
+                    <input type="number" value="${it.monto}" onchange="updateItem('${cat}', ${i}, 'monto', this.value)" style="width:80px; color:var(--verde);">
+                    <button onclick="eliminarFilaGasto('${cat}', ${i})">✕</button>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top:4px;">
+                    <span style="font-size:8px; color:var(--acento);">🚀 ${it.mesInicio || 'Origen'} ${it.mesFin ? ' 🏁 Fin: '+it.mesFin : ''}</span>
+                    <div style="display:flex; gap:4px;">
+                        <select onchange="updateItem('${cat}', ${i}, 'semana', this.value)" style="font-size:9px;">
+                            <option value="1" ${it.semana==1?'selected':''}>S1</option>
+                            <option value="2" ${it.semana==2?'selected':''}>S2</option>
+                            <option value="3" ${it.semana==3?'selected':''}>S3</option>
+                            <option value="4" ${it.semana==4?'selected':''}>S4</option>
+                        </select>
+                        <button onclick="setearFechaFin('${cat}', ${i})" style="font-size:8px; padding:2px 4px;">📅 FIN</button>
                     </div>
-                    ${itemsHtml}
-                </div>`;
-        });
-    }
+                </div>
+            </div>`;
+        }).join('');
 
+        cont.innerHTML += `<div class="card"><b>${cat}</b> <button onclick="agregarFilaARubro('${cat}')">+</button> ${itemsHtml}</div>`;
+    });
+}
     function updateItem(cat, idx, campo, valor) {
         if(campo==='monto') valor = parseFloat(valor)||0;
         db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/gastos/${cat}/items/${idx}`).update({[campo]: valor});
@@ -515,20 +508,23 @@ async function ejecutarIA(f, c) {
         }
     }
 function agregarFilaARubro(cat) {
-        const mesActual = document.getElementById('mesFiltro').value;
-        const rubroRef = db.ref(`tesoreria/meses/${mesActual}/gastos/${cat}/items`);
-        
-        rubroRef.once('value', snap => {
-            const items = snap.val() || [];
-            items.push({
-                nombre: "Nuevo Gasto",
-                monto: 0,
-                semana: 1,
-                mesInicio: mesActual // Solo impacta desde este mes en adelante
-            });
-            rubroRef.set(items).then(() => proyectarTodo());
-        });
-    }
+    const mesActual = document.getElementById('mesFiltro').value;
+    if (!datosMes.gastos[cat].items) datosMes.gastos[cat].items = [];
+    
+    datosMes.gastos[cat].items.push({
+        nombre: "Nuevo Gasto",
+        monto: 0,
+        semana: 1,
+        mesInicio: mesActual // <--- IMPORTANTE: Se marca cuándo nació
+    });
+    
+    // Guardamos en Firebase y redibujamos
+    db.ref(`tesoreria/meses/${mesActual}/gastos/${cat}`).set(datosMes.gastos[cat])
+      .then(() => {
+          dibujarGastos();
+          proyectarTodo();
+      });
+}
 
     function eliminarFilaGasto(cat, idx) {
         if(!confirm("¿Eliminar este gasto?")) return;
@@ -543,6 +539,17 @@ function agregarFilaARubro(cat) {
         db.ref(`tesoreria/meses/${mesActual}/gastos/${cat}/items/${idx}`).update({ [campo]: valor })
           .then(() => proyectarTodo());
     }
+    function setearFechaFin(cat, idx) {
+    const mesActual = document.getElementById('mesFiltro').value;
+    if (confirm(`¿Este gasto finaliza en ${mesActual}?`)) {
+        db.ref(`tesoreria/meses/${mesActual}/gastos/${cat}/items/${idx}`)
+          .update({ mesFin: mesActual })
+          .then(() => {
+              proyectarTodo();
+              dibujarGastos();
+          });
+    }
+}
     auth.onAuthStateChanged((user) => {
         if (user) {
             console.log("Tesorería autorizada para:", user.email);
