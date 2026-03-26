@@ -319,6 +319,12 @@ if (!firebase.apps.length) {
                 iconoEstado = '🔙'; 
                 mostrarBotonCobro = false; 
             }
+			// --- FORMATEO DE NÚMEROS (Punto de Venta y Nro Comp) ---
+            const pv = f.punto_venta ? String(f.punto_venta).padStart(5, '0') : '00005';
+            const nc = f.nro_comp ? String(f.nro_comp).padStart(8, '0') : '00000000';
+            const comprobanteFormateado = `${pv}-${nc}`;
+
+            const tr = document.createElement('tr');
 			const tr = document.createElement('tr');
             if (esNC) tr.className = "nc-row";
             else if (!estaPagada && mora >= 75) tr.className = "alerta-mora";
