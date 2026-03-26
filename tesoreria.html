@@ -145,6 +145,7 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
         🏦 Tasa Plazo Fijo: <b>${pfVista.toFixed(1)}%</b><br>
         📱 Billeteras (FCI): <b style="color:var(--verde)">${fciVista.toFixed(1)}%</b><br>
         <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
+        📊 Inflación INDEC: <b>${infIndec}%</b><br>
         Inflación Clínica: <b style="color:var(--rojo)">${infClinica}%</b><br>
         <span style="font-size:10px; color:${colorGap}">⚠ DESFASAJE (GAP): <b>${gap}%</b></span>
     `;
@@ -191,7 +192,8 @@ async function proyectarTodo() {
 
     let saldo = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
     let ingS = { 1: 0, 2: 0, 3: 0, 4: 0 }, gasS = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    
+    let detI = { 1: [], 2: [], 3: [], 4: [] }; // Detalle Ingresos
+    let detG = { 1: [], 2: [], 3: [], 4: [] }; // Detalle Gastos
     const [snapFacts, snapSaei, snapCobros, snapGastos] = await Promise.all([
         db.ref('facturas_emitidas').once('value'),
         db.ref('facturas_emitidas_saei').once('value'),
@@ -227,6 +229,7 @@ async function proyectarTodo() {
             // Aplicamos la efectividad de cobro real
             const montoProyectado = parseFloat(f.total || f.monto || 0) * indiceIA;
             ingS[s] += montoProyectado;
+            detI[s].push(`<span style="color:#3b82f6">🤖 ${f.cliente || 'O.S.'}</span>`);
         }
     });
 
@@ -238,6 +241,7 @@ async function proyectarTodo() {
                 if (inicia && termina) {
                     const s = parseInt(i.semana) || 1;
                     gasS[s] += (parseFloat(i.monto) || 0);
+                    detG[s].push(`<span style="color:var(--rojo)">${i.nombre}</span>`);
                 }
             });
         }
@@ -248,10 +252,16 @@ async function proyectarTodo() {
     for (let i = 1; i <= 4; i++) {
         saldo += (ingS[i] - gasS[i]);
         grid.innerHTML += `
-            <div class="sem-card" style="border-color:${saldo < 0 ? 'var(--rojo)':'var(--verde)'}">
+            <div class="sem-card" style="border-color:${saldo < 0 ? 'var(--rojo)':'var(--verde)'}; min-height:140px; display:flex; flex-direction:column;">
                 <span style="font-size:9px">SEM ${i}</span>
                 <b class="monto-final" style="color:${saldo < 0 ? 'var(--rojo)':'white'}">$${Math.round(saldo).toLocaleString()}</b>
-                <div style="display:flex; justify-content:space-between; font-size:9px; margin-top:5px;">
+                
+                <div style="flex-grow:1; font-size:8px; line-height:1.2; margin:5px 0; overflow:hidden;">
+                    ${detI[i].join('<br>')}
+                    ${detG[i].join('<br>')}
+                </div>
+
+                <div style="display:flex; justify-content:space-between; font-size:9px; margin-top:5px; border-top:1px solid #333; padding-top:3px;">
                     <span style="color:var(--verde)">+ $${Math.round(ingS[i]/1000)}k</span>
                     <span style="color:var(--rojo)">- $${Math.round(gasS[i]/1000)}k</span>
                 </div>
