@@ -325,8 +325,7 @@ if (!firebase.apps.length) {
             const comprobanteFormateado = `${pv}-${nc}`;
 
             const tr = document.createElement('tr');
-			const tr = document.createElement('tr');
-            if (esNC) tr.className = "nc-row";
+			if (esNC) tr.className = "nc-row";
             else if (!estaPagada && mora >= 75) tr.className = "alerta-mora";
 // --- 2. Armado de la fila ---
 tr.innerHTML = `
