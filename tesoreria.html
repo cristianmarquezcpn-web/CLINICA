@@ -224,25 +224,17 @@ async function proyectarTodo() {
         fCobro.setDate(fCobro.getDate() + delayIA);
         const mesCobro = fCobro.toISOString().slice(0, 7);
 
-        if (mesCobro === mesSeleccionado) {
+       if (mesCobro === mesSeleccionado) {
             const s = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
-            const montoProyectado = parseFloat(f.total || f.monto || 0) * indiceIA;
+            const montoProyectado = parseFloat(f.total || f.monto || 0) * (indiceIA || 0.85);
             
             ingS[s] += montoProyectado;
 
-            // --- ESTE ES EL PEDACITO CON LOS DIVS Y EL NOMBRE CORRECTO ---
-            const nombreOS = f.receptor_nombre || f.cliente || f.obra_social || 'S/D';
+            // Buscamos el nombre real
+            const nombreOS = (f.receptor_nombre || f.cliente || f.obra_social || 'S/D').trim();
             
-            detI[s].push(`
-                <div style="display:flex; justify-content:space-between; width:100%; font-size:8px; margin-bottom:2px;">
-                    <span style="color:#60a5fa; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;">
-                        🤖 ${nombreOS.trim()}
-                    </span>
-                    <span style="color:#93c5fd; font-weight:bold;">
-                        $${Math.round(montoProyectado/1000)}k
-                    </span>
-                </div>
-            `);
+            // USAMOS BACKTICKS `` PARA QUE NO TIRE ERROR DE SINTAXIS
+            detI[s].push(`<div style="display:flex; justify-content:space-between; width:100%; font-size:8px; margin-bottom:2px;"><span style="color:#60a5fa; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;">🤖 ${nombreOS}</span><span style="color:#93c5fd; font-weight:bold;">$${Math.round(montoProyectado/1000)}k</span></div>`);
         }
 
     Object.values(gastosMaestros).forEach(rubro => {
