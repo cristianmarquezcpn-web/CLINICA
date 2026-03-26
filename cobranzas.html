@@ -319,6 +319,9 @@ if (!firebase.apps.length) {
                 iconoEstado = '🔙'; 
                 mostrarBotonCobro = false; 
             }
+			const tr = document.createElement('tr');
+            if (esNC) tr.className = "nc-row";
+            else if (!estaPagada && mora >= 75) tr.className = "alerta-mora";
 // --- 2. Armado de la fila ---
 tr.innerHTML = `
     <td style="font-size:11px; font-weight:500;">${f.fecha_emision || ''}</td>
