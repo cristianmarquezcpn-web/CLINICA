@@ -12,22 +12,25 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
    <style>
-        :root { --oscuro: #2c3e50; --azul: #2980b9; --verde: #27ae60; --rojo: #c0392b; --naranja: #f39c12; --violeta: #8e44ad; --gris: #7f8c8d; }
-        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding: 20px; font-size: 11px; }
-        .main-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 100%; margin: auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
-        .config-bar { background: #eef2f7; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; gap: 10px; align-items: flex-end; border: 1px solid #d1d9e6; }
-        .panel-flotante { display:none; background:#fff; border:2px solid var(--azul); padding:15px; margin-bottom:20px; border-radius:8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; background: white; table-layout: fixed; }
-        th { background: #f8f9fa; color: var(--oscuro); padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6; font-size: 10px; }
-        td { padding: 8px; border-bottom: 1px solid #eee; overflow: visible; vertical-align: top; }
-        .input-tab { padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; width: 100%; box-sizing: border-box; }
-        .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; display: inline-flex; align-items: center; gap: 5px; }
-        .os-item { display: flex; justify-content: space-between; padding: 5px; border-bottom: 1px solid #eee; align-items: center; }
-        .row-saei { background-color: #e3f2fd !important; border-left: 5px solid #2196f3 !important; }
-    </style>
-</head>
-<body>
+    :root { --oscuro: #2c3e50; --azul: #2980b9; --verde: #27ae60; --rojo: #c0392b; --naranja: #f39c12; --violeta: #8e44ad; --gris: #7f8c8d; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding: 20px; font-size: 11px; }
+    .main-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 100%; margin: auto; position: relative; }
+    
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+    .config-bar { background: #eef2f7; padding: 15px; border-radius: 10px; margin-bottom: 15px; display: flex; gap: 10px; align-items: flex-end; border: 1px solid #d1d9e6; }
+    
+    .panel-flotante { display:none; background:#fff; border:2px solid var(--azul); padding:15px; margin-bottom:20px; border-radius:8px; box-shadow: 0 8px 30px rgba(0,0,0,0.15); z-index: 1000; position: relative; }
+
+    table { width: 100%; border-collapse: collapse; background: white; table-layout: fixed; }
+    th { background: #f8f9fa; color: var(--oscuro); padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6; font-size: 10px; vertical-align: top; }
+    td { padding: 8px; border-bottom: 1px solid #eee; overflow: visible; vertical-align: top; }
+    
+    .input-tab { padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; width: 100%; box-sizing: border-box; }
+    .f-filtro { width: 100%; font-size: 10px !important; padding: 3px; margin-top: 5px; font-weight: normal; border: 1px solid #ccc; border-radius: 2px; }
+
+    .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; display: inline-flex; align-items: center; gap: 5px; }
+    .row-saei { background-color: #e3f2fd !important; border-left: 5px solid #2196f3 !important; }
+</style>
 
 <div class="main-card">
     <div class="header">
@@ -36,51 +39,60 @@
             <button class="btn" style="background:var(--violeta)" onclick="toggleArchivo()">📚 ARCHIVO</button>
             <button class="btn" style="background:var(--naranja)" onclick="toggleOS()">🏢 OBRAS SOCIALES</button>
             <button class="btn" style="background:var(--rojo)" onclick="location.href='index.html'">SALIR</button>
-            <button class="btn" style="background-color: #5cb85c;" onclick="window.refacturarMasivoProximoMes()">🔄 Habilitar Próximo Mes</button>
+            <button class="btn" style="background-color: #5cb85c;" onclick="window.refacturarMasivoProximoMes()">🔄 Próximo Mes</button>
         </div>
     </div>
 
     <div id="panel-os" class="panel-flotante">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <h3 style="margin:0;">Gestión de Obras Sociales / Clientes</h3>
-            <button class="btn" style="background:var(--gris)" onclick="toggleOS()">✖</button>
-        </div>
+        <h3>🏢 Gestión de Obras Sociales</h3>
         <div style="display:grid; grid-template-columns: 2fr 1fr 2fr 1.5fr auto; gap:10px; margin-bottom:15px; background: #f9f9f9; padding: 10px; border-radius: 8px;">
             <input type="text" id="os-nombre" placeholder="Nombre / Razón Social" class="input-tab">
             <input type="text" id="os-cuit" placeholder="CUIT" class="input-tab">
             <input type="text" id="os-dom" placeholder="Domicilio" class="input-tab">
             <select id="os-iva" class="input-tab">
-                <option value="RI">Responsable Inscripto</option>
-                <option value="EXENTO">Exento</option>
-                <option value="CF">Consumidor Final</option>
-                <option value="MO">Monotributo</option>
+                <option value="IVA Responsable Inscripto">Responsable Inscripto</option>
+                <option value="IVA Sujeto Exento">Exento</option>
+                <option value="Consumidor Final">Consumidor Final</option>
+                <option value="Responsable Monotributo">Monotributo</option>
             </select>
             <button class="btn" style="background:var(--verde)" onclick="guardarOS()">💾 GUARDAR</button>
         </div>
-        <div id="lista-os" style="max-height: 250px; overflow-y: auto; border-top: 1px solid #ddd; padding-top: 10px;"></div>
+        <div id="lista-os" style="max-height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #fff;"></div>
     </div>
 
-    <div id="panel-archivo" class="panel-flotante" style="width: 95%; max-width: 1100px;">
+    <div id="panel-archivo" class="panel-flotante" style="width: 98%;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <h3 style="margin:0;">📚 Archivo de Comprobantes</h3>
-            <div style="display: flex; gap: 10px; align-items: center;">
+            <div style="display: flex; gap: 10px;">
                 <input type="month" id="mes_filtro_archivo" class="input-tab" style="width: 150px;">
                 <button class="btn" style="background:var(--azul)" onclick="window.cargarArchivo()">🔍 BUSCAR</button>
                 <button class="btn" style="background:var(--verde)" onclick="window.exportarExcel()">📊 EXCEL</button>
                 <button class="btn" style="background:var(--rojo)" onclick="toggleArchivo()">✖</button>
             </div>
         </div>
+
         <div id="resumen-mensual" style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
-            <div style="background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #dee2e6; flex:1;"><small>TOTAL CD</small><br><b id="tot-cd">$ 0,00</b></div>
-            <div style="background:#f1f8e9; padding:10px; border-radius:5px; border:1px solid #4caf50; flex:1;"><small>TOTAL CET</small><br><b id="tot-cet">$ 0,00</b></div>
-            <div style="background:#fff3e0; padding:10px; border-radius:5px; border:1px solid #ff9800; flex:1;"><small>TOTAL REHAB.</small><br><b id="tot-rehab">$ 0,00</b></div>
-            <div style="background:#e3f2fd; padding:10px; border-radius:5px; border:1px solid #2196f3; flex:1;"><small>TOTAL SAEI</small><br><b id="tot-saei">$ 0,00</b></div>
-            <div style="background:#eceff1; padding:10px; border-radius:5px; border:2px solid #607d8b; flex:1;"><small>TOTAL GENERAL</small><br><b id="tot-general">$ 0,00</b></div>
+            <div style="background:#f8f9fa; padding:10px; border-radius:5px; border:1px solid #dee2e6; flex:1; min-width:120px;">
+                <small>TOTAL CD</small><br><b id="tot-cd">$ 0,00</b>
+            </div>
+            <div style="background:#f1f8e9; padding:10px; border-radius:5px; border:1px solid #4caf50; flex:1; min-width:120px;">
+                <small>TOTAL CET</small><br><b id="tot-cet">$ 0,00</b>
+            </div>
+            <div style="background:#fff3e0; padding:10px; border-radius:5px; border:1px solid #ff9800; flex:1; min-width:120px;">
+                <small>TOTAL REHAB</small><br><b id="tot-rehab">$ 0,00</b>
+            </div>
+            <div style="background:#e3f2fd; padding:10px; border-radius:5px; border:1px solid #2196f3; flex:1; min-width:120px;">
+                <small>TOTAL SAEI</small><br><b id="tot-saei">$ 0,00</b>
+            </div>
+            <div style="background:#eceff1; padding:10px; border-radius:5px; border:2px solid #607d8b; flex:1; min-width:140px;">
+                <small>TOTAL GENERAL</small><br><b id="tot-general">$ 0,00</b>
+            </div>
         </div>
-        <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd;">
+
+        <div style="max-height: 350px; overflow-y: auto; border: 1px solid #ddd;">
             <table>
                 <thead>
-                    <tr style="position: sticky; top: 0; background: #eee; z-index: 10;">
+                    <tr style="position: sticky; top: 0; background: #eee;">
                         <th>FECHA</th><th>COMPROBANTE</th><th>CAE</th><th>RECEPTOR</th><th>TOTAL</th><th>VER</th>
                     </tr>
                 </thead>
@@ -93,8 +105,7 @@
         <div style="width:70px"><label>P.Venta</label><input type="number" id="punto_vta" value="5" class="input-tab"></div>
         <div><label>Desde</label><input type="date" id="per_desde" class="input-tab"></div>
         <div><label>Hasta</label><input type="date" id="per_hasta" class="input-tab"></div>
-        <div><label>Vencimiento</label><input type="date" id="vto_pago" class="input-tab"></div>
-        <div style="width:130px"><label>Condición Pago</label>
+        <div style="width:130px"><label>Condición</label>
             <select id="cond_venta" class="input-tab">
                 <option value="Cuenta Corriente">Cuenta Corriente</option>
                 <option value="Contado">Contado</option>
@@ -102,47 +113,34 @@
         </div>
     </div>
 
-    <div style="display: flex; gap: 4px; margin: 10px 0; justify-content: space-between;">
-        <div style="display: flex; gap: 4px;">
-            <button class="btn" style="background:var(--azul)" onclick="filtrarPor('TODOS')">TODOS</button>
-            <button class="btn" style="background:var(--gris)" onclick="filtrarPor('CD')">CD</button>
-            <button class="btn" style="background:var(--gris)" onclick="filtrarPor('CET')">CET</button>
-            <button class="btn" style="background:var(--gris)" onclick="filtrarPor('REHAB')">REHAB</button>
-        </div>
-        <button class="btn" style="background:var(--azul)" onclick="enviarAFIP_WS()">🚀 FACTURAR SELECCIONADOS</button>
+    <div style="display: flex; gap: 4px; margin: 10px 0; align-items: center;">
+        <button class="btn-filtro" onclick="filtrarPor('TODOS')" style="flex:1; font-size:9px; padding:6px; background:var(--azul); color:white; border-radius:4px; border:1px solid #ccc;">TODOS</button>
+        <button class="btn-filtro" onclick="filtrarPor('CD')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">CD</button>
+        <button class="btn-filtro" onclick="filtrarPor('CET')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">CET</button>
+        <button class="btn-filtro" onclick="filtrarPor('REHAB')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">REHAB</button>
+        <button class="btn" onclick="window.limpiarFiltros()" style="background:#666; font-size:10px; margin-left:10px;">Limpiar ×</button>
+        <button class="btn" style="background:var(--azul); margin-left:auto" onclick="enviarAFIP_WS()">🚀 FACTURAR</button>
     </div>
 
-    <table id="tabla-facturacion">
+    <table id="tabla-facturas">
         <thead>
             <tr>
-                <th style="width: 50px; text-align: center;"><input type="checkbox" id="check-all" onclick="window.seleccionarTodo(this)"></th>
-                <th style="width: 120px;">Paciente / Mod</th>
-                <th style="width: 110px;">Tipo Comp.</th>
-                <th style="width: 130px;">CUIT / DNI</th>
-                <th style="width: 180px;">Razón Social</th>
-                <th style="width: 150px;">Domicilio</th>
-                <th style="width: 250px;">Detalle de Factura</th>
-                <th style="width: 100px;">Neto ($)</th>
-                <th style="width: 90px;">Alícuota</th>
-                <th style="width: 100px; text-align: right;">Exento ($)</th>
-                <th style="width: 110px; text-align: right;">Total</th>
-            </tr>
-            <tr style="background: #f1f1f1;">
-                <th><button onclick="window.limpiarFiltros()">🧹</button></th>
-                <th><input type="text" class="f-filtro input-tab" onkeyup="window.filtrarTabla(1, this.value)"></th>
-                <th><input type="text" class="f-filtro input-tab" onkeyup="window.filtrarTabla(2, this.value)"></th>
-                <th><input type="text" class="f-filtro input-tab" onkeyup="window.filtrarTabla(3, this.value)"></th>
-                <th><input type="text" class="f-filtro input-tab" onkeyup="window.filtrarTabla(4, this.value)"></th>
-                <th><input type="text" class="f-filtro input-tab" onkeyup="window.filtrarTabla(5, this.value)"></th>
-                <th><input type="text" class="f-filtro input-tab" onkeyup="window.filtrarTabla(6, this.value)"></th>
-                <th colspan="4"></th>
+                <th style="width: 50px; text-align:center;">Sel.<br><input type="checkbox" id="check-all" onclick="window.seleccionarTodos(this)"></th>
+                <th style="width: 130px;">Paciente / Mod<br><input type="text" class="f-filtro" data-col="1" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
+                <th style="width: 100px;">Tipo Comp.</th>
+                <th style="width: 120px;">CUIT / DNI<br><input type="text" class="f-filtro" data-col="3" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
+                <th style="width: 160px;">Razón Social<br><input type="text" class="f-filtro" data-col="4" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
+                <th style="width: 140px;">Domicilio<br><input type="text" class="f-filtro" data-col="5" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
+                <th style="width: 200px;">Detalle</th>
+                <th style="width: 90px;">Neto ($)</th>
+                <th style="width: 80px;">IVA</th>
+                <th style="width: 90px; text-align: right;">Exento ($)</th>
+                <th style="width: 100px; text-align: right;">Total</th>
             </tr>
         </thead>
         <tbody id="tabla-body"></tbody>
     </table>
 </div>
-
-<script>
 	<script>
 let filtroActual = 'TODOS'; 
 
@@ -415,7 +413,8 @@ window.cargarTodo = async () => {
     }
 };
  async function procesarTodo() {
-    const snapGral = await db.ref('facturas_emitidas').once('value');
+    const dictOS = window.dictOS || {};
+	const snapGral = await db.ref('facturas_emitidas').once('value');
     const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
     
     const todasLasFacturas = {
@@ -483,26 +482,42 @@ window.cargarTodo = async () => {
         render();
     }
 }
-function actualizarPanelOS() {
+window.actualizarPanelOS = function() {
     const listaOS = document.getElementById('lista-os');
     if(!listaOS) return;
+    const datosParaListar = window.dictOS || {};
+    // Aseguramos que tome los datos globales que cargaste de Firebase
+    const datos = window.dictOS || (window.config ? window.config.obras_sociales : null);
     
+    if (!datos || Object.keys(datos).length === 0) {
+        listaOS.innerHTML = '<div style="text-align:center; padding:10px; color:gray;">No hay Obras Sociales cargadas.</div>';
+        return;
+    }
+     
     let htmlOS = '<div style="display: flex; flex-direction: column; gap: 5px;">';
-    for (let nombre in dictOS) {
-        const os = dictOS[nombre];
+    
+    // Ordenamos alfabéticamente para que sea más fácil de usar
+    const nombresOrdenados = Object.keys(datos).sort();
+
+    nombresOrdenados.forEach(nombre => {
+        const os = datos[nombre];
         htmlOS += `
             <div class="os-item" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:8px; border-radius:5px; border:1px solid #eee; margin-bottom:5px">
-                <span style="font-size:10px"><b>${nombre}</b> (${os.cuit || 'S/C'})</span>
+                <span style="font-size:10px">
+                    <b style="color:var(--azul)">${nombre}</b><br>
+                    <small>CUIT: ${os.cuit || 'S/C'} | ${os.condicion_iva || 'EXENTO'}</small>
+                </span>
                 <div style="display:flex; gap:5px">
-                    <button class="btn" style="background:var(--azul); padding:2px 8px; font-size:9px" 
+                    <button class="btn" style="background:var(--azul); padding:4px 8px; font-size:9px" 
                         onclick="prepararEdicionOS('${nombre}')">EDITAR</button>
-                    <button class="btn" style="background:var(--rojo); padding:2px 8px; font-size:9px" 
+                    <button class="btn" style="background:var(--rojo); padding:4px 8px; font-size:9px" 
                         onclick="borrarOS('${nombre}')">❌</button>
                 </div>
             </div>`;
-    }
+    });
+    
     listaOS.innerHTML = htmlOS + "</div>";
-}
+};
 window.render = function() {
     const b = document.getElementById('tabla-body');
     if (!b || !dataFull) return;
