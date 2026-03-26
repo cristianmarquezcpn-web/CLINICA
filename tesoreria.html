@@ -175,7 +175,7 @@
     let detalleFacturas = { 1: [], 2: [], 3: [], 4: [] };
     let totalG = 0;
 
-    // 1. LLAMADA UNIFICADA A LOS TRES NODOS
+    // 1. LLAMADA UNIFICADA A LOS NODOS
     const [snapFacts, snapSaei, snapCobros] = await Promise.all([
         db.ref('facturas_emitidas').once('value'),
         db.ref('facturas_emitidas_saei').once('value'),
@@ -185,49 +185,30 @@
     const dataGral = snapFacts.val() || {};
     const dataSaei = snapSaei.val() || {};
     const cobranzas = snapCobros.val() || {};
-
-    // UNIFICACIÓN DEL UNIVERSO TOTAL
     const todasLasFacturas = { ...dataGral, ...dataSaei };
 
-    // 2. ESCANEO DE FACTURAS PENDIENTES DE COBRO
+    // 2. ESCANEO DE FACTURAS PENDIENTES
     Object.keys(todasLasFacturas).forEach(id => {
         const f = todasLasFacturas[id];
-
-        // Solo procesamos si NO tiene registro de pago en 'cobranzas'
         if (!cobranzas[id] || !cobranzas[id].fecha_pago) {
-
-            // Buscamos cualquier fecha válida en el objeto
             let fechaBase = f.fecha_emision || f.fecha || f.fecha_peticion;
             if (!fechaBase) return;
 
-            // Parseo inteligente de fecha
             let partes = fechaBase.includes('/') ? fechaBase.split('/') : fechaBase.split('-');
             let fCobro = fechaBase.includes('/') ?
                 new Date(partes[2], partes[1] - 1, partes[0]) :
                 new Date(partes[0], partes[1] - 1, partes[2]);
 
-            // Aplicamos el delay histórico calculado por la IA (ej. 65 días)
             fCobro.setDate(fCobro.getDate() + (motorGlobal.delay_historico || 65));
-
             const mesCobro = `${fCobro.getFullYear()}-${String(fCobro.getMonth() + 1).padStart(2, '0')}`;
 
-            // Si la proyección cae en el mes que estamos mirando...
             if (mesCobro === mesSeleccionado) {
-                const s = Math.min(Math.ceil(fCobro.getDate() / 7), 4); // Determinamos semana 1 a 4
-                
-                // Calculamos monto neto proyectado (Total * Efectividad de Cobranza)
-                const montoOriginal = parseFloat(f.total || f.monto || f.netoCalc || 0);
-                const montoProyectado = montoOriginal * (motorGlobal.indice_cobranza || 0.85);
-
+                const s = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
+                const montoProyectado = parseFloat(f.total || f.monto || 0) * (motorGlobal.indice_cobranza || 0.85);
                 ingS[s] += montoProyectado;
 
-                // Identificamos si es SAEI para el prefijo visual
-                const esSaei = dataSaei[id] ? true : false;
-                const prefijo = esSaei ? "S-" : "";
-                
-                // Mapeo de nombre de cliente/paciente para el cartelito
-                const cliente = f.receptor_nombre || f.cliente || f.id_paciente || f.receptor || "Factura";
-                
+                const prefijo = dataSaei[id] ? "S-" : "";
+                const cliente = f.receptor_nombre || f.cliente || f.id_paciente || "Factura";
                 detalleFacturas[s].push(`
                     <div class="detalle-factura" style="font-size:9px; border-bottom:1px solid #1f2937; padding:2px 0;">
                         ${prefijo}${cliente.substring(0, 12)}: <b>$${Math.round(montoProyectado / 1000)}k</b>
@@ -235,26 +216,35 @@
             }
         }
     });
-    // 3. PROCESAR GASTOS CARGADOS EN ESTE MES
-    Object.values(datosMes.gastos || {}).forEach(cat => {
-        if(cat.items) cat.items.forEach(i => { 
-            gasS[cat.semana || 1] += (parseFloat(i.monto) || 0); 
-            totalG += (parseFloat(i.monto) || 0); 
-        });
+   Object.values(datosMes.gastos || {}).forEach(cat => {
+        if (cat.items) {
+            cat.items.forEach(i => {
+                // Solo impacta si el mes actual es >= al mes de inicio del gasto
+                // Si no tiene mesInicio (gastos viejos), impacta siempre.
+                if (!i.mesInicio || mesSeleccionado >= i.mesInicio) {
+                    const s = parseInt(i.semana) || 1;
+                    const m = parseFloat(i.monto) || 0;
+                    gasS[s] += m;
+                    totalG += m;
+                }
+            });
+        }
     });
-
     // 4. DIBUJAR GRID SEMANAL
     const grid = document.getElementById('gridSemanas');
     grid.innerHTML = "";
-    for(let i=1; i<=4; i++) {
-        saldo += (ingS[i] - gasS[i]);
+    for (let i = 1; i <= 4; i++) {
+        saldo += (ingS[i] - gasS[i]); // El saldo se acumula semana a semana
         const lista = detalleFacturas[i].length > 0 ? `<div style="margin-top:auto; background:#0a0f18; padding:5px; border-radius:5px;">${detalleFacturas[i].join('')}</div>` : "";
         grid.innerHTML += `
             <div class="sem-card" style="border-color:${saldo < 0 ? 'var(--rojo)':'var(--verde)'}">
                 <div>
                     <span style="font-size:9px">SEM ${i}</span>
                     <b class="monto-final" style="color:${saldo < 0 ? 'var(--rojo)':'white'}">$${Math.round(saldo).toLocaleString()}</b>
-                    <small style="color:var(--verde)">+ $${Math.round(ingS[i]).toLocaleString()}</small>
+                    <div style="display:flex; justify-content:space-between; font-size:9px; margin-top:5px;">
+                        <span style="color:var(--verde)">+ $${Math.round(ingS[i] / 1000)}k</span>
+                        <span style="color:var(--rojo)">- $${Math.round(gasS[i] / 1000)}k</span>
+                    </div>
                 </div>
                 ${lista}
             </div>`;
@@ -422,13 +412,31 @@ async function ejecutarIA(f, c) {
     function dibujarGastos() {
         const cont = document.getElementById('contGastos');
         cont.innerHTML = "";
+        const mesActualCarga = document.getElementById('mesFiltro').value;
+
         Object.keys(datosMes.gastos || {}).forEach(cat => {
-            let items = (datosMes.gastos[cat].items || []).map((it, i) => `
-                <div style="display:flex; gap:5px; margin-bottom:5px;">
-                    <input value="${it.nombre}" onchange="updateItem('${cat}', ${i}, 'nombre', this.value)">
-                    <input type="number" value="${it.monto}" style="width:110px" onchange="updateItem('${cat}', ${i}, 'monto', this.value)">
+            const rubro = datosMes.gastos[cat];
+            let itemsHtml = (rubro.items || []).map((it, i) => `
+                <div style="display:flex; gap:5px; margin-bottom:8px; align-items:center;">
+                    <input value="${it.nombre}" placeholder="Nombre" onchange="updateItem('${cat}', ${i}, 'nombre', this.value)" style="margin:0; font-size:11px;">
+                    <input type="number" value="${it.monto}" placeholder="$" style="width:90px; margin:0;" onchange="updateItem('${cat}', ${i}, 'monto', this.value)">
+                    <select onchange="updateItem('${cat}', ${i}, 'semana', this.value)" style="background:#05070a; color:white; border:1px solid #374151; border-radius:4px; padding:5px;">
+                        <option value="1" ${it.semana == 1 ? 'selected' : ''}>S1</option>
+                        <option value="2" ${it.semana == 2 ? 'selected' : ''}>S2</option>
+                        <option value="3" ${it.semana == 3 ? 'selected' : ''}>S3</option>
+                        <option value="4" ${it.semana == 4 ? 'selected' : ''}>S4</option>
+                    </select>
+                    <button onclick="eliminarFilaGasto('${cat}', ${i})" style="background:none; border:none; color:var(--rojo); cursor:pointer;">✕</button>
                 </div>`).join('');
-            cont.innerHTML += `<div class="card" style="background:rgba(255,255,255,0.03);"><b>${cat}</b>${items}</div>`;
+
+            cont.innerHTML += `
+                <div class="card" style="background:rgba(255,255,255,0.03); border-left:4px solid var(--acento);">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                        <b style="font-size:11px;">${cat}</b>
+                        <button onclick="agregarFilaARubro('${cat}')" style="background:var(--acento); border:none; color:white; border-radius:4px; padding:2px 8px; cursor:pointer; font-size:12px;">+</button>
+                    </div>
+                    ${itemsHtml}
+                </div>`;
         });
     }
 
@@ -506,7 +514,35 @@ async function ejecutarIA(f, c) {
             btn.disabled = false;
         }
     }
+function agregarFilaARubro(cat) {
+        const mesActual = document.getElementById('mesFiltro').value;
+        const rubroRef = db.ref(`tesoreria/meses/${mesActual}/gastos/${cat}/items`);
+        
+        rubroRef.once('value', snap => {
+            const items = snap.val() || [];
+            items.push({
+                nombre: "Nuevo Gasto",
+                monto: 0,
+                semana: 1,
+                mesInicio: mesActual // Solo impacta desde este mes en adelante
+            });
+            rubroRef.set(items).then(() => proyectarTodo());
+        });
+    }
 
+    function eliminarFilaGasto(cat, idx) {
+        if(!confirm("¿Eliminar este gasto?")) return;
+        const mesActual = document.getElementById('mesFiltro').value;
+        db.ref(`tesoreria/meses/${mesActual}/gastos/${cat}/items/${idx}`).remove()
+          .then(() => proyectarTodo());
+    }
+
+    function updateItem(cat, idx, campo, valor) {
+        const mesActual = document.getElementById('mesFiltro').value;
+        if(campo === 'monto' || campo === 'semana') valor = parseFloat(valor) || 0;
+        db.ref(`tesoreria/meses/${mesActual}/gastos/${cat}/items/${idx}`).update({ [campo]: valor })
+          .then(() => proyectarTodo());
+    }
     auth.onAuthStateChanged((user) => {
         if (user) {
             console.log("Tesorería autorizada para:", user.email);
