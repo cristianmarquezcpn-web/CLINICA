@@ -760,12 +760,13 @@ window.gestionarTipoComp = function(select) {
     // 2. CONSTRUCCIÓN DEL OBJETO
     const facturaLegal = {
         id: nuevaFacturaKey,
-        nro_comp: parseInt(nroCompFormateado), 
-        punto_venta: parseInt(ptoVtaFormateado),
+        nro_comp: nroCompFormateado,  // MANTIENE EL "00000024"
+        punto_venta: ptoVtaFormateado, // MANTIENE EL "00005"
+        tipo_comp: tipoCodFormateado,  // MANTIENE EL "006" o "008"
         cae: respuestaAfip.cae || respuestaAfip.CAE,
         cae_vto: respuestaAfip.cae_vto || respuestaAfip.CAEFchVto,
         fecha_emision: fechaHoy, 
-        tipo_comp: parseInt(tipoCodFormateado),
+        
         
         // --- FECHAS DE PERIODO (Sincronizadas) ---
         periodo_desde: datosPedido.periodo_desde || "",
@@ -827,8 +828,8 @@ const MODELO_FACTURA_B = (d) => {
     const valorSubtotal = totalFacturado / (1 + (parseFloat(alicuotaComp) / 100));
 
     // 2. LÓGICA DE LETRA Y TIPO
-    const codNum = parseInt(d.tipo_cod);
-    
+   const codNum = parseInt(d.tipo_comp || d.tipo_cod);
+    const tipoCompVisual = String(codNum).padStart(3, '0'); 
     // Si el código es 1, 2 o 3 es Clase A, sino es B.
     let letraFactura = [1, 2, 3].includes(codNum) ? "A" : "B";
     
@@ -1018,11 +1019,13 @@ window.descargarFactura = async (id) => {
         emisor_inicio: "06/07/2015",
         emisor_iva: "IVA Responsable Inscripto", 
         
-        // Usamos el código tal cual para que el modelo decida el título y la letra
-        tipo_cod: parseInt(p.tipo_comp || p.tipo_cod || 6),
+       tipo_cod: String(p.tipo_comp || p.tipo_cod || 6).padStart(3, '0'),
 
-        ptoVta: p.punto_venta || 5,
-        nro: p.nro_comp || 0,
+		// 2. PUNTO DE VENTA (00005)
+		ptoVta: String(p.punto_venta || 5).padStart(5, '0'),
+
+		// 3. NÚMERO DE COMPROBANTE (00000024)
+		nro: String(p.nro_comp || 0).padStart(8, '0'),
         fecha: p.fecha_emision || p.fecha || new Date().toLocaleDateString('es-AR'),
         
         desde: f(p.periodo_desde), 
