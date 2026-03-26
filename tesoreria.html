@@ -101,36 +101,40 @@
     const auth = firebase.auth(); 
     
     
-    const db = firebase.database(); 
-
-    
-    let datosMes = { bancos: {galicia:0, santander:0}, gastos: {} };
-    let motorGlobal = { indice_cobranza: 0.85, delay_historico: 65 };
-    let refMes = null;
-    let saldoFinalProyectado = 0;
-
     // 1. ESCUCHA MOTOR IA (ACTUALIZACIÓN EN TIEMPO REAL)
+// 1. ESCUCHA MOTOR IA (ACTUALIZACIÓN EN TIEMPO REAL)
 db.ref('tesoreria/motor_ia').on('value', snap => {
-    motorGlobal = snap.val() || {};
-    const m = motorGlobal.mercado || {};
-    const intel = motorGlobal.inteligencia_cobro || {};
-    const cli = motorGlobal.clinica || {};
+    const val = snap.val() || {};
+    const m = val.mercado || {};
+    const intel = val.inteligencia_cobro || {};
+    const cli = val.clinica || {};
 
     // CÁLCULOS DE SALUD FINANCIERA
-    const infIndec = parseFloat(m.inflacion_mensual) || 0;
-    const infClinica = parseFloat(m.inflacion_real_clinica) || 0;
+    const infIndec = parseFloat(m.inflacion_mensual || 0);
+    const infClinica = parseFloat(m.inflacion_real_clinica || 0); 
     const gap = (infClinica - infIndec).toFixed(1);
     const colorGap = gap > 0 ? 'var(--rojo)' : 'var(--verde)';
+    
+    // Normalización de Tasas (Fix del 0.3 a 30)
+    let pfVista = parseFloat(m.tasa_pf || 0);
+    if (pfVista < 1 && pfVista > 0) pfVista *= 100;
+    
+    let fciVista = parseFloat(m.tasa_fci || 0);
+    if (fciVista < 1 && fciVista > 0) fciVista *= 100;
+
     const riesgo = m.riesgo_pais || 0;
     const colorRiesgo = riesgo > 1300 ? 'var(--rojo)' : 'var(--oro)';
 
-    // Inyectar en el HTML
+    // Inyectar en el HTML (Lado derecho del panel)
     document.getElementById('motorVars').innerHTML = `
-        Efectividad Cobro: <b style="color:var(--verde)">${(cli.indice_cobranza * 100 || 0).toFixed(1)}%</b><br>
+        Efectividad Cobro: <b style="color:var(--verde)">${(intel.indice_cobranza * 100 || 85).toFixed(1)}%</b><br>
         Delay Entrenado: <b>${intel.delay_entrenado_dias || 60} días</b>
         <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
         Dólar MEP: <b style="color:var(--acento)">$${m.dolar_mep || '-'}</b><br>
         Riesgo País: <b style="color:${colorRiesgo}">${riesgo} pts</b><br>
+        <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
+        🏦 Tasa Plazo Fijo: <b>${pfVista.toFixed(1)}%</b><br>
+        📱 Billeteras (FCI): <b style="color:var(--verde)">${fciVista.toFixed(1)}%</b><br>
         <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
         Inflación Clínica: <b style="color:var(--rojo)">${infClinica}%</b><br>
         <span style="font-size:10px; color:${colorGap}">⚠ DESFASAJE (GAP): <b>${gap}%</b></span>
@@ -138,8 +142,9 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
     
     document.getElementById('statusIA').innerText = `Sincro Motor: ${cli.ultima_sincro || 'Pendiente'}`;
     
+    motorGlobal = val; 
     actualizarBannerDinamico();
-    proyectarTodo();
+    if (typeof proyectarTodo === 'function') proyectarTodo();
 });
     // 2. CONECTAR MES Y ARRASTRE
     async function conectarMes() {
@@ -250,77 +255,120 @@ async function proyectarTodo() {
     actualizarBannerDinamico(mesSeleccionado);
 }
 // --- FUNCIÓN DEL BANNER (AFUERA, SOLA) ---
-function actualizarBannerDinamico(mesActual) {
+function actualizarBannerDinamico() {
     const banner = document.getElementById('iaBanner');
-    const motor = motorGlobal || {};
-    const stress = motor.escenario_stress || {};
-    const op = motor.oportunidades || {};
+    const motor = motorGlobal || {}; 
+    if (!motor.clinica) return; 
+
     const m = motor.mercado || {};
     const intel = motor.inteligencia_cobro || {};
-    
-    // 1. CÁLCULO DE LICUACIÓN (Pérdida por Inflación)
-    const infMensual = parseFloat(m.inflacion_mensual) || 0;
-    const delayReal = intel.delay_entrenado_dias || 65;
-    const tasaLicuacion = (infMensual / 30) * delayReal; 
-    const perdidaLicuacion = Math.round(saldoFinalProyectado * (tasaLicuacion / 100));
+    const op = motor.oportunidades || {};
+    const cli = motor.clinica || {};
 
-    // 2. CÁLCULO DE DEVALUACIÓN (Pérdida en Dólares)
-    // Usamos el MEP que trae el motor
-    const perdidaDolar = Math.round(perdidaLicuacion / (m.dolar_mep || 1));
+    // --- 1. VARIABLES DE CÁLCULO ---
+    const saldo = parseFloat(cli.saldo_total || 0);
+    const diasVida = parseInt(cli.dias_supervivencia || 0);
+    const mep = parseFloat(m.dolar_mep || 1);
+    const riesgo = parseInt(m.riesgo_pais || 0);
+    const inflacionMensual = parseFloat(m.inflacion_mensual || 0);
+    const deudaCalle = parseFloat(intel.monto_en_calle || 0);
+    const gastoMensual = parseFloat(intel.promedio_gastos_mensuales || 0);
+    const excedente = parseFloat(op.monto_sugerido || 0);
+    const facturacionPromedio = parseFloat(intel.facturacion_promedio || 0);
+    // --- 2. ANÁLISIS DE PÉRDIDA DUAL (EL CORAZÓN DEL CEREBRO) ---
+    // Pérdida por Inflación (Poder adquisitivo en Pesos)
+    const perdidaInflacion = (deudaCalle * (inflacionMensual / 100)).toFixed(0);
+    // Pérdida por Devaluación (Si el dólar sube y vos seguís en pesos)
+    const deudaEnDolaresHoy = deudaCalle / mep;
+    const sangriaUSD = parseFloat(intel.sangria_pesos || 0) / mep;
 
-    const tasaFinal = m.tasa_pf || motor.fci_tna || 35;
+    // --- 3. CALENDARIO TÁCTICO ---
     const hoy = new Date();
-    const mesHoy = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}`;
+    const fechaRescate = new Date(hoy);
+    fechaRescate.setDate(hoy.getDate() + 30);
+    const strHoy = hoy.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+    const strRescate = fechaRescate.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
 
+    // --- 4. LÓGICA DE ALERTAS Y PRIORIDAD ---
+    const MODO_PANICO = riesgo > 1500;
+    const PRIORIZAR_CAJA = diasVida < 25; // Si tenés menos de 25 días, la prioridad es LIQUIDEZ.
+    
     banner.style.display = "block";
+    let colorBorde = MODO_PANICO || PRIORIZAR_CAJA ? '#ef4444' : (excedente > 1000 ? '#10b981' : '#f59e0b');
 
-    // PRIORIDAD 1: SI HAY PELIGRO DE QUIEBRA (ROJO)
-    if (stress.resiste === false) {
-        banner.innerHTML = `
-            <div class="alerta-ia" style="display:block; background:rgba(239,68,68,0.1); border-left:10px solid var(--rojo); color:white; padding:15px;">
-                <h2 style="margin:0; color:var(--rojo); font-size:16px">⚠️ ALERTA CRÍTICA: ${stress.alertaCEO || 'RIESGO DE CAJA'}</h2>
-                <p style="margin:5px 0">Saldo proyectado en crisis: <b style="color:var(--rojo)">$${Math.round(stress.saldoFinalStress || 0).toLocaleString()}</b></p>
-                <p style="margin:0; font-size:11px">Fecha estimada de quiebra: ${stress.fechaPeligro || 'Próximas semanas'}</p>
-            </div>`;
-    } 
-    // PRIORIDAD 2: MES ACTUAL - ANÁLISIS DUAL (INFLACIÓN + DÓLAR)
-    else if (mesActual === mesHoy) {
-        banner.innerHTML = `
-            <div class="alerta-ia" style="display:block; background:rgba(245,158,11,0.1); border-left:10px solid var(--oro); padding:15px;">
-                <div style="display:flex; justify-content:space-between; align-items:start;">
-                    <div>
-                        <h2 style="margin:0; color:var(--oro); font-size:14px">💡 DICTAMEN DE TESORERÍA (HOY)</h2>
-                        <p style="margin:5px 0; font-size:12px">${op.alerta_inflacion || 'Mercado estable para operar.'}</p>
-                        <p style="margin:5px 0; font-size:11px"><b>Sugerencia:</b> ${op.consejo_uva || 'Mantener liquidez'}</p>
+    banner.innerHTML = `
+        <div style="background:rgba(10,10,20,0.98); border:2px solid ${colorBorde}; border-left:15px solid ${colorBorde}; border-radius:15px; padding:25px; color:#fff; font-family: 'Segoe UI', sans-serif; box-shadow: 0 15px 50px rgba(0,0,0,0.7);">
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:15px; margin-bottom:20px;">
+                <div style="flex:2;">
+                    <h2 style="margin:0; font-size:22px; color:${colorBorde}; font-weight:900;">
+                        ${MODO_PANICO ? '🚨 ALERTA CAMBIARIA: SALIR DEL PESO' : (PRIORIZAR_CAJA ? '⚠️ PRIORIDAD: CUIDAR CAJA' : '🛡️ CEREBRO ESTRATÉGICO TITANIUM')}
+                    </h2>
+                    <p style="margin:5px 0 0 0; font-size:13px; color:#aaa;">Sincronizado: ${cli.ultima_sincro || 'Ahora'} | Plan: 12 meses de historia</p>
+                </div>
+                <div style="flex:1; text-align:right; background:rgba(255,255,255,0.05); padding:10px; border-radius:10px;">
+                    <span style="font-size:11px; color:#888;">FECHA LÍMITE DE CAJA ($0):</span><br>
+                    <b style="font-size:24px; color:${colorBorde};">${diasVida} DÍAS</b><br>
+                    <small style="font-size:9px; color:#666;">(Basado en gastos de $${gastoMensual.toLocaleString()}/mes)</small>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:20px;">
+                
+                <div style="flex:1.2; background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border:1px solid rgba(239,68,68,0.3);">
+                    <h3 style="margin:0 0 15px 0; font-size:12px; color:#ef4444; text-transform:uppercase; letter-spacing:1px;">🩸 Análisis de Destrucción de Capital</h3>
+                    
+                    <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                        <span>Deuda OS en Calle:</span>
+                        <b>$${deudaCalle.toLocaleString()}</b>
                     </div>
-                    <div style="text-align:right; border-left:1px solid rgba(255,255,255,0.1); padding-left:15px;">
-                        <span style="font-size:9px; color:#ccc;">PÉRDIDA PATRIMONIAL:</span><br>
-                        <b style="color:var(--rojo); font-size:15px">-$${perdidaLicuacion.toLocaleString()}</b><br>
-                        <b style="color:var(--rojo); font-size:14px">(-USD ${perdidaDolar})</b><br>
-                        <small style="font-size:9px; color:var(--rojo)">-${tasaLicuacion.toFixed(1)}% del valor</small>
+
+                    <div style="background:rgba(239,68,68,0.1); padding:12px; border-radius:8px;">
+                        <p style="margin:0; font-size:11px; color:#ef4444;">1. PÉRDIDA POR INFLACIÓN (${inflacionMensual}%):</p>
+                        <b style="font-size:18px;">-$${perdidaInflacion.toLocaleString()} <small style="font-size:10px; font-weight:normal;">en poder de compra</small></b>
+                        
+                        <p style="margin:10px 0 0 0; font-size:11px; color:#ef4444;">2. PÉRDIDA POR DOLARIZACIÓN (MEP):</p>
+                        <b style="font-size:18px;">U$D ${sangriaUSD.toFixed(0)} <small style="font-size:10px; font-weight:normal;">de capital real</small></b>
+                        <div style="font-size:10px; color:#888; margin-top:5px;">Si cobras hoy: U$D ${deudaEnDolaresHoy.toFixed(0)} | Si cobras con delay: U$D ${(deudaEnDolaresHoy - sangriaUSD).toFixed(0)}</div>
                     </div>
                 </div>
-            </div>`;
-    } 
-    // PRIORIDAD 3: PROYECCIÓN A FUTURO (VERDE O AZUL)
-    else {
-        if (saldoFinalProyectado > 1000000) {
-            const gananciaEstimada = Math.round(saldoFinalProyectado * (tasaFinal / 100 / 12));
-            banner.innerHTML = `
-                <div class="alerta-ia" style="display:block; background:rgba(16,185,129,0.1); border-left:10px solid var(--verde); padding:15px;">
-                    <h2 style="margin:0; color:var(--verde); font-size:14px">💰 OPORTUNIDAD DE RENDIMIENTO (${mesActual})</h2>
-                    <p style="margin:5px 0">Excedente proyectado: <b>$${Math.round(saldoFinalProyectado).toLocaleString()}</b>.</p>
-                    <p style="margin:5px 0">Invertilo para ganar <b>$${gananciaEstimada.toLocaleString()} extras</b> (Tasa: ${tasaFinal}% TNA).</p>
-                </div>`;
-        } else {
-            banner.innerHTML = `
-                <div class="alerta-ia" style="display:block; background:rgba(59,130,246,0.1); border-left:10px solid var(--acento); padding:15px;">
-                    <h2 style="margin:0; color:var(--acento); font-size:14px">🛡️ MODO PROTECCIÓN (${mesActual})</h2>
-                    <p style="margin:5px 0">Saldo bajo proyectado. Priorizar cobros de Obras Sociales.</p>
-                    <p style="margin:0; font-size:10px; opacity:0.8">La inflación de este periodo te restará <b>$${perdidaLicuacion.toLocaleString()}</b> de poder de compra.</p>
-                </div>`;
-        }
-    }
+
+                <div style="flex:1; background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border:1px solid ${colorBorde};">
+                    <h3 style="margin:0 0 15px 0; font-size:12px; color:${colorBorde}; text-transform:uppercase;">🎯 Orden Ejecutiva</h3>
+                    
+                    ${PRIORIZAR_CAJA ? `
+                        <div style="text-align:center; padding:10px;">
+                            <b style="color:#ef4444; font-size:16px;">CAJA CRÍTICA</b>
+                            <p style="font-size:13px; color:#ddd; margin:10px 0;">No invertir. El sistema detecta que necesitás los <b>$${saldo.toLocaleString()}</b> para cubrir el operativo de los próximos 20 días.</p>
+                        </div>
+                    ` : (MODO_PANICO ? `
+                        <div style="text-align:center;">
+                            <p style="font-size:12px; color:#aaa;">INVERSIÓN SUGERIDA (MEP):</p>
+                            <b style="font-size:26px; color:#ef4444;">U$D ${(excedente/mep).toFixed(0)}</b>
+                            <p style="font-size:11px; margin-top:10px;"><b>DESDE:</b> ${strHoy} | <b>HASTA:</b> Reevaluación Diaria</p>
+                            <div style="background:#ef4444; color:#fff; font-size:10px; padding:5px; border-radius:4px; margin-top:10px;">RIESGO PAÍS ARRIBA DE 1500: PROHIBIDO PESOS</div>
+                        </div>
+                    ` : `
+                        <div style="text-align:center;">
+                            <p style="font-size:11px; color:#aaa; margin-bottom:5px;">INVERSIÓN SUGERIDA (${op.mejor_tasa || 'FCI'}):</p>
+                            <b style="font-size:24px; color:#10b981;">$${excedente.toLocaleString()}</b>
+                            
+                            <div style="margin:15px 0; background:rgba(16,185,129,0.1); padding:10px; border-radius:8px; border-left:4px solid #10b981;">
+                                <p style="margin:0; font-size:12px; color:#10b981;"><b>VENTANA TÁCTICA:</b></p>
+                                <p style="margin:3px 0; font-size:14px;">${strHoy} —> ${strRescate}</p>
+                                <p style="margin:5px 0 0 0; font-size:11px; color:#888;">Retorno estimado: <b>+$${Math.round(excedente * (m.tasa_fci/100/12)).toLocaleString()}</b></p>
+                            </div>
+                        </div>
+                    `)}
+                </div>
+            </div>
+
+            <div style="margin-top:20px; display:flex; justify-content:space-between; font-size:11px; color:#555; border-top:1px solid rgba(255,255,255,0.05); padding-top:10px;">
+                <span>RIESGO: <b>${riesgo} pts</b> | MEP: <b>$${mep}</b> | PLAZO FIJO: <b>${m.tasa_pf}%</b></span>
+                <span>EFICIENCIA DE ESTRUCTURA: <b style="color:#3b82f6;">${((facturacionPromedio/gastoMensual)*100).toFixed(0)}%</b></span>
+            </div>
+        </div>
+    `;
 }
     // --- ENTRENAMIENTO Y MANTENIMIENTO ---
  // --- FUNCIONES DE APOYO DEL MOTOR IA ---
@@ -525,19 +573,22 @@ async function ejecutarIA(f, c, g) {
         });
     });
 }
-    function updateItem(cat, idx, campo, valor) {
-        if(campo==='monto') valor = parseFloat(valor)||0;
-        db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/gastos/${cat}/items/${idx}`).update({[campo]: valor});
-        then(() => proyectarTodo());
-    }
-
-    function guardarBancos() {
-        db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/bancos`).update({
-            galicia: parseFloat(document.getElementById('bancoGalicia').value)||0,
-            santander: parseFloat(document.getElementById('bancoSantander').value)||0
-        });
-    }
-
+function updateItem(cat, idx, campo, valor) {
+    if(campo==='monto') valor = parseFloat(valor)||0;
+    db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/gastos/${cat}/items/${idx}`)
+      .update({[campo]: valor})
+      .then(() => proyectarTodo()); // <-- Agregado el punto (.)
+}
+function guardarBancos() {
+    db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/bancos`).update({
+        galicia: parseFloat(document.getElementById('bancoGalicia').value) || 0,
+        santander: parseFloat(document.getElementById('bancoSantander').value) || 0
+    }).then(() => {
+        // Forzamos al motor a re-calcular con los nuevos saldos
+        verificarYEntrenar(); 
+        proyectarTodo();
+    });
+}
     function nuevaCategoria() {
     const n = prompt("Nombre del nuevo Rubro (ej: IMPUESTOS, SEGUROS):");
     if(n) {
