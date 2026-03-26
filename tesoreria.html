@@ -236,6 +236,7 @@ async function proyectarTodo() {
             // USAMOS BACKTICKS `` PARA QUE NO TIRE ERROR DE SINTAXIS
             detI[s].push(`<div style="display:flex; justify-content:space-between; width:100%; font-size:8px; margin-bottom:2px;"><span style="color:#60a5fa; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;">🤖 ${nombreOS}</span><span style="color:#93c5fd; font-weight:bold;">$${Math.round(montoProyectado/1000)}k</span></div>`);
         }
+      });  
 
     Object.values(gastosMaestros).forEach(rubro => {
         if (rubro.items) {
