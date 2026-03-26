@@ -116,25 +116,28 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
     const intel = motorGlobal.inteligencia_cobro || {};
     const cli = motorGlobal.clinica || {};
 
-    // Cálculo del GAP (Diferencia entre tu inflación y la macro)
+    // CÁLCULOS DE SALUD FINANCIERA
     const infIndec = parseFloat(m.inflacion_mensual) || 0;
     const infClinica = parseFloat(m.inflacion_real_clinica) || 0;
     const gap = (infClinica - infIndec).toFixed(1);
     const colorGap = gap > 0 ? 'var(--rojo)' : 'var(--verde)';
+    const riesgo = m.riesgo_pais || 0;
+    const colorRiesgo = riesgo > 1300 ? 'var(--rojo)' : 'var(--oro)';
 
+    // Inyectar en el HTML
     document.getElementById('motorVars').innerHTML = `
         Efectividad Cobro: <b style="color:var(--verde)">${(cli.indice_cobranza * 100 || 0).toFixed(1)}%</b><br>
         Delay Entrenado: <b>${intel.delay_entrenado_dias || 60} días</b>
         <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
-        Inflación INDEC: <b>${infIndec}%</b><br>
+        Dólar MEP: <b style="color:var(--acento)">$${m.dolar_mep || '-'}</b><br>
+        Riesgo País: <b style="color:${colorRiesgo}">${riesgo} pts</b><br>
+        <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
         Inflación Clínica: <b style="color:var(--rojo)">${infClinica}%</b><br>
         <span style="font-size:10px; color:${colorGap}">⚠ DESFASAJE (GAP): <b>${gap}%</b></span>
-        <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
-        Dólar MEP: <b>$${m.dolar_mep || '-'}</b><br>
-        Tasa Plazo Fijo: <b>${m.tasa_plazo_fijo || 0}% TNA</b>
     `;
     
-    document.getElementById('statusIA').innerText = `Última sincronización: ${cli.ultima_sincro || 'Pendiente'}`;
+    document.getElementById('statusIA').innerText = `Sincro Motor: ${cli.ultima_sincro || 'Pendiente'}`;
+    
     actualizarBannerDinamico();
     proyectarTodo();
 });
@@ -242,6 +245,7 @@ async function proyectarTodo() {
     }
 
     saldoFinalProyectado = saldo; 
+
     db.ref(`tesoreria/meses/${mesSeleccionado}/cierre`).set(saldo);
     actualizarBannerDinamico(mesSeleccionado);
 }
@@ -254,12 +258,15 @@ function actualizarBannerDinamico(mesActual) {
     const m = motor.mercado || {};
     const intel = motor.inteligencia_cobro || {};
     
-    // 1. CÁLCULO DE LICUACIÓN (Pérdida por tiempo de espera)
+    // 1. CÁLCULO DE LICUACIÓN (Pérdida por Inflación)
     const infMensual = parseFloat(m.inflacion_mensual) || 0;
     const delayReal = intel.delay_entrenado_dias || 65;
-    // Tasa de licuación: (Inflación diaria * días de espera)
     const tasaLicuacion = (infMensual / 30) * delayReal; 
     const perdidaLicuacion = Math.round(saldoFinalProyectado * (tasaLicuacion / 100));
+
+    // 2. CÁLCULO DE DEVALUACIÓN (Pérdida en Dólares)
+    // Usamos el MEP que trae el motor
+    const perdidaDolar = Math.round(perdidaLicuacion / (m.dolar_mep || 1));
 
     const tasaFinal = m.tasa_pf || motor.fci_tna || 35;
     const hoy = new Date();
@@ -267,7 +274,7 @@ function actualizarBannerDinamico(mesActual) {
 
     banner.style.display = "block";
 
-    // PRIORIDAD 1: SI HAY PELIGRO DE QUIEBRA
+    // PRIORIDAD 1: SI HAY PELIGRO DE QUIEBRA (ROJO)
     if (stress.resiste === false) {
         banner.innerHTML = `
             <div class="alerta-ia" style="display:block; background:rgba(239,68,68,0.1); border-left:10px solid var(--rojo); color:white; padding:15px;">
@@ -276,41 +283,41 @@ function actualizarBannerDinamico(mesActual) {
                 <p style="margin:0; font-size:11px">Fecha estimada de quiebra: ${stress.fechaPeligro || 'Próximas semanas'}</p>
             </div>`;
     } 
-    // PRIORIDAD 2: CONSEJO PARA EL MES ACTUAL + DATO DE LICUACIÓN
+    // PRIORIDAD 2: MES ACTUAL - ANÁLISIS DUAL (INFLACIÓN + DÓLAR)
     else if (mesActual === mesHoy) {
         banner.innerHTML = `
             <div class="alerta-ia" style="display:block; background:rgba(245,158,11,0.1); border-left:10px solid var(--oro); padding:15px;">
                 <div style="display:flex; justify-content:space-between; align-items:start;">
                     <div>
-                        <h2 style="margin:0; color:var(--oro); font-size:14px">💡 CONSEJO IA PARA HOY</h2>
+                        <h2 style="margin:0; color:var(--oro); font-size:14px">💡 DICTAMEN DE TESORERÍA (HOY)</h2>
                         <p style="margin:5px 0; font-size:12px">${op.alerta_inflacion || 'Mercado estable para operar.'}</p>
                         <p style="margin:5px 0; font-size:11px"><b>Sugerencia:</b> ${op.consejo_uva || 'Mantener liquidez'}</p>
                     </div>
-                    <div style="text-align:right; border-left:1px solid rgba(255,255,255,0.1); padding-left:10px;">
-                        <span style="font-size:10px; color:#ccc;">Pérdida por Licuación:</span><br>
-                        <b style="color:var(--rojo)">-$${perdidaLicuacion.toLocaleString()}</b><br>
-                        <small style="font-size:9px; color:var(--rojo)">(-${tasaLicuacion.toFixed(1)}% del valor)</small>
+                    <div style="text-align:right; border-left:1px solid rgba(255,255,255,0.1); padding-left:15px;">
+                        <span style="font-size:9px; color:#ccc;">PÉRDIDA PATRIMONIAL:</span><br>
+                        <b style="color:var(--rojo); font-size:15px">-$${perdidaLicuacion.toLocaleString()}</b><br>
+                        <b style="color:var(--rojo); font-size:14px">(-USD ${perdidaDolar})</b><br>
+                        <small style="font-size:9px; color:var(--rojo)">-${tasaLicuacion.toFixed(1)}% del valor</small>
                     </div>
                 </div>
             </div>`;
     } 
-    // PRIORIDAD 3: PROYECCIÓN A FUTURO
+    // PRIORIDAD 3: PROYECCIÓN A FUTURO (VERDE O AZUL)
     else {
         if (saldoFinalProyectado > 1000000) {
             const gananciaEstimada = Math.round(saldoFinalProyectado * (tasaFinal / 100 / 12));
             banner.innerHTML = `
                 <div class="alerta-ia" style="display:block; background:rgba(16,185,129,0.1); border-left:10px solid var(--verde); padding:15px;">
-                    <h2 style="margin:0; color:var(--verde); font-size:14px">💰 OPORTUNIDAD DE RENDIMIENTO</h2>
-                    <p style="margin:5px 0">En ${mesActual} sobrarían <b>$${Math.round(saldoFinalProyectado).toLocaleString()}</b>.</p>
+                    <h2 style="margin:0; color:var(--verde); font-size:14px">💰 OPORTUNIDAD DE RENDIMIENTO (${mesActual})</h2>
+                    <p style="margin:5px 0">Excedente proyectado: <b>$${Math.round(saldoFinalProyectado).toLocaleString()}</b>.</p>
                     <p style="margin:5px 0">Invertilo para ganar <b>$${gananciaEstimada.toLocaleString()} extras</b> (Tasa: ${tasaFinal}% TNA).</p>
-                    <p style="margin:0; font-size:10px; color:#888;">Nota: Ya se descontó la licuación teórica del periodo.</p>
                 </div>`;
         } else {
             banner.innerHTML = `
                 <div class="alerta-ia" style="display:block; background:rgba(59,130,246,0.1); border-left:10px solid var(--acento); padding:15px;">
-                    <h2 style="margin:0; color:var(--acento); font-size:14px">🛡️ MODO PROTECCIÓN</h2>
-                    <p style="margin:5px 0">Saldo bajo para ${mesActual}. Se recomienda priorizar la liquidez.</p>
-                    <p style="margin:0; font-size:10px; opacity:0.8">La espera de ${delayReal} días te está costando <b>$${perdidaLicuacion.toLocaleString()}</b> este mes.</p>
+                    <h2 style="margin:0; color:var(--acento); font-size:14px">🛡️ MODO PROTECCIÓN (${mesActual})</h2>
+                    <p style="margin:5px 0">Saldo bajo proyectado. Priorizar cobros de Obras Sociales.</p>
+                    <p style="margin:0; font-size:10px; opacity:0.8">La inflación de este periodo te restará <b>$${perdidaLicuacion.toLocaleString()}</b> de poder de compra.</p>
                 </div>`;
         }
     }
