@@ -278,51 +278,47 @@ if (!firebase.apps.length) {
             }
 
             if (!cumpleFiltro) return; 
-            // Cálculos Financieros
+            // --- CÁLCULOS FINANCIEROS ---
             f.netoCalc = calcularNetoFila(f, pIIBB, pGS, pMin);
-            const esNC = (f.tipo_comp == 8 || String(f.nro_comp).toUpperCase().includes('NC'));
+            const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
+            
             const cobro = cobros[id] || null;
             const pagado = cobro ? parseFloat(cobro.monto_cobrado || 0) : 0;
             const debito = cobro ? parseFloat(cobro.monto_debito || 0) : 0; 
-	    const saldo = esNC ? 0 : Math.max(0, f.netoCalc - pagado - debito); 
+            const saldo = esNC ? 0 : Math.max(0, f.netoCalc - pagado - debito); 
             
             const os = f.receptor_nombre || "SIN O.S.";
             if (!agrupadoOS[os]) agrupadoOS[os] = { filas: [], totalPendienteOS: 0, moraMax: 0, fechaMasVieja: new Date(2100,0,1) };
-            // C. Generar Fila de Tabla
+
             const fEmi = parseFecha(f.fecha_emision);
             const mora = Math.floor((hoy - fEmi) / 86400000);
             const estaPagada = esNC || saldo <= 0.5;
-	    const verSoloPendientes = document.getElementById('filtroSoloPendientes').checked;
+
+            // Filtro de "Solo Pendientes"
+            const verSoloPendientes = document.getElementById('filtroSoloPendientes').checked;
             if (verSoloPendientes && estaPagada) return;
 
-            // --- USO DE DATOS REALES DE FIREBASE ---
-            // Leemos punto_venta y nro_comp directamente del objeto f
-            const pv = f.punto_venta ? f.punto_venta.toString().padStart(5, '0') : '00000';
-            const nc = f.nro_comp ? f.nro_comp.toString().padStart(8, '0') : '00000000';
-            const comprobanteFormateado = `${pv}-${nc}`;
+            // --- LÓGICA DE ICONOS Y BOTÓN (REPARADA) ---
+            let iconoEstado = '⏳'; 
+            let mostrarBotonCobro = !esNC; 
 
-            const tr = document.createElement('tr');
-          const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
-			let iconoEstado = '⏳'; 
-			let mostrarBotonCobro = !esNC; // Si es NC, NUNCA muestra el botón de cobrar
-
-			if (!esNC) {
-    		if (pagado > 0.5 || debito > 0.5) {
-       		 if (saldo <= 0.5) {
-            iconoEstado = '✅'; 
-            mostrarBotonCobro = false; 
-       		 } else {
-            iconoEstado = '🟡'; // LA PELOTITA AMARILLA
-            mostrarBotonCobro = true; // LA BOLSA SE QUEDA
-        }
-    }
-   		    if (mora >= 75 && saldo > 0.5) {
-        	iconoEstado = '🚨';
-    }
-} else {
-    iconoEstado = '🔙'; // Icono para Notas de Crédito
-}
-}
+            if (!esNC) {
+                if (pagado > 0.5 || debito > 0.5) {
+                    if (saldo <= 0.5) {
+                        iconoEstado = '✅'; 
+                        mostrarBotonCobro = false; 
+                    } else {
+                        iconoEstado = '🟡'; // Pelotita Amarilla: hay cobro parcial
+                        mostrarBotonCobro = true; // La bolsa sigue habilitada
+                    }
+                }
+                if (mora >= 75 && saldo > 0.5) {
+                    iconoEstado = '🚨';
+                }
+            } else {
+                iconoEstado = '🔙'; 
+                mostrarBotonCobro = false; 
+            }
 // --- 2. Armado de la fila ---
 tr.innerHTML = `
     <td style="font-size:11px; font-weight:500;">${f.fecha_emision || ''}</td>
