@@ -71,7 +71,9 @@
         </div>
         <div style="display:flex; gap:10px;">
     <button class="btn" style="background:var(--success)" onclick="cargarManual()">➕ CARGA MANUAL</button>
-    
+    <label class="btn-accion" style="background:#27ae60; cursor:pointer;">
+        📥 Importar Excel 2025
+    <input type="file" id="inputExcel" accept=".xlsx, .xls" onchange="importarExcelMasivo(event)" style="display:none;">
     <button class="btn" style="background:#27ae60" onclick="exportarExcel()">📥 EXCEL AUDITORÍA</button>
     <button class="btn" style="background:#636e72" onclick="window.location.href='index.html'">🔙 SALIR</button>    
     </div>
@@ -642,6 +644,69 @@ async function procesarFacturaPDF(file) {
             }
         });
     }
+}
+async function importarExcelMasivo(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const filas = XLSX.utils.sheet_to_json(sheet);
+
+        if (!confirm(`¿Estás seguro de importar ${filas.length} registros del 2025?`)) return;
+
+        for (const fila of filas) {
+            // 1. Generar un ID único para vincular Factura con Cobranza
+            const nuevaFacturaRef = db.ref('facturas_emitidas').push();
+            const id = nuevaFacturaRef.key;
+
+            // 2. Formatear Fechas para Firebase (YYYY-MM-DD)
+            const fEmi = fila.FECHA_EMI; // Asumimos DD/MM/AAAA en Excel
+            const fCobroRaw = fila.FECHA_COBRO;
+            let fCobroISO = new Date().toISOString().slice(0, 10);
+            
+            if (fCobroRaw && fCobroRaw.includes('/')) {
+                const p = fCobroRaw.split('/');
+                fCobroISO = `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+            }
+
+            const total = parseFloat(fila.TOTAL) || 0;
+            const debito = parseFloat(fila.DEBITO) || 0;
+            const cobrado = total - debito; // Lo que realmente entró al banco
+
+            // 3. PASO 1: Crear la Factura
+            const promesaFactura = nuevaFacturaRef.set({
+                receptor_nombre: String(fila.OS).toUpperCase(),
+                receptor_cuit: String(fila.CUIT),
+                fecha_emision: fEmi,
+                punto_venta: parseInt(fila.PV) || 5,
+                nro_comp: parseInt(fila.NUMERO),
+                id_paciente: String(fila.PACIENTE).toUpperCase(),
+                total: total,
+                modulo: String(fila.MODULO).toUpperCase() || "CD",
+                tipo_comp: 11
+            });
+
+            // 4. PASO 2: Crear el Cobro automáticamente (Saldo queda en 0)
+            const promesaCobro = db.ref(`cobranzas/${id}`).set({
+                fecha_pago: fCobroISO,
+                mes_cobro_index: fCobroISO.slice(0, 7),
+                monto_cobrado: cobrado,
+                monto_debito: debito,
+                motivo_debito: fila.MOTIVO_DEBITO || "",
+                transferencia: fila.TRANSFERENCIA || "CARGA MASIVA 2025"
+            });
+
+            await Promise.all([promesaFactura, promesaCobro]);
+        }
+
+        alert("✅ Importación completada. El historial 2025 ya está integrado.");
+        renderizarTodo();
+    };
+    reader.readAsArrayBuffer(file);
 }
 auth.onAuthStateChanged((user) => {
     if (user) {
