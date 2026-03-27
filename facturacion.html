@@ -289,17 +289,6 @@ window.borrarOS = async function(nombre) {
         window.cargarTodo();
     }
 };
-window.refacturar = async (mod, id) => {
-    if(confirm(`¿Desbloquear a ${id} para volver a facturar este mes?`)) {
-        try {
-            await db.ref(`/${mod.toLowerCase()}/pacientes/${id}`).update({ facturado: 'NO' });
-            alert("Paciente desbloqueado. Ya podés volver a seleccionarlo.");
-            cargarTodo();
-        } catch (e) {
-            alert("Error al intentar desbloquear. Revisá la conexión.");
-        }
-    }
-};
 
 window.toggleArchivo = () => { const p = document.getElementById('panel-archivo'); p.style.display = p.style.display==='block'?'none':'block'; };
 window.toggleOS = () => { const p = document.getElementById('panel-os'); p.style.display = p.style.display==='block'?'none':'block'; if(p.style.display==='block') actualizarPanelOS(); };
@@ -605,8 +594,8 @@ window.render = function() {
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
-            <td><textarea class="input-tab det-val" style="min-height:40px; width:100%;" ${facturado?'disabled':''}>${facturado ? (miFactura.concepto || miFactura.descripcion || "") : `PRESTACIÓN MÓDULO ${nombreMod} - PACIENTE: ${idPaciente}`}</textarea></td>
-            <td><input type="number" class="input-tab neto-edit" value="${aFinal > 0 ? mBase : 0}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
+            <td><textarea class="input-tab det-val" style="min-height:40px; width:100%;" ${facturado?'disabled':''}>${p.detalle || (facturado ? (miFactura.concepto || miFactura.descripcion || "") : `PRESTACIÓN MÓDULO ${nombreMod} - PACIENTE: ${idPaciente}`)}</textarea></td>
+			<td><input type="number" class="input-tab neto-edit" value="${p.total && aFinal > 0 ? p.total : (aFinal > 0 ? mBase : 0)}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
             <td>
                 <select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
                     <option value="0" ${aFinal === 0 ? 'selected' : ''}>Exento</option>
@@ -614,8 +603,8 @@ window.render = function() {
                     <option value="21" ${aFinal === 21 ? 'selected' : ''}>21%</option>
                 </select>
             </td>
-            <td><input type="number" class="input-tab exento-edit" value="${aFinal === 0 ? mBase : 0}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
-            <td style="text-align:right; font-weight:bold" class="total-render">$ ${totalCalculated.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+            <td><input type="number" class="input-tab exento-edit" value="${p.total && aFinal === 0 ? p.total : (aFinal === 0 ? mBase : 0)}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
+			<td style="text-align:right; font-weight:bold" class="total-render">$ ${totalCalculated.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
             <input type="hidden" class="f-desde" value="${fDesde}">
             <input type="hidden" class="f-hasta" value="${fHasta}">
             <input type="hidden" class="f-vto" value="${fVto}">
@@ -837,7 +826,9 @@ const MODELO_FACTURA_B = (d) => {
     const esNC = (codNum === 8 || codNum === 3 || codNum === 13);
     const tituloDoc = esNC ? "NOTA DE CRÉDITO" : (d.titulo_documento || "FACTURA");
 
-    let lineaAsociada = "";
+    const nroAsocFinal = d.asoc_nro || d.nro_asoc;
+	const pvAsocFinal = d.asoc_pv || 5;
+	let lineaAsociada = "";
     if (esNC && (d.asoc_nro || d.nro_asoc)) {
         const pvA = String(d.asoc_pv || 5).padStart(5, '0');
         const nroA = String(d.asoc_nro || d.nro_asoc).padStart(8, '0');
@@ -1429,35 +1420,45 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
 };
 // --- FUNCIÓN GLOBAL PARA REFACTURAR ---
 window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVieja) {
-    if(confirm("¿Habilitar para editar y refacturar? La fila se volverá blanca.")) {
+    if(confirm("¿Habilitar para editar y refacturar? Se recuperarán los datos de la factura anterior.")) {
         try {
-            // 1. RESPETAMOS EL NODO (SAEI va en mayúscula, el resto como venga)
             const modPath = (modulo.toUpperCase() === "SAEI") ? "SAEI" : modulo.toLowerCase();
-            
-            // 2. BLINDAJE: Si idFacturaVieja es undefined, usamos un string vacío o "ANULADA"
-            const idLimpio = idFacturaVieja || "REFAC_MANUAL";
+            const nodoFacturas = (modPath === "SAEI") ? "facturas_emitidas_saei" : "facturas_emitidas";
             
             const updates = {};
             
-            // Limpiamos los campos de facturación en la base de datos
+            // 1. 🧠 RECUPERACIÓN DE MEMORIA: Buscamos la factura vieja en el historial
+            if (idFacturaVieja) {
+                const snapFactura = await db.ref(`${nodoFacturas}/${idFacturaVieja}`).once('value');
+                const datosFactura = snapFactura.val();
+
+                if (datosFactura) {
+                    // Si encontramos la factura, le pisamos al paciente el monto y detalle
+                    // para que cuando aparezca de nuevo en la tabla, tenga lo que escribiste.
+                    updates[`/${modPath}/pacientes/${idPaciente}/total`] = datosFactura.total || 0;
+                    updates[`/${modPath}/pacientes/${idPaciente}/detalle`] = datosFactura.detalle || "";
+                    
+                    console.log("✅ Datos recuperados de la factura:", datosFactura.nro_comp);
+                }
+            }
+
+            // 2. RESETEO DE ESTADO
+            const idLimpio = idFacturaVieja || "REFAC_MANUAL";
             updates[`/${modPath}/pacientes/${idPaciente}/ignorar_factura`] = idLimpio;
             updates[`/${modPath}/pacientes/${idPaciente}/facturado`] = "NO";
             updates[`/${modPath}/pacientes/${idPaciente}/facturado_saei`] = "NO";
-            
-            // Borramos la última factura para que el render la vea como "Pendiente"
             updates[`/${modPath}/pacientes/${idPaciente}/ultima_factura`] = null;
             updates[`/${modPath}/pacientes/${idPaciente}/ultima_factura_saei`] = null;
 
             await db.ref().update(updates);
             
-            alert("✅ Paciente habilitado para refacturar.");
+            alert("✅ Paciente habilitado con los datos de la factura anterior.");
             
-            // Forzamos la recarga de datos para que la fila cambie de color al instante
             if (typeof cargarTodo === 'function') cargarTodo();
 
         } catch (e) {
             console.error("Error en habilitarParaRefacturar:", e);
-            alert("❌ Error de Firebase: " + e.message);
+            alert("❌ Error: " + e.message);
         }
     }
 };
@@ -1559,6 +1560,15 @@ window.limpiarFiltros = function() {
         if (ck && !ck.disabled) ck.checked = false;
     });
 };
+		db.ref('facturas_emitidas').on('value', () => {
+    console.log("⚡ Cambio detectado en Facturas Gral, actualizando...");
+    if (typeof procesarTodo === 'function') procesarTodo();
+});
+
+db.ref('facturas_emitidas_saei').on('value', () => {
+    console.log("⚡ Cambio detectado en Facturas SAEI, actualizando...");
+    if (typeof procesarTodo === 'function') procesarTodo();
+});
 auth.onAuthStateChanged((user) => {
     if (user) {
         setTimeout(() => {
