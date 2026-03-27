@@ -349,6 +349,162 @@ window.recalcular = (el) => {
         })}`;
     }
 };
+	window.cargarTodo = async () => {
+    const tablaBod = document.getElementById('tabla-body');
+    if (!tablaBod) return;
+    
+    tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando con motores de facturación...</td></tr>';
+
+    try {
+        // 1. CARGA DE OBRAS SOCIALES (Con espera real)
+        // Usamos .once() para asegurarnos de que TENEMOS los datos antes de seguir
+        const snapOS = await db.ref('/config/obras_sociales').once('value');
+        window.dictOS = snapOS.val() || {}; 
+        // También lo guardamos en window.config por si el render usa esa ruta
+        window.config = { obras_sociales: window.dictOS };
+
+        console.log("✅ Obras Sociales cargadas en dictOS:", Object.keys(window.dictOS).length, "entidades.");
+        // Este es el log que te pedí para ver si Firebase está respondiendo
+        console.log("DEBUG OS:", window.dictOS);
+
+        // 2. CARGA MASIVA DE PACIENTES
+        const nodos = ['SAEI']; 
+        const promesas = nodos.map(n => db.ref(`${n}/pacientes`).once('value'));
+        
+        const snapshots = await Promise.all(promesas);
+        
+        dataFull = []; 
+
+        snapshots.forEach((snap, index) => {
+            const modulo = nodos[index];
+            const pacientes = snap.val() || {};
+            
+            for (let id in pacientes) {
+                dataFull.push({
+                    id_db: id,
+                    modulo: modulo,
+                    ...pacientes[id]
+                });
+            }
+        });
+
+        console.log("✅ Datos cargados:", dataFull.length, "pacientes.");
+        
+        // 3. LLAMAMOS AL RENDER
+        if (typeof render === "function") {
+            render();
+        } else {
+            tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error: No se encuentra la función render()</td></tr>';
+        }
+
+    } catch (error) {
+        console.error("Error en cargarTodo:", error);
+        tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error de conexión con Firebase.</td></tr>';
+    }
+};
+ async function procesarTodo() {
+    const dictOS = window.dictOS || {};
+	const snapGral = await db.ref('facturas_emitidas_saei').once('value');
+    const snapSaei = await db.ref('facturas_emitidas').once('value');
+    
+    const todasLasFacturas = {
+        ...(snapGral.val() || {}),
+        ...(snapSaei.val() || {})
+    };
+    
+    // Las ordenamos de mayor a menor por número para agarrar la ÚLTIMA siempre
+    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => {
+        return (b.nro_comp || 0) - (a.nro_comp || 0);
+    });
+
+    const rutas = [
+    { path: 'saei/pacientes', mod: 'SAEI' } 
+    ];
+    const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
+    const snapsPacientes = await Promise.all(promesas);
+
+    const tempFull = [];
+
+    snapsPacientes.forEach((snap, index) => {
+        const nombreMod = rutas[index].mod;
+        const pacientes = snap.val() || {};
+
+        for (const idPac in pacientes) {
+            const p = pacientes[idPac];
+            
+            // 1. BUSCAMOS LA ÚLTIMA FACTURA O NC
+            let ultFact = facturasArray.find(f => 
+                (f.id_paciente === idPac || f.id_paciente_db === idPac) && 
+                String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase()
+            );
+
+            // --- AQUÍ ESTÁ LO QUE PEDÍAS: Lógica de NC ---
+            if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
+                // Si la última es una NC, nos aseguramos de que los datos de asociación existan
+                // Por si en la DB vieja estaban con otro nombre, los normalizamos acá:
+                ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
+                ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
+            }
+
+            // 2. FILTRO ANTI-GRIS (Tu lógica de refacturación)
+            let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
+            if (p.facturado === 'NO') {
+                estadoFinal = 'NO';
+            }
+
+            tempFull.push({
+                ...p,
+                id: idPac, // Nombre del paciente (Key)
+                mod: nombreMod,
+                ultima_factura: ultFact, 
+                facturado: estadoFinal   
+            });
+        }
+    });
+    
+    dataFull = tempFull;
+    
+    if (typeof render === "function") {
+        render();
+    }
+}
+window.actualizarPanelOS = function() {
+    const listaOS = document.getElementById('lista-os');
+    if(!listaOS) return;
+    const datosParaListar = window.dictOS || {};
+    // Aseguramos que tome los datos globales que cargaste de Firebase
+    const datos = window.dictOS || (window.config ? window.config.obras_sociales : null);
+    
+    if (!datos || Object.keys(datos).length === 0) {
+        listaOS.innerHTML = '<div style="text-align:center; padding:10px; color:gray;">No hay Obras Sociales cargadas.</div>';
+        return;
+    }
+     
+    let htmlOS = '<div style="display: flex; flex-direction: column; gap: 5px;">';
+    
+    // Ordenamos alfabéticamente para que sea más fácil de usar
+    const nombresOrdenados = Object.keys(datos).sort();
+
+    nombresOrdenados.forEach(nombre => {
+        const os = datos[nombre];
+        htmlOS += `
+            <div class="os-item" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:8px; border-radius:5px; border:1px solid #eee; margin-bottom:5px">
+                <span style="font-size:10px">
+                    <b style="color:var(--azul)">${nombre}</b><br>
+                    <small>CUIT: ${os.cuit || 'S/C'} | ${os.condicion_iva || 'EXENTO'}</small>
+                </span>
+                <div style="display:flex; gap:5px">
+                    <button class="btn" style="background:var(--azul); padding:4px 8px; font-size:9px" 
+                        onclick="prepararEdicionOS('${nombre}')">EDITAR</button>
+                    <button class="btn" style="background:var(--rojo); padding:4px 8px; font-size:9px" 
+                        onclick="borrarOS('${nombre}')">❌</button>
+                </div>
+            </div>`;
+    });
+    
+    listaOS.innerHTML = htmlOS + "</div>";
+};
+
 
 
 // --- 8. AUTH ---
