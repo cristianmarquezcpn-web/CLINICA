@@ -469,7 +469,7 @@
         const c = document.getElementById('lista-asistencias-completa'); c.innerHTML = ""; 
         Object.keys(pacs).sort().forEach(n => { 
             const p = pacs[n]; const tieneAsist = (p.asistF || p.asistF_link);
-            c.innerHTML += `<div style="display:grid; grid-template-columns: 1.2fr 1fr 0.8fr 1fr; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center"><b>${n}</b><button class="btn" style="background:${tieneAsist ? 'var(--oscuro)' : '#ccc'}" onclick="verArchP('asistF','${n}')">1. VER ASISTENCIA</button><input type="password" placeholder="Clave" id="pass-${n.replace(/\s/g,'')}" style="width:60px" onkeyup="validarClave('${n}')"><button class="btn" id="btn-desc-${n.replace(/\s/g,'')}" style="background:var(--verde)" disabled onclick="verArchP('asistF','${n}')">3. DESCARGAR</button></div>`; 
+            c.innerHTML += `<div style="display:grid; grid-template-columns: 1.2fr 1fr 0.8fr 1fr; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center"><b>${n}</b><button class="btn" style="background:${tieneAsist ? 'var(--oscuro)' : '#ccc'}" onclick="verArchP('asistF','${n}')">1. VER ASISTENCIA</button><input type="password" placeholder="Clave" id="pass-${n.replace(/\s/g,'')}" style="width:60px" onkeyup="validarClave('${n}')"><button class="btn" id="btn-desc-${n.replace(/\s/g,'')}" style="background:var(--verde)" disabled onclick="descargarPDF_CET('${n}')">3. DESCARGAR</button></div>`;   
         }); 
         document.getElementById('panel-fac').style.display="block"; document.getElementById('overlay').style.display="block";
     }
@@ -734,6 +734,50 @@ function actualizarContadores() {
     if (elP) elP.innerText = totalP;
     if (elA) elA.innerText = totalA;
     if (elAC) elAC.innerText = totalAC;
+}
+    async function descargarPDF_CET(n) {
+    const p = pacs[n];
+    const link = p.asistF_link || p.asistF;
+    
+    if(!link) { alert("No hay asistencia cargada en Cloudinary"); return; }
+
+    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    
+    const fechaHoy = new Date();
+    let indiceMesAnterior = fechaHoy.getMonth() - 1;
+    let anioRef = fechaHoy.getFullYear();
+
+    if (indiceMesAnterior < 0) {
+        indiceMesAnterior = 11;
+        anioRef--;
+    }
+
+    const mesVencido = meses[indiceMesAnterior];
+
+    // ARMADO DEL NOMBRE: Asistencia [Mes] [Año] [Nombre] CET.pdf
+    const nombreFichero = `Asistencia ${mesVencido} ${anioRef} ${n} CET.pdf`;
+
+    try {
+        const respuesta = await fetch(link);
+        if (!respuesta.ok) throw new Error("Error en fetch");
+
+        const archivoBlob = await respuesta.blob();
+        const urlBlob = window.URL.createObjectURL(archivoBlob);
+        
+        const tagA = document.createElement('a');
+        tagA.href = urlBlob;
+        tagA.download = nombreFichero; 
+        
+        document.body.appendChild(tagA);
+        tagA.click();
+        
+        window.URL.revokeObjectURL(urlBlob);
+        document.body.removeChild(tagA);
+        
+    } catch (err) {
+        window.open(link, '_blank');
+    }
 }
 // --- BLOQUE DE SEGURIDAD Y CARGA AUTOMÁTICA ---
 auth.onAuthStateChanged((user) => {
