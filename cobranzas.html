@@ -133,20 +133,19 @@
             <table id="tablaMaestra">
                 <thead>
                     <tr>
-                        <th>FECHA</th>
-                        <th>COMPROBANTE</th>
-                        <th>MORA</th>
-                        <th>PACIENTE / CUIT</th>
-                        <th>MÓDULO</th>
-                        <th>NETO</th>
-                        <th>RET. IIBB</th>
-                        <th>RET. GS</th>
-                        <th>ESTADO</th>
-                        <th>ACCIÓN</th>
-                        <th>SALDO</th>
-                        <th>TRANSF.</th>
-                        <th>PAGADO</th>
-                    </tr>
+                     <th>FECHA EMI.</th>
+        			 <th>COMPROBANTE</th>
+        			 <th>MORA</th>
+                     <th>PACIENTE / CUIT</th>
+        			 <th>MÓDULO</th>
+        			 <th>NETO</th>
+            		 <th>RET. IIBB</th>
+        		     <th>RET. GS</th>
+        			 <th>ESTADO</th>
+        			 <th>ACCIÓN</th>
+        			 <th>SALDO</th>
+        		     <th>F. COBRO / TRANSF.</th> <th>PAGADO / DÉBITO</th>
+        			 <th>MOTIVO DÉBITO</th> </tr>
                 </thead>
                 <tbody id="cuerpoMaestro"></tbody>
             </table>
@@ -181,12 +180,22 @@ if (!firebase.apps.length) {
 
     // --- 2. UTILIDADES ---
     function parseFecha(s) { 
-        if(!s) return new Date();
-        const p = s.split('/'); 
-        return new Date(p[2], p[1]-1, p[0]); 
+    if(!s) return new Date();
+    
+    // Si la fecha viene de Firebase (formato 2025-05-15 con guiones)
+    if (s.includes('-')) {
+        const p = s.split('-');
+        // p[0]=año, p[1]=mes, p[2]=día
+        return new Date(p[0], p[1]-1, p[2]);
     }
-    const hoy = new Date();
-    function calcularNetoFila(f, pIIBB, pGS, pMin) {
+    
+    // Si la fecha viene de la carga manual (formato 15/05/2025 con barras)
+    const p = s.split('/'); 
+    if (p.length < 3) return new Date();
+    return new Date(p[2], p[1]-1, p[0]); 
+}
+     const hoy = new Date(); // Esta se usa solo para calcular la mora de las facturas que todavía no cobraste
+     function calcularNetoFila(f, pIIBB, pGS, pMin) {
         let bruto = parseFloat(f.total) || 0;
         const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
         if (esNC) return -Math.abs(bruto); // La NC resta el bruto directo (sin retenciones)
@@ -233,17 +242,28 @@ if (!firebase.apps.length) {
         let globalPendiente = 0;
 
         // A. Análisis de Jineteo (Histórico)
-        Object.keys(cobros).forEach(id => {
-            if(facturas[id] && !String(facturas[id].nro_comp).includes('NC')) {
-                const fEmi = parseFecha(facturas[id].fecha_emision);
-                const fCob = parseFecha(cobros[id].fecha_pago || cobros[id].fecha);
-                const dias = Math.floor((fCob - fEmi) / 86400000);
-                const os = facturas[id].receptor_nombre || "SIN O.S.";
-                if(!statsJineteo[os]) statsJineteo[os] = { suma: 0, cant: 0 };
-                statsJineteo[os].suma += dias;
-                statsJineteo[os].cant++;
-            }
-        });
+Object.keys(cobros).forEach(id => {
+    // Solo analizamos si existe la factura y NO es una Nota de Crédito
+    if(facturas[id] && !String(facturas[id].nro_comp).includes('NC')) {
+        
+        const fEmi = parseFecha(facturas[id].fecha_emision);
+        
+        // PRIORIDAD: 1. fecha_pago (la manual) | 2. fecha (la automática antigua)
+        const fechaCobroRaw = cobros[id].fecha_pago || cobros[id].fecha;
+        const fCob = parseFecha(fechaCobroRaw);
+        
+        // Calculamos la diferencia real en días
+        const dias = Math.floor((fCob - fEmi) / 86400000);
+        
+        // Si el resultado es lógico (mayor a 0), lo sumamos a las estadísticas
+        if (dias >= 0) {
+            const os = facturas[id].receptor_nombre || "SIN O.S.";
+            if(!statsJineteo[os]) statsJineteo[os] = { suma: 0, cant: 0 };
+            statsJineteo[os].suma += dias;
+            statsJineteo[os].cant++;
+        }
+    }
+});
 
         // B. Procesamiento de Facturas
         Object.keys(facturas).forEach(id => {
@@ -364,6 +384,7 @@ tr.innerHTML = `
         ${(pagado || 0) > 0 ? '$' + (pagado || 0).toLocaleString('es-AR') : '-'}
         ${(debito || 0) > 0 ? `<br><small style="color:#e74c3c">(-$${(debito || 0).toLocaleString('es-AR')} DÉBITO)</small>` : ''}
     </td>
+    <td style="font-size:10px; color:#e67e22; font-style:italic;">${cobro?.motivo_debito || '-'}</td> 
 `;
     agrupadoOS[os].filas.push(tr);
             
@@ -384,7 +405,7 @@ tr.innerHTML = `
         Object.keys(agrupadoOS).sort().forEach(os => {
             if(agrupadoOS[os].filas.length === 0) return;
             const trH = document.createElement('tr');
-            trH.innerHTML = `<td colspan="13" style="background:#ecf0f1; font-weight:bold; text-align:left; padding:8px 15px; border-left:4px solid var(--primary); font-size:13px;">
+            trH.innerHTML = `<td colspan="15" style="background:#ecf0f1; font-weight:bold; text-align:left; padding:8px 15px; border-left:4px solid var(--primary); font-size:13px;">
                 🏢 ${os} <span style="float:right; color:#c0392b">Pendiente OS: $${agrupadoOS[os].totalPendienteOS.toLocaleString('es-AR', {minimumFractionDigits:2})}</span></td>`;
             tbodyM.appendChild(trH);
             agrupadoOS[os].filas.forEach(fila => tbodyM.appendChild(fila));
@@ -444,21 +465,44 @@ tr.innerHTML = `
     }
 
     const trans = prompt("Referencia (Liquidación/Transf):");
+	let motivo = "";
+	if (montoDebito > 0) {
+    motivo = prompt("Motivo del Débito (ej: Débito por falta de firma, refacturación):", "");
+}
 
     // 3. Guardado Acumulativo
-    await db.ref(`cobranzas/${id}`).update({
-        fecha_pago: new Date().toLocaleDateString('es-AR'),
-        mes_cobro_index: new Date().toISOString().slice(0, 7),
-        monto_cobrado: (previo.monto_cobrado || 0) + montoNuevo,
-        monto_debito: (previo.monto_debito || 0) + montoDebito,
-        transferencia: previo.transferencia ? previo.transferencia + " | " + (trans || "S/D") : (trans || "S/D")
-    });
+    const hoySugerido = new Date().toLocaleDateString('es-AR');
+let fechaIngresada = prompt("📅 Fecha Real de Cobro (DD/MM/AAAA):", hoySugerido);
+if (fechaIngresada === null) return; // Cancela si toca cancelar
+if (fechaIngresada.trim() === "") fechaIngresada = hoySugerido;
 
+// B. Convertimos DD/MM/AAAA a YYYY-MM-DD para que la base de datos sea prolija
+const partes = fechaIngresada.split('/');
+let fechaISO;
+if (partes.length === 3) {
+    // Arma: Año - Mes - Día
+    fechaISO = `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+} else {
+    // Si escribiste mal la fecha, por seguridad usa el formato de hoy
+    fechaISO = new Date().toISOString().slice(0, 10);
+}
+
+// C. Guardamos en Firebase
+await db.ref(`cobranzas/${id}`).update({
+    fecha_pago: fechaISO,              // <--- USAMOS TU FECHA MANUAL
+    mes_cobro_index: fechaISO.slice(0, 7), // <--- EXTRAE EL MES (YYYY-MM)
+    monto_cobrado: (previo.monto_cobrado || 0) + montoNuevo,
+    monto_debito: (previo.monto_debito || 0) + montoDebito,
+    // Agregamos el motivo que capturamos arriba
+    motivo_debito: motivo || (previo.motivo_debito || ""),
+    transferencia: previo.transferencia ? previo.transferencia + " | " + (trans || "S/D") : (trans || "S/D")
+});
     renderizarTodo();
 } 
     async function actualizarRetManual(id, campo, valor) {
         const num = parseFloat(valor) || 0;
         await db.ref(`facturas_emitidas/${id}`).update({ [campo]: num });
+		db.ref(`facturas_emitidas_saei/${id}`).update({ [campo]: num })
         renderizarTodo();
     }
 
