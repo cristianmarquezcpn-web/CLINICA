@@ -116,19 +116,20 @@
             <table id="tabla-facturas">
         <thead>
             <tr>
-                <th style="width: 50px; text-align:center;">Sel.<br><input type="checkbox" id="check-all" onclick="window.seleccionarTodos(this)"></th>
-                <th style="width: 130px;">Paciente / Mod<br><input type="text" class="f-filtro" data-col="1" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
-                <th style="width: 100px;">Tipo Comp.</th>
+                <tr>
+                <th style="width: 80px; text-align:center;">Acción<br><input type="checkbox" id="check-all" onclick="window.seleccionarTodos(this)"></th>
+                <th style="width: 140px;">Paciente / Mod<br><input type="text" class="f-filtro" data-col="1" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
+                <th style="width: 150px;">Tipo Comp.</th>
                 <th style="width: 120px;">CUIT / DNI<br><input type="text" class="f-filtro" data-col="3" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
-                <th style="width: 160px;">Razón Social<br><input type="text" class="f-filtro" data-col="4" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
-                <th style="width: 140px;">Domicilio<br><input type="text" class="f-filtro" data-col="5" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
-                <th style="width: 200px;">Detalle</th>
-                <th style="width: 90px;">Neto ($)</th>
-                <th style="width: 80px;">IVA</th>
-                <th style="width: 90px; text-align: right;">Exento ($)</th>
-                <th style="width: 100px; text-align: right;">Total</th>
+                <th style="width: 180px;">Razón Social<br><input type="text" class="f-filtro" data-col="4" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
+                <th style="width: 150px;">Domicilio<br><input type="text" class="f-filtro" data-col="5" onkeyup="window.filtrarRender()" placeholder="Buscar..."></th>
+                <th style="width: 250px;">Detalle</th>
+                <th style="width: 100px;">Neto ($)</th>
+                <th style="width: 90px;">IVA</th>
+                <th style="width: 100px;">Exento ($)</th>
+                <th style="width: 110px; text-align: right;">Total</th>
             </tr>
-        </thead>
+         </thead>
             <tbody id="tabla-body"></tbody>
         </table>
     </div>
@@ -496,108 +497,89 @@ window.actualizarPanelOS = function() {
     listaOS.innerHTML = htmlOS + "</div>";
 };
 window.render = function() {
-    const b = document.getElementById('tabla-body');
-    if (!b || !dataFull) return;
-    b.innerHTML = "";
+    const b = document.getElementById('tabla-body');
+    if (!b || !dataFull) return;
+    b.innerHTML = "";
 
-    const diccOS = (window.config && window.config.obras_sociales) ? window.config.obras_sociales : (window.dictOS || {});
-    const listaNombresOS = Object.keys(diccOS);
+    // Aseguramos capturar bien el diccionario
+    const diccOS = window.dictOS || (window.config ? window.config.obras_sociales : {});
+    const listaNombresOS = Object.keys(diccOS);
 
-    dataFull
-    .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
-    .filter(p => {
-        if (filtroActual === 'TODOS') return true;
-        const mod = (p.modulo || p.mod || "").toUpperCase();
-        return mod === filtroActual.toUpperCase();
-    })
-    .forEach(p => {
-        const idPaciente = p.id || p.id_db || "S/N";
-        const nombreMod  = (p.modulo || p.mod || "S/M").toUpperCase();
-        const miFactura = p.ultima_factura_saei || p.ultima_factura; 
-        const facturado = !!(miFactura && (miFactura.cae || miFactura.id));
+    dataFull
+    .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
+    .filter(p => {
+        if (filtroActual === 'TODOS') return true;
+        const mod = (p.modulo || p.mod || "").toUpperCase();
+        return mod === filtroActual.toUpperCase();
+    })
+    .forEach(p => {
+        const idPaciente = p.id || p.id_db || "S/N";
+        const nombreMod  = (p.modulo || p.mod || "S/M").toUpperCase();
+        const miFactura = p.ultima_factura_saei || p.ultima_factura; 
+        const facturado = !!(miFactura && (miFactura.cae || miFactura.id));
 
-        const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
-        let infoOS = {};
+        // --- LÓGICA DE DATOS DE OS ---
+        const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
+        let infoOS = diccOS[osPaciente] || {};
+        if (!infoOS.cuit && osPaciente) {
+            const coincidencia = listaNombresOS.find(n => n.includes(osPaciente) || osPaciente.includes(n));
+            if (coincidencia) infoOS = diccOS[coincidencia];
+        }
 
-        if (osPaciente) {
-            if (diccOS[osPaciente]) {
-                infoOS = diccOS[osPaciente];
-            } else {
-                const coincidencia = listaNombresOS.find(nombre => 
-                    nombre.toUpperCase().includes(osPaciente) || osPaciente.includes(nombre.toUpperCase())
-                );
-                if (coincidencia) infoOS = diccOS[coincidencia];
-            }
-        }
+        const rsFinal = facturado ? (miFactura.receptor_nombre || miFactura.razon_social || osPaciente) : (infoOS.nombre || osPaciente || "");
+        const cuitFinal = facturado ? (miFactura.cuit || "") : (infoOS.cuit || p.cuit || "");
+        const domFinal = facturado ? (miFactura.domicilio || "SAN JUAN") : (infoOS.domicilio || "SAN JUAN");
 
-        const cuitDesdeDict = infoOS.cuit || "";
-        const domDesdeDict = infoOS.domicilio || "SAN JUAN";
+        // --- VALORES ---
+        const mBase = parseFloat(facturado ? (miFactura.neto || miFactura.exento || miFactura.total) : (p.monto_fijo || 0)) || 0;
+        const aFinal = parseFloat(facturado ? (miFactura.alicuota || 0) : 0) || 0;
+        const totalCalculated = facturado ? (parseFloat(miFactura.total) || 0) : mBase;
+        const tipoComp = miFactura?.tipo_comp ? parseInt(miFactura.tipo_comp) : 6;
+        const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
 
-        const rsFinal = facturado ? (miFactura.receptor_nombre || miFactura.razon_social || osPaciente) : (infoOS.razon_social || infoOS.nombre || osPaciente || "");
-        const cuitFinal = facturado ? (miFactura.cuit || "") : (cuitDesdeDict || p.cuit || p.obra_social_cuit || "");
-        const domFinal = facturado ? (miFactura.domicilio || "SAN JUAN") : (domDesdeDict || p.obra_social_domicilio || "SAN JUAN");
+        const tieneAsist = p.asistF_link && p.asistF_link.length > 5;
+        const tr = document.createElement('tr');
+        if(facturado) tr.className = "row-facturada";
 
-        const mBase = parseFloat(facturado ? (miFactura.neto || miFactura.exento || miFactura.total) : (p.monto_fijo || p.total || p.neto || 0)) || 0;
-        const aFinal = parseFloat(facturado ? (miFactura.alicuota || 0) : 0) || 0;
-        const totalCalculated = facturado ? (parseFloat(miFactura.total) || 0) : mBase;
+        // --- COLUMNA ACCIÓN (CheckBox + Estado) ---
+        let estadoVisual = facturado ? `<br><b style="color:green; font-size:9px;">FACTURADO</b>` : (!tieneAsist ? `<br><b style="color:red; font-size:9px;">SIN ASISTENCIA</b>` : `<br><b style="color:orange; font-size:9px;">PENDIENTE</b>`);
+        let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${(facturado || !tieneAsist) ? 'disabled' : ''}> ${estadoVisual}`;
+        if (facturado) {
+            colAccion += `<div style="margin-top:5px;"><button class="btn" style="background:var(--verde); font-size:8px; padding:2px;" onclick="window.descargarFactura('${miFactura.id}')">PDF</button></div>`;
+        }
 
-        let tipoComp = 6; 
-        if (miFactura?.tipo_comp) tipoComp = parseInt(miFactura.tipo_comp);
-        
-        const fDesde = (facturado ? (miFactura.periodo_desde || "") : (p.periodo_desde || "")) || "";
-        const fHasta = (facturado ? (miFactura.periodo_hasta || "") : (p.periodo_hasta || "")) || "";
-        const fVto   = (facturado ? (miFactura.vto_pago || "") : (p.vto_pago || "")) || "";
-
-        const tieneAsist = p.asistF_link && p.asistF_link.length > 5;
-        const tr = document.createElement('tr');
-        if(facturado) tr.className = "row-facturada";
-
-        let estadoVisual = facturado ? `<br><b style="color:green; font-size:9px;">FACTURADO</b>` : (!tieneAsist ? `<br><b style="color:red; font-size:9px;">SIN ASISTENCIA</b>` : `<br><b style="color:orange; font-size:9px;">PENDIENTE</b>`);
-        let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${(facturado || !tieneAsist) ? 'disabled' : ''}> ${estadoVisual}`;
-        
-        if (facturado) {
-            colAccion += `<div style="margin-top:5px;"><button class="btn" style="background:var(--verde); font-size:8px; padding:4px; color:white; border:none;" onclick="window.descargarFactura('${miFactura.id || idPaciente}')">PDF</button>
-            <button class="btn" style="background:var(--naranja); font-size:8px; padding:4px; color:white; border:none;" onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button></div>`;
-        }
-
-        const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
-
-        tr.innerHTML = `
-            <td style="text-align:center">${colAccion}</td>
-            <td><small>${nombreMod}</small><br><b>${idPaciente}</b></td>
-            <td>
-                <select class="input-tab sel-tipo" ${facturado?'disabled':''} onchange="window.gestionarTipoComp(this)">
-                    <option value="6" ${tipoComp === 6 ? 'selected' : ''}>Factura B</option>
-                    <option value="1" ${tipoComp === 1 ? 'selected' : ''}>Factura A</option>
-                    <option value="8" ${tipoComp === 8 ? 'selected' : ''}>NC B</option>
-                    <option value="3" ${tipoComp === 3 ? 'selected' : ''}>NC A</option>
-                </select>
-                <div class="asociado-box" style="display:${displayAsociado}; margin-top:5px; background:#f9f9f9; padding:2px; border:1px dashed #ccc; font-size:10px;">
-                    <label>Pto Vta:</label><input type="number" class="aso-pv" value="5" style="width:30px">
-                    <label>Num:</label><input type="number" class="aso-num" placeholder="00001" style="width:50px"><br>
-                    <label>Fecha:</label><input type="date" class="aso-fec" style="width:85px">
-                </div>
-            </td>
-            <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''}></td>
-            <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
-            <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
-            <td><textarea class="input-tab det-val" style="min-height:40px; width:100%;" ${facturado?'disabled':''}>${p.detalle || (facturado ? (miFactura.concepto || miFactura.descripcion || "") : `PRESTACIÓN MÓDULO ${nombreMod} - PACIENTE: ${idPaciente}`)}</textarea></td>
-			<td><input type="number" class="input-tab neto-edit" value="${p.total && aFinal > 0 ? p.total : (aFinal > 0 ? mBase : 0)}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
-            <td>
-                <select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
-                    <option value="0" ${aFinal === 0 ? 'selected' : ''}>Exento</option>
-                    <option value="10.5" ${aFinal === 10.5 ? 'selected' : ''}>10.5%</option>
-                    <option value="21" ${aFinal === 21 ? 'selected' : ''}>21%</option>
-                </select>
-            </td>
-            <td><input type="number" class="input-tab exento-edit" value="${p.total && aFinal === 0 ? p.total : (aFinal === 0 ? mBase : 0)}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
-			<td style="text-align:right; font-weight:bold" class="total-render">$ ${totalCalculated.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
-            <input type="hidden" class="f-desde" value="${fDesde}">
-            <input type="hidden" class="f-hasta" value="${fHasta}">
-            <input type="hidden" class="f-vto" value="${fVto}">
-        `;
-        b.appendChild(tr);
-    });
+        // --- ARMA LA FILA (11 Celdas exactas) ---
+        tr.innerHTML = `
+            <td style="text-align:center">${colAccion}</td>
+            <td><small>${nombreMod}</small><br><b>${idPaciente}</b></td>
+            <td>
+                <select class="input-tab sel-tipo" ${facturado?'disabled':''} onchange="window.gestionarTipoComp(this)">
+                    <option value="6" ${tipoComp === 6 ? 'selected' : ''}>Factura B</option>
+                    <option value="1" ${tipoComp === 1 ? 'selected' : ''}>Factura A</option>
+                    <option value="8" ${tipoComp === 8 ? 'selected' : ''}>NC B</option>
+                    <option value="3" ${tipoComp === 3 ? 'selected' : ''}>NC A</option>
+                </select>
+                <div class="asociado-box" style="display:${displayAsociado}; margin-top:5px; font-size:9px; background:#fff; padding:2px; border:1px solid #ccc;">
+                    Num: <input type="number" class="aso-num" value="${miFactura?.asoc_num || ''}" style="width:50px">
+                </div>
+            </td>
+            <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''}></td>
+            <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
+            <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
+            <td><textarea class="input-tab det-val" style="min-height:35px;" ${facturado?'disabled':''}>${p.detalle || `PRESTACIÓN ${nombreMod} - PACIENTE: ${idPaciente}`}</textarea></td>
+            <td><input type="number" class="input-tab neto-edit" value="${aFinal > 0 ? mBase : 0}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
+            <td>
+                <select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
+                    <option value="0" ${aFinal === 0 ? 'selected' : ''}>Exento</option>
+                    <option value="10.5" ${aFinal === 10.5 ? 'selected' : ''}>10.5%</option>
+                    <option value="21" ${aFinal === 21 ? 'selected' : ''}>21%</option>
+                </select>
+            </td>
+            <td><input type="number" class="input-tab exento-edit" value="${aFinal === 0 ? mBase : 0}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
+            <td style="text-align:right; font-weight:bold" class="total-render">$ ${totalCalculated.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+        `;
+        b.appendChild(tr);
+    });
 };
 	window.recalcularTotales = function(el) {
     const tr = el.closest('tr');
