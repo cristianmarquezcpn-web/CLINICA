@@ -1197,7 +1197,229 @@ window.toggleArchivo = () => {
         }
     }
 };
+window.cargarArchivo = async () => {
+    const filtro = document.getElementById('mes_filtro_archivo').value; 
+    const body = document.getElementById('tabla_archivo_body') || document.getElementById('body-archivo');
+    const elTotSaei = document.getElementById('tot-saei'); // O el ID que uses para el total de SAEI
 
+    if (!filtro) return alert("Seleccioná un mes para ver el historial.");
+    if (!body) return;
+
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;">Cargando historial SAEI...</td></tr>';
+
+    try {
+        // --- 1. SOLAMENTE TRAEMOS SAEI ---
+        const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
+        const facturas = snapSaei.val() || {};
+        
+        let registrosFiltrados = []; 
+        let tGral = 0;
+
+        Object.keys(facturas).forEach(id => {
+            const f = facturas[id];
+            if (!f) return;
+
+            // --- NORMALIZACIÓN DE FECHA ---
+            const fechaOriginal = f.fecha_emision || f.fecha || "";
+            let mesAnio = "";
+            let diaMes = "";
+
+            if (fechaOriginal.includes('-')) {
+                const p = fechaOriginal.split('-');
+                mesAnio = `${p[0]}-${p[1].padStart(2, '0')}`;
+                diaMes = `${p[2]}/${p[1]}`;
+            } else if (fechaOriginal.includes('/')) {
+                const p = fechaOriginal.split('/');
+                if (p.length === 3) {
+                    mesAnio = `${p[2]}-${p[1].padStart(2, '0')}`;
+                    diaMes = `${p[0]}/${p[1]}`;
+                }
+            }
+
+            // --- FILTRADO POR MES ---
+            if (mesAnio === filtro) {
+                registrosFiltrados.push({ id_db: id, ...f, diaMes_formato: diaMes });
+            }
+        });
+
+        // --- 2. ORDENAMIENTO NUMÉRICO DESCENDENTE ---
+        registrosFiltrados.sort((a, b) => {
+            const nroA = parseInt(a.nro_comp || a.nro || 0);
+            const nroB = parseInt(b.nro_comp || b.nro || 0);
+            return nroB - nroA; 
+        });
+
+        // --- 3. CONSTRUCCIÓN DEL HTML ---
+        let html = "";
+        registrosFiltrados.forEach(f => {
+            const imp = parseFloat(f.total_facturado || f.total || 0);
+            const tComp = String(f.tipo_comp || f.tipo_cod || "").trim();
+            const esNC = (tComp === "8" || tComp === "3" || tComp === "13");
+            const valorEfectivo = esNC ? -imp : imp;
+            tGral += valorEfectivo;
+
+            const estiloFila = esNC ? 'style="color: #d9534f; font-weight: bold; background-color: #fff5f5;"' : '';
+            const signo = esNC ? "- " : "";
+            const nombreFinal = (f.receptor_nombre || f.nombre || f.razon_social || "PACIENTE SIN NOMBRE").toUpperCase();
+
+            html += `<tr ${estiloFila}>
+                <td style="text-align:center">${f.diaMes_formato}</td>
+                <td><b>00005-${String(f.nro_comp || f.nro || 0).padStart(8, '0')}</b></td>
+                <td><small>${f.cae || '<span style="color:orange">PROCESANDO...</span>'}</small></td>
+                <td>${nombreFinal} <br><small>SAEI</small></td>
+                <td style="text-align:right">${signo}$ ${imp.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                <td style="text-align:center">
+                    <button onclick="window.descargarFactura('${f.id_db}')" class="btn" style="background:#2980b9; color:white; border:none; padding:2px 5px; font-size:9px; cursor:pointer;">PDF</button>
+                </td>
+            </tr>`;
+        });
+
+        body.innerHTML = html || '<tr><td colspan="6" style="text-align:center;">No hay movimientos SAEI en este mes.</td></tr>';
+        
+        // Actualizamos el total del panel (si existe el elemento)
+        if(elTotSaei) elTotSaei.innerText = `$ ${tGral.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+        // Si tenés un total general en ese panel, también lo actualizamos
+        const elGral = document.getElementById('tot-general');
+        if(elGral) elGral.innerText = `$ ${tGral.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+
+    } catch (error) {
+        console.error("Error en cargarArchivo SAEI:", error);
+        body.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Error al cargar datos.</td></tr>';
+    }
+};
+	function seleccionarPacienteParaFacturar(idPaciente) {
+    const p = dataFull.find(item => item.id === idPaciente); 
+    if (!p) return alert("No se encontró el paciente en el padrón SAEI.");
+
+    const nombreOS = p.os; 
+    const datosOS = dictOS[nombreOS]; 
+
+    if (!datosOS) {
+        alert("⚠️ La Obra Social '" + nombreOS + "' no está configurada.");
+        return;
+    }
+
+    // --- CARGA DE DATOS DEL RECEPTOR ---
+    document.getElementById('f-dni-cuit').value = datosOS.cuit || ''; 
+    document.getElementById('f-nombre').value = datosOS.razonSocial || nombreOS;
+    document.getElementById('f-domicilio').value = datosOS.domicilio || '';
+    
+    const condIVA = datosOS.condicionIva || 'IVA Sujeto Exento';
+    document.getElementById('f-condicion-iva').value = condIVA;
+
+    // --- LÓGICA DE COMPROBANTE ---
+    document.getElementById('f-tipo').value = (condIVA === 'RI' || condIVA === 'Responsable Inscripto') ? "001" : "006";
+    
+    const elPunto = document.getElementById('f-punto');
+    if (elPunto) elPunto.value = "5"; 
+
+    // --- DETALLE DE LA FACTURA ---
+    const mesActual = new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(new Date());
+    document.getElementById('f-concepto').value = `PRESTACIÓN SERVICIO SAEI: ${p.nombre || idPaciente}. MES: ${mesActual.toUpperCase()}`;
+    
+    // --- ATRIBUTOS PARA EL BOTÓN ENVIAR ---
+    const btnAFIP = document.getElementById('btn-enviar-afip');
+    if (btnAFIP) {
+        btnAFIP.setAttribute('data-id-paciente', idPaciente);
+        btnAFIP.setAttribute('data-modulo-paciente', 'saei'); 
+        // Habilitamos el botón por si estaba deshabilitado por una validación previa
+        btnAFIP.disabled = false;
+        btnAFIP.style.opacity = "1";
+    }
+
+    // --- INFORMACIÓN DE ASISTENCIA (SOLO AVISO, NO BLOQUEO) ---
+    const avisoAsistencia = document.getElementById('aviso-asistencia-info'); // Asegurate de tener este ID en tu HTML
+    if (typeof validarAsistenciaParaFactura === "function") {
+        // Llamamos a la validación para que pinte los textos, 
+        // pero NO dejamos que bloquee el flujo de facturación.
+        validarAsistenciaParaFactura(idPaciente);
+    } else {
+        // Si no existe la función, al menos informamos en consola
+        console.log("Aviso: Facturando sin validación de asistencia previa.");
+    }
+}
+// 2. FUNCIÓN PARA LIMPIAR Y REFACTURAR EL MES QUE VIENE
+window.refacturarMasivoProximoMes = async function() {
+    const confirmacion = confirm("¿Habilitar TODOS los pacientes de SAEI para el próximo mes? (Se ignorarán las facturas actuales)");
+    if(!confirmacion) return;
+    
+    try {
+        const path = "saei/pacientes";
+        const snap = await db.ref(path).once('value');
+        const data = snap.val();
+
+        if (data) {
+            const updates = {};
+            Object.keys(data).forEach(id => {
+                updates[id + "/facturado"] = "NO";
+                if (data[id].ultima_factura && data[id].ultima_factura.id) {
+                    updates[id + "/ignorar_factura"] = data[id].ultima_factura.id;
+                }
+            });
+            await db.ref(path).update(updates);
+            alert("✅ ¡Módulo SAEI reseteado para el nuevo mes!");
+            location.reload();
+        } else {
+            alert("No hay pacientes cargados en SAEI.");
+        }
+    } catch (error) {
+        console.error("Error al resetear SAEI:", error);
+        alert("Error: " + error.message);
+    }
+};
+
+// FUNCIÓN PARA FIJAR DATOS: Guarda detalle e importe automáticamente
+
+window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
+
+    const paciente = dataFull.find(p => p.id === idPaciente);
+
+    if (paciente) {
+
+        try {
+
+            const modPath = paciente.mod.toLowerCase();
+
+            
+
+            // CONVERSIÓN DE SEGURIDAD: 
+
+            // Si el campo es 'neto' o 'total', lo guardamos como número real
+
+            let valorAFijar = valor;
+
+            if (campo === 'neto' || campo === 'total') {
+
+                valorAFijar = parseFloat(valor) || 0;
+
+            }
+
+
+
+            // Guardamos en la ficha original del paciente
+
+            await db.ref(`/${modPath}/pacientes/${idPaciente}/${campo}`).set(valorAFijar);
+
+            
+
+            // Actualizamos dataFull en memoria para que no necesites recargar la página
+
+            paciente[campo] = valorAFijar; 
+
+
+
+            console.log(`✅ Grabado permanente: ${campo} = ${valorAFijar}`);
+
+        } catch (error) {
+
+            console.error("❌ Error al fijar dato:", error);
+
+        }
+
+    }
+
+};
+	
 
 // --- 8. AUTH ---
 auth.onAuthStateChanged((user) => {
