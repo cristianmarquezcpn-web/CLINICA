@@ -609,29 +609,58 @@
         if(pass === "1234") { btn.disabled = false; btn.style.background = "var(--verde)"; }
         else { btn.disabled = true; }
     }
-
-    async function descargarPDF(n) {
+	async function descargarPDF(n) {
     const p = pacs[n];
     const link = p.asistF_link || p.asistF;
-    const nombreFichero = p.asistF_nom || `Asistencia_${n}.pdf`;
     
-    if(!link) { alert("No hay asistencia cargada"); return; }
+    if(!link) { alert("No hay asistencia cargada en Cloudinary"); return; }
+
+    // 1. CAPTURAMOS EL TIPO (MIS/MII/SAEI) DESDE EL SELECT
+    const tipoPres = document.getElementById('p-pres')?.value || "";
+
+    // 2. CALCULAMOS MES VENCIDO Y AÑO
+    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    
+    const fechaHoy = new Date();
+    let indiceMesAnterior = fechaHoy.getMonth() - 1;
+    let anioRef = fechaHoy.getFullYear();
+
+    if (indiceMesAnterior < 0) {
+        indiceMesAnterior = 11;
+        anioRef--;
+    }
+
+    const mesVencido = meses[indiceMesAnterior];
+
+    // 3. ARMAMOS EL NOMBRE PARA EL NAVEGADOR
+    const nombreFichero = `Asistencia ${mesVencido} ${anioRef} ${n} ${tipoPres}.pdf`;
 
     try {
+        // Fetch al link de Cloudinary
         const respuesta = await fetch(link);
+        if (!respuesta.ok) throw new Error("Error al traer el archivo");
+
         const archivoBlob = await respuesta.blob();
         const urlBlob = window.URL.createObjectURL(archivoBlob);
+        
         const tagA = document.createElement('a');
         tagA.href = urlBlob;
-        tagA.download = nombreFichero; // <--- AQUÍ SE APLICA TU NOMBRE ORIGINAL
+        tagA.download = nombreFichero; // <--- AQUÍ OCURRE LA MAGIA
+        
         document.body.appendChild(tagA);
         tagA.click();
+        
+        // Limpieza de memoria
         window.URL.revokeObjectURL(urlBlob);
         document.body.removeChild(tagA);
+        
     } catch (err) {
+        console.warn("Fallo la descarga directa, abriendo pestaña...", err);
         window.open(link, '_blank');
     }
 }
+    
     function abrirPanelRenov() { 
         const c = document.getElementById('lista-renovaciones-completa'); c.innerHTML = ""; 
         const listaPacientes = Object.keys(pacs).sort();
