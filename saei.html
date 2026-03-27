@@ -1420,7 +1420,81 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
 
 };
 	
+window.descargarUltimaDePaciente = async (idPac) => {
+    try {
+        // 1. Traemos SOLO la carpeta SAEI
+        const snapS = await db.ref('facturas_emitidas_saei').once('value');
+        const todas = snapS.val() || {};
+        let ultimaId = null;
 
+        // 2. Ordenamos las llaves de Firebase (IDs) de mayor a menor
+        const llavesOrdenadas = Object.keys(todas).sort().reverse();
+
+        for (let id of llavesOrdenadas) {
+            const f = todas[id];
+            // Verificamos coincidencia de ID de paciente
+            if (f.id_paciente === idPac || f.id_paciente_db === idPac || f.receptor_id === idPac) {
+                ultimaId = id; 
+                break; // La primera que encontramos es la más reciente
+            }
+        }
+
+        if (ultimaId) {
+            window.descargarFactura(ultimaId);
+        } else {
+            alert("No se encontró ninguna factura en SAEI para el paciente: " + idPac);
+        }
+
+    } catch (error) {
+        console.error("Error al buscar última factura SAEI:", error);
+        alert("Error de conexión al recuperar la factura.");
+    }
+};
+	// --- 1. SELECCIONAR TODOS (Solo visibles) ---
+window.seleccionarTodos = function(master) {
+    const filas = document.querySelectorAll('#tabla-body tr');
+    filas.forEach(fila => {
+        // Si la fila está oculta por el filtro, no la seleccionamos
+        if (fila.style.display !== 'none') {
+            const ck = fila.querySelector('.ck');
+            if (ck && !ck.disabled) {
+                ck.checked = master.checked;
+            }
+        }
+    });
+};
+
+// --- 2. FILTRADO MULTICOLUMNA ---
+window.filtrarRender = function() {
+    const filtros = document.querySelectorAll('.f-filtro');
+    const filas = document.querySelectorAll('#tabla-body tr');
+
+    filas.forEach(fila => {
+        let mostrar = true;
+        filtros.forEach(inputFiltro => {
+            const valorBusqueda = inputFiltro.value.toLowerCase().trim();
+            if (valorBusqueda === "") return;
+
+            const colIndex = parseInt(inputFiltro.getAttribute('data-col'));
+            const celda = fila.cells[colIndex];
+            
+            if (celda) {
+                const inputInterno = celda.querySelector('input, textarea');
+                let textoComparar = inputInterno ? inputInterno.value : celda.innerText;
+                if (textoComparar.toLowerCase().indexOf(valorBusqueda) === -1) {
+                    mostrar = false;
+                }
+            }
+        });
+        fila.style.display = mostrar ? "" : "none";
+    });
+};
+	db.ref('facturas_emitidas_saei').on('value', (snap) => {
+    console.log("⚡ Cambio detectado en Facturas SAEI, actualizando interfaz...");
+    // Esto hace que si facturás desde otra pestaña, esta se actualice sola (los botones se pongan grises, etc.)
+    if (typeof cargarTodo === 'function') cargarTodo(); 
+});
+	
 // --- 8. AUTH ---
 auth.onAuthStateChanged((user) => {
     if (user) {
