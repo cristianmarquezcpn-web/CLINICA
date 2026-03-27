@@ -366,35 +366,16 @@ window.recalcular = (el) => {
         const snapshots = await Promise.all(promesas);
         
         dataFull = []; 
+	await procesarTodo(); 
 
-        snapshots.forEach((snap, index) => {
-            const modulo = nodos[index];
-            const pacientes = snap.val() || {};
-            
-            for (let id in pacientes) {
-                dataFull.push({
-                    id_db: id,
-                    modulo: modulo,
-                    ...pacientes[id]
-                });
-            }
-        });
+        console.log("✅ Datos y facturas sincronizados.");
 
-        console.log("✅ Datos cargados:", dataFull.length, "pacientes.");
-        
-        // 3. LLAMAMOS AL RENDER
-        if (typeof render === "function") {
-            render();
-        } else {
-            tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error: No se encuentra la función render()</td></tr>';
-        }
-
-    } catch (error) {
-        console.error("Error en cargarTodo:", error);
-        tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error de conexión con Firebase.</td></tr>';
-    }
+    } catch (error) {
+        console.error("Error en cargarTodo:", error);
+        tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error de conexión con Firebase.</td></tr>';
+    }
 };
- async function procesarTodo() {
+    async function procesarTodo() {
     const dictOS = window.dictOS || {};
 	const snapGral = await db.ref('facturas_emitidas_saei').once('value');
     const snapSaei = await db.ref('facturas_emitidas').once('value');
@@ -461,40 +442,33 @@ window.recalcular = (el) => {
     }
 }
 window.actualizarPanelOS = function() {
-    const listaOS = document.getElementById('lista-os');
-    if(!listaOS) return;
-    const datosParaListar = window.dictOS || {};
-    // Aseguramos que tome los datos globales que cargaste de Firebase
-    const datos = window.dictOS || (window.config ? window.config.obras_sociales : null);
-    
-    if (!datos || Object.keys(datos).length === 0) {
-        listaOS.innerHTML = '<div style="text-align:center; padding:10px; color:gray;">No hay Obras Sociales cargadas.</div>';
-        return;
-    }
-     
-    let htmlOS = '<div style="display: flex; flex-direction: column; gap: 5px;">';
-    
-    // Ordenamos alfabéticamente para que sea más fácil de usar
-    const nombresOrdenados = Object.keys(datos).sort();
+    const listaOS = document.getElementById('lista-os');
+    if(!listaOS) return;
+    const datos = window.dictOS || (window.config ? window.config.obras_sociales : {});
+    
+    if (!datos || Object.keys(datos).length === 0) {
+        listaOS.innerHTML = '<div style="text-align:center; padding:10px; color:gray;">No hay Obras Sociales cargadas.</div>';
+        return;
+    }
+     
+    let htmlOS = '<div style="display: flex; flex-direction: column; gap: 2px;">';
+    const nombresOrdenados = Object.keys(datos).sort();
 
-    nombresOrdenados.forEach(nombre => {
-        const os = datos[nombre];
-        htmlOS += `
-            <div class="os-item" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:8px; border-radius:5px; border:1px solid #eee; margin-bottom:5px">
-                <span style="font-size:10px">
-                    <b style="color:var(--azul)">${nombre}</b><br>
-                    <small>CUIT: ${os.cuit || 'S/C'} | ${os.condicion_iva || 'EXENTO'}</small>
-                </span>
-                <div style="display:flex; gap:5px">
-                    <button class="btn" style="background:var(--azul); padding:4px 8px; font-size:9px" 
-                        onclick="prepararEdicionOS('${nombre}')">EDITAR</button>
-                    <button class="btn" style="background:var(--rojo); padding:4px 8px; font-size:9px" 
-                        onclick="borrarOS('${nombre}')">❌</button>
-                </div>
-            </div>`;
-    });
-    
-    listaOS.innerHTML = htmlOS + "</div>";
+    nombresOrdenados.forEach(nombre => {
+        const os = datos[nombre];
+        htmlOS += `
+            <div class="os-item" style="display:grid; grid-template-columns: 1fr auto; align-items:center; background:#fff; padding:4px 8px; border-bottom:1px solid #eee; margin-bottom:0;">
+                <div style="line-height:1.1">
+                    <b style="color:var(--azul); font-size:11px; text-transform:uppercase;">${nombre}</b><br>
+                    <small style="font-size:9px; color:#666">CUIT: ${os.cuit || 'S/C'} | ${os.condicion_iva || 'EXENTO'}</small>
+                </div>
+                <div style="display:flex; gap:3px">
+                    <button class="btn" style="background:var(--azul); padding:2px 5px; font-size:9px" onclick="prepararEdicionOS('${nombre}')">EDITAR</button>
+                    <button class="btn" style="background:var(--rojo); padding:2px 5px; font-size:9px" onclick="borrarOS('${nombre}')">✖</button>
+                </div>
+            </div>`;
+    });
+    listaOS.innerHTML = htmlOS + "</div>";
 };
 window.render = function() {
     const b = document.getElementById('tabla-body');
@@ -566,7 +540,7 @@ window.render = function() {
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
-            <td><textarea class="input-tab det-val" style="min-height:35px;" ${facturado?'disabled':''}>${p.detalle || `PRESTACIÓN ${nombreMod} - PACIENTE: ${idPaciente}`}</textarea></td>
+            <td><textarea class="input-tab det-val" style="min-height:35px; transition: height 0.2s; overflow-y: auto;" ${facturado?'disabled':''} onfocus="this.style.height='100px'; this.style.minHeight='100px';" onblur="this.style.height='35px'; this.style.minHeight='35px';">${p.detalle || `PRESTACIÓN ${nombreMod} - PACIENTE: ${idPaciente}`}</textarea></td>
             <td><input type="number" class="input-tab neto-edit" value="${aFinal > 0 ? mBase : 0}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
             <td>
                 <select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
