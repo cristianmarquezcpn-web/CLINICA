@@ -545,7 +545,7 @@ window.render = function() {
         const domDesdeDict = infoOS.domicilio || "SAN JUAN";
 
         const rsFinal = facturado ? (miFactura.receptor_nombre || miFactura.razon_social || osPaciente) : (infoOS.razon_social || infoOS.nombre || osPaciente || "");
-        const cuitFinal = facturado ? (miFactura.cuit || "") : (cuitDesdeDict || p.cuit || p.obra_social_cuit || "");
+		const cuitFinal = facturado ? (miFactura.cuit || "") : (infoOS.cuit || p.cuit || p.obra_social_cuit || "");
         const domFinal = facturado ? (miFactura.domicilio || "SAN JUAN") : (domDesdeDict || p.obra_social_domicilio || "SAN JUAN");
 
         // Monto priorizando exento para SAEI
