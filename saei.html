@@ -509,16 +509,18 @@ window.render = function() {
     .filter(p => {
         const mod = (p.modulo || p.mod || "").toUpperCase();
         
-        // REGLA DE ORO: Si no es SAEI, no entra a la tabla
-        if (mod !== "SAEI") return false;
+        if (mod !== "SAEI" && p.facturado !== "NO" && p.facturado_saei !== "NO") {
+            return false;
+        }
 
-        // Si el filtro es 'TODOS' o 'SAEI', lo mostramos
         if (filtroActual === 'TODOS' || filtroActual === 'SAEI') {
             return true; 
         }
         
         return mod === filtroActual.toUpperCase();
     })
+        
+     
     .forEach(p => {
         const idPaciente = p.id || p.id_db || "S/N";
         const nombreMod  = (p.modulo || p.mod || "S/M").toUpperCase();
@@ -1426,28 +1428,36 @@ window.refacturarMasivoProximoMes = async function() {
 };
 // FUNCIÓN PARA FIJAR DATOS: Guarda detalle e importe automáticamente
 window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
-    const paciente = dataFull.find(p => p.id === idPaciente);
+    // 1. Buscamos al paciente con cualquiera de los dos IDs posibles
+    const paciente = dataFull.find(p => (p.id === idPaciente || p.id_db === idPaciente));
+    
     if (paciente) {
         try {
-            const modPath = paciente.mod.toLowerCase();
+            // 2. DETERMINAR RUTA REAL: 
+            // Si el módulo es SAEI (en cualquier forma), usamos la carpeta SAEI
+            const esSAEI = (paciente.modulo || paciente.mod || "").toUpperCase() === "SAEI";
+            const carpetaBase = esSAEI ? "SAEI" : (paciente.modulo || paciente.mod || "otros");
             
-            // CONVERSIÓN DE SEGURIDAD: 
-            // Si el campo es 'neto' o 'total', lo guardamos como número real
+            // 3. CONVERSIÓN DE NÚMEROS
             let valorAFijar = valor;
-            if (campo === 'neto' || campo === 'total') {
+            if (campo === 'neto' || campo === 'total' || campo === 'exento') {
                 valorAFijar = parseFloat(valor) || 0;
             }
 
-            // Guardamos en la ficha original del paciente
-            await db.ref(`/${modPath}/pacientes/${idPaciente}/${campo}`).set(valorAFijar);
+            // 4. GUARDADO DINÁMICO (Ruta exacta)
+            const rutaFinal = `${carpetaBase}/pacientes/${idPaciente}/${campo}`;
+            await db.ref(rutaFinal).set(valorAFijar);
             
-            // Actualizamos dataFull en memoria para que no necesites recargar la página
+            // 5. ACTUALIZAMOS MEMORIA LOCAL
             paciente[campo] = valorAFijar; 
 
-            console.log(`✅ Grabado permanente: ${campo} = ${valorAFijar}`);
+            console.log(`✅ Grabado en ${rutaFinal}: ${valorAFijar}`);
+            
         } catch (error) {
             console.error("❌ Error al fijar dato:", error);
         }
+    } else {
+        console.warn("⚠️ No se encontró el paciente en dataFull para guardar:", idPaciente);
     }
 };
 // --- FUNCIÓN GLOBAL PARA REFACTURAR ---
