@@ -1569,13 +1569,10 @@ db.ref('facturas_emitidas_saei').on('value', () => {
 // --- 8. AUTH ---
 auth.onAuthStateChanged((user) => {
     if (user) {
-        console.log("SAEI autorizado para:", user.email);
-        
-        // Ejecutamos la carga del diccionario y después la tabla
         setTimeout(() => {
-            inicializarCarga(); 
+            // Si tus funciones usan 'db', esto va a andar de diez
+            if (typeof cargarTodo === 'function') cargarTodo();
         }, 500);
-        
     } else {
         window.location.href = "index.html";
     }
