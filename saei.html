@@ -532,10 +532,9 @@ window.render = function() {
         const mod = (p.modulo || p.mod || "").toUpperCase();
         
         // Si el filtro es 'TODOS', igual filtramos para que SOLO sea SAEI
-        if (filtroActual === 'TODOS') {
-            return mod === "SAEI";
-        }
-        
+       if (filtroActual === 'TODOS' || filtroActual === 'SAEI') {
+    return true; 
+	}	
         // Si tocás un botón de filtro específico, que responda a eso
         return mod === filtroActual.toUpperCase();
     })
@@ -543,7 +542,7 @@ window.render = function() {
         const idPaciente = p.id || p.id_db || "S/N";
         const nombreMod  = (p.modulo || p.mod || "S/M").toUpperCase();
         const miFactura = p.ultima_factura_saei || p.ultima_factura; 
-        const facturado = (p.facturado === "SI" || p.facturado_saei === "SI") && !!(miFactura && (miFactura.cae || miFactura.id));
+        const facturado = (p.facturado === "SI" || p.facturado_saei === "SI");
 
         const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
         let infoOS = {};
@@ -566,7 +565,8 @@ window.render = function() {
         const cuitFinal = facturado ? (miFactura.cuit || "") : (cuitDesdeDict || p.cuit || p.obra_social_cuit || "");
         const domFinal = facturado ? (miFactura.domicilio || "SAN JUAN") : (domDesdeDict || p.obra_social_domicilio || "SAN JUAN");
 
-        const mBase = parseFloat(facturado ? (miFactura.neto || miFactura.exento || miFactura.total) : (p.monto_fijo || p.total || p.neto || 0)) || 0;
+        // Buscamos el monto priorizando exento, que es lo que usa SAEI
+		const mBase = parseFloat(facturado ? (miFactura.exento || miFactura.total) : (p.exento || p.total || p.monto_fijo || 0)) || 0;
         const aFinal = parseFloat(facturado ? (miFactura.alicuota || 0) : 0) || 0;
         const totalCalculated = facturado ? (parseFloat(miFactura.total) || 0) : mBase;
 
