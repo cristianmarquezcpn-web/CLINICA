@@ -562,7 +562,13 @@ window.render = function() {
 
         const tieneAsist = "si";
         const tr = document.createElement('tr');
-        if(facturado) tr.className = "row-facturada";
+		
+        if(facturado) {
+            tr.className = "row-facturada";
+            tr.style.background = "#eeeeee"; // Gris
+        } else {
+            tr.style.background = "#ffffff"; // Blanco
+        }
 
         let estadoVisual = facturado ? `<br><b style="color:green; font-size:9px;">FACTURADO</b>` : `<br><b style="color:orange; font-size:9px;">PENDIENTE</b>`;
         let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${facturado ? 'disabled' : ''}> ${estadoVisual}`;
@@ -721,6 +727,10 @@ window.gestionarTipoComp = function(select) {
         try {
             // Enviamos a Firebase
             await db.ref('/cola_facturacion').push(pedido);
+			await db.ref(`SAEI/pacientes/${idDelPaciente}`).update({
+       		facturado: "SI",
+        	facturado_saei: "SI"
+   			 });
             fila.style.opacity = "0.5"; 
             fila.style.background = "#e8f5e9"; // Feedback visual verde suave
             ck.checked = false; 
