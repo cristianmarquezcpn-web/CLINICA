@@ -340,65 +340,47 @@ window.cargarTodo = async () => {
     const tablaBod = document.getElementById('tabla-body');
     if (!tablaBod) return;
     
-    tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando con motores de facturación...</td></tr>';
+    tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔍 Filtrando pacientes con prestación SAEI...</td></tr>';
 
     try {
-        // 1. CARGA DE OBRAS SOCIALES (Con espera real)
-        // Usamos .once() para asegurarnos de que TENEMOS los datos antes de seguir
+        // 1. CARGA DE OBRAS SOCIALES
         const snapOS = await db.ref('/config/obras_sociales').once('value');
         window.dictOS = snapOS.val() || {}; 
-        // También lo guardamos en window.config por si el render usa esa ruta
         window.config = { obras_sociales: window.dictOS };
 
-        console.log("✅ Obras Sociales cargadas en dictOS:", Object.keys(window.dictOS).length, "entidades.");
-        // Este es el log que te pedí para ver si Firebase está respondiendo
-        console.log("DEBUG OS:", window.dictOS);
-
-        // 2. CARGA MASIVA DE PACIENTES
-        // 2. CARGA MASIVA DE PACIENTES
-        const nodos = ['cd', 'cet', 'rehab', 'SAEI']; 
+        // 2. CARGA DE PACIENTES (Solo miramos REHAB y SAEI)
+        const nodos = ['rehab', 'SAEI']; 
         const promesas = nodos.map(n => db.ref(`${n}/pacientes`).once('value'));
-        
         const snapshots = await Promise.all(promesas);
         
-        // Creamos un mapa temporal para consolidar datos fijos (DNI, OS, etc.)
-        const mapaGeneral = {};
+        const dataRehab = snapshots[0].val() || {};
+        const dataSAEI = snapshots[1].val() || {};
+        
         dataFull = []; 
 
-        // Primera pasada: Guardamos la info de todos los módulos
-        snapshots.forEach((snap, index) => {
-            const modulo = nodos[index];
-            const pacientes = snap.val() || {};
-            
-            for (let id in pacientes) {
-                const p = pacientes[id];
-                // Si encontramos una OS en cualquier módulo, la guardamos vinculada al ID (Nombre)
-                if (!mapaGeneral[id]) mapaGeneral[id] = {};
-                if (p.os || p.obra_social_nombre) {
-                    mapaGeneral[id].os = p.os || p.obra_social_nombre;
-                }
-            }
-        });
+        // 3. LA LÓGICA: Buscamos en Rehab a los que son "SAEI"
+        for (let id in dataRehab) {
+            const pR = dataRehab[id];
+            const prestacion = (pR.pres || "").toString().toUpperCase().trim();
 
-        // Segunda pasada: Armamos la lista final para el Render
-        snapshots.forEach((snap, index) => {
-            const modulo = nodos[index];
-            const pacientes = snap.val() || {};
-            
-            for (let id in pacientes) {
-                const p = pacientes[id];
-                
+            // REGLA DE ORO: Solo si la prestación dice SAEI
+            if (prestacion === "SAEI") {
+                // Si el paciente también existe en la carpeta SAEI, combinamos los datos
+                // (Por si en SAEI tenés guardado el monto o el detalle específico)
+                const pS = dataSAEI[id] || {};
+
                 dataFull.push({
                     id_db: id,
-                    modulo: modulo,
-                    ...p,
-                    // MAGIA: Si este registro no tiene OS, le ponemos la que encontramos en los otros módulos
-                    os: p.os || p.obra_social_nombre || (mapaGeneral[id] ? mapaGeneral[id].os : "")
+                    modulo: 'SAEI', 
+                    ...pR,   // Info de Rehab (DNI, OS, etc.)
+                    ...pS,   // Info de SAEI (Monto, Detalle, Factura)
+                    // Aseguramos que conserve el nombre del módulo para el render
+                    mod: 'SAEI'
                 });
             }
-        });
+        }
 
-        console.log("✅ Datos cargados:", dataFull.length, "pacientes.");
+        console.log("✅ Pacientes SAEI encontrados:", dataFull.length);
         
         // 3. LLAMAMOS AL RENDER
         if (typeof render === "function") {
