@@ -531,12 +531,13 @@ window.render = function() {
         // --- COLUMNA ACCIÓN CORREGIDA ---
         let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${(facturado || !tieneAsist) ? 'disabled' : ''}> ${estadoVisual}`;
         
-        if (facturado) {
+       if (facturado) {
     colAccion += `<div style="margin-top:5px; display:flex; gap:3px; justify-content:center;">
-        <button class="btn" style="background:var(--verde); font-size:8px; padding:3px;" onclick="window.descargarFactura('${miFactura.id}')">PDF</button>
+        <button class="btn" style="background:var(--verde); font-size:8px; padding:3px; color:white; border:none;" onclick="window.descargarFactura('${miFactura.id}')">PDF</button>
         
-        <button class="btn" style="background:var(--naranja); font-size:8px; padding:3px;" onclick="window.habilitarParaRefacturar('${idPaciente}', 'SAEI', '${miFactura.id}')">Refac</button>
+        <button class="btn" style="background:var(--naranja); font-size:8px; padding:3px; color:white; border:none;" onclick="window.habilitarParaRefacturar('${idPaciente}', 'SAEI', '${miFactura.id}')">Refac</button>
     </div>`;
+}
 			}
 
         const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
