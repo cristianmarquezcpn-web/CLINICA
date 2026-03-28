@@ -340,53 +340,49 @@ window.cargarTodo = async () => {
     const tablaBod = document.getElementById('tabla-body');
     if (!tablaBod) return;
     
-    tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔍 Filtrando pacientes con prestación SAEI...</td></tr>';
+    tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando pacientes SAEI...</td></tr>';
 
     try {
-        // 1. CARGA DE OBRAS SOCIALES
-        const snapOS = await db.ref('/config/obras_sociales').once('value');
-        window.dictOS = snapOS.val() || {}; 
-        window.config = { obras_sociales: window.dictOS };
+        // 1. Traemos Obras Sociales, Rehab (donde están todos) y SAEI (donde están las facturas)
+        const [snapOS, snapRehab, snapSAEI] = await Promise.all([
+            db.ref('/config/obras_sociales').once('value'),
+            db.ref('rehab/pacientes').once('value'),
+            db.ref('SAEI/pacientes').once('value')
+        ]);
 
-        // 2. CARGA DE PACIENTES (Solo miramos REHAB y SAEI)
-        const nodos = ['rehab', 'SAEI']; 
-        const promesas = nodos.map(n => db.ref(`${n}/pacientes`).once('value'));
-        const snapshots = await Promise.all(promesas);
-        
-        const dataRehab = snapshots[0].val() || {};
-        const dataSAEI = snapshots[1].val() || {};
+        window.dictOS = snapOS.val() || {};
+        const dataR = snapRehab.val() || {};
+        const dataS = snapSAEI.val() || {};
         
         dataFull = []; 
 
-        // 3. LA LÓGICA: Buscamos en Rehab a los que son "SAEI"
-        for (let id in dataRehab) {
-            const pR = dataRehab[id];
-            const prestacion = (pR.pres || "").toString().toUpperCase().trim();
+        // 2. RECORREMOS REHAB: Es nuestra fuente principal de nombres
+        for (let id in dataR) {
+            const pR = dataR[id];
+            
+            // FILTRO: Solo si la prestación dice SAEI (mayúsculas o minúsculas)
+            const esSAEI = (pR.pres || "").toString().toUpperCase().trim() === "SAEI";
 
-            // REGLA DE ORO: Solo si la prestación dice SAEI
-            if (prestacion === "SAEI") {
-                // Si el paciente también existe en la carpeta SAEI, combinamos los datos
-                // (Por si en SAEI tenés guardado el monto o el detalle específico)
-                const pS = dataSAEI[id] || {};
+            if (esSAEI) {
+                // Buscamos si este mismo paciente tiene algo en la carpeta SAEI (monto, factura vieja)
+                const pS = dataS[id] || {};
 
                 dataFull.push({
                     id_db: id,
-                    modulo: 'SAEI', 
-                    ...pR,   // Info de Rehab (DNI, OS, etc.)
-                    ...pS,   // Info de SAEI (Monto, Detalle, Factura)
-                    // Aseguramos que conserve el nombre del módulo para el render
-                    mod: 'SAEI'
+                    modulo: 'SAEI',
+                    ...pR, // Trae DNI, OS, Teléfono de Rehab
+                    ...pS, // Trae Monto, Detalle y ULTIMA_FACTURA de SAEI
+                    // Forzamos que la OS y el DNI se vean aunque en SAEI esté vacío
+                    os: pS.os || pR.os || pR.obra_social_nombre || "",
+                    dni: pS.dni || pR.dni || ""
                 });
             }
         }
 
-        console.log("✅ Pacientes SAEI encontrados:", dataFull.length);
+        console.log("✅ Pacientes SAEI recuperados:", dataFull.length);
         
-        // 3. LLAMAMOS AL RENDER
         if (typeof render === "function") {
             render();
-        } else {
-            tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error: No se encuentra la función render()</td></tr>';
         }
 
     } catch (error) {
