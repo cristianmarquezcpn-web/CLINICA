@@ -1421,36 +1421,38 @@ window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVie
         try {
             const esSAEI = (modulo.toUpperCase() === "SAEI");
             const nodoFacturas = esSAEI ? "facturas_emitidas_saei" : "facturas_emitidas";
+            
+            // 1. Ruta relativa (sin la barra inicial para el objeto de cambios)
             const rutaPaciente = `pacientes/${idPaciente}/modulos/${esSAEI ? 'SAEI' : modulo.toLowerCase()}`;
             
-            const updates = {};
+            // Creamos un objeto de cambios plano
+            const cambios = {
+                facturado: "NO",
+                facturado_saei: "NO",
+                ultima_factura: null,
+                ultima_factura_saei: null,
+                cae: null,          // Limpiamos CAE por las dudas
+                id_factura: null,   // Limpiamos ID por las dudas
+                ignorar_factura: idFacturaVieja || "REFAC_MANUAL"
+            };
             
-            // 1. 🧠 RECUPERACIÓN DE DATOS (Asegurando que coincidan con el render)
+            // 2. 🧠 RECUPERACIÓN DE DATOS
             if (idFacturaVieja) {
                 const snapFactura = await db.ref(`${nodoFacturas}/${idFacturaVieja}`).once('value');
                 const datosFactura = snapFactura.val();
 
                 if (datosFactura) {
-                    // Mapeamos a 'total' y 'detalle' porque tu render usa p.total y p.detalle
-                    updates[`${rutaPaciente}/total`] = datosFactura.exento || datosFactura.total || 0;
-                    updates[`${rutaPaciente}/detalle`] = datosFactura.descripcion || datosFactura.detalle || "";
+                    // Agregamos el monto y detalle al objeto de cambios
+                    cambios.total = datosFactura.exento || datosFactura.total || 0;
+                    cambios.detalle = datosFactura.descripcion || datosFactura.detalle || "";
                 }
             }
 
-            // 2. 🧹 LIMPIEZA DE FANTASMAS (Crucial para que la fila se ponga blanca)
-            // Borramos el objeto de la factura vieja del paciente para que 'facturado' dé FALSE
-            updates[`${rutaPaciente}/ultima_factura_saei`] = null;
-            updates[`${rutaPaciente}/ultima_factura`] = null;
+            // 3. LA CLAVE: Hacer el update directamente en la ruta del paciente
+            // Esto evita el PERMISSION_DENIED de la raíz
+            await db.ref(rutaPaciente).update(cambios);
             
-            // 3. RESETEO DE ESTADO
-            updates[`${rutaPaciente}/facturado`] = "NO";
-            updates[`${rutaPaciente}/facturado_saei`] = "NO";
-            updates[`${rutaPaciente}/ignorar_factura`] = idFacturaVieja || "REFAC_MANUAL";
-
-            // Aplicamos los cambios
-            await db.ref().update(updates);
-            
-            alert("✅ Paciente habilitado. La fila ahora es editable con los datos previos.");
+            alert("✅ Paciente habilitado. La fila ahora es editable.");
             
             if (typeof window.cargarTodo === 'function') {
                 window.cargarTodo();
@@ -1458,11 +1460,10 @@ window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVie
 
         } catch (e) {
             console.error("Error en habilitarParaRefacturar:", e);
-            alert("❌ Error: " + e.message);
+            alert("❌ Error de permisos o base de datos: " + e.message);
         }
     }
 };
-// Pegala tal cual al final de tu script
 window.descargarUltimaDePaciente = async (idPac) => {
     try {
         // 1. Traemos de los dos lados en simultáneo
