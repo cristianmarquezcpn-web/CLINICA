@@ -1353,40 +1353,49 @@ window.refacturarMasivoProximoMes = async function() {
     if (!confirmacion) return;
 
     try {
-        const snap = await db.ref('pacientes').once('value');
+        // 1. CAMBIO CRÍTICO: Buscamos dentro de 'SAEI/pacientes', no en la raíz 'pacientes'
+        const snap = await db.ref('SAEI/pacientes').once('value');
         const pacientes = snap.val();
-        if (!pacientes) return alert("No hay pacientes cargados.");
+        
+        if (!pacientes) return alert("No se encontraron pacientes en el módulo SAEI.");
 
         const updates = {};
         let contador = 0;
+        const mesActual = new Date().getMonth() + 1; // +1 porque enero es 0
 
         Object.keys(pacientes).forEach(idPac => {
-            const p = pacientes[idPac];
-            // IMPORTANTE: Solo entramos si el paciente tiene el sub-nodo SAEI
-            if (p.modulos && p.modulos.SAEI) {
-                const rutaSAEI = `pacientes/${idPac}/modulos/SAEI`;
-                
-                updates[`${rutaSAEI}/facturado`] = "NO";
-                updates[`${rutaSAEI}/facturado_saei`] = "NO";
-                updates[`${rutaSAEI}/ultima_factura`] = null;
-                updates[`${rutaSAEI}/ultima_factura_saei`] = null;
-                updates[`${rutaSAEI}/ignorar_factura`] = "MASIVO_" + new Date().getMonth();
-                
-                contador++;
-            }
+            // Según tu captura, los campos 'facturado' están directo bajo el nombre
+            // No hace falta buscar en p.modulos.SAEI
+            const rutaBase = `SAEI/pacientes/${idPac}`;
+            
+            updates[`${rutaBase}/facturado`] = "NO";
+            updates[`${rutaBase}/facturado_saei`] = "NO";
+            updates[`${rutaBase}/ultima_factura`] = null;
+            updates[`${rutaBase}/ultima_factura_saei`] = null;
+            updates[`${rutaBase}/cae`] = null; // Limpiamos CAE para evitar confusiones
+            updates[`${rutaBase}/id_factura`] = null;
+            updates[`${rutaBase}/ignorar_factura`] = "MASIVO_MES_" + mesActual;
+            
+            contador++;
         });
 
         if (contador > 0) {
+            // 2. Ejecutamos el update masivo
             await db.ref().update(updates);
-            alert(`✅ Se habilitaron ${contador} pacientes de SAEI correctamente.`);
-            if (typeof cargarTodo === 'function') cargarTodo();
-        } else {
-            alert("No se encontraron pacientes con el módulo SAEI.");
+            
+            alert(`✅ Se habilitaron ${contador} pacientes de SAEI correctamente para el nuevo período.`);
+            
+            // Recargamos la interfaz
+            if (typeof window.cargarTodo === 'function') {
+                window.cargarTodo();
+            } else if (typeof window.inicializarCarga === 'function') {
+                window.inicializarCarga();
+            }
         }
 
     } catch (e) {
         console.error("Error en Refacturar Masivo:", e);
-        alert("❌ Error: " + e.message);
+        alert("❌ Error de permisos o base de datos: " + e.message);
     }
 };
 // FUNCIÓN PARA FIJAR DATOS: Guarda detalle e importe automáticamente
@@ -1422,44 +1431,54 @@ window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVie
             const esSAEI = (modulo.toUpperCase() === "SAEI");
             const nodoFacturas = esSAEI ? "facturas_emitidas_saei" : "facturas_emitidas";
             
-            // 1. Ruta relativa (sin la barra inicial para el objeto de cambios)
-            const rutaPaciente = `pacientes/${idPaciente}/modulos/${esSAEI ? 'SAEI' : modulo.toLowerCase()}`;
+            // --- 1. CORRECCIÓN DE RUTA ---
+            // Antes decía `pacientes/...`, ahora incluimos el prefijo SAEI/ para que coincida con tus reglas
+            const rutaPaciente = esSAEI 
+                ? `SAEI/pacientes/${idPaciente}` 
+                : `pacientes/${idPaciente}/modulos/${modulo.toLowerCase()}`;
             
-            // Creamos un objeto de cambios plano
+            console.log("Intentando actualizar en:", rutaPaciente);
+
+            // --- 2. OBJETO DE CAMBIOS ---
             const cambios = {
                 facturado: "NO",
                 facturado_saei: "NO",
                 ultima_factura: null,
                 ultima_factura_saei: null,
-                cae: null,          // Limpiamos CAE por las dudas
-                id_factura: null,   // Limpiamos ID por las dudas
+                cae: null,           
+                id_factura: null,    
                 ignorar_factura: idFacturaVieja || "REFAC_MANUAL"
             };
             
-            // 2. 🧠 RECUPERACIÓN DE DATOS
+            // --- 3. RECUPERACIÓN DE DATOS DE LA FACTURA ANTERIOR ---
             if (idFacturaVieja) {
+                console.log("Buscando factura vieja en:", `${nodoFacturas}/${idFacturaVieja}`);
                 const snapFactura = await db.ref(`${nodoFacturas}/${idFacturaVieja}`).once('value');
                 const datosFactura = snapFactura.val();
 
                 if (datosFactura) {
-                    // Agregamos el monto y detalle al objeto de cambios
+                    // Recuperamos el monto (exento o total) y el detalle
                     cambios.total = datosFactura.exento || datosFactura.total || 0;
                     cambios.detalle = datosFactura.descripcion || datosFactura.detalle || "";
+                    console.log("Datos recuperados:", cambios.total, cambios.detalle);
                 }
             }
 
-            // 3. LA CLAVE: Hacer el update directamente en la ruta del paciente
-            // Esto evita el PERMISSION_DENIED de la raíz
+            // --- 4. EJECUCIÓN DEL UPDATE ---
+            // Al empezar con "SAEI/", Firebase revisará tu permiso 'saei: true' y te dejará pasar
             await db.ref(rutaPaciente).update(cambios);
             
-            alert("✅ Paciente habilitado. La fila ahora es editable.");
+            alert("✅ Paciente habilitado. La fila ahora es editable y se recuperaron los montos.");
             
+            // Recargamos la tabla para ver los cambios
             if (typeof window.cargarTodo === 'function') {
                 window.cargarTodo();
+            } else if (typeof window.inicializarCarga === 'function') {
+                window.inicializarCarga();
             }
 
         } catch (e) {
-            console.error("Error en habilitarParaRefacturar:", e);
+            console.error("Error detallado en habilitarParaRefacturar:", e);
             alert("❌ Error de permisos o base de datos: " + e.message);
         }
     }
