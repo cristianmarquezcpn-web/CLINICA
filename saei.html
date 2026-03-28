@@ -506,8 +506,14 @@ window.render = function() {
     dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
     .filter(p => {
-        if (filtroActual === 'TODOS') return true;
         const mod = (p.modulo || p.mod || "").toUpperCase();
+        
+        // Si el filtro es 'TODOS', igual filtramos para que SOLO sea SAEI
+        if (filtroActual === 'TODOS') {
+            return mod === "SAEI";
+        }
+        
+        // Si tocás un botón de filtro específico, que responda a eso
         return mod === filtroActual.toUpperCase();
     })
     .forEach(p => {
@@ -581,7 +587,7 @@ window.render = function() {
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
-            <td><textarea class="input-tab det-val" style="min-height:40px; width:100%;" ${facturado?'disabled':''}>${p.detalle || (facturado ? (miFactura.concepto || miFactura.descripcion || "") : `PRESTACIÓN MÓDULO ${nombreMod} - PACIENTE: ${idPaciente}`)}</textarea></td>
+            <td><textarea class="input-tab det-val" style="min-height:40px; width:100%; overflow:hidden; resize:none;" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px';" onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')" ${facturado?'disabled':''}>${p.detalle || (facturado ? (p.ultima_factura_saei?.concepto || p.ultima_factura?.concepto || "") : `PRESTACIÓN MÓDULO ${nombreMod} - PACIENTE: ${idPaciente}`)}</textarea></td>
 			<td><input type="number" class="input-tab neto-edit" value="${p.total && aFinal > 0 ? p.total : (aFinal > 0 ? mBase : 0)}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
             <td>
                 <select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
@@ -590,7 +596,7 @@ window.render = function() {
                     <option value="21" ${aFinal === 21 ? 'selected' : ''}>21%</option>
                 </select>
             </td>
-            <td><input type="number" class="input-tab exento-edit" value="${p.total && aFinal === 0 ? p.total : (aFinal === 0 ? mBase : 0)}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
+            <td><input type="number" class="input-tab exento-edit" value="${p.total || p.exento || mBase || 0}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)" onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'total')"></td>
 			<td style="text-align:right; font-weight:bold" class="total-render">$ ${totalCalculated.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
             <input type="hidden" class="f-desde" value="${fDesde}">
             <input type="hidden" class="f-hasta" value="${fHasta}">
@@ -871,7 +877,7 @@ const MODELO_FACTURA_B = (d) => {
                 <div class="datos">
                     <div style="font-size:18px; font-weight:bold; margin-bottom:1mm;">${tituloDoc}</div>
                     <b>Punto de Venta: ${d.ptoVta} &nbsp; Comp. Nro: ${d.nro}</b><br>
-                    <b>Fecha de Emisión: ${d.fecha}</b><br><br>
+                    <b>Fecha de Emisión: ${ (d.fecha || "").split('/').map(n => n.padStart(2, '0')).join('/') }</b><br><br>
                     <b>CUIT:</b> ${d.emisor_cuit}<br>
                     <b>Ingresos Brutos:</b> ${d.emisor_iibb}<br>
                     <b>Inicio de Actividades:</b> ${d.emisor_inicio}
@@ -1005,7 +1011,7 @@ window.descargarFactura = async (id) => {
 
 		// 3. NÚMERO DE COMPROBANTE (00000024)
 		nro: String(p.nro_comp || 0).padStart(8, '0'),
-        fecha: p.fecha_emision || p.fecha || new Date().toLocaleDateString('es-AR'),
+        fecha: p.fecha_emision || p.fecha || new Date().toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'}),
         
         desde: f(p.periodo_desde), 
         hasta: f(p.periodo_hasta),
@@ -1343,38 +1349,44 @@ window.cargarArchivo = async () => {
 }
 // 2. FUNCIÓN PARA LIMPIAR Y REFACTURAR EL MES QUE VIENE
 window.refacturarMasivoProximoMes = async function() {
-    const confirmacion = confirm("¿Habilitar TODOS los pacientes para el próximo mes? (Se ignorarán las facturas actuales)");
-    if(!confirmacion) return;
-    
-    // Agregamos 'saei' a la lista si también querés resetearlo
-    const listaModulos = ["rehab", "cet", "cd", "saei"]; 
-    
-    try {
-        for (const m of listaModulos) {
-            const path = m + "/pacientes";
-            const snap = await db.ref(path).once('value');
-            const data = snap.val();
+    const confirmacion = confirm("⚠️ ¿ESTÁS SEGURO? Esto habilitará a TODOS los pacientes de SAEI para el próximo mes (borra el estado 'Facturado').");
+    if (!confirmacion) return;
 
-            if (data) {
-                const updates = {};
-                Object.keys(data).forEach(id => {
-                    // 1. Ponemos el flag de facturado en NO
-                    updates[id + "/facturado"] = "NO";
-                    
-                    // 2. CLAVE: Si el paciente tiene una 'ultima_factura', la movemos a 'ignorar_factura'
-                    // Esto hace que el render() lo vea como "Pendiente" otra vez.
-                    if (data[id].ultima_factura && data[id].ultima_factura.id) {
-                        updates[id + "/ignorar_factura"] = data[id].ultima_factura.id;
-                    }
-                });
-                await db.ref(path).update(updates);
+    try {
+        const snap = await db.ref('pacientes').once('value');
+        const pacientes = snap.val();
+        if (!pacientes) return alert("No hay pacientes cargados.");
+
+        const updates = {};
+        let contador = 0;
+
+        Object.keys(pacientes).forEach(idPac => {
+            const p = pacientes[idPac];
+            // IMPORTANTE: Solo entramos si el paciente tiene el sub-nodo SAEI
+            if (p.modulos && p.modulos.SAEI) {
+                const rutaSAEI = `pacientes/${idPac}/modulos/SAEI`;
+                
+                updates[`${rutaSAEI}/facturado`] = "NO";
+                updates[`${rutaSAEI}/facturado_saei`] = "NO";
+                updates[`${rutaSAEI}/ultima_factura`] = null;
+                updates[`${rutaSAEI}/ultima_factura_saei`] = null;
+                updates[`${rutaSAEI}/ignorar_factura`] = "MASIVO_" + new Date().getMonth();
+                
+                contador++;
             }
+        });
+
+        if (contador > 0) {
+            await db.ref().update(updates);
+            alert(`✅ Se habilitaron ${contador} pacientes de SAEI correctamente.`);
+            if (typeof cargarTodo === 'function') cargarTodo();
+        } else {
+            alert("No se encontraron pacientes con el módulo SAEI.");
         }
-        alert("✅ ¡Módulos reseteados para el nuevo mes!");
-        location.reload();
-    } catch (error) {
-        console.error("Error:", error);
-        alert("Error al resetear: " + error.message);
+
+    } catch (e) {
+        console.error("Error en Refacturar Masivo:", e);
+        alert("❌ Error: " + e.message);
     }
 };
 // FUNCIÓN PARA FIJAR DATOS: Guarda detalle e importe automáticamente
@@ -1407,39 +1419,42 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
 window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVieja) {
     if(confirm("¿Habilitar para editar y refacturar? Se recuperarán los datos de la factura anterior.")) {
         try {
-            const modPath = (modulo.toUpperCase() === "SAEI") ? "SAEI" : modulo.toLowerCase();
-            const nodoFacturas = (modPath === "SAEI") ? "facturas_emitidas_saei" : "facturas_emitidas";
+            const esSAEI = (modulo.toUpperCase() === "SAEI");
+            const nodoFacturas = esSAEI ? "facturas_emitidas_saei" : "facturas_emitidas";
+            const rutaPaciente = `pacientes/${idPaciente}/modulos/${esSAEI ? 'SAEI' : modulo.toLowerCase()}`;
             
             const updates = {};
             
-            // 1. 🧠 RECUPERACIÓN DE MEMORIA: Buscamos la factura vieja en el historial
+            // 1. 🧠 RECUPERACIÓN DE DATOS (Asegurando que coincidan con el render)
             if (idFacturaVieja) {
                 const snapFactura = await db.ref(`${nodoFacturas}/${idFacturaVieja}`).once('value');
                 const datosFactura = snapFactura.val();
 
                 if (datosFactura) {
-                    // Si encontramos la factura, le pisamos al paciente el monto y detalle
-                    // para que cuando aparezca de nuevo en la tabla, tenga lo que escribiste.
-                    updates[`/${modPath}/pacientes/${idPaciente}/total`] = datosFactura.total || 0;
-                    updates[`/${modPath}/pacientes/${idPaciente}/detalle`] = datosFactura.detalle || "";
-                    
-                    console.log("✅ Datos recuperados de la factura:", datosFactura.nro_comp);
+                    // Mapeamos a 'total' y 'detalle' porque tu render usa p.total y p.detalle
+                    updates[`${rutaPaciente}/total`] = datosFactura.exento || datosFactura.total || 0;
+                    updates[`${rutaPaciente}/detalle`] = datosFactura.descripcion || datosFactura.detalle || "";
                 }
             }
 
-            // 2. RESETEO DE ESTADO
-            const idLimpio = idFacturaVieja || "REFAC_MANUAL";
-            updates[`/${modPath}/pacientes/${idPaciente}/ignorar_factura`] = idLimpio;
-            updates[`/${modPath}/pacientes/${idPaciente}/facturado`] = "NO";
-            updates[`/${modPath}/pacientes/${idPaciente}/facturado_saei`] = "NO";
-            updates[`/${modPath}/pacientes/${idPaciente}/ultima_factura`] = null;
-            updates[`/${modPath}/pacientes/${idPaciente}/ultima_factura_saei`] = null;
+            // 2. 🧹 LIMPIEZA DE FANTASMAS (Crucial para que la fila se ponga blanca)
+            // Borramos el objeto de la factura vieja del paciente para que 'facturado' dé FALSE
+            updates[`${rutaPaciente}/ultima_factura_saei`] = null;
+            updates[`${rutaPaciente}/ultima_factura`] = null;
+            
+            // 3. RESETEO DE ESTADO
+            updates[`${rutaPaciente}/facturado`] = "NO";
+            updates[`${rutaPaciente}/facturado_saei`] = "NO";
+            updates[`${rutaPaciente}/ignorar_factura`] = idFacturaVieja || "REFAC_MANUAL";
 
+            // Aplicamos los cambios
             await db.ref().update(updates);
             
-            alert("✅ Paciente habilitado con los datos de la factura anterior.");
+            alert("✅ Paciente habilitado. La fila ahora es editable con los datos previos.");
             
-            if (typeof cargarTodo === 'function') cargarTodo();
+            if (typeof window.cargarTodo === 'function') {
+                window.cargarTodo();
+            }
 
         } catch (e) {
             console.error("Error en habilitarParaRefacturar:", e);
@@ -1550,7 +1565,6 @@ db.ref('facturas_emitidas_saei').on('value', () => {
     console.log("⚡ Cambio detectado en Facturas SAEI, actualizando...");
     if (typeof procesarTodo === 'function') procesarTodo();
 });
-
 // --- 8. AUTH ---
 auth.onAuthStateChanged((user) => {
     if (user) {
