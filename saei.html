@@ -520,7 +520,7 @@ window.render = function() {
         const idPaciente = p.id || p.id_db || "S/N";
         const nombreMod  = (p.modulo || p.mod || "S/M").toUpperCase();
         const miFactura = p.ultima_factura_saei || p.ultima_factura; 
-        const facturado = !!(miFactura && (miFactura.cae || miFactura.id));
+        const facturado = (p.facturado === "SI" || p.facturado_saei === "SI") && !!(miFactura && (miFactura.cae || miFactura.id));
 
         const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
         let infoOS = {};
@@ -1349,11 +1349,10 @@ window.cargarArchivo = async () => {
 }
 // 2. FUNCIÓN PARA LIMPIAR Y REFACTURAR EL MES QUE VIENE
 window.refacturarMasivoProximoMes = async function() {
-    const confirmacion = confirm("⚠️ ¿ESTÁS SEGURO? Esto habilitará a TODOS los pacientes de SAEI para el próximo mes (borra el estado 'Facturado').");
+    const confirmacion = confirm("⚠️ ¿ESTÁS SEGURO? Esto habilitará a TODOS los pacientes de SAEI manteniendo sus últimos montos y detalles.");
     if (!confirmacion) return;
 
     try {
-        // 1. CAMBIO CRÍTICO: Buscamos dentro de 'SAEI/pacientes', no en la raíz 'pacientes'
         const snap = await db.ref('SAEI/pacientes').once('value');
         const pacientes = snap.val();
         
@@ -1361,41 +1360,48 @@ window.refacturarMasivoProximoMes = async function() {
 
         const updates = {};
         let contador = 0;
-        const mesActual = new Date().getMonth() + 1; // +1 porque enero es 0
+        const mesActual = new Date().getMonth() + 1;
 
         Object.keys(pacientes).forEach(idPac => {
-            // Según tu captura, los campos 'facturado' están directo bajo el nombre
-            // No hace falta buscar en p.modulos.SAEI
+            const p = pacientes[idPac];
             const rutaBase = `SAEI/pacientes/${idPac}`;
             
+            // --- LA CLAVE PARA QUE PERDUREN LOS DATOS ---
+            // Buscamos si el paciente tiene una factura guardada en su ficha
+            const ult = p.ultima_factura_saei || p.ultima_factura || {};
+            
+            // Recuperamos el monto y el detalle de la última vez
+            const montoRecuperado = ult.exento || ult.total || p.exento || p.total || 0;
+            const detalleRecuperado = ult.descripcion || ult.detalle || p.detalle || "";
+
             updates[`${rutaBase}/facturado`] = "NO";
             updates[`${rutaBase}/facturado_saei`] = "NO";
             updates[`${rutaBase}/ultima_factura`] = null;
             updates[`${rutaBase}/ultima_factura_saei`] = null;
-            updates[`${rutaBase}/cae`] = null; // Limpiamos CAE para evitar confusiones
+            updates[`${rutaBase}/cae`] = null;
             updates[`${rutaBase}/id_factura`] = null;
+            
+            // Seteamos los valores recuperados para que la tabla los muestre
+            updates[`${rutaBase}/total`] = montoRecuperado;
+            updates[`${rutaBase}/exento`] = montoRecuperado;
+            updates[`${rutaBase}/detalle`] = detalleRecuperado;
+            
             updates[`${rutaBase}/ignorar_factura`] = "MASIVO_MES_" + mesActual;
             
             contador++;
         });
 
         if (contador > 0) {
-            // 2. Ejecutamos el update masivo
             await db.ref().update(updates);
+            alert(`✅ Se habilitaron ${contador} pacientes. Se mantuvieron montos y detalles del período anterior.`);
             
-            alert(`✅ Se habilitaron ${contador} pacientes de SAEI correctamente para el nuevo período.`);
-            
-            // Recargamos la interfaz
-            if (typeof window.cargarTodo === 'function') {
-                window.cargarTodo();
-            } else if (typeof window.inicializarCarga === 'function') {
-                window.inicializarCarga();
-            }
+            if (typeof window.cargarTodo === 'function') window.cargarTodo();
+            else if (typeof window.inicializarCarga === 'function') window.inicializarCarga();
         }
 
     } catch (e) {
         console.error("Error en Refacturar Masivo:", e);
-        alert("❌ Error de permisos o base de datos: " + e.message);
+        alert("❌ Error: " + e.message);
     }
 };
 // FUNCIÓN PARA FIJAR DATOS: Guarda detalle e importe automáticamente
@@ -1431,13 +1437,9 @@ window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVie
             const esSAEI = (modulo.toUpperCase() === "SAEI");
             const nodoFacturas = esSAEI ? "facturas_emitidas_saei" : "facturas_emitidas";
             
-            // --- 1. CORRECCIÓN DE RUTA ---
-            // Antes decía `pacientes/...`, ahora incluimos el prefijo SAEI/ para que coincida con tus reglas
             const rutaPaciente = esSAEI 
                 ? `SAEI/pacientes/${idPaciente}` 
                 : `pacientes/${idPaciente}/modulos/${modulo.toLowerCase()}`;
-            
-            console.log("Intentando actualizar en:", rutaPaciente);
 
             // --- 2. OBJETO DE CAMBIOS ---
             const cambios = {
@@ -1450,27 +1452,26 @@ window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVie
                 ignorar_factura: idFacturaVieja || "REFAC_MANUAL"
             };
             
-            // --- 3. RECUPERACIÓN DE DATOS DE LA FACTURA ANTERIOR ---
+            // --- 3. RECUPERACIÓN DE DATOS ---
             if (idFacturaVieja) {
-                console.log("Buscando factura vieja en:", `${nodoFacturas}/${idFacturaVieja}`);
                 const snapFactura = await db.ref(`${nodoFacturas}/${idFacturaVieja}`).once('value');
                 const datosFactura = snapFactura.val();
 
                 if (datosFactura) {
-                    // Recuperamos el monto (exento o total) y el detalle
-                    cambios.total = datosFactura.exento || datosFactura.total || 0;
+                    const montoRecuperado = datosFactura.exento || datosFactura.total || 0;
+                    // Guardamos en ambos campos para que el render lo encuentre sí o sí
+                    cambios.total = montoRecuperado;
+                    cambios.exento = montoRecuperado; 
+                    
                     cambios.detalle = datosFactura.descripcion || datosFactura.detalle || "";
-                    console.log("Datos recuperados:", cambios.total, cambios.detalle);
                 }
             }
 
             // --- 4. EJECUCIÓN DEL UPDATE ---
-            // Al empezar con "SAEI/", Firebase revisará tu permiso 'saei: true' y te dejará pasar
             await db.ref(rutaPaciente).update(cambios);
             
-            alert("✅ Paciente habilitado. La fila ahora es editable y se recuperaron los montos.");
+            alert("✅ Paciente habilitado. Se recuperó el monto y el detalle anterior.");
             
-            // Recargamos la tabla para ver los cambios
             if (typeof window.cargarTodo === 'function') {
                 window.cargarTodo();
             } else if (typeof window.inicializarCarga === 'function') {
@@ -1478,8 +1479,8 @@ window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVie
             }
 
         } catch (e) {
-            console.error("Error detallado en habilitarParaRefacturar:", e);
-            alert("❌ Error de permisos o base de datos: " + e.message);
+            console.error("Error en habilitarParaRefacturar:", e);
+            alert("❌ Error: " + e.message);
         }
     }
 };
