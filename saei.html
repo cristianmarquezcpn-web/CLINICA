@@ -355,22 +355,45 @@ window.cargarTodo = async () => {
         console.log("DEBUG OS:", window.dictOS);
 
         // 2. CARGA MASIVA DE PACIENTES
+        // 2. CARGA MASIVA DE PACIENTES
         const nodos = ['cd', 'cet', 'rehab', 'SAEI']; 
         const promesas = nodos.map(n => db.ref(`${n}/pacientes`).once('value'));
         
         const snapshots = await Promise.all(promesas);
         
+        // Creamos un mapa temporal para consolidar datos fijos (DNI, OS, etc.)
+        const mapaGeneral = {};
         dataFull = []; 
 
+        // Primera pasada: Guardamos la info de todos los módulos
         snapshots.forEach((snap, index) => {
             const modulo = nodos[index];
             const pacientes = snap.val() || {};
             
             for (let id in pacientes) {
+                const p = pacientes[id];
+                // Si encontramos una OS en cualquier módulo, la guardamos vinculada al ID (Nombre)
+                if (!mapaGeneral[id]) mapaGeneral[id] = {};
+                if (p.os || p.obra_social_nombre) {
+                    mapaGeneral[id].os = p.os || p.obra_social_nombre;
+                }
+            }
+        });
+
+        // Segunda pasada: Armamos la lista final para el Render
+        snapshots.forEach((snap, index) => {
+            const modulo = nodos[index];
+            const pacientes = snap.val() || {};
+            
+            for (let id in pacientes) {
+                const p = pacientes[id];
+                
                 dataFull.push({
                     id_db: id,
                     modulo: modulo,
-                    ...pacientes[id]
+                    ...p,
+                    // MAGIA: Si este registro no tiene OS, le ponemos la que encontramos en los otros módulos
+                    os: p.os || p.obra_social_nombre || (mapaGeneral[id] ? mapaGeneral[id].os : "")
                 });
             }
         });
@@ -1432,54 +1455,48 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
 };
 // --- FUNCIÓN GLOBAL PARA REFACTURAR ---
 window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVieja) {
-    if(confirm("¿Habilitar para editar y refacturar? Se recuperarán los datos de la factura anterior.")) {
+    if(confirm("¿Habilitar para editar y refacturar? Se recuperarán los datos anteriores.")) {
         try {
             const esSAEI = (modulo.toUpperCase() === "SAEI");
             const nodoFacturas = esSAEI ? "facturas_emitidas_saei" : "facturas_emitidas";
-            
-            const rutaPaciente = esSAEI 
-                ? `SAEI/pacientes/${idPaciente}` 
-                : `pacientes/${idPaciente}/modulos/${modulo.toLowerCase()}`;
+            const rutaPaciente = esSAEI ? `SAEI/pacientes/${idPaciente}` : `pacientes/${idPaciente}/modulos/${modulo.toLowerCase()}`;
 
-            // --- 2. OBJETO DE CAMBIOS ---
+            // 1. Buscamos los datos de la factura vieja ANTES de borrar nada
+            let montoRecuperado = 0;
+            let detalleRecuperado = "";
+
+            if (idFacturaVieja) {
+                const snap = await db.ref(`${nodoFacturas}/${idFacturaVieja}`).once('value');
+                const factura = snap.val();
+                if (factura) {
+                    montoRecuperado = factura.exento || factura.total || factura.neto || 0;
+                    detalleRecuperado = factura.descripcion || factura.detalle || "";
+                }
+            }
+
+            // 2. Aplicamos los cambios asegurando que los campos coincidan con el RENDER
             const cambios = {
                 facturado: "NO",
                 facturado_saei: "NO",
                 ultima_factura: null,
                 ultima_factura_saei: null,
-                cae: null,           
-                id_factura: null,    
+                cae: null,
+                id_factura: null,
+                // Llenamos todos los campos que el render podría buscar:
+                total: montoRecuperado, 
+                exento: montoRecuperado,
+                monto_fijo: montoRecuperado,
+                detalle: detalleRecuperado,
                 ignorar_factura: idFacturaVieja || "REFAC_MANUAL"
             };
-            
-            // --- 3. RECUPERACIÓN DE DATOS ---
-            if (idFacturaVieja) {
-                const snapFactura = await db.ref(`${nodoFacturas}/${idFacturaVieja}`).once('value');
-                const datosFactura = snapFactura.val();
 
-                if (datosFactura) {
-                    const montoRecuperado = datosFactura.exento || datosFactura.total || 0;
-                    // Guardamos en ambos campos para que el render lo encuentre sí o sí
-                    cambios.total = montoRecuperado;
-                    cambios.exento = montoRecuperado; 
-                    
-                    cambios.detalle = datosFactura.descripcion || datosFactura.detalle || "";
-                }
-            }
-
-            // --- 4. EJECUCIÓN DEL UPDATE ---
             await db.ref(rutaPaciente).update(cambios);
             
-            alert("✅ Paciente habilitado. Se recuperó el monto y el detalle anterior.");
-            
-            if (typeof window.cargarTodo === 'function') {
-                window.cargarTodo();
-            } else if (typeof window.inicializarCarga === 'function') {
-                window.inicializarCarga();
-            }
+            alert("✅ Paciente habilitado con sus montos recuperados.");
+            if (typeof window.cargarTodo === 'function') window.cargarTodo();
 
         } catch (e) {
-            console.error("Error en habilitarParaRefacturar:", e);
+            console.error("Error:", e);
             alert("❌ Error: " + e.message);
         }
     }
