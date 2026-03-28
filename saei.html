@@ -1441,7 +1441,50 @@ window.filtrarRender = function() {
     // Esto hace que si facturás desde otra pestaña, esta se actualice sola (los botones se pongan grises, etc.)
     if (typeof cargarTodo === 'function') cargarTodo(); 
 });
-	
+	// --- FUNCIÓN GLOBAL PARA REFACTURAR ---
+window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVieja) {
+    if(confirm("¿Habilitar para editar y refacturar? Se recuperarán los datos de la factura anterior.")) {
+        try {
+            const modPath = (modulo.toUpperCase() === "SAEI") ? "SAEI" : modulo.toLowerCase();
+            const nodoFacturas = (modPath === "SAEI") ? "facturas_emitidas_saei" : "facturas_emitidas";
+            
+            const updates = {};
+            
+            // 1. 🧠 RECUPERACIÓN DE MEMORIA: Buscamos la factura vieja en el historial
+            if (idFacturaVieja) {
+                const snapFactura = await db.ref(`${nodoFacturas}/${idFacturaVieja}`).once('value');
+                const datosFactura = snapFactura.val();
+
+                if (datosFactura) {
+                    // Si encontramos la factura, le pisamos al paciente el monto y detalle
+                    // para que cuando aparezca de nuevo en la tabla, tenga lo que escribiste.
+                    updates[`/${modPath}/pacientes/${idPaciente}/total`] = datosFactura.total || 0;
+                    updates[`/${modPath}/pacientes/${idPaciente}/detalle`] = datosFactura.detalle || "";
+                    
+                    console.log("✅ Datos recuperados de la factura:", datosFactura.nro_comp);
+                }
+            }
+
+            // 2. RESETEO DE ESTADO
+            const idLimpio = idFacturaVieja || "REFAC_MANUAL";
+            updates[`/${modPath}/pacientes/${idPaciente}/ignorar_factura`] = idLimpio;
+            updates[`/${modPath}/pacientes/${idPaciente}/facturado`] = "NO";
+            updates[`/${modPath}/pacientes/${idPaciente}/facturado_saei`] = "NO";
+            updates[`/${modPath}/pacientes/${idPaciente}/ultima_factura`] = null;
+            updates[`/${modPath}/pacientes/${idPaciente}/ultima_factura_saei`] = null;
+
+            await db.ref().update(updates);
+            
+            alert("✅ Paciente habilitado con los datos de la factura anterior.");
+            
+            if (typeof cargarTodo === 'function') cargarTodo();
+
+        } catch (e) {
+            console.error("Error en habilitarParaRefacturar:", e);
+            alert("❌ Error: " + e.message);
+        }
+    }
+};
 // --- 8. AUTH ---
 auth.onAuthStateChanged((user) => {
     if (user) {
