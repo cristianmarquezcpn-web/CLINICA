@@ -537,10 +537,8 @@ window.render = function() {
         
         <button class="btn" style="background:var(--naranja); font-size:8px; padding:3px; color:white; border:none;" onclick="window.habilitarParaRefacturar('${idPaciente}', 'SAEI', '${miFactura.id}')">Refac</button>
     </div>`;
-}
-			}
-
-        const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
+	}
+	    const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
 
         tr.innerHTML = `
             <td style="text-align:center">${colAccion}</td>
