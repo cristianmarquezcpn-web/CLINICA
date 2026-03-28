@@ -522,10 +522,14 @@ window.render = function() {
     .forEach(p => {
         const idPaciente = p.id || p.id_db || "S/N";
         const nombreMod  = (p.modulo || p.mod || "S/M").toUpperCase();
-        const miFactura = p.ultima_factura_saei || p.ultima_factura; 
-        
-        // CORRECCIÓN: Estado de facturación basado solo en el campo SI/NO
-        const facturado = (p.facturado === "SI" || p.facturado_saei === "SI");
+        let facturado = (p.facturado === "SI" || p.facturado_saei === "SI");
+        // SEGURO DE VIDA: Si alguna de las dos marcas es "NO", lo obligamos a blanco
+        if (p.facturado === "NO" || p.facturado_saei === "NO") {
+            facturado = false;
+        }
+
+        // Si no está facturado, ignoramos CUALQUIER factura vieja que ande dando vueltas
+        const miFactura = facturado ? (p.ultima_factura_saei || p.ultima_factura) : null;
 
         const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
         let infoOS = {};
