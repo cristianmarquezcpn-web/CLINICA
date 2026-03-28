@@ -509,11 +509,18 @@ window.render = function() {
     .filter(p => {
         const mod = (p.modulo || p.mod || "").toUpperCase();
         
-        // Si el filtro es 'TODOS', igual filtramos para que SOLO sea SAEI
-       if (filtroActual === 'TODOS' || filtroActual === 'SAEI') {
-    return true; 
-	}	
-        // Si tocás un botón de filtro específico, que responda a eso
+      filter(p => {
+        const mod = (p.modulo || p.mod || "").toUpperCase();
+        
+        // REGLA DE ORO: Si no es SAEI, no se dibuja. Punto.
+        if (mod !== "SAEI") return false;
+
+        // Si el filtro es 'TODOS', como ya sabemos que es SAEI, lo dejamos pasar
+        if (filtroActual === 'TODOS' || filtroActual === 'SAEI') {
+            return true; 
+        }
+        
+        // Para cualquier otro filtro específico (aunque en esta página no deberías tener otros)
         return mod === filtroActual.toUpperCase();
     })
     .forEach(p => {
