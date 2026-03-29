@@ -659,54 +659,64 @@ async function importarExcelMasivo(event) {
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const filas = XLSX.utils.sheet_to_json(sheet);
 
-        if (!confirm(`¿Estás seguro de importar ${filas.length} registros del 2025?`)) return;
+        if (!confirm(`¿Estás seguro de importar ${filas.length} registros del 2025 incluyendo Retenciones y NC?`)) return;
 
         for (const fila of filas) {
-            // 1. Generar un ID único para vincular Factura con Cobranza
             const nuevaFacturaRef = db.ref('facturas_emitidas').push();
             const id = nuevaFacturaRef.key;
 
-            // 2. Formatear Fechas para Firebase (YYYY-MM-DD)
-            const fEmi = fila.FECHA_EMI; // Asumimos DD/MM/AAAA en Excel
+            // Formateo de fechas
+            const fEmi = fila.FECHA_EMI;
             const fCobroRaw = fila.FECHA_COBRO;
             let fCobroISO = new Date().toISOString().slice(0, 10);
-            
-            if (fCobroRaw && fCobroRaw.includes('/')) {
-                const p = fCobroRaw.split('/');
+            if (fCobroRaw && String(fCobroRaw).includes('/')) {
+                const p = String(fCobroRaw).split('/');
                 fCobroISO = `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
             }
 
             const total = parseFloat(fila.TOTAL) || 0;
             const debito = parseFloat(fila.DEBITO) || 0;
-            const cobrado = total - debito; // Lo que realmente entró al banco
+            const rIIBB = parseFloat(fila.RET_IIBB) || 0;
+            const rGS = parseFloat(fila.RET_GS) || 0;
+            
+            // Es NC si la columna TIPO dice 'NC'
+            const esNC = String(fila.TIPO).toUpperCase() === 'NC';
 
-            // 3. PASO 1: Crear la Factura
+            // 1. Grabar Factura con sus retenciones manuales
             const promesaFactura = nuevaFacturaRef.set({
                 receptor_nombre: String(fila.OS).toUpperCase(),
-                receptor_cuit: String(fila.CUIT),
+                receptor_cuit: String(fila.CUIT || ""),
                 fecha_emision: fEmi,
                 punto_venta: parseInt(fila.PV) || 5,
                 nro_comp: parseInt(fila.NUMERO),
                 id_paciente: String(fila.PACIENTE).toUpperCase(),
                 total: total,
                 modulo: String(fila.MODULO).toUpperCase() || "CD",
-                tipo_comp: 11
+                tipo_comp: esNC ? 13 : 11, // 13 es NC, 11 es Factura C
+                retIIBB_manual: rIIBB,
+                retGS_manual: rGS
             });
 
-            // 4. PASO 2: Crear el Cobro automáticamente (Saldo queda en 0)
-            const promesaCobro = db.ref(`cobranzas/${id}`).set({
-                fecha_pago: fCobroISO,
-                mes_cobro_index: fCobroISO.slice(0, 7),
-                monto_cobrado: cobrado,
-                monto_debito: debito,
-                motivo_debito: fila.MOTIVO_DEBITO || "",
-                transferencia: fila.TRANSFERENCIA || "CARGA MASIVA 2025"
-            });
+            // 2. Grabar Cobranza
+            // Si es NC, no grabamos cobranza (porque la NC se salda sola en el render)
+            // Si es factura, grabamos lo que entró neto al banco
+            if (!esNC) {
+                const cobradoReal = parseFloat(fila.MONTO_RECIBIDO_BANCO) || (total - rIIBB - rGS - debito);
+                
+                await db.ref(`cobranzas/${id}`).set({
+                    fecha_pago: fCobroISO,
+                    mes_cobro_index: fCobroISO.slice(0, 7),
+                    monto_cobrado: cobradoReal,
+                    monto_debito: debito,
+                    motivo_debito: fila.MOTIVO_DEBITO || "",
+                    transferencia: fila.TRANSFERENCIA || "CARGA MASIVA 2025"
+                });
+            }
 
-            await Promise.all([promesaFactura, promesaCobro]);
+            await promesaFactura;
         }
 
-        alert("✅ Importación completada. El historial 2025 ya está integrado.");
+        alert("✅ Importación 2025 completada con éxito.");
         renderizarTodo();
     };
     reader.readAsArrayBuffer(file);
