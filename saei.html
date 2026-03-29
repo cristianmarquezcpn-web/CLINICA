@@ -388,12 +388,6 @@ window.cargarTodo = async () => {
         tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error al sincronizar.</td></tr>';
     }
 };
-
-    } catch (error) {
-        console.error("Error en cargarTodo:", error);
-        tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error de conexión con Firebase.</td></tr>';
-    }
-};
  async function procesarTodo() {
     const dictOS = window.dictOS || {};
 	const snapGral = await db.ref('facturas_emitidas').once('value');
