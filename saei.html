@@ -507,17 +507,18 @@ window.render = function() {
     dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
     .filter(p => {
-        const prest = (p.prest || p.prestacion || "").toUpperCase();
-        const mod = (p.modulo || p.mod || "").toUpperCase();
-        
-        // --- LA CLAVE: Si tiene facturado_saei (aunque sea NO), ES de esta pantalla ---
-        const yaLoToque = p.hasOwnProperty('facturado_saei') || p.hasOwnProperty('facturado');
-        const esSaei = prest.includes("SAEI") || mod.includes("SAEI") || yaLoToque;
-        
-        // Seguridad para que no se filtren otros
-        const esProhibido = (mod === "CD" || mod === "CET") && !yaLoToque;
+        // Si el paciente tiene CUALQUIER rastro de SAEI, lo mostramos.
+        const esSaei = (
+            (p.prest && p.prest.toUpperCase().includes("SAEI")) || 
+            (p.modulo && p.modulo.toUpperCase().includes("SAEI")) ||
+            p.facturado_saei !== undefined
+        );
 
-        return esSaei && !esProhibido;
+        // Bloqueo estricto de los otros módulos para que no se mezclen
+        const mod = (p.modulo || p.mod || "").toUpperCase();
+        if (mod === "CD" || mod === "CET" || mod === "REHAB") return false;
+
+        return esSaei;
     })
     .forEach(p => {
         const idPaciente = p.id || p.id_db || "S/N";
@@ -1409,36 +1410,35 @@ window.refacturarMasivoProximoMes = async function() {
 };
 // FUNCIÓN PARA FIJAR DATOS: Guarda detalle e importe automáticamente
 window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
-    const paciente = dataFull.find(p => (p.id === idPaciente || p.id_db === idPaciente));
+    // Buscamos al paciente asegurándonos de encontrarlo por cualquiera de sus IDs
+    const paciente = dataFull.find(p => (p.id == idPaciente || p.id_db == idPaciente));
     
     if (paciente) {
         try {
-            // REGLA DE ACERO: Si estamos en esta pantalla, la carpeta ES SAEI.
-            // No le preguntamos más al objeto 'mod' que viene fallado.
-            const rutaFinal = `SAEI/pacientes/${idPaciente}/${campo}`;
+            // Usamos el id_db si existe, que es el que manda en Firebase
+            const idReal = paciente.id_db || paciente.id || idPaciente;
+            const refPaciente = db.ref(`SAEI/pacientes/${idReal}`);
             
-            let valorAFijar = valor;
-            if (campo === 'neto' || campo === 'total' || campo === 'exento') {
-                valorAFijar = parseFloat(valor) || 0;
+            let valorFinal = valor;
+            if (['neto', 'total', 'exento'].includes(campo)) {
+                valorFinal = parseFloat(valor) || 0;
             }
 
-            // Guardamos directo en la carpeta madre de SAEI
-            await db.ref(rutaPaciente).update({
-    		[campo]: valorAFijar,   // El dato que escribiste (CUIT, Detalle, etc.)
-    		prest: "SAEI",         // El "ancla" para el filtro
-    		prestacion: "SAEI",    // Refuerzo para que no desaparezca
-   			 modulo: "SAEI"         // Refuerzo
-			});    
-            
-            // Actualizamos la memoria para que no se borre al salir de la celda
-            paciente[campo] = valorAFijar; 
-            paciente.prest = "SAEI"; 
+            // GUARDADO: Actualizamos el campo Y aseguramos la marca de SAEI
+            await refPaciente.update({
+                [campo]: valorFinal,
+                prest: "SAEI",
+                modulo: "SAEI"
+            });
+
+            // Actualizamos la memoria local para que el cambio sea instantáneo
+            paciente[campo] = valorFinal;
+            paciente.prest = "SAEI";
             paciente.modulo = "SAEI";
 
-            console.log(`✅ Guardado fijo en SAEI: ${campo} = ${valorAFijar}`);
-            
+            console.log(`✅ Guardado OK: ${idReal} -> ${campo}: ${valorFinal}`);
         } catch (error) {
-            console.error("❌ Error al fijar dato:", error);
+            console.error("❌ Error al guardar en Firebase:", error);
         }
     }
 };
