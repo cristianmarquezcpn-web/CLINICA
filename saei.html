@@ -507,21 +507,15 @@ window.render = function() {
     dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
    .filter(p => {
-        // 1. Obtenemos las etiquetas de todos los campos posibles
-        const prestacion = (p.prest || p.prestacion || "").toUpperCase();
-        const modulo = (p.modulo || p.mod || "").toUpperCase();
-        
-        // 2. REGLA MAESTRA: Si tiene la PUTA ETIQUETA "SAEI", entra sí o sí
-        // No importa si vive en REHAB, en SAEI o en la China.
-        if (prestacion === "SAEI" || modulo === "SAEI") return true;
+        const prest = (p.prest || "").toUpperCase();
+        const mod = (p.modulo || p.mod || "").toUpperCase();
+        const det = (p.detalle || "").toUpperCase();
 
-        // 3. REGLA DE RESPALDO: Si ya fue facturado por este sistema
-        if (p.facturado_saei !== undefined || p.ultima_factura_saei) return true;
+        // Si es CD o CET, los sacamos volando (a menos que diga SAEI)
+        if ((mod === "CD" || mod === "CET" || mod === "REHAB") && prest !== "SAEI") return false;
 
-        // 4. LIMPIEZA: Si es CD o CET puro (sin etiqueta SAEI), afuera.
-        if (modulo === "CD" || modulo === "CET") return false;
-
-        return false;
+        // Si tiene la PUTA ETIQUETA o el detalle dice SAEI, ADENTRO.
+        return (prest === "SAEI" || mod === "SAEI" || det.includes("SAEI"));
     })
     .forEach(p => {
         const idPaciente = p.id || p.id_db || "S/N";
@@ -1418,36 +1412,27 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
 
     try {
         const idReal = paciente.id_db || paciente.id || idPaciente;
-        let valorFinal = (['total', 'neto', 'exento'].includes(campo)) ? (parseFloat(valor) || 0) : valor;
+        let v = (['total', 'neto', 'exento'].includes(campo)) ? (parseFloat(valor) || 0) : valor;
 
-        // 1. DETERMINAMOS LA RUTA REAL
-        // Si el objeto ya trae 'path' (ej: "REHAB/pacientes/ID"), lo usamos.
-        // Si no, probamos con REHAB que es donde me decís que están.
-        const rutaOriginal = paciente.path || `REHAB/pacientes/${idReal}`;
-        const rutaSaei = `SAEI/pacientes/${idReal}`;
-
-        console.log(`Guardando dato en ruta original: ${rutaOriginal}`);
-
-        // 2. ACTUALIZAMOS EN AMBOS LADOS (Para que no se borre al refrescar)
         const updates = {};
-        
-        // Actualizamos en REHAB (su casa actual)
-        updates[`${rutaOriginal}/${campo}`] = valorFinal;
-        updates[`${rutaOriginal}/prest`] = "SAEI"; 
+        // 1. Guardamos en su carpeta actual (sea REHAB o la que traiga en p.path)
+        const rutaActual = paciente.path || `REHAB/pacientes/${idReal}`;
+        updates[`${rutaActual}/${campo}`] = v;
+        updates[`${rutaActual}/prest`] = "SAEI";
 
-        // También actualizamos en SAEI (por si ya se creó la carpeta)
-        updates[`${rutaSaei}/${campo}`] = valorFinal;
-        updates[`${rutaSaei}/prest`] = "SAEI";
+        // 2. Guardamos en la carpeta de SAEI para que ya quede ahí
+        updates[`SAEI/pacientes/${idReal}/${campo}`] = v;
+        updates[`SAEI/pacientes/${idReal}/prest`] = "SAEI";
 
         await db.ref().update(updates);
 
-        // 3. ACTUALIZAMOS MEMORIA LOCAL
-        paciente[campo] = valorFinal;
+        // Actualizamos memoria para que no se borre al segundo
+        paciente[campo] = v;
         paciente.prest = "SAEI";
 
-        console.log("✅ Guardado sincronizado en REHAB y SAEI");
+        console.log("✅ SISTEMA ANCLADO: Guardado en REHAB y SAEI simultáneo.");
     } catch (e) {
-        console.error("Error al guardar:", e);
+        console.error("Error fatal:", e);
     }
 };
 window.descargarUltimaDePaciente = async (idPac) => {
