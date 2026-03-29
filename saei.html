@@ -337,11 +337,7 @@ window.recalcular = (el) => {
     }
 };
 window.cargarTodo = async () => {
-    const tablaBod = document.getElementById('tabla-body');
-    if (!tablaBod) return;
-    
-    tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando pacientes SAEI...</td></tr>';
-
+    // ... (resto del código de inicio igual)
     try {
         const [snapOS, snapRehab, snapSAEI] = await Promise.all([
             db.ref('/config/obras_sociales').once('value'),
@@ -349,44 +345,37 @@ window.cargarTodo = async () => {
             db.ref('SAEI/pacientes').once('value')
         ]);
 
-        window.dictOS = snapOS.val() || {};
         const dataR = snapRehab.val() || {};
         const dataS = snapSAEI.val() || {};
-        
         dataFull = []; 
 
-        // 1. Creamos una lista con TODOS los IDs que aparecen en ambas carpetas
         const todosLosIds = new Set([...Object.keys(dataR), ...Object.keys(dataS)]);
 
         todosLosIds.forEach(id => {
-            const pR = dataR[id] || {}; // Datos de Rehab
-            const pS = dataS[id] || {}; // Datos de SAEI (donde está el detalle y monto)
+            const pR = dataR[id] || {};
+            const pS = dataS[id] || {};
             
-            // 2. NUEVA REGLA DE ENTRADA:
-            // Entra si dice SAEI en prestación de Rehab O si ya tiene datos en la carpeta SAEI
-            const tieneEtiquetaRehab = (pR.pres || "").toString().toUpperCase().trim() === "SAEI";
-            const tieneDatosEnSaei = Object.keys(pS).length > 0;
-            const detalleDiceSaei = (pS.detalle || "").toUpperCase().includes("SAEI");
+            // USAMOS "pres" QUE ES COMO ESTÁ EN TU FIREBASE
+            const valorPres = (pR.pres || pS.pres || "").toString().toUpperCase().trim();
+            const detalleSaei = (pS.detalle || "").toUpperCase();
 
-            if (tieneEtiquetaRehab || tieneDatosEnSaei || detalleDiceSaei) {
+            // Si dice SAEI en pres o en el detalle, lo metemos
+            if (valorPres === "SAEI" || detalleSaei.includes("SAEI")) {
                 dataFull.push({
                     id_db: id,
-                    modulo: 'SAEI',
-                    ...pR, // Prioridad datos de contacto de Rehab
-                    ...pS, // Prioridad montos de SAEI
+                    id: id,
+                    pres: "SAEI", // <--- ACÁ: Usamos 'pres' en lugar de 'modulo'
+                    ...pR, 
+                    ...pS,
                     os: pS.os || pR.os || pR.obra_social_nombre || "",
                     dni: pS.dni || pR.dni || ""
                 });
             }
         });
 
-        console.log("✅ Pacientes SAEI recuperados:", dataFull.length);
-        if (typeof render === "function") render();
+        if (typeof procesarTodo === "function") procesarTodo();
 
-    } catch (error) {
-        console.error("Error en cargarTodo:", error);
-        tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error al sincronizar.</td></tr>';
-    }
+    } catch (error) { console.error(error); }
 };
  async function procesarTodo() {
     const dictOS = window.dictOS || {};
@@ -505,10 +494,12 @@ window.render = function() {
     dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
    .filter(p => {
-    const pr = (p.prest || "").toUpperCase();
-    const det = (p.detalle || "").toUpperCase();
-    // Si dice SAEI en la etiqueta O en el detalle, SE QUEDA.
-    return (pr === "SAEI" || det.includes("SAEI") || p.facturado_saei !== undefined);
+    // Leemos 'pres' que es lo que viene de la base de datos
+    const p_pres = (p.pres || "").toUpperCase();
+    const p_det = (p.detalle || "").toUpperCase();
+
+    // REGLA: Si la prestación es SAEI o el detalle lo dice, se muestra.
+    return (p_pres === "SAEI" || p_det.includes("SAEI") || p.facturado_saei !== undefined);
 })
     .forEach(p => {
         const idPaciente = p.id || p.id_db || "S/N";
