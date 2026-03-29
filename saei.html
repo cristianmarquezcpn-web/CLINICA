@@ -381,9 +381,9 @@ window.cargarTodo = async () => {
         if (typeof procesarTodo === "function") procesarTodo();
     } catch (e) { console.error(e); }
 };
- async function procesarTodo() {
+	async function procesarTodo() {
     const dictOS = window.dictOS || {};
-	const snapGral = await db.ref('facturas_emitidas').once('value');
+    const snapGral = await db.ref('facturas_emitidas').once('value');
     const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
     
     const todasLasFacturas = {
@@ -391,14 +391,9 @@ window.cargarTodo = async () => {
         ...(snapSaei.val() || {})
     };
     
-    // Las ordenamos de mayor a menor por número para agarrar la ÚLTIMA siempre
-    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => {
-        return (b.nro_comp || 0) - (a.nro_comp || 0);
-    });
+    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => (b.nro_comp || 0) - (a.nro_comp || 0));
 
     const rutas = [
-        { path: 'cd/pacientes', mod: 'CD' },
-        { path: 'cet/pacientes', mod: 'CET' },
         { path: 'rehab/pacientes', mod: 'REHAB' },
         { path: 'saei/pacientes', mod: 'SAEI' } 
     ];
@@ -415,37 +410,43 @@ window.cargarTodo = async () => {
         for (const idPac in pacientes) {
             const p = pacientes[idPac];
             
-            // 1. BUSCAMOS LA ÚLTIMA FACTURA O NC
-            let ultFact = facturasArray.find(f => 
-                (f.id_paciente === idPac || f.id_paciente_db === idPac) && 
-                String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase()
-            );
+            // --- FILTRO CRUCIAL ---
+            // Solo entra si dice SAEI en la prestación (pres) 
+            // O si estamos barriendo la carpeta de SAEI específicamente.
+            const prestacion = (p.pres || "").toString().toUpperCase().trim();
+            const detalle = (p.detalle || "").toUpperCase();
 
-            // --- AQUÍ ESTÁ LO QUE PEDÍAS: Lógica de NC ---
-            if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
-                // Si la última es una NC, nos aseguramos de que los datos de asociación existan
-                // Por si en la DB vieja estaban con otro nombre, los normalizamos acá:
-                ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
-                ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
+            if (prestacion === "SAEI" || detalle.includes("SAEI") || nombreMod === "SAEI") {
+                
+                let ultFact = facturasArray.find(f => 
+                    (f.id_paciente === idPac || f.id_paciente_db === idPac) && 
+                    String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase()
+                );
+
+                if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
+                    ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
+                    ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
+                }
+
+                let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
+                if (p.facturado === 'NO') {
+                    estadoFinal = 'NO';
+                }
+
+                tempFull.push({
+                    ...p,
+                    id: idPac,
+                    pres: "SAEI", // Normalizamos para que el render no se pierda
+                    mod: nombreMod,
+                    ultima_factura: ultFact, 
+                    facturado: estadoFinal   
+                });
             }
-
-            // 2. FILTRO ANTI-GRIS (Tu lógica de refacturación)
-            let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
-            if (p.facturado === 'NO') {
-                estadoFinal = 'NO';
-            }
-
-            tempFull.push({
-                ...p,
-                id: idPac, // Nombre del paciente (Key)
-                mod: nombreMod,
-                ultima_factura: ultFact, 
-                facturado: estadoFinal   
-            });
         }
     });
     
     dataFull = tempFull;
+    console.log("✅ Solo SAEI en memoria:", dataFull.length);
     
     if (typeof render === "function") {
         render();
