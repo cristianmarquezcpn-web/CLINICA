@@ -661,48 +661,58 @@ async function importarExcelMasivo(event) {
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const filas = XLSX.utils.sheet_to_json(sheet);
 
-        if (!confirm(`¿Estás seguro de importar ${filas.length} registros del 2025 incluyendo Retenciones y NC?`)) return;
+        if (!confirm(`¿Estás seguro de importar ${filas.length} registros?`)) return;
+
+        // Función interna para curar fechas de Excel o Texto
+        const formatearFecha = (valor) => {
+            if (!valor) return null;
+            let d;
+            if (typeof valor === 'number') {
+                // Convierte número de serie de Excel a objeto Date
+                d = new Date((valor - 25569) * 86400 * 1000);
+            } else {
+                const s = String(valor);
+                if (s.includes('/')) {
+                    const p = s.split('/');
+                    d = new Date(p[2], p[1] - 1, p[0]);
+                } else {
+                    d = new Date(s);
+                }
+            }
+            return (d instanceof Date && !isNaN(d)) ? d.toISOString().slice(0, 10) : null;
+        };
 
         for (const fila of filas) {
             const nuevaFacturaRef = db.ref('facturas_emitidas').push();
             const id = nuevaFacturaRef.key;
 
-            // Formateo de fechas
-            const fEmi = fila.FECHA_EMI;
-            const fCobroRaw = fila.FECHA_COBRO;
-            let fCobroISO = new Date().toISOString().slice(0, 10);
-            if (fCobroRaw && String(fCobroRaw).includes('/')) {
-                const p = String(fCobroRaw).split('/');
-                fCobroISO = `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
-            }
+            // Curamos las fechas
+            const fEmiISO = formatearFecha(fila.FECHA_EMI) || "2025-01-01";
+            const fCobroISO = formatearFecha(fila.FECHA_COBRO); // Si está vacío, es null
 
             const total = parseFloat(fila.TOTAL) || 0;
             const debito = parseFloat(fila.DEBITO) || 0;
             const rIIBB = parseFloat(fila.RET_IIBB) || 0;
             const rGS = parseFloat(fila.RET_GS) || 0;
-            
-            // Es NC si la columna TIPO dice 'NC'
-            const esNC = String(fila.TIPO).toUpperCase() === 'NC';
+            const esNC = String(fila.TIPO || "").toUpperCase() === 'NC';
 
-            // 1. Grabar Factura con sus retenciones manuales
-            const promesaFactura = nuevaFacturaRef.set({
-                receptor_nombre: String(fila.OS).toUpperCase(),
+            // 1. Grabar Factura
+            await nuevaFacturaRef.set({
+                receptor_nombre: String(fila.OS || "S/D").toUpperCase(),
                 receptor_cuit: String(fila.CUIT || ""),
-                fecha_emision: fEmi,
+                fecha_emision: fEmiISO,
                 punto_venta: parseInt(fila.PV) || 5,
-                nro_comp: parseInt(fila.NUMERO),
-                id_paciente: String(fila.PACIENTE).toUpperCase(),
+                nro_comp: parseInt(fila.NUMERO) || 0,
+                id_paciente: String(fila.PACIENTE || "S/D").toUpperCase(),
                 total: total,
-                modulo: String(fila.MODULO).toUpperCase() || "CD",
-                tipo_comp: esNC ? 13 : 11, // 13 es NC, 11 es Factura C
+                modulo: String(fila.MODULO || "CD").toUpperCase(),
+                tipo_comp: esNC ? 13 : 11,
                 retIIBB_manual: rIIBB,
                 retGS_manual: rGS
             });
 
-            // 2. Grabar Cobranza
-            // Si es NC, no grabamos cobranza (porque la NC se salda sola en el render)
-            // Si es factura, grabamos lo que entró neto al banco
-            if (!esNC) {
+            // 2. Grabar Cobranza SOLO SI hay fecha de cobro y no es NC
+            if (!esNC && fCobroISO) {
                 const cobradoReal = parseFloat(fila.MONTO_RECIBIDO_BANCO) || (total - rIIBB - rGS - debito);
                 
                 await db.ref(`cobranzas/${id}`).set({
@@ -711,15 +721,13 @@ async function importarExcelMasivo(event) {
                     monto_cobrado: cobradoReal,
                     monto_debito: debito,
                     motivo_debito: fila.MOTIVO_DEBITO || "",
-                    transferencia: fila.TRANSFERENCIA || "CARGA MASIVA 2025"
+                    transferencia: fila.TRANSFERENCIA || "IMPORTACIÓN MASIVA"
                 });
             }
-
-            await promesaFactura;
         }
 
-        alert("✅ Importación 2025 completada con éxito.");
-        renderizarTodo();
+        alert("✅ Importación limpia. Las facturas sin fecha quedaron como DEUDA.");
+        location.reload(); 
     };
     reader.readAsArrayBuffer(file);
 }
