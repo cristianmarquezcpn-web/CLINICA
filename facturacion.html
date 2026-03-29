@@ -594,7 +594,7 @@ window.render = function() {
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
-            <td><textarea class="input-tab det-val" style="min-height:40px; width:100%; overflow:hidden; resize:none;" onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')" ${facturado?'disabled':''}>${p.detalle || (facturado ? (miFactura.concepto || "") : `PRESTACIÓN MÓDULO SAEI - PACIENTE: ${idPaciente}`)}</textarea></td>
+            <td><textarea class="input-tab det-val" style="min-height:40px; width:100%; overflow:hidden; resize:none;" onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')" ${facturado?'disabled':''}>${p.detalle || (facturado ? (miFactura.concepto || "") : `PRESTACIÓN MÓDULO ${(p.mod || 'rehab').toUpperCase()} - PACIENTE: ${p.nombre || idPaciente}`)}</textarea></td>
 			<td><input type="number" class="input-tab neto-edit" value="${p.total && aFinal > 0 ? p.total : (aFinal > 0 ? mBase : 0)}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
             <td>
                 <select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
@@ -739,7 +739,7 @@ window.gestionarTipoComp = function(select) {
     const rutaHistorial = esSaei ? 'facturas_emitidas_saei' : 'facturas_emitidas';
     const nuevaFacturaKey = db.ref().child(rutaHistorial).push().key;
     
-    const fechaHoy = new Date().toLocaleDateString('es-AR');
+    const fechaHoy = new Date().toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'});
     const cuitEmisor = "30714900192";
 
     const ptoVtaFormateado = String(respuestaAfip.punto_venta || respuestaAfip.PtoVta || 5).padStart(5, '0');
@@ -1033,7 +1033,7 @@ window.descargarFactura = async (id) => {
         asoc_nro: p.nro_asoc || p.asoc_nro || p.comprobante_asociado_nro || null,
         
         condicion_venta: p.condicion_venta || "CUENTA CORRIENTE",
-        concepto: (p.concepto || p.descripcion || "").toUpperCase(),
+        concepto: (p.detalle || p.descripcion || "").toUpperCase(),
         
         total: parseFloat(p.total || 0),
         cae: p.cae,
