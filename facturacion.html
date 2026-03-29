@@ -1014,11 +1014,10 @@ window.descargarFactura = async (id) => {
 
 		// 2. PUNTO DE VENTA (00005)
 		ptoVta: String(p.punto_venta || 5).padStart(5, '0'),
-
+		
 		// 3. NÚMERO DE COMPROBANTE (00000024)
 		nro: String(p.nro_comp || 0).padStart(8, '0'),
-        fecha: p.fecha_emision || p.fecha || new Date().toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'}),
-
+        fecha: (p.fecha_emision || p.fecha || "").includes('/') ? (p.fecha_emision || p.fecha).split('/').map(x => x.padStart(2, '0')).join('/') : new Date().toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'}).replace(/\D/g, '/').substring(0, 10),
         desde: f(p.periodo_desde), 
         hasta: f(p.periodo_hasta),
         vto_pago: f(p.vto_pago),
@@ -1033,7 +1032,10 @@ window.descargarFactura = async (id) => {
         asoc_nro: p.nro_asoc || p.asoc_nro || p.comprobante_asociado_nro || null,
         
         condicion_venta: p.condicion_venta || "CUENTA CORRIENTE",
-        concepto: (p.detalle || p.descripcion || "").toUpperCase(),
+        concepto: (p.concepto || p.detalle || p.descripcion || "").toUpperCase(),
+        
+        total: parseFloat(p.total || 0),
+        cae: p.cae,
         
         total: parseFloat(p.total || 0),
         cae: p.cae,
