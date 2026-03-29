@@ -837,7 +837,7 @@ const MODELO_FACTURA_B = (d) => {
             </div>`;
     }
 
-    const fechaHoy = new Date().toISOString().split('T')[0];
+    const fechaHoy = new Date().toLocaleDateString('es-AR').split('/').reverse().join('-');
     const fechaParaQr = (d.fecha && d.fecha.includes('/')) 
         ? d.fecha.split('/').reverse().join('-') 
         : (d.fecha && d.fecha.includes('-') ? d.fecha : fechaHoy);
@@ -1433,50 +1433,29 @@ window.refacturarMasivoProximoMes = async function() {
 };
 // FUNCIÓN PARA FIJAR DATOS: Guarda detalle e importe automáticamente
 window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
-    // 1. Buscamos al paciente en la memoria local (dataFull)
     const p = dataFull.find(x => (x.id == idPaciente || x.id_db == idPaciente));
     if (!p) return;
 
     try {
         const id = p.id_db || p.id || idPaciente;
-        // Si el campo es de dinero, lo convertimos a número
         let v = (['total', 'neto', 'exento'].includes(campo)) ? (parseFloat(valor) || 0) : valor;
         
         const up = {};
         
-        // 2. Detectamos el módulo y lo pasamos a MINÚSCULA (cd, cet, rehab)
-        let modOriginal = (p.mod || "rehab").toLowerCase(); 
+        // Detectamos el módulo (siempre en minúsculas para las carpetas raíz)
+        let mod = (p.mod || "rehab").toLowerCase(); 
         
-        // 3. Grabamos en la carpeta raíz que corresponda (cd, cet o rehab)
-        up[`${modOriginal}/pacientes/${id}/${campo}`] = v;
+        // Grabamos ÚNICAMENTE en la ruta del paciente en su módulo
+        up[`${mod}/pacientes/${id}/${campo}`] = v;
 
-        // 4. REFUERZO PARA SAEI (Si el paciente tiene etiqueta SAEI)
-        const esSaei = (p.pres || "").toUpperCase() === "SAEI" || (p.mod || "").toUpperCase() === "SAEI";
-        
-        if (esSaei) {
-            // Guardamos en la carpeta RAÍZ de SAEI (esta suele estar en Mayúsculas en tu DB)
-            up[`SAEI/pacientes/${id}/${campo}`] = v;
-            
-            // Guardamos en la sub-carpeta de REHAB (rehab/pacientes/ID/saei)
-            up[`rehab/pacientes/${id}/saei/${campo}`] = v;
-            
-            // Aseguramos que la prestación diga SAEI
-            up[`rehab/pacientes/${id}/pres`] = "SAEI";
-            up[`rehab/pacientes/${id}/saei/pres`] = "SAEI";
-        }
-
-        // 5. Impactamos los cambios en Firebase
         await db.ref().update(up);
-
-        // Actualizamos la memoria para que el cambio se vea al instante sin F5
+        
+        // Actualizamos la memoria
         p[campo] = v;
-        if (esSaei) p.pres = "SAEI";
-
-        console.log(`✅ Guardado en ${modOriginal} ${esSaei ? '+ Espejos SAEI' : ''}: ${campo} = ${v}`);
-
+        
+        console.log(`✅ Dato guardado permanentemente en ${mod}/pacientes/${id}`);
     } catch (e) { 
-        console.error("Error al guardar dato permanente:", e); 
-        alert("Error al guardar: " + e.message);
+        console.error("Error crítico en fijarDatoPermanente:", e); 
     }
 };
 // --- FUNCIÓN GLOBAL PARA REFACTURAR ---
