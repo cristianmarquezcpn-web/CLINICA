@@ -343,7 +343,6 @@ window.cargarTodo = async () => {
     tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando pacientes SAEI...</td></tr>';
 
     try {
-        // 1. Traemos Obras Sociales, Rehab (donde están todos) y SAEI (donde están las facturas)
         const [snapOS, snapRehab, snapSAEI] = await Promise.all([
             db.ref('/config/obras_sociales').once('value'),
             db.ref('rehab/pacientes').once('value'),
@@ -356,34 +355,39 @@ window.cargarTodo = async () => {
         
         dataFull = []; 
 
-        // 2. RECORREMOS REHAB: Es nuestra fuente principal de nombres
-        for (let id in dataR) {
-            const pR = dataR[id];
+        // 1. Creamos una lista con TODOS los IDs que aparecen en ambas carpetas
+        const todosLosIds = new Set([...Object.keys(dataR), ...Object.keys(dataS)]);
+
+        todosLosIds.forEach(id => {
+            const pR = dataR[id] || {}; // Datos de Rehab
+            const pS = dataS[id] || {}; // Datos de SAEI (donde está el detalle y monto)
             
-            // FILTRO: Solo si la prestación dice SAEI (mayúsculas o minúsculas)
-            const esSAEI = (pR.pres || "").toString().toUpperCase().trim() === "SAEI";
+            // 2. NUEVA REGLA DE ENTRADA:
+            // Entra si dice SAEI en prestación de Rehab O si ya tiene datos en la carpeta SAEI
+            const tieneEtiquetaRehab = (pR.pres || "").toString().toUpperCase().trim() === "SAEI";
+            const tieneDatosEnSaei = Object.keys(pS).length > 0;
+            const detalleDiceSaei = (pS.detalle || "").toUpperCase().includes("SAEI");
 
-            if (esSAEI) {
-                // Buscamos si este mismo paciente tiene algo en la carpeta SAEI (monto, factura vieja)
-                const pS = dataS[id] || {};
-
+            if (tieneEtiquetaRehab || tieneDatosEnSaei || detalleDiceSaei) {
                 dataFull.push({
                     id_db: id,
                     modulo: 'SAEI',
-                    ...pR, // Trae DNI, OS, Teléfono de Rehab
-                    ...pS, // Trae Monto, Detalle y ULTIMA_FACTURA de SAEI
-                    // Forzamos que la OS y el DNI se vean aunque en SAEI esté vacío
+                    ...pR, // Prioridad datos de contacto de Rehab
+                    ...pS, // Prioridad montos de SAEI
                     os: pS.os || pR.os || pR.obra_social_nombre || "",
                     dni: pS.dni || pR.dni || ""
                 });
             }
-        }
+        });
 
         console.log("✅ Pacientes SAEI recuperados:", dataFull.length);
-        
-        if (typeof render === "function") {
-            render();
-        }
+        if (typeof render === "function") render();
+
+    } catch (error) {
+        console.error("Error en cargarTodo:", error);
+        tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error al sincronizar.</td></tr>';
+    }
+};
 
     } catch (error) {
         console.error("Error en cargarTodo:", error);
