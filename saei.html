@@ -507,17 +507,16 @@ window.render = function() {
     dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
     .filter(p => {
-        // 1. Buscamos la marca en cualquier campo posible (mayúsculas/minúsculas)
         const prest = (p.prest || p.prestacion || "").toUpperCase();
         const mod = (p.modulo || p.mod || "").toUpperCase();
         
-        // 2. LA CONDICIÓN: Tiene que decir SAEI en la prestación O en el módulo
-        const esSaei = prest.includes("SAEI") || mod.includes("SAEI");
+        // --- LA CLAVE: Si tiene facturado_saei (aunque sea NO), ES de esta pantalla ---
+        const yaLoToque = p.hasOwnProperty('facturado_saei') || p.hasOwnProperty('facturado');
+        const esSaei = prest.includes("SAEI") || mod.includes("SAEI") || yaLoToque;
         
-        // 3. SEGURIDAD: Si es CD o CET, lo fletamos (aunque diga saei por error)
-        const esProhibido = mod === "CD" || mod === "CET";
+        // Seguridad para que no se filtren otros
+        const esProhibido = (mod === "CD" || mod === "CET") && !yaLoToque;
 
-        // Solo pasa si es de Saei y NO es de los otros módulos
         return esSaei && !esProhibido;
     })
     .forEach(p => {
@@ -1425,9 +1424,15 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
 
             // Guardamos directo en la carpeta madre de SAEI
             await db.ref(rutaFinal).set(valorAFijar);
+			[campo]: valorAFijar,
+                prest: "SAEI",         // <-- Esto lo mantiene en el filtro
+                prestacion: "SAEI",    // <-- Refuerzo
+                modulo: "SAEI"         // <-- Refuerzo
             
             // Actualizamos la memoria para que no se borre al salir de la celda
             paciente[campo] = valorAFijar; 
+            paciente.prest = "SAEI"; 
+            paciente.modulo = "SAEI";
 
             console.log(`✅ Guardado fijo en SAEI: ${campo} = ${valorAFijar}`);
             
