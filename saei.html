@@ -393,6 +393,7 @@ window.cargarTodo = async () => {
     
     const facturasArray = Object.values(todasLasFacturas).sort((a, b) => (b.nro_comp || 0) - (a.nro_comp || 0));
 
+    // IMPORTANTE: Mantenemos el orden de las rutas
     const rutas = [
         { path: 'rehab/pacientes', mod: 'REHAB' },
         { path: 'saei/pacientes', mod: 'SAEI' } 
@@ -401,18 +402,14 @@ window.cargarTodo = async () => {
     const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
     const snapsPacientes = await Promise.all(promesas);
 
-    const tempFull = [];
+    const mapaPacientes = {};
 
     snapsPacientes.forEach((snap, index) => {
-        const nombreMod = rutas[index].mod;
+        const nombreMod = rutas[index].mod; // Acá 'nombreMod' será REHAB o SAEI
         const pacientes = snap.val() || {};
 
         for (const idPac in pacientes) {
             const p = pacientes[idPac];
-            
-            // --- FILTRO CRUCIAL ---
-            // Solo entra si dice SAEI en la prestación (pres) 
-            // O si estamos barriendo la carpeta de SAEI específicamente.
             const prestacion = (p.pres || "").toString().toUpperCase().trim();
             const detalle = (p.detalle || "").toUpperCase();
 
@@ -420,37 +417,39 @@ window.cargarTodo = async () => {
                 
                 let ultFact = facturasArray.find(f => 
                     (f.id_paciente === idPac || f.id_paciente_db === idPac) && 
-                    String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase()
+                    (String(f.modulo).toUpperCase() === "SAEI" || String(f.modulo).toUpperCase() === "REHAB")
                 );
 
-                if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
-                    ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
-                    ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
-                }
-
                 let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
-                if (p.facturado === 'NO') {
-                    estadoFinal = 'NO';
-                }
+                if (p.facturado === 'NO') estadoFinal = 'NO';
 
-                tempFull.push({
-                    ...p,
-                    id: idPac,
-                    pres: "SAEI", // Normalizamos para que el render no se pierda
-                    mod: nombreMod,
-                    ultima_factura: ultFact, 
-                    facturado: estadoFinal   
-                });
+                if (mapaPacientes[idPac]) {
+                    // SI YA EXISTE Y ESTAMOS EN LA CARPETA SAEI, PRIORIZAMOS ESTA ETIQUETA
+                    if (nombreMod === "SAEI") {
+                        mapaPacientes[idPac].mod = "SAEI"; 
+                        mapaPacientes[idPac].pres = "SAEI";
+                    }
+                    if (ultFact) {
+                        mapaPacientes[idPac].ultima_factura = ultFact;
+                        mapaPacientes[idPac].facturado = estadoFinal;
+                    }
+                    Object.assign(mapaPacientes[idPac], p);
+                } else {
+                    mapaPacientes[idPac] = {
+                        ...p,
+                        id: idPac,
+                        pres: "SAEI",
+                        mod: nombreMod, // Se queda con el primero que encuentra (REHAB)
+                        ultima_factura: ultFact, 
+                        facturado: estadoFinal   
+                    };
+                }
             }
         }
     });
     
-    dataFull = tempFull;
-    console.log("✅ Solo SAEI en memoria:", dataFull.length);
-    
-    if (typeof render === "function") {
-        render();
-    }
+    dataFull = Object.values(mapaPacientes);
+    if (typeof render === "function") render();
 }
 window.actualizarPanelOS = function() {
     const listaOS = document.getElementById('lista-os');
