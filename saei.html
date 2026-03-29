@@ -507,15 +507,18 @@ window.render = function() {
     dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
     .filter(p => {
-        // --- FILTRO CORRECTO: Buscamos SAEI dentro de 'prest' ---
-        const prestacion = (p.prest || p.prestacion || "").toUpperCase();
+        // 1. Buscamos la marca en cualquier campo posible (mayúsculas/minúsculas)
+        const prest = (p.prest || p.prestacion || "").toUpperCase();
+        const mod = (p.modulo || p.mod || "").toUpperCase();
         
-        // Solo dejamos pasar si la prestación es SAEI
-        if (prestacion !== "SAEI") return false;
+        // 2. LA CONDICIÓN: Tiene que decir SAEI en la prestación O en el módulo
+        const esSaei = prest.includes("SAEI") || mod.includes("SAEI");
+        
+        // 3. SEGURIDAD: Si es CD o CET, lo fletamos (aunque diga saei por error)
+        const esProhibido = mod === "CD" || mod === "CET";
 
-        // Filtro adicional de la pestaña (opcional)
-        if (filtroActual === 'TODOS' || filtroActual === 'SAEI') return true;
-        return true; 
+        // Solo pasa si es de Saei y NO es de los otros módulos
+        return esSaei && !esProhibido;
     })
     .forEach(p => {
         const idPaciente = p.id || p.id_db || "S/N";
