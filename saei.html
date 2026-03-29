@@ -1423,11 +1423,12 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
             }
 
             // Guardamos directo en la carpeta madre de SAEI
-            await db.ref(rutaFinal).set(valorAFijar);
-			[campo]: valorAFijar,
-                prest: "SAEI",         // <-- Esto lo mantiene en el filtro
-                prestacion: "SAEI",    // <-- Refuerzo
-                modulo: "SAEI"         // <-- Refuerzo
+            await db.ref(rutaPaciente).update({
+    		[campo]: valorAFijar,   // El dato que escribiste (CUIT, Detalle, etc.)
+    		prest: "SAEI",         // El "ancla" para el filtro
+    		prestacion: "SAEI",    // Refuerzo para que no desaparezca
+   			 modulo: "SAEI"         // Refuerzo
+			});    
             
             // Actualizamos la memoria para que no se borre al salir de la celda
             paciente[campo] = valorAFijar; 
