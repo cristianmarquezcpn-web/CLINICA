@@ -507,15 +507,22 @@ window.render = function() {
     dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
    .filter(p => {
+        const nombre = (p.id || p.id_db || "").toUpperCase();
+        const detalle = (p.detalle || "").toUpperCase();
         const prest = (p.prest || "").toUpperCase();
-        const mod = (p.modulo || p.mod || "").toUpperCase();
-        const det = (p.detalle || "").toUpperCase();
+        const mod = (p.modulo || "").toUpperCase();
 
-        // Si es CD o CET, los sacamos volando (a menos que diga SAEI)
-        if ((mod === "CD" || mod === "CET" || mod === "REHAB") && prest !== "SAEI") return false;
+        // 1. Si es CD o CET puro, afuera.
+        if ((mod === "CD" || mod === "CET") && prest !== "SAEI") return false;
 
-        // Si tiene la PUTA ETIQUETA o el detalle dice SAEI, ADENTRO.
-        return (prest === "SAEI" || mod === "SAEI" || det.includes("SAEI"));
+        // 2. REGLA DE FUERZA: Si dice SAEI en detalle, prest o modulo, ADENTRO.
+        // Esto pesca a Acosta Nuñez aunque no tenga la etiqueta 'prest' todavía.
+        if (prest === "SAEI" || mod === "SAEI" || detalle.includes("SAEI")) return true;
+
+        // 3. Si vos ya lo tocaste antes, que no se mueva de la pantalla.
+        if (p.facturado_saei !== undefined || p.cuit !== undefined) return true;
+
+        return false;
     })
     .forEach(p => {
         const idPaciente = p.id || p.id_db || "S/N";
@@ -1414,25 +1421,28 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
         const idReal = paciente.id_db || paciente.id || idPaciente;
         let v = (['total', 'neto', 'exento'].includes(campo)) ? (parseFloat(valor) || 0) : valor;
 
+        // PREPARAMOS EL GOLPE DOBLE
         const updates = {};
-        // 1. Guardamos en su carpeta actual (sea REHAB o la que traiga en p.path)
-        const rutaActual = paciente.path || `REHAB/pacientes/${idReal}`;
-        updates[`${rutaActual}/${campo}`] = v;
-        updates[`${rutaActual}/prest`] = "SAEI";
+        
+        // Ruta 1: Donde vive ahora (REHAB)
+        updates[`REHAB/pacientes/${idReal}/${campo}`] = v;
+        updates[`REHAB/pacientes/${idReal}/prest`] = "SAEI";
+        updates[`REHAB/pacientes/${idReal}/modulo`] = "SAEI";
 
-        // 2. Guardamos en la carpeta de SAEI para que ya quede ahí
+        // Ruta 2: Donde va a vivir (SAEI)
         updates[`SAEI/pacientes/${idReal}/${campo}`] = v;
         updates[`SAEI/pacientes/${idReal}/prest`] = "SAEI";
+        updates[`SAEI/pacientes/${idReal}/modulo`] = "SAEI";
 
         await db.ref().update(updates);
 
-        // Actualizamos memoria para que no se borre al segundo
+        // Actualizamos la memoria del navegador para que el cambio sea visual
         paciente[campo] = v;
         paciente.prest = "SAEI";
 
-        console.log("✅ SISTEMA ANCLADO: Guardado en REHAB y SAEI simultáneo.");
+        console.log("✅ Datos anclados en REHAB y SAEI");
     } catch (e) {
-        console.error("Error fatal:", e);
+        console.error("Error crítico:", e);
     }
 };
 window.descargarUltimaDePaciente = async (idPac) => {
