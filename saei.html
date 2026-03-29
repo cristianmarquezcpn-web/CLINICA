@@ -507,23 +507,11 @@ window.render = function() {
     dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
    .filter(p => {
-        const nombre = (p.id || p.id_db || "").toUpperCase();
-        const detalle = (p.detalle || "").toUpperCase();
-        const prest = (p.prest || "").toUpperCase();
-        const mod = (p.modulo || "").toUpperCase();
-
-        // 1. Si es CD o CET puro, afuera.
-        if ((mod === "CD" || mod === "CET") && prest !== "SAEI") return false;
-
-        // 2. REGLA DE FUERZA: Si dice SAEI en detalle, prest o modulo, ADENTRO.
-        // Esto pesca a Acosta Nuñez aunque no tenga la etiqueta 'prest' todavía.
-        if (prest === "SAEI" || mod === "SAEI" || detalle.includes("SAEI")) return true;
-
-        // 3. Si vos ya lo tocaste antes, que no se mueva de la pantalla.
-        if (p.facturado_saei !== undefined || p.cuit !== undefined) return true;
-
-        return false;
-    })
+    const pr = (p.prest || "").toUpperCase();
+    const det = (p.detalle || "").toUpperCase();
+    // Si dice SAEI en la etiqueta O en el detalle, SE QUEDA.
+    return (pr === "SAEI" || det.includes("SAEI") || p.facturado_saei !== undefined);
+})
     .forEach(p => {
         const idPaciente = p.id || p.id_db || "S/N";
         const nombreMod  = (p.modulo || p.mod || "REHAB").toUpperCase();
@@ -1414,72 +1402,22 @@ window.refacturarMasivoProximoMes = async function() {
 };
 // FUNCIÓN PARA FIJAR DATOS: Guarda detalle e importe automáticamente
 window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
-    const paciente = dataFull.find(p => (p.id == idPaciente || p.id_db == idPaciente));
-    if (!paciente) return;
-
+    const p = dataFull.find(x => (x.id == idPaciente || x.id_db == idPaciente));
+    if (!p) return;
     try {
-        const idReal = paciente.id_db || paciente.id || idPaciente;
+        const id = p.id_db || p.id || idPaciente;
         let v = (['total', 'neto', 'exento'].includes(campo)) ? (parseFloat(valor) || 0) : valor;
-
-        // PREPARAMOS EL GOLPE DOBLE
-        const updates = {};
-        
-        // Ruta 1: Donde vive ahora (REHAB)
-        updates[`REHAB/pacientes/${idReal}/${campo}`] = v;
-        updates[`REHAB/pacientes/${idReal}/prest`] = "SAEI";
-        updates[`REHAB/pacientes/${idReal}/modulo`] = "SAEI";
-
-        // Ruta 2: Donde va a vivir (SAEI)
-        updates[`SAEI/pacientes/${idReal}/${campo}`] = v;
-        updates[`SAEI/pacientes/${idReal}/prest`] = "SAEI";
-        updates[`SAEI/pacientes/${idReal}/modulo`] = "SAEI";
-
-        await db.ref().update(updates);
-
-        // Actualizamos la memoria del navegador para que el cambio sea visual
-        paciente[campo] = v;
-        paciente.prest = "SAEI";
-
-        console.log("✅ Datos anclados en REHAB y SAEI");
-    } catch (e) {
-        console.error("Error crítico:", e);
-    }
-};
-window.descargarUltimaDePaciente = async (idPac) => {
-    try {
-        // 1. Traemos de los dos lados en simultáneo
-        const [snapG, snapS] = await Promise.all([
-            db.ref('facturas_emitidas').once('value'),
-            db.ref('facturas_emitidas_saei').once('value')
-        ]);
-        
-        // Unificamos los datos
-        const todas = {...snapG.val(), ...snapS.val()};
-        let ultimaId = null;
-
-        // 2. Ordenamos las llaves (IDs de Firebase) de mayor a menor 
-        // para asegurarnos de que la primera que coincida sea la más nueva.
-        const llavesOrdenadas = Object.keys(todas).sort().reverse();
-
-        for (let id of llavesOrdenadas) {
-            const f = todas[id];
-            // Verificamos coincidencia de ID de paciente en cualquiera de sus variantes
-            if (f.id_paciente === idPac || f.id_paciente_db === idPac || f.receptor_id === idPac) {
-                ultimaId = id; 
-                break; // Encontramos la más nueva, dejamos de buscar
-            }
-        }
-
-        if (ultimaId) {
-            window.descargarFactura(ultimaId);
-        } else {
-            alert("No se encontró ninguna factura emitida para el paciente: " + idPac);
-        }
-
-    } catch (error) {
-        console.error("Error al buscar última factura:", error);
-        alert("Error de conexión al intentar recuperar la factura.");
-    }
+        const up = {};
+        // ESCRIBIMOS EN LAS DOS RUTAS POSIBLES
+        up[`REHAB/pacientes/${id}/${campo}`] = v;
+        up[`REHAB/pacientes/${id}/prest`] = "SAEI";
+        up[`SAEI/pacientes/${id}/${campo}`] = v;
+        up[`SAEI/pacientes/${id}/prest`] = "SAEI";
+        await db.ref().update(up);
+        p[campo] = v;
+        p.prest = "SAEI";
+        console.log("✅ Guardado y anclado.");
+    } catch (e) { console.error(e); }
 };
 	// --- 1. SELECCIONAR TODOS (Solo visibles y habilitados) ---
 window.seleccionarTodos = function(master) {
