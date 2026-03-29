@@ -337,7 +337,10 @@ window.recalcular = (el) => {
     }
 };
 window.cargarTodo = async () => {
-    // ... (resto del código de inicio igual)
+    const tablaBod = document.getElementById('tabla-body');
+    if (!tablaBod) return;
+    tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando datos...</td></tr>';
+
     try {
         const [snapOS, snapRehab, snapSAEI] = await Promise.all([
             db.ref('/config/obras_sociales').once('value'),
@@ -345,26 +348,28 @@ window.cargarTodo = async () => {
             db.ref('SAEI/pacientes').once('value')
         ]);
 
-        const dataR = snapRehab.val() || {};
-        const dataS = snapSAEI.val() || {};
+        window.dictOS = snapOS.val() || {};
+        const dataR = snapRehab.val() || {}; 
+        const dataS = snapSAEI.val() || {}; 
         dataFull = []; 
 
+        // Unimos los IDs de las dos carpetas que me pasaste
         const todosLosIds = new Set([...Object.keys(dataR), ...Object.keys(dataS)]);
 
         todosLosIds.forEach(id => {
             const pR = dataR[id] || {};
             const pS = dataS[id] || {};
             
-            // USAMOS "pres" QUE ES COMO ESTÁ EN TU FIREBASE
+            // LA CLAVE: Buscamos "pres" en las dos ramas
             const valorPres = (pR.pres || pS.pres || "").toString().toUpperCase().trim();
             const detalleSaei = (pS.detalle || "").toUpperCase();
 
-            // Si dice SAEI en pres o en el detalle, lo metemos
+            // Si es SAEI por etiqueta O por detalle, entra a la lista
             if (valorPres === "SAEI" || detalleSaei.includes("SAEI")) {
                 dataFull.push({
                     id_db: id,
                     id: id,
-                    pres: "SAEI", // <--- ACÁ: Usamos 'pres' en lugar de 'modulo'
+                    pres: "SAEI", 
                     ...pR, 
                     ...pS,
                     os: pS.os || pR.os || pR.obra_social_nombre || "",
@@ -374,8 +379,7 @@ window.cargarTodo = async () => {
         });
 
         if (typeof procesarTodo === "function") procesarTodo();
-
-    } catch (error) { console.error(error); }
+    } catch (e) { console.error(e); }
 };
  async function procesarTodo() {
     const dictOS = window.dictOS || {};
@@ -1397,29 +1401,15 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
         const id = p.id_db || p.id || idPaciente;
         let v = (['total', 'neto', 'exento'].includes(campo)) ? (parseFloat(valor) || 0) : valor;
         const up = {};
-        // ESCRIBIMOS EN LAS DOS RUTAS POSIBLES
-        up[`REHAB/pacientes/${id}/${campo}`] = v;
-        up[`REHAB/pacientes/${id}/prest`] = "SAEI";
+        // Grabamos en REHAB y en SAEI usando "pres"
+        up[`rehab/pacientes/${id}/${campo}`] = v;
+        up[`rehab/pacientes/${id}/pres`] = "SAEI";
         up[`SAEI/pacientes/${id}/${campo}`] = v;
-        up[`SAEI/pacientes/${id}/prest`] = "SAEI";
+        up[`SAEI/pacientes/${id}/pres`] = "SAEI";
         await db.ref().update(up);
         p[campo] = v;
-        p.prest = "SAEI";
-        console.log("✅ Guardado y anclado.");
+        p.pres = "SAEI";
     } catch (e) { console.error(e); }
-};
-	// --- 1. SELECCIONAR TODOS (Solo visibles y habilitados) ---
-window.seleccionarTodos = function(master) {
-    const filas = document.querySelectorAll('#tabla-body tr');
-    filas.forEach(fila => {
-        // Solo afectamos a las filas que NO están ocultas por el filtro
-        if (fila.style.display !== 'none') {
-            const ck = fila.querySelector('.ck');
-            if (ck && !ck.disabled) {
-                ck.checked = master.checked;
-            }
-        }
-    });
 };
 
 // --- 2. FILTRADO MULTICOLUMNA INTELIGENTE ---
