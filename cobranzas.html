@@ -185,21 +185,23 @@ if (!firebase.apps.length) {
 
     // --- 2. UTILIDADES ---
     function parseFecha(s) { 
-    if(!s) return new Date();
+    // 1. ESCUDO: Si no hay nada, o no es un texto, devolvemos una fecha de hoy por defecto
+    if (!s || typeof s !== 'string') {
+        return new Date(); 
+    }
     
-    // Si la fecha viene de Firebase (formato 2025-05-15 con guiones)
+    // 2. Si la fecha viene de Firebase (2025-05-15)
     if (s.includes('-')) {
         const p = s.split('-');
-        // p[0]=año, p[1]=mes, p[2]=día
         return new Date(p[0], p[1]-1, p[2]);
     }
     
-    // Si la fecha viene de la carga manual (formato 15/05/2025 con barras)
+    // 3. Si la fecha viene de carga manual (15/05/2025)
     const p = s.split('/'); 
     if (p.length < 3) return new Date();
     return new Date(p[2], p[1]-1, p[0]); 
 }
-     const hoy = new Date(); // Esta se usa solo para calcular la mora de las facturas que todavía no cobraste
+	const hoy = new Date(); // Esta se usa solo para calcular la mora de las facturas que todavía no cobraste
      function calcularNetoFila(f, pIIBB, pGS, pMin) {
         let bruto = parseFloat(f.total) || 0;
         const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
