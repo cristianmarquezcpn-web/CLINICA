@@ -424,8 +424,10 @@ tr.innerHTML = `
                 if (!esNC) {
                     if (mora > agrupadoOS[os].moraMax) agrupadoOS[os].moraMax = mora;
                     if (fEmi < agrupadoOS[os].fechaMasVieja) agrupadoOS[os].fechaMasVieja = fEmi;
-                }
-            });
+                	}
+        		}
+			});
+		
 
         // D. Renderizar Tabla Maestra
         Object.keys(agrupadoOS).sort().forEach(os => {
