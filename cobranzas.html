@@ -285,13 +285,18 @@ Object.keys(cobros).forEach(id => {
 
             if (txtBuscar) {
                 const term = txtBuscar.toLowerCase();
+
+                // 1. PRIMERO definimos la variable
+                let moduloNormalizado = (f.modulo || f.mod || "CD").toString().toUpperCase().trim();
+
+                // 2. DESPUÉS la usamos en la coincidencia
                 const coincidencia = 
                     (f.receptor_nombre || "").toLowerCase().includes(term) || 
                     (f.id_paciente || "").toLowerCase().includes(term) || 
                     (f.receptor_cuit || "").toLowerCase().includes(term) || 
-                    compCompletoBusca.includes(term) || // Busca en 00005-00000009
-                    String(f.nro_comp).includes(term);   // Busca en 9
-				    moduloNormalizado.includes(term);
+                    compCompletoBusca.includes(term) || 
+                    String(f.nro_comp).includes(term) ||
+                    moduloNormalizado.toLowerCase().includes(term); // <--- Ahora sí funciona
                 
                 if (!coincidencia) cumpleFiltro = false;
             }
