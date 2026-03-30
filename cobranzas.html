@@ -394,31 +394,43 @@ tr.innerHTML = `
     </td>
     <td style="font-size:10px; color:#e67e22; font-style:italic;">${cobro?.motivo_debito || '-'}</td> 
 `;
-    agrupadoOS[os].filas.push(tr);
-      		// --- ACUMULADORES LÓGICOS (REPARADO PARA CD Y NC) ---
-              // 1. Ranking por Obra Social: Si es NC, resta el netoCalc. Si es factura, suma el saldo.
-            agrupadoOS[os].totalPendienteOS += (esNC ? f.netoCalc : saldo);
+   agrupadoOS[os].filas.push(tr);
             
-            // 2. Dashboard de Módulos y Cash Flow
-            if (saldo > 0.5 || esNC) {
+            // --- DETECTOR ULTRA-LIMPIADOR (PARA EXCEL/IMPORTADOS) ---
+            
+            // 1. Limpiamos el saldo de CUALQUIER símbolo raro ($ , .) 
+            // para que sea un número real que JS pueda sumar.
+            let saldoLimpio = 0;
+            if (typeof saldo === 'number') {
+                saldoLimpio = saldo;
+            } else {
+                // Si viene como "$397.627,28", le sacamos todo y lo volvemos número
+                let s = String(saldo || "0").replace(/[^0-9,-]/g, '').replace(',', '.');
+                saldoLimpio = parseFloat(s) || 0;
+            }
+
+            // 2. Determinamos el Neto (para NC)
+            const netoLimpio = typeof f.netoCalc === 'number' ? f.netoCalc : saldoLimpio;
+
+            // --- ACUMULADORES ---
+            
+            // Ranking OS
+            agrupadoOS[os].totalPendienteOS += (esNC ? netoLimpio : saldoLimpio);
+            
+            // Dashboard (Módulos y Cash Flow)
+            if (saldoLimpio > 0.5 || esNC) {
                 
-                const importeAReportar = esNC ? f.netoCalc : saldo;
+                const importeAReportar = esNC ? netoLimpio : saldoLimpio;
                 globalPendiente += importeAReportar;
                 
-                // --- DETECTOR DINÁMICO DE MÓDULO ---
-                // Convertimos TODA la fila a un solo texto para buscar los códigos
-                const filaTexto = JSON.stringify(f).toUpperCase();
-                
-                let m = "CD"; // Por defecto es CD
-                
-                if (filaTexto.includes("CET")) {
-                    m = "CET";
-                } else if (filaTexto.includes("REHAB")) {
-                    m = "REHAB";
-                } else if (filaTexto.includes("SAEI")) {
-                    m = "SAEI";
-                }
-                // Si no encontró ninguno de los otros, queda como "CD" (que es tu caso)
+                // --- Lógica de Módulos (Buscamos el texto CD, CET, etc) ---
+                let m = "CD"; // Por defecto
+                let infoFila = JSON.stringify(f).toUpperCase();
+
+                if (infoFila.includes("CET")) m = "CET";
+                else if (infoFila.includes("REHAB")) m = "REHAB";
+                else if (infoFila.includes("SAEI")) m = "SAEI";
+                // Si no es ninguno de esos, se queda como CD
 
                 if (!modulosNeto[m]) modulosNeto[m] = 0;
                 modulosNeto[m] += importeAReportar;
@@ -426,9 +438,9 @@ tr.innerHTML = `
                 if (!esNC) {
                     if (mora > agrupadoOS[os].moraMax) agrupadoOS[os].moraMax = mora;
                     if (fEmi < agrupadoOS[os].fechaMasVieja) agrupadoOS[os].fechaMasVieja = fEmi;
-                	}
-        		}
-			});
+                }
+            } 
+        }); 
         // D. Renderizar Tabla Maestra
         Object.keys(agrupadoOS).sort().forEach(os => {
             if(agrupadoOS[os].filas.length === 0) return;
