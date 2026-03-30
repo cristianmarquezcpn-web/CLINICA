@@ -405,22 +405,20 @@ tr.innerHTML = `
                 const importeAReportar = esNC ? f.netoCalc : saldo;
                 globalPendiente += importeAReportar;
                 
-                // --- CAPTURADOR DE MÓDULO ---
-                // Tomamos el valor, lo pasamos a texto, quitamos espacios y pasamos a Mayúsculas
-                let mRaw = (f.modulo || f.mod || "CD").toString().trim().toUpperCase();
+                // --- DETECTOR DINÁMICO DE MÓDULO ---
+                // Convertimos TODA la fila a un solo texto para buscar los códigos
+                const filaTexto = JSON.stringify(f).toUpperCase();
                 
-                // Si el módulo importado dice "CD" pero tiene caracteres raros, 
-                // o si directamente no es uno de los otros tres, lo mandamos a CD
-                let m;
-                if (mRaw.includes("CET")) {
+                let m = "CD"; // Por defecto es CD
+                
+                if (filaTexto.includes("CET")) {
                     m = "CET";
-                } else if (mRaw.includes("REHAB")) {
+                } else if (filaTexto.includes("REHAB")) {
                     m = "REHAB";
-                } else if (mRaw.includes("SAEI")) {
+                } else if (filaTexto.includes("SAEI")) {
                     m = "SAEI";
-                } else {
-                    m = "CD"; // Por descarte, todo lo demás es CD
                 }
+                // Si no encontró ninguno de los otros, queda como "CD" (que es tu caso)
 
                 if (!modulosNeto[m]) modulosNeto[m] = 0;
                 modulosNeto[m] += importeAReportar;
