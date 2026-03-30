@@ -356,45 +356,55 @@ window.cargarTodo = async () => {
     tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando en tiempo real...</td></tr>';
 
     try {
-        // 1. CARGA DE OBRAS SOCIALES (Mantenemos once porque no cambian seguido)
+        // 1. CARGA DE OBRAS SOCIALES (Necesario para el render)
         const snapOS = await db.ref('/config/obras_sociales').once('value');
         window.dictOS = snapOS.val() || {}; 
         window.config = { obras_sociales: window.dictOS };
-        console.log("✅ Obras Sociales sincronizadas.");
+        console.log("✅ Configuración de Obras Sociales cargada.");
 
-        // 2. ESCUCHA ACTIVA (REAL-TIME)
-        // Escuchamos la raíz o los nodos de pacientes con .on()
-        // Esto hace que si alguien cambia un dato en CD, CET, REHAB o SAEI, 
-        // se dispare este bloque automáticamente.
-        
+        // 2. ESCUCHA EN TIEMPO REAL
+        // Escuchamos la raíz para captar cambios en cualquier módulo
         db.ref('/').on('value', (snapshot) => {
             const totalData = snapshot.val() || {};
+            console.log("📡 Datos recibidos de Firebase:", totalData); // <--- REVISAR ESTO EN CONSOLA
+
             const nodos = ['cd', 'cet', 'rehab', 'SAEI'];
-            
-            window.dataFull = []; // Vaciamos para recargar con lo nuevo
+            window.dataFull = []; 
 
             nodos.forEach(modulo => {
-                const pacientes = (totalData[modulo] && totalData[modulo].pacientes) || {};
+                // Buscamos los pacientes. IMPORTANTE: Verificamos minúsculas/mayúsculas
+                // Intentamos buscar en el nodo directo o dentro de .pacientes
+                const datosNodo = totalData[modulo.toLowerCase()] || totalData[modulo.toUpperCase()] || {};
+                const pacientes = datosNodo.pacientes || datosNodo; 
                 
-                for (let id in pacientes) {
-                    window.dataFull.push({
-                        id_db: id,
-                        modulo: modulo,
-                        ...pacientes[id]
-                    });
+                if (pacientes && typeof pacientes === 'object') {
+                    for (let id in pacientes) {
+                        // Solo agregamos si parece ser un objeto de paciente (evitamos meter strings o configuraciones)
+                        if (pacientes[id] && typeof pacientes[id] === 'object') {
+                            window.dataFull.push({
+                                id_db: id,
+                                modulo: modulo.toUpperCase(),
+                                ...pacientes[id]
+                            });
+                        }
+                    }
                 }
             });
 
-            console.log("⚡ Datos actualizados automáticamente:", window.dataFull.length, "pacientes.");
-            
-            // 3. LLAMAMOS AL RENDER
-            if (typeof render === "function") {
-                render();
+            console.log("📊 Total pacientes procesados:", window.dataFull.length);
+
+            // 3. MANDAR AL RENDER
+            if (window.dataFull.length > 0) {
+                if (typeof render === "function") {
+                    render();
+                }
+            } else {
+                tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center; color: orange;">⚠️ No se encontraron pacientes en los nodos.</td></tr>';
             }
         });
 
     } catch (error) {
-        console.error("Error en cargarTodo:", error);
+        console.error("❌ Error en cargarTodo:", error);
         tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error de conexión con Firebase.</td></tr>';
     }
 };
