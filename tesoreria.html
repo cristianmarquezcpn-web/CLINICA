@@ -236,46 +236,69 @@ async function proyectarTodo() {
     const indiceRealIA = totalFacturadoHist > 0 ? (totalCobradoHist / totalFacturadoHist) : 0.85;
     const delayGral = motorGlobal.inteligencia_cobro?.delay_entrenado_dias || 65;
 
-    // --- 📅 2. PROCESAR FACTURAS (ARRASTRE Y PROYECCIÓN) ---
-    const hoy = new Date(), hoyISO = hoy.toISOString().slice(0, 7);
-    const semAct = Math.min(Math.ceil(hoy.getDate() / 7), 4);
+   // --- 📅 2. PROCESAR FACTURAS (AGRUPADAS POR O.S. Y CON DELAY ESPECÍFICO) ---
+const hoy = new Date(), hoyISO = hoy.toISOString().slice(0, 7);
+const semAct = Math.min(Math.ceil(hoy.getDate() / 7), 4);
 
-    Object.keys(todasLasFacturas).forEach(id => {
-        const f = todasLasFacturas[id];
-        if (id === 'saei' || (cobranzas[id] && cobranzas[id].fecha_pago)) return;
+// 1. Creamos un acumulador temporal para no repetir nombres
+let acumuladorSemanal = { 1: {}, 2: {}, 3: {}, 4: {} };
 
-        let fechaBase = f.fecha_emision || f.fecha || f.fecha_peticion;
-        if (!fechaBase) return;
+Object.keys(todasLasFacturas).forEach(id => {
+    const f = todasLasFacturas[id];
+    if (id === 'saei' || (cobranzas[id] && cobranzas[id].fecha_pago)) return;
 
-        let p = fechaBase.includes('/') ? fechaBase.split('/') : fechaBase.split('-');
-        let fCobro = fechaBase.includes('/') ? new Date(p[2], p[1]-1, p[0]) : new Date(p[0], p[1]-1, p[2]);
+    let fechaBase = f.fecha_emision || f.fecha || f.fecha_peticion;
+    if (!fechaBase) return;
+
+    let p = fechaBase.includes('/') ? fechaBase.split('/') : fechaBase.split('-');
+    let fCobro = fechaBase.includes('/') ? new Date(p[2], p[1]-1, p[0]) : new Date(p[0], p[1]-1, p[2]);
+    
+    const cuit = f.receptor_cuit || "S/D";
+    const nombreOS = (f.receptor_nombre || 'S/D').trim().toUpperCase();
+    
+    // 2. Aplicamos el Delay Específico que aprendió la IA
+    const dUso = delayFinalPorCuit[cuit] || delayGral;
+    fCobro.setDate(fCobro.getDate() + dUso);
+
+    const mesC = fCobro.toISOString().slice(0, 7);
+    let s;
+    if (mesC < mesSeleccionado) { s = 1; } 
+    else if (mesC === mesSeleccionado) {
+        const semC = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
+        s = (mesSeleccionado === hoyISO && semC < semAct) ? semAct : semC;
+    } else { return; }
+
+    const montoP = parseFloat(f.total || f.monto || 0) * indiceRealIA;
+    
+    // 3. Sumamos al acumulador de esa semana y esa OS
+    if (!acumuladorSemanal[s][nombreOS]) {
+        acumuladorSemanal[s][nombreOS] = {
+            monto: 0,
+            delay: dUso,
+            esMora: (mesC < hoyISO) || (mesC === hoyISO && Math.min(Math.ceil(fCobro.getDate() / 7), 4) < semAct)
+        };
+    }
+    acumuladorSemanal[s][nombreOS].monto += montoP;
+    ingS[s] += montoP; // Mantenemos el total general de la semana para el saldo
+});
+
+// 4. Transformamos el acumulador en HTML (esto limpia tu interfaz)
+for (let s = 1; s <= 4; s++) {
+    Object.keys(acumuladorSemanal[s]).forEach(os => {
+        const info = acumuladorSemanal[s][os];
+        const nombreVisible = os.substring(0, 12);
         
-        const cuit = f.receptor_cuit || "S/D";
-        const dUso = delayFinalPorCuit[cuit] || delayGral;
-        fCobro.setDate(fCobro.getDate() + dUso);
-
-        const mesC = fCobro.toISOString().slice(0, 7);
-        let s;
-        if (mesC < mesSeleccionado) { s = 1; } 
-        else if (mesC === mesSeleccionado) {
-            const semC = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
-            s = (mesSeleccionado === hoyISO && semC < semAct) ? semAct : semC;
-        } else { return; }
-
-        const montoP = parseFloat(f.total || f.monto || 0) * indiceRealIA;
-        ingS[s] += montoP;
-
-        const nombreOS = (f.receptor_nombre || 'S/D').trim().substring(0, 10);
-        const esMora = (mesC < hoyISO) || (mesC === hoyISO && Math.min(Math.ceil(fCobro.getDate() / 7), 4) < semAct);
-
-        detI[s].push(`<div style="display:flex; justify-content:space-between; font-size:8px; margin-bottom:2px; border-bottom:1px solid #1e293b;">
-            <span style="color:${esMora ? '#f87171' : '#60a5fa'};">
-                ${esMora ? '⚠️' : '🤖'} ${nombreOS} <small style="opacity:0.6">(+${dUso}d)</small>
-            </span>
-            <span style="color:#93c5fd; font-weight:bold;">$${Math.round(montoP/1000)}k</span>
-        </div>`);
+        detI[s].push(`
+            <div style="display:flex; justify-content:space-between; font-size:9px; margin-bottom:3px; border-bottom:1px solid #1e293b; padding:2px 0;">
+                <span style="color:${info.esMora ? '#f87171' : '#60a5fa'}; font-weight:bold;">
+                    ${info.esMora ? '⚠️' : '🤖'} ${nombreVisible} 
+                    <small style="opacity:0.7; font-weight:normal;">(+${info.delay}d)</small>
+                </span>
+                <span style="color:#93c5fd;">$${Math.round(info.monto/1000).toLocaleString()}k</span>
+            </div>
+        `);
     });
-
+}
     // --- 💸 3. GASTOS ---
     Object.values(gastosMaestros).forEach(rubro => {
         if (rubro.items) {
