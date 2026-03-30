@@ -291,6 +291,7 @@ Object.keys(cobros).forEach(id => {
                     (f.receptor_cuit || "").toLowerCase().includes(term) || 
                     compCompletoBusca.includes(term) || // Busca en 00005-00000009
                     String(f.nro_comp).includes(term);   // Busca en 9
+				    moduloNormalizado.includes(term);
                 
                 if (!coincidencia) cumpleFiltro = false;
             }
@@ -400,8 +401,8 @@ tr.innerHTML = `
             
             if (!esNC && saldo > 0.5) {
                 globalPendiente += saldo;
-                const modulo = f.modulo || "CD";
-                modulosNeto[modulo] = (modulosNeto[modulo] || 0) + saldo;
+                const m = (f.modulo || "CD").toUpperCase().trim();
+                modulosNeto[m] = (modulosNeto[m] || 0) + saldo;
                 
                 if (mora > agrupadoOS[os].moraMax) agrupadoOS[os].moraMax = mora;
                 if (fEmi < agrupadoOS[os].fechaMasVieja) agrupadoOS[os].fechaMasVieja = fEmi;
