@@ -353,59 +353,46 @@ window.cargarTodo = async () => {
     const tablaBod = document.getElementById('tabla-body');
     if (!tablaBod) return;
     
-    tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando en tiempo real...</td></tr>';
+    tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando con motores de facturación...</td></tr>';
 
     try {
-        // 1. CARGA DE OBRAS SOCIALES (Necesario para el render)
+        // 1. Cargamos configuración una sola vez
         const snapOS = await db.ref('/config/obras_sociales').once('value');
         window.dictOS = snapOS.val() || {}; 
         window.config = { obras_sociales: window.dictOS };
-        console.log("✅ Configuración de Obras Sociales cargada.");
 
-        // 2. ESCUCHA EN TIEMPO REAL
-        // Escuchamos la raíz para captar cambios en cualquier módulo
-        db.ref('/').on('value', (snapshot) => {
-            const totalData = snapshot.val() || {};
-            console.log("📡 Datos recibidos de Firebase:", totalData); // <--- REVISAR ESTO EN CONSOLA
+        // 2. Escuchamos cada nodo por separado (Más seguro para tu estructura)
+        let caches = { cd: {}, cet: {}, rehab: {}, SAEI: {} };
+        const nodos = ['cd', 'cet', 'rehab', 'SAEI'];
 
-            const nodos = ['cd', 'cet', 'rehab', 'SAEI'];
-            window.dataFull = []; 
+        nodos.forEach(n => {
+            db.ref(`${n}/pacientes`).on('value', (snapshot) => {
+                caches[n] = snapshot.val() || {}; 
 
-            nodos.forEach(modulo => {
-                // Buscamos los pacientes. IMPORTANTE: Verificamos minúsculas/mayúsculas
-                // Intentamos buscar en el nodo directo o dentro de .pacientes
-                const datosNodo = totalData[modulo.toLowerCase()] || totalData[modulo.toUpperCase()] || {};
-                const pacientes = datosNodo.pacientes || datosNodo; 
-                
-                if (pacientes && typeof pacientes === 'object') {
-                    for (let id in pacientes) {
-                        // Solo agregamos si parece ser un objeto de paciente (evitamos meter strings o configuraciones)
-                        if (pacientes[id] && typeof pacientes[id] === 'object') {
-                            window.dataFull.push({
-                                id_db: id,
-                                modulo: modulo.toUpperCase(),
-                                ...pacientes[id]
-                            });
-                        }
+                // Reconstruimos la lista global
+                window.dataFull = [];
+                for (let mod in caches) {
+                    for (let id in caches[mod]) {
+                        window.dataFull.push({
+                            id_db: id,
+                            modulo: mod.toUpperCase(),
+                            ...caches[mod][id]
+                        });
                     }
                 }
-            });
 
-            console.log("📊 Total pacientes procesados:", window.dataFull.length);
+                console.log(`📡 Nodo ${n} actualizado. Total: ${window.dataFull.length} pacientes.`);
 
-            // 3. MANDAR AL RENDER
-            if (window.dataFull.length > 0) {
+                // 3. Llamamos a TU render (el que usa appendChild)
                 if (typeof render === "function") {
                     render();
                 }
-            } else {
-                tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center; color: orange;">⚠️ No se encontraron pacientes en los nodos.</td></tr>';
-            }
+            });
         });
 
     } catch (error) {
         console.error("❌ Error en cargarTodo:", error);
-        tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error de conexión con Firebase.</td></tr>';
+        tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error de conexión.</td></tr>';
     }
 };
  async function procesarTodo() {
