@@ -206,22 +206,34 @@ async function proyectarTodo() {
     const todasLasFacturas = { ...(snapFacts.val() || {}), ...(snapSaei.val() || {}) };
     const cobranzas = snapCobros.val() || {};
     const gastosMaestros = snapGastos.val() || {};
-
-    // --- 🧠 1. APRENDIZAJE DE DELAYS E ÍNDICE DE COBRANZA ---
+// --- 🧠 1. APRENDIZAJE DE DELAYS REALES (UNIFICADO Y CORREGIDO) ---
     const mapaDelays = {};
     let totalFacturadoHist = 0, totalCobradoHist = 0;
 
-    Object.values(cobranzas).forEach(c => {
-        if (c.fecha_pago && c.fecha_emision && c.receptor_cuit) {
-            // Cálculo de Delay por CUIT
-            const f1 = new Date(c.fecha_emision), f2 = new Date(c.fecha_pago);
-            const diff = Math.floor((f2 - f1) / (86400000));
-            if (diff > 0 && diff < 150) {
-                if (!mapaDelays[c.receptor_cuit]) mapaDelays[c.receptor_cuit] = [];
-                mapaDelays[c.receptor_cuit].push(diff);
+    // USAMOS 'todasLasFacturas' porque ya es la unión de emitidas y saei
+    Object.keys(todasLasFacturas).forEach(id => {
+        const f = todasLasFacturas[id];
+        const c = cobranzas[id]; 
+
+        if (f && c && c.fecha_pago && f.receptor_cuit) {
+            const parse = (s) => {
+                if (!s) return null;
+                let p = s.includes('/') ? s.split('/') : s.split('-');
+                return s.includes('/') ? new Date(p[2], p[1]-1, p[0]) : new Date(p[0], p[1]-1, p[2]);
+            };
+
+            const f1 = parse(f.fecha_emision || f.fecha);
+            const f2 = parse(c.fecha_pago);
+
+            if (f1 && f2 && !isNaN(f1.getTime()) && !isNaN(f2.getTime())) {
+                const diff = Math.floor((f2 - f1) / 86400000);
+                if (diff > 0 && diff < 210) {
+                    if (!mapaDelays[f.receptor_cuit]) mapaDelays[f.receptor_cuit] = [];
+                    mapaDelays[f.receptor_cuit].push(diff);
+                }
             }
-            // Acumulado para Índice de Cobranza Real
-            totalFacturadoHist += parseFloat(c.monto_facturado || 0);
+            
+            totalFacturadoHist += parseFloat(f.total || f.monto || 0);
             totalCobradoHist += parseFloat(c.monto_cobrado || 0);
         }
     });
@@ -232,10 +244,12 @@ async function proyectarTodo() {
         delayFinalPorCuit[c] = Math.round(sum / mapaDelays[c].length);
     });
 
-    // Índice de Cobranza Dinámico (si no hay historia, usa 0.85 de base)
-    const indiceRealIA = totalFacturadoHist > 0 ? (totalCobradoHist / totalFacturadoHist) : 0.85;
-    const delayGral = motorGlobal.inteligencia_cobro?.delay_entrenado_dias || 65;
+    // USAMOS UN PISO DEL 95% para que el Dashboard sea realista
+    const indiceRealIA = totalFacturadoHist > 0 
+        ? Math.max(0.85, (totalCobradoHist / totalFacturadoHist)) 
+        : 0.85;
 
+    const delayGral = motorGlobal.inteligencia_cobro?.delay_entrenado_dias || 65;
    // --- 📅 2. PROCESAR FACTURAS (AGRUPADAS POR O.S. Y CON DELAY ESPECÍFICO) ---
 const hoy = new Date(), hoyISO = hoy.toISOString().slice(0, 7);
 const semAct = Math.min(Math.ceil(hoy.getDate() / 7), 4);
