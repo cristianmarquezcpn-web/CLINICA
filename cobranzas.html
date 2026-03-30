@@ -396,39 +396,41 @@ tr.innerHTML = `
 `;
     agrupadoOS[os].filas.push(tr);
       		// --- ACUMULADORES LÓGICOS (REPARADO PARA CD Y NC) ---
-            
-            // 1. Ranking por Obra Social: Si es NC, resta el netoCalc. Si es factura, suma el saldo.
+              // 1. Ranking por Obra Social: Si es NC, resta el netoCalc. Si es factura, suma el saldo.
             agrupadoOS[os].totalPendienteOS += (esNC ? f.netoCalc : saldo);
             
             // 2. Dashboard de Módulos y Cash Flow
-            // Entran facturas con deuda (> 0.5) Y también las Notas de Crédito
             if (saldo > 0.5 || esNC) {
                 
-                // Definimos cuánto impacta: el saldo si es factura, o el neto negativo si es NC
                 const importeAReportar = esNC ? f.netoCalc : saldo;
-                
-                // Sumamos al total general (las NC restan solas porque son negativas)
                 globalPendiente += importeAReportar;
                 
-                // --- Lógica de Módulos (Forzamos CD si no se reconoce) ---
-                let m = (f.modulo || f.mod || "CD").toString().toUpperCase().trim();
-                if (m !== "CET" && m !== "REHAB" && m !== "SAEI") {
-                    m = "CD";
+                // --- CAPTURADOR DE MÓDULO ---
+                // Tomamos el valor, lo pasamos a texto, quitamos espacios y pasamos a Mayúsculas
+                let mRaw = (f.modulo || f.mod || "CD").toString().trim().toUpperCase();
+                
+                // Si el módulo importado dice "CD" pero tiene caracteres raros, 
+                // o si directamente no es uno de los otros tres, lo mandamos a CD
+                let m;
+                if (mRaw.includes("CET")) {
+                    m = "CET";
+                } else if (mRaw.includes("REHAB")) {
+                    m = "REHAB";
+                } else if (mRaw.includes("SAEI")) {
+                    m = "SAEI";
+                } else {
+                    m = "CD"; // Por descarte, todo lo demás es CD
                 }
 
-                // Sumamos/Restamos a la bolsa del módulo correspondiente
                 if (!modulosNeto[m]) modulosNeto[m] = 0;
                 modulosNeto[m] += importeAReportar;
                 
-                // Solo calculamos mora para facturas pendientes
                 if (!esNC) {
                     if (mora > agrupadoOS[os].moraMax) agrupadoOS[os].moraMax = mora;
                     if (fEmi < agrupadoOS[os].fechaMasVieja) agrupadoOS[os].fechaMasVieja = fEmi;
                 	}
         		}
 			});
-		
-
         // D. Renderizar Tabla Maestra
         Object.keys(agrupadoOS).sort().forEach(os => {
             if(agrupadoOS[os].filas.length === 0) return;
