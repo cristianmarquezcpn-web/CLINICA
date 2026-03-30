@@ -663,15 +663,14 @@ async function importarExcelMasivo(event) {
 
         if (!confirm(`¿Estás seguro de importar ${filas.length} registros?`)) return;
 
-        // Función interna para curar fechas de Excel o Texto
+        // Función para curar fechas (Soporta números de Excel y texto)
         const formatearFecha = (valor) => {
             if (!valor) return null;
             let d;
             if (typeof valor === 'number') {
-                // Convierte número de serie de Excel a objeto Date
-                d = new Date((valor - 25569) * 86400 * 1000);
+                d = new Date(Math.round((valor - 25569) * 86400 * 1000));
             } else {
-                const s = String(valor);
+                const s = String(valor).trim();
                 if (s.includes('/')) {
                     const p = s.split('/');
                     d = new Date(p[2], p[1] - 1, p[0]);
@@ -682,18 +681,25 @@ async function importarExcelMasivo(event) {
             return (d instanceof Date && !isNaN(d)) ? d.toISOString().slice(0, 10) : null;
         };
 
+        // Función CRÍTICA para que la coma del Excel no rompa el número
+        const limpiarNum = (v) => {
+            if (!v) return 0;
+            if (typeof v === 'number') return v;
+            return parseFloat(String(v).replace(',', '.')) || 0;
+        };
+
         for (const fila of filas) {
             const nuevaFacturaRef = db.ref('facturas_emitidas').push();
             const id = nuevaFacturaRef.key;
 
-            // Curamos las fechas
             const fEmiISO = formatearFecha(fila.FECHA_EMI) || "2025-01-01";
-            const fCobroISO = formatearFecha(fila.FECHA_COBRO); // Si está vacío, es null
+            const fCobroISO = formatearFecha(fila.FECHA_COBRO); 
 
-            const total = parseFloat(fila.TOTAL) || 0;
-            const debito = parseFloat(fila.DEBITO) || 0;
-            const rIIBB = parseFloat(fila.RET_IIBB) || 0;
-            const rGS = parseFloat(fila.RET_GS) || 0;
+            // Usamos limpiarNum en lugar de parseFloat directo
+            const total = limpiarNum(fila.TOTAL);
+            const debito = limpiarNum(fila.DEBITO);
+            const rIIBB = limpiarNum(fila.RET_IIBB);
+            const rGS = limpiarNum(fila.RET_GS);
             const esNC = String(fila.TIPO || "").toUpperCase() === 'NC';
 
             // 1. Grabar Factura
@@ -711,22 +717,24 @@ async function importarExcelMasivo(event) {
                 retGS_manual: rGS
             });
 
-            // 2. Grabar Cobranza SOLO SI hay fecha de cobro y no es NC
+            // 2. Grabar Cobranza
             if (!esNC && fCobroISO) {
-                const cobradoReal = parseFloat(fila.MONTO_RECIBIDO_BANCO) || (total - rIIBB - rGS - debito);
+                // Aquí también limpiamos el monto del banco
+                const montoBanco = limpiarNum(fila.MONTO_RECIBIDO_BANCO);
+                const cobradoReal = montoBanco > 0 ? montoBanco : (total - rIIBB - rGS - debito);
                 
                 await db.ref(`cobranzas/${id}`).set({
                     fecha_pago: fCobroISO,
                     mes_cobro_index: fCobroISO.slice(0, 7),
                     monto_cobrado: cobradoReal,
                     monto_debito: debito,
-                    motivo_debito: fila.MOTIVO_DEBITO || "",
-                    transferencia: fila.TRANSFERENCIA || "IMPORTACIÓN MASIVA"
+                    motivo_debito: String(fila.MOTIVO_DEBITO || ""),
+                    transferencia: String(fila.TRANSFERENCIA || "IMPORTACIÓN MASIVA")
                 });
             }
         }
 
-        alert("✅ Importación limpia. Las facturas sin fecha quedaron como DEUDA.");
+        alert("✅ Importación limpia. Las comas se transformaron en puntos automáticamente.");
         location.reload(); 
     };
     reader.readAsArrayBuffer(file);
