@@ -353,49 +353,45 @@ window.cargarTodo = async () => {
     const tablaBod = document.getElementById('tabla-body');
     if (!tablaBod) return;
     
-    tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando con motores de facturación...</td></tr>';
+    tablaBod.innerHTML = '<tr><td colspan="11" style="text-align:center;">🔄 Sincronizando en tiempo real...</td></tr>';
 
     try {
-        // 1. CARGA DE OBRAS SOCIALES (Con espera real)
-        // Usamos .once() para asegurarnos de que TENEMOS los datos antes de seguir
+        // 1. CARGA DE OBRAS SOCIALES (Mantenemos once porque no cambian seguido)
         const snapOS = await db.ref('/config/obras_sociales').once('value');
         window.dictOS = snapOS.val() || {}; 
-        // También lo guardamos en window.config por si el render usa esa ruta
         window.config = { obras_sociales: window.dictOS };
+        console.log("✅ Obras Sociales sincronizadas.");
 
-        console.log("✅ Obras Sociales cargadas en dictOS:", Object.keys(window.dictOS).length, "entidades.");
-        // Este es el log que te pedí para ver si Firebase está respondiendo
-        console.log("DEBUG OS:", window.dictOS);
-
-        // 2. CARGA MASIVA DE PACIENTES
-        const nodos = ['cd', 'cet', 'rehab', 'SAEI']; 
-        const promesas = nodos.map(n => db.ref(`${n}/pacientes`).once('value'));
+        // 2. ESCUCHA ACTIVA (REAL-TIME)
+        // Escuchamos la raíz o los nodos de pacientes con .on()
+        // Esto hace que si alguien cambia un dato en CD, CET, REHAB o SAEI, 
+        // se dispare este bloque automáticamente.
         
-        const snapshots = await Promise.all(promesas);
-        
-        dataFull = []; 
-
-        snapshots.forEach((snap, index) => {
-            const modulo = nodos[index];
-            const pacientes = snap.val() || {};
+        db.ref('/').on('value', (snapshot) => {
+            const totalData = snapshot.val() || {};
+            const nodos = ['cd', 'cet', 'rehab', 'SAEI'];
             
-            for (let id in pacientes) {
-                dataFull.push({
-                    id_db: id,
-                    modulo: modulo,
-                    ...pacientes[id]
-                });
+            window.dataFull = []; // Vaciamos para recargar con lo nuevo
+
+            nodos.forEach(modulo => {
+                const pacientes = (totalData[modulo] && totalData[modulo].pacientes) || {};
+                
+                for (let id in pacientes) {
+                    window.dataFull.push({
+                        id_db: id,
+                        modulo: modulo,
+                        ...pacientes[id]
+                    });
+                }
+            });
+
+            console.log("⚡ Datos actualizados automáticamente:", window.dataFull.length, "pacientes.");
+            
+            // 3. LLAMAMOS AL RENDER
+            if (typeof render === "function") {
+                render();
             }
         });
-
-        console.log("✅ Datos cargados:", dataFull.length, "pacientes.");
-        
-        // 3. LLAMAMOS AL RENDER
-        if (typeof render === "function") {
-            render();
-        } else {
-            tablaBod.innerHTML = '<tr><td colspan="11" style="color:red">Error: No se encuentra la función render()</td></tr>';
-        }
 
     } catch (error) {
         console.error("Error en cargarTodo:", error);
@@ -508,18 +504,30 @@ window.actualizarPanelOS = function() {
     
     listaOS.innerHTML = htmlOS + "</div>";
 };
-window.render = function() {
+	window.render = function() {
     const b = document.getElementById('tabla-body');
-    if (!b || !dataFull) return;
-    b.innerHTML = "";
+    // Usamos window.dataFull para asegurar que leemos la versión de Firebase
+    if (!b || !window.dataFull) return;
+
+    // 🛡️ ESCUDO ANTI-INTERRUPCIÓN
+    // Si el usuario está escribiendo en un filtro, no redibujamos la tabla todavía
+    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+        return; 
+    }
+
+    b.innerHTML = ""; // Limpiamos la tabla antes de reconstruir
 
     const diccOS = (window.config && window.config.obras_sociales) ? window.config.obras_sociales : (window.dictOS || {});
     const listaNombresOS = Object.keys(diccOS);
 
-    dataFull
+    // Variable para acumular el HTML y hacer una sola carga al DOM (más rápido)
+    let htmlGenerado = "";
+
+    window.dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
     .filter(p => {
-        if (filtroActual === 'TODOS') return true;
+        // Mantenemos tu lógica de filtro por módulo
+        if (typeof filtroActual === 'undefined' || filtroActual === 'TODOS') return true;
         const mod = (p.modulo || p.mod || "").toUpperCase();
         return mod === filtroActual.toUpperCase();
     })
@@ -529,6 +537,7 @@ window.render = function() {
         const miFactura = p.ultima_factura_saei || p.ultima_factura; 
         const facturado = !!(miFactura && (miFactura.cae || miFactura.id));
 
+        // Lógica de Obra Social que ya tenías (Excelente para evitar errores de tipeo)
         const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
         let infoOS = {};
 
@@ -1436,26 +1445,42 @@ window.refacturarMasivoProximoMes = async function() {
 // FUNCIÓN PARA FIJAR DATOS: Guarda detalle e importe automáticamente
 window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
     const p = dataFull.find(x => (x.id == idPaciente || x.id_db == idPaciente));
-    if (!p) return;
+    if (!p) {
+        console.error("No se encontró el paciente en dataFull");
+        return;
+    }
 
     try {
         const id = p.id_db || p.id || idPaciente;
         let v = (['total', 'neto', 'exento'].includes(campo)) ? (parseFloat(valor) || 0) : valor;
         
+        // --- CORRECCIÓN CRÍTICA ---
+        // Buscamos el módulo real. Si p.mod no existe, intentamos sacarlo de p.modulo 
+        // o lo detectamos por la lógica de la base de datos.
+        let modReal = (p.mod || p.modulo || "").toLowerCase(); 
+
+        // Si sigue vacío, el sistema no sabe dónde grabar. 
+        // NO le asignamos "rehab" por defecto para no duplicar.
+        if (!modReal) {
+            console.error("Error: El paciente no tiene un módulo asignado (CET/CD/REHAB)");
+            alert("No se pudo detectar el módulo del paciente. Verifique el legajo.");
+            return;
+        }
+
         const up = {};
         
-        // Detectamos el módulo (siempre en minúsculas para las carpetas raíz)
-        let mod = (p.mod || "rehab").toLowerCase(); 
+        // Grabamos en la ruta EXACTA donde vive el chico
+        // (Aseguramos que si es 'rehab', la carpeta sea 'pacientes', pero si es 'cet' sea 'cet/pacientes')
+        let rutaBase = (modReal === 'rehab') ? 'pacientes' : `${modReal}/pacientes`;
         
-        // Grabamos ÚNICAMENTE en la ruta del paciente en su módulo
-        up[`${mod}/pacientes/${id}/${campo}`] = v;
+        up[`${rutaBase}/${id}/${campo}`] = v;
 
         await db.ref().update(up);
         
-        // Actualizamos la memoria
+        // Sincronizamos la memoria local
         p[campo] = v;
         
-        console.log(`✅ Dato guardado permanentemente en ${mod}/pacientes/${id}`);
+        console.log(`✅ OK: Guardado en ${rutaBase}/${id}/${campo}`);
     } catch (e) { 
         console.error("Error crítico en fijarDatoPermanente:", e); 
     }
@@ -1598,6 +1623,11 @@ db.ref('facturas_emitidas_saei').on('value', () => {
     console.log("⚡ Cambio detectado en Facturas SAEI, actualizando...");
     if (typeof procesarTodo === 'function') procesarTodo();
 });
+	// 3. Escucha cambios en la Cola de Facturación (Motor)
+db.ref('cola_facturacion').on('value', () => {
+    console.log("⚡ La cola se movió, actualizando vista...");
+    if (typeof render === 'function') render();
+});	
 auth.onAuthStateChanged((user) => {
     if (user) {
         setTimeout(() => {
