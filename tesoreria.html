@@ -190,10 +190,12 @@ async function proyectarTodo() {
     const mesSeleccionado = document.getElementById('mesFiltro').value;
     if (!mesSeleccionado) return;
 
+    // 1. Saldo Inicial (Bancos)
     let saldo = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
+    
     let ingS = { 1: 0, 2: 0, 3: 0, 4: 0 }, gasS = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    let detI = { 1: [], 2: [], 3: [], 4: [] }; // Detalle Ingresos
-    let detG = { 1: [], 2: [], 3: [], 4: [] }; // Detalle Gastos
+    let detI = { 1: [], 2: [], 3: [], 4: [] }, detG = { 1: [], 2: [], 3: [], 4: [] };
+
     const [snapFacts, snapSaei, snapCobros, snapGastos] = await Promise.all([
         db.ref('facturas_emitidas').once('value'),
         db.ref('facturas_emitidas_saei').once('value'),
@@ -205,81 +207,125 @@ async function proyectarTodo() {
     const cobranzas = snapCobros.val() || {};
     const gastosMaestros = snapGastos.val() || {};
 
-    // --- CAMBIO CLAVE AQUÍ: Usamos las variables del motor entrenado ---
-    const delayIA = motorGlobal.inteligencia_cobro?.delay_entrenado_dias || motorGlobal.delay_historico || 65;
-    const indiceIA = motorGlobal.clinica?.indice_cobranza || motorGlobal.indice_cobranza || 0.85;
+    // --- 🧠 1. APRENDIZAJE DE DELAYS E ÍNDICE DE COBRANZA ---
+    const mapaDelays = {};
+    let totalFacturadoHist = 0, totalCobradoHist = 0;
+
+    Object.values(cobranzas).forEach(c => {
+        if (c.fecha_pago && c.fecha_emision && c.receptor_cuit) {
+            // Cálculo de Delay por CUIT
+            const f1 = new Date(c.fecha_emision), f2 = new Date(c.fecha_pago);
+            const diff = Math.floor((f2 - f1) / (86400000));
+            if (diff > 0 && diff < 150) {
+                if (!mapaDelays[c.receptor_cuit]) mapaDelays[c.receptor_cuit] = [];
+                mapaDelays[c.receptor_cuit].push(diff);
+            }
+            // Acumulado para Índice de Cobranza Real
+            totalFacturadoHist += parseFloat(c.monto_facturado || 0);
+            totalCobradoHist += parseFloat(c.monto_cobrado || 0);
+        }
+    });
+
+    const delayFinalPorCuit = {};
+    Object.keys(mapaDelays).forEach(c => {
+        const sum = mapaDelays[c].reduce((a, b) => a + b, 0);
+        delayFinalPorCuit[c] = Math.round(sum / mapaDelays[c].length);
+    });
+
+    // Índice de Cobranza Dinámico (si no hay historia, usa 0.85 de base)
+    const indiceRealIA = totalFacturadoHist > 0 ? (totalCobradoHist / totalFacturadoHist) : 0.85;
+    const delayGral = motorGlobal.inteligencia_cobro?.delay_entrenado_dias || 65;
+
+    // --- 📅 2. PROCESAR FACTURAS (ARRASTRE Y PROYECCIÓN) ---
+    const hoy = new Date(), hoyISO = hoy.toISOString().slice(0, 7);
+    const semAct = Math.min(Math.ceil(hoy.getDate() / 7), 4);
 
     Object.keys(todasLasFacturas).forEach(id => {
         const f = todasLasFacturas[id];
-        // Si el ID es el nodo raíz 'saei' o ya tiene fecha de pago, saltar
         if (id === 'saei' || (cobranzas[id] && cobranzas[id].fecha_pago)) return;
 
         let fechaBase = f.fecha_emision || f.fecha || f.fecha_peticion;
         if (!fechaBase) return;
 
-        let partes = fechaBase.includes('/') ? fechaBase.split('/') : fechaBase.split('-');
-        let fCobro = fechaBase.includes('/') ? new Date(partes[2], partes[1]-1, partes[0]) : new Date(partes[0], partes[1]-1, partes[2]);
+        let p = fechaBase.includes('/') ? fechaBase.split('/') : fechaBase.split('-');
+        let fCobro = fechaBase.includes('/') ? new Date(p[2], p[1]-1, p[0]) : new Date(p[0], p[1]-1, p[2]);
         
-        // Aplicamos el delay exacto que aprendió el motor
-        fCobro.setDate(fCobro.getDate() + delayIA);
-        const mesCobro = fCobro.toISOString().slice(0, 7);
+        const cuit = f.receptor_cuit || "S/D";
+        const dUso = delayFinalPorCuit[cuit] || delayGral;
+        fCobro.setDate(fCobro.getDate() + dUso);
 
-       if (mesCobro === mesSeleccionado) {
-            const s = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
-            const montoProyectado = parseFloat(f.total || f.monto || 0) * (indiceIA || 0.85);
-            
-            ingS[s] += montoProyectado;
+        const mesC = fCobro.toISOString().slice(0, 7);
+        let s;
+        if (mesC < mesSeleccionado) { s = 1; } 
+        else if (mesC === mesSeleccionado) {
+            const semC = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
+            s = (mesSeleccionado === hoyISO && semC < semAct) ? semAct : semC;
+        } else { return; }
 
-            // Buscamos el nombre real
-            const nombreOS = (f.receptor_nombre || f.cliente || f.obra_social || 'S/D').trim();
-            
-            // USAMOS BACKTICKS `` PARA QUE NO TIRE ERROR DE SINTAXIS
-            detI[s].push(`<div style="display:flex; justify-content:space-between; width:100%; font-size:8px; margin-bottom:2px;"><span style="color:#60a5fa; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;">🤖 ${nombreOS}</span><span style="color:#93c5fd; font-weight:bold;">$${Math.round(montoProyectado/1000)}k</span></div>`);
-        }
-      });  
+        const montoP = parseFloat(f.total || f.monto || 0) * indiceRealIA;
+        ingS[s] += montoP;
 
+        const nombreOS = (f.receptor_nombre || 'S/D').trim().substring(0, 10);
+        const esMora = (mesC < hoyISO) || (mesC === hoyISO && Math.min(Math.ceil(fCobro.getDate() / 7), 4) < semAct);
+
+        detI[s].push(`<div style="display:flex; justify-content:space-between; font-size:8px; margin-bottom:2px; border-bottom:1px solid #1e293b;">
+            <span style="color:${esMora ? '#f87171' : '#60a5fa'};">
+                ${esMora ? '⚠️' : '🤖'} ${nombreOS} <small style="opacity:0.6">(+${dUso}d)</small>
+            </span>
+            <span style="color:#93c5fd; font-weight:bold;">$${Math.round(montoP/1000)}k</span>
+        </div>`);
+    });
+
+    // --- 💸 3. GASTOS ---
     Object.values(gastosMaestros).forEach(rubro => {
         if (rubro.items) {
             rubro.items.forEach(i => {
-                const inicia = !i.desde || mesSeleccionado >= i.desde;
-                const termina = !i.hasta || mesSeleccionado <= i.hasta;
-                if (inicia && termina) {
+                if ((!i.desde || mesSeleccionado >= i.desde) && (!i.hasta || mesSeleccionado <= i.hasta)) {
                     const s = parseInt(i.semana) || 1;
                     gasS[s] += (parseFloat(i.monto) || 0);
-                    detG[s].push(`<span style="color:var(--rojo)">${i.nombre}</span>`);
+                    detG[s].push(`<span style="color:var(--rojo); font-size:8px;">💸 ${i.nombre}</span>`);
                 }
             });
         }
     });
 
+    // --- 📊 4. DIBUJO DEL GRID (SEMANAS) ---
     const grid = document.getElementById('gridSemanas');
     grid.innerHTML = "";
     for (let i = 1; i <= 4; i++) {
         saldo += (ingS[i] - gasS[i]);
         grid.innerHTML += `
-            <div class="sem-card" style="border-color:${saldo < 0 ? 'var(--rojo)':'var(--verde)'}; min-height:140px; display:flex; flex-direction:column;">
-                <span style="font-size:9px">SEM ${i}</span>
+            <div class="sem-card" style="border-color:${saldo < 0 ? 'var(--rojo)':'var(--verde)'}; min-height:150px; display:flex; flex-direction:column;">
+                <span style="font-size:9px; color:#94a3b8;">${(i === semAct && mesSeleccionado === hoyISO) ? '⭐ SEMANA ' + i : 'SEMANA ' + i}</span>
                 <b class="monto-final" style="color:${saldo < 0 ? 'var(--rojo)':'white'}">$${Math.round(saldo).toLocaleString()}</b>
-                
-                <div style="flex-grow:1; font-size:8px; line-height:1.2; margin:5px 0; overflow:hidden;">
-                    ${detI[i].join('<br>')}
-                    ${detG[i].join('<br>')}
-                </div>
-
-                <div style="display:flex; justify-content:space-between; font-size:9px; margin-top:5px; border-top:1px solid #333; padding-top:3px;">
-                    <span style="color:var(--verde)">+ $${Math.round(ingS[i]/1000)}k</span>
-                    <span style="color:var(--rojo)">- $${Math.round(gasS[i]/1000)}k</span>
+                <div style="flex-grow:1; margin:5px 0; overflow-y:auto; max-height:80px;">${detI[i].join('')}${detG[i].join('<br>')}</div>
+                <div style="display:flex; justify-content:space-between; font-size:9px; border-top:1px solid #333; padding-top:4px;">
+                    <span style="color:var(--verde)">+$${Math.round(ingS[i]/1000)}k</span>
+                    <span style="color:var(--rojo)">-$${Math.round(gasS[i]/1000)}k</span>
                 </div>
             </div>`;
     }
 
-    saldoFinalProyectado = saldo; 
+    // --- 🎯 5. ACTUALIZACIÓN DE ESTADOS Y BANNER ---
+    window.saldoFinalProyectado = saldo; 
 
-    db.ref(`tesoreria/meses/${mesSeleccionado}/cierre`).set(saldo);
+    const porcentajeEfectividad = (indiceRealIA * 100).toFixed(1);
+    const colorIndice = indiceRealIA > 0.90 ? 'var(--verde)' : (indiceRealIA > 0.80 ? '#fbbf24' : 'var(--rojo)');
+
+    const statusIA = document.getElementById('statusIA'); 
+    if (statusIA) {
+        statusIA.innerHTML = `
+            <span style="color:rgba(255,255,255,0.5)">Índice Cobranza:</span> 
+            <b style="color:${colorIndice}">${porcentajeEfectividad}%</b>
+            <span style="margin-left:10px; color:rgba(255,255,255,0.5)">Delay Promedio:</span> 
+            <b style="color:#60a5fa">${delayGral}d</b>
+        `;
+    }
+
     actualizarBannerDinamico(mesSeleccionado);
 }
 // --- FUNCIÓN DEL BANNER (AFUERA, SOLA) ---
-function actualizarBannerDinamico() {
+function actualizarBannerDinamico(mesSel) {
     const banner = document.getElementById('iaBanner');
     const motor = motorGlobal || {}; 
     if (!motor.clinica) return; 
@@ -295,27 +341,32 @@ function actualizarBannerDinamico() {
     const mep = parseFloat(m.dolar_mep || 1);
     const riesgo = parseInt(m.riesgo_pais || 0);
     const inflacionMensual = parseFloat(m.inflacion_mensual || 0);
+    const tasaFCI = parseFloat(m.tasa_fci || 0);
     const deudaCalle = parseFloat(intel.monto_en_calle || 0);
     const gastoMensual = parseFloat(intel.promedio_gastos_mensuales || 0);
     const excedente = parseFloat(op.monto_sugerido || 0);
     const facturacionPromedio = parseFloat(intel.facturacion_promedio || 0);
-    // --- 2. ANÁLISIS DE PÉRDIDA DUAL (EL CORAZÓN DEL CEREBRO) ---
-    // Pérdida por Inflación (Poder adquisitivo en Pesos)
-    const perdidaInflacion = (deudaCalle * (inflacionMensual / 100)).toFixed(0);
-    // Pérdida por Devaluación (Si el dólar sube y vos seguís en pesos)
-    const deudaEnDolaresHoy = deudaCalle / mep;
-    const sangriaUSD = parseFloat(intel.sangria_pesos || 0) / mep;
 
-    // --- 3. CALENDARIO TÁCTICO ---
+    // --- 2. ANÁLISIS DE PÉRDIDA DUAL ---
+    const perdidaInflacion = (deudaCalle * (inflacionMensual / 100));
+    const deudaEnDolaresHoy = deudaCalle / mep;
+    const sangriaUSD = (deudaCalle / mep) * (inflacionMensual / 100);
+
+    // --- 3. LÓGICA DE ARBITRAJE (INTELIGENCIA AGREGADA) ---
+    const rindeRealFCI = tasaFCI - inflacionMensual;
+    const convieneMEP = rindeRealFCI < 0 || riesgo > 1300; 
+    const gananciaEstimada = Math.round(excedente * (tasaFCI / 100));
+
+    // --- 4. CALENDARIO TÁCTICO ---
     const hoy = new Date();
     const fechaRescate = new Date(hoy);
     fechaRescate.setDate(hoy.getDate() + 30);
     const strHoy = hoy.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
     const strRescate = fechaRescate.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
 
-    // --- 4. LÓGICA DE ALERTAS Y PRIORIDAD ---
+    // --- 5. LÓGICA DE ALERTAS ---
     const MODO_PANICO = riesgo > 1500;
-    const PRIORIZAR_CAJA = diasVida < 25; // Si tenés menos de 25 días, la prioridad es LIQUIDEZ.
+    const PRIORIZAR_CAJA = diasVida < 25;
     
     banner.style.display = "block";
     let colorBorde = MODO_PANICO || PRIORIZAR_CAJA ? '#ef4444' : (excedente > 1000 ? '#10b981' : '#f59e0b');
@@ -328,32 +379,29 @@ function actualizarBannerDinamico() {
                     <h2 style="margin:0; font-size:22px; color:${colorBorde}; font-weight:900;">
                         ${MODO_PANICO ? '🚨 ALERTA CAMBIARIA: SALIR DEL PESO' : (PRIORIZAR_CAJA ? '⚠️ PRIORIDAD: CUIDAR CAJA' : '🛡️ CEREBRO ESTRATÉGICO TITANIUM')}
                     </h2>
-                    <p style="margin:5px 0 0 0; font-size:13px; color:#aaa;">Sincronizado: ${cli.ultima_sincro || 'Ahora'} | Plan: 12 meses de historia</p>
+                    <p style="margin:5px 0 0 0; font-size:13px; color:#aaa;">Proyección: ${mesSel} | Sincronizado: ${cli.ultima_sincro || 'Ahora'}</p>
                 </div>
                 <div style="flex:1; text-align:right; background:rgba(255,255,255,0.05); padding:10px; border-radius:10px;">
-                    <span style="font-size:11px; color:#888;">FECHA LÍMITE DE CAJA ($0):</span><br>
+                    <span style="font-size:11px; color:#888;">AUTONOMÍA DE CAJA:</span><br>
                     <b style="font-size:24px; color:${colorBorde};">${diasVida} DÍAS</b><br>
-                    <small style="font-size:9px; color:#666;">(Basado en gastos de $${gastoMensual.toLocaleString()}/mes)</small>
+                    <small style="font-size:9px; color:#666;">(Gastos proyectados: $${Math.round(gastoMensual).toLocaleString()}/mes)</small>
                 </div>
             </div>
 
             <div style="display:flex; gap:20px;">
-                
                 <div style="flex:1.2; background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border:1px solid rgba(239,68,68,0.3);">
                     <h3 style="margin:0 0 15px 0; font-size:12px; color:#ef4444; text-transform:uppercase; letter-spacing:1px;">🩸 Análisis de Destrucción de Capital</h3>
-                    
                     <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
                         <span>Deuda OS en Calle:</span>
                         <b>$${deudaCalle.toLocaleString()}</b>
                     </div>
-
                     <div style="background:rgba(239,68,68,0.1); padding:12px; border-radius:8px;">
                         <p style="margin:0; font-size:11px; color:#ef4444;">1. PÉRDIDA POR INFLACIÓN (${inflacionMensual}%):</p>
-                        <b style="font-size:18px;">-$${perdidaInflacion.toLocaleString()} <small style="font-size:10px; font-weight:normal;">en poder de compra</small></b>
+                        <b style="font-size:18px;">-$${Math.round(perdidaInflacion).toLocaleString()}</b>
                         
-                        <p style="margin:10px 0 0 0; font-size:11px; color:#ef4444;">2. PÉRDIDA POR DOLARIZACIÓN (MEP):</p>
-                        <b style="font-size:18px;">U$D ${sangriaUSD.toFixed(0)} <small style="font-size:10px; font-weight:normal;">de capital real</small></b>
-                        <div style="font-size:10px; color:#888; margin-top:5px;">Si cobras hoy: U$D ${deudaEnDolaresHoy.toFixed(0)} | Si cobras con delay: U$D ${(deudaEnDolaresHoy - sangriaUSD).toFixed(0)}</div>
+                        <p style="margin:10px 0 0 0; font-size:11px; color:#ef4444;">2. PÉRDIDA POR DEVALUACIÓN (MEP):</p>
+                        <b style="font-size:18px;">U$D ${Math.round(sangriaUSD)} <small style="font-size:10px; font-weight:normal;">/ mes</small></b>
+                        <div style="font-size:10px; color:#888; margin-top:5px;">Cobro hoy: U$D ${Math.round(deudaEnDolaresHoy)} | Delay: U$D ${Math.round(deudaEnDolaresHoy - sangriaUSD)}</div>
                     </div>
                 </div>
 
@@ -363,32 +411,32 @@ function actualizarBannerDinamico() {
                     ${PRIORIZAR_CAJA ? `
                         <div style="text-align:center; padding:10px;">
                             <b style="color:#ef4444; font-size:16px;">CAJA CRÍTICA</b>
-                            <p style="font-size:13px; color:#ddd; margin:10px 0;">No invertir. El sistema detecta que necesitás los <b>$${saldo.toLocaleString()}</b> para cubrir el operativo de los próximos 20 días.</p>
-                        </div>
-                    ` : (MODO_PANICO ? `
-                        <div style="text-align:center;">
-                            <p style="font-size:12px; color:#aaa;">INVERSIÓN SUGERIDA (MEP):</p>
-                            <b style="font-size:26px; color:#ef4444;">U$D ${(excedente/mep).toFixed(0)}</b>
-                            <p style="font-size:11px; margin-top:10px;"><b>DESDE:</b> ${strHoy} | <b>HASTA:</b> Reevaluación Diaria</p>
-                            <div style="background:#ef4444; color:#fff; font-size:10px; padding:5px; border-radius:4px; margin-top:10px;">RIESGO PAÍS ARRIBA DE 1500: PROHIBIDO PESOS</div>
+                            <p style="font-size:13px; color:#ddd; margin:10px 0;">No invertir. Necesitás los <b>$${saldo.toLocaleString()}</b> para el operativo de 20 días.</p>
                         </div>
                     ` : `
                         <div style="text-align:center;">
-                            <p style="font-size:11px; color:#aaa; margin-bottom:5px;">INVERSIÓN SUGERIDA (${op.mejor_tasa || 'FCI'}):</p>
-                            <b style="font-size:24px; color:#10b981;">$${excedente.toLocaleString()}</b>
+                            <p style="font-size:11px; color:#aaa; margin-bottom:5px;">SUGERENCIA: <b>${convieneMEP ? 'COBERTURA MEP' : 'RENDIMIENTO ' + (op.mejor_tasa || 'FCI')}</b></p>
+                            <b style="font-size:26px; color:${convieneMEP ? '#ef4444' : '#10b981'};">
+                                ${convieneMEP ? 'U$D ' + Math.floor(excedente/mep).toLocaleString() : '$' + excedente.toLocaleString()}
+                            </b>
                             
-                            <div style="margin:15px 0; background:rgba(16,185,129,0.1); padding:10px; border-radius:8px; border-left:4px solid #10b981;">
-                                <p style="margin:0; font-size:12px; color:#10b981;"><b>VENTANA TÁCTICA:</b></p>
-                                <p style="margin:3px 0; font-size:14px;">${strHoy} —> ${strRescate}</p>
-                                <p style="margin:5px 0 0 0; font-size:11px; color:#888;">Retorno estimado: <b>+$${Math.round(excedente * (m.tasa_fci/100/12)).toLocaleString()}</b></p>
+                            <div style="margin:15px 0; background:rgba(255,255,255,0.05); padding:12px; border-radius:8px; border-left:4px solid ${convieneMEP ? '#ef4444' : '#10b981'}; text-align:left;">
+                                <p style="margin:0; font-size:12px; color:${convieneMEP ? '#ef4444' : '#10b981'};"><b>🚀 RETORNO / COBERTURA:</b></p>
+                                <p style="margin:5px 0; font-size:15px; font-weight:bold;">
+                                    ${convieneMEP ? 'Evita pérdida de ' + inflacionMensual + '%' : '+$' + gananciaEstimada.toLocaleString()}
+                                </p>
+                                
+                                <p style="margin:10px 0 0 0; font-size:11px; color:#888;"><b>📅 VENTANA TÁCTICA:</b></p>
+                                <p style="margin:3px 0; font-size:13px;">${strHoy} —> ${strRescate}</p>
                             </div>
+                            ${rindeRealFCI < 0 && !convieneMEP ? '<small style="color:#ef4444; font-size:9px;">⚠️ Alerta: Tasa FCI por debajo de inflación</small>' : ''}
                         </div>
-                    `)}
+                    `}
                 </div>
             </div>
 
             <div style="margin-top:20px; display:flex; justify-content:space-between; font-size:11px; color:#555; border-top:1px solid rgba(255,255,255,0.05); padding-top:10px;">
-                <span>RIESGO: <b>${riesgo} pts</b> | MEP: <b>$${mep}</b> | PLAZO FIJO: <b>${m.tasa_pf}%</b></span>
+                <span>RIESGO: <b>${riesgo} pts</b> | MEP: <b>$${mep}</b> | TASA FCI: <b>${tasaFCI}%</b></span>
                 <span>EFICIENCIA DE ESTRUCTURA: <b style="color:#3b82f6;">${((facturacionPromedio/gastoMensual)*100).toFixed(0)}%</b></span>
             </div>
         </div>
