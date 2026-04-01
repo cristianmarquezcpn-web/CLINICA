@@ -592,11 +592,12 @@ window.actualizarPanelOS = function() {
 
         const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
 
-        tr.innerHTML = `
+tr.innerHTML = `
             <td style="text-align:center">${colAccion}</td>
             <td><small>${nombreMod}</small><br><b>${idPaciente}</b></td>
+            
             <td>
-                <select class="input-tab sel-tipo" ${facturado?'disabled':''} onchange="window.gestionarTipoComp(this)">
+                <select class="input-tab sel-tipo" onchange="window.gestionarTipoComp(this)">
                     <option value="6" ${tipoComp === 6 ? 'selected' : ''}>Factura B</option>
                     <option value="1" ${tipoComp === 1 ? 'selected' : ''}>Factura A</option>
                     <option value="8" ${tipoComp === 8 ? 'selected' : ''}>NC B</option>
@@ -608,35 +609,36 @@ window.actualizarPanelOS = function() {
                     <label>Fecha:</label><input type="date" class="aso-fec" style="width:85px">
                 </div>
             </td>
-            <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''}></td>
-            <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
-            <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
+
+            <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}"></td>
+            <td><input type="text" class="input-tab rs-val" value="${rsFinal}"></td>
+            <td><input type="text" class="input-tab dom-val" value="${domFinal}"></td>
+
             <td>
-    		<td>
-			<textarea class="input-tab det-val" 
-        	style="min-height:40px; width:100%; overflow:hidden; resize:none;" 
-        	onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')">${p.detalle || `PRESTACIÓN MÓDULO ${(p.mod || p.modulo || p.pres || 'rehab').toUpperCase()} - PACIENTE: ${p.nombre || idPaciente}`}</textarea>
-			</td>
-			 <td>
-    		<input type="number" 
-        	class="input-tab neto-edit" 
-        	value="${p.exento || p.total || (aFinal > 0 ? mBase : 0)}" 
-        	oninput="window.recalcularTotales(this)">
-			</td>
-			<td>
-    		<input type="number" 
-        	class="input-tab total-final" 
-        	style="font-weight:bold;"
-        	value="${p.total || (aFinal > 0 ? mBase : 0)}" 
-        	readonly>
-			</td>
-			select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
+                <textarea class="input-tab det-val" 
+                    style="min-height:40px; width:100%; overflow:hidden; resize:none;" 
+                    onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')">${p.detalle || `PRESTACIÓN MÓDULO ${(p.mod || p.modulo || p.pres || 'rehab').toUpperCase()} - PACIENTE: ${p.nombre || idPaciente}`}</textarea>
+            </td>
+
+            <td>
+                <select class="input-tab sel-ali" onchange="window.recalcularTotales(this)">
                     <option value="0" ${aFinal === 0 ? 'selected' : ''}>Exento</option>
                     <option value="10.5" ${aFinal === 10.5 ? 'selected' : ''}>10.5%</option>
                     <option value="21" ${aFinal === 21 ? 'selected' : ''}>21%</option>
                 </select>
             </td>
-            <td><input type="number" class="input-tab exento-edit" value="${p.total || p.exento || mBase || 0}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)" onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'total')"></td>			<td style="text-align:right; font-weight:bold" class="total-render">$ ${totalCalculated.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+
+            <td>
+                <input type="number" class="input-tab exento-edit" 
+                    value="${p.exento || p.total || mBase || 0}" 
+                    oninput="window.recalcularTotales(this)" 
+                    onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'total')">
+            </td>
+
+            <td style="text-align:right; font-weight:bold" class="total-render">
+                $ ${totalCalculated.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+            </td>
+
             <input type="hidden" class="f-desde" value="${fDesde}">
             <input type="hidden" class="f-hasta" value="${fHasta}">
             <input type="hidden" class="f-vto" value="${fVto}">
