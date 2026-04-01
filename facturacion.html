@@ -998,18 +998,22 @@ const MODELO_FACTURA_B = (d) => {
         </div>
     </div>`;
 };
-window.descargarFactura = async (id) => {
-    // 1. BÚSQUEDA DOBLE
+	window.descargarFactura = async (id) => {
     let snap = await db.ref('facturas_emitidas/' + id).once('value');
-    let p = snap.val();
+    let rawData = snap.val();
 
-    if (!p) {
+    if (!rawData) {
         snap = await db.ref('facturas_emitidas_saei/' + id).once('value');
-        p = snap.val();
+        rawData = snap.val();
     }
 
-    if (!p || !p.cae) return alert("Error: No se encontró la factura o no tiene datos de CAE.");        
-    
+    // ⚡ USAMOS LA NORMALIZADORA AQUÍ TAMBIÉN
+    const p = window.normalizarFactura(rawData);
+
+    if (!p || !p.cae) {
+        console.error("Datos recibidos:", p);
+        return alert("Error: No se encontró el CAE. Revisá si el motor guardó el campo como 'cae' o 'cae_num'.");
+    }
     const cuitEmisor = "30714900192";
         
     const f = (val) => {
@@ -1455,45 +1459,40 @@ window.refacturarMasivoProximoMes = async function() {
 };
 // FUNCIÓN PARA FIJAR DATOS: Guarda detalle e importe automáticamente
 window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
-    const p = dataFull.find(x => (x.id == idPaciente || x.id_db == idPaciente));
+    // 1. Buscamos al paciente en la memoria local para saber su MÓDULO
+    const p = window.dataFull.find(x => (x.id == idPaciente || x.id_db == idPaciente));
+    
     if (!p) {
-        console.error("No se encontró el paciente en dataFull");
+        console.error("❌ No se encontró el paciente para guardar.");
         return;
     }
 
     try {
         const id = p.id_db || p.id || idPaciente;
-        let v = (['total', 'neto', 'exento'].includes(campo)) ? (parseFloat(valor) || 0) : valor;
-        
-        // --- CORRECCIÓN CRÍTICA ---
-        // Buscamos el módulo real. Si p.mod no existe, intentamos sacarlo de p.modulo 
-        // o lo detectamos por la lógica de la base de datos.
-        let modReal = (p.mod || p.modulo || "").toLowerCase(); 
+        const modReal = (p.mod || p.modulo || "").toLowerCase(); 
 
-        // Si sigue vacío, el sistema no sabe dónde grabar. 
-        // NO le asignamos "rehab" por defecto para no duplicar.
         if (!modReal) {
-            console.error("Error: El paciente no tiene un módulo asignado (CET/CD/REHAB)");
-            alert("No se pudo detectar el módulo del paciente. Verifique el legajo.");
+            console.error("❌ El paciente no tiene módulo (CD/CET/REHAB/SAEI)");
             return;
         }
 
-        const up = {};
-        
-        // Grabamos en la ruta EXACTA donde vive el chico
-        // (Aseguramos que si es 'rehab', la carpeta sea 'pacientes', pero si es 'cet' sea 'cet/pacientes')
-        let rutaBase = (modReal === 'rehab') ? 'pacientes' : `${modReal}/pacientes`;
-        
-        up[`${rutaBase}/${id}/${campo}`] = v;
+        // 2. NORMALIZAR EL VALOR (Si es número, lo convertimos)
+        let v = (['total', 'neto', 'exento', 'monto_fijo'].includes(campo)) ? (parseFloat(valor) || 0) : valor;
 
-        await db.ref().update(up);
+        // 3. RUTA DINÁMICA SEGÚN TU ESTRUCTURA REAL
+        // Quitamos la excepción de 'rehab' para que todas sigan el patrón 'modulo/pacientes'
+        const rutaFinal = `${modReal}/pacientes/${id}/${campo}`;
+
+        // 4. GRABAMOS
+        await db.ref(rutaFinal).set(v);
         
-        // Sincronizamos la memoria local
+        // 5. ACTUALIZAMOS MEMORIA LOCAL (Para que el render no lo borre al recargar)
         p[campo] = v;
         
-        console.log(`✅ OK: Guardado en ${rutaBase}/${id}/${campo}`);
+        console.log(`✅ Guardado con éxito en: ${rutaFinal} -> ${v}`);
+
     } catch (e) { 
-        console.error("Error crítico en fijarDatoPermanente:", e); 
+        console.error("❌ Error crítico en fijarDatoPermanente:", e); 
     }
 };
 // --- FUNCIÓN GLOBAL PARA REFACTURAR ---
