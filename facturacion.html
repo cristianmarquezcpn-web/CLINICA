@@ -550,10 +550,22 @@ window.actualizarPanelOS = function() {
         const cuitDesdeDict = infoOS.cuit || "";
         const domDesdeDict = infoOS.domicilio || "SAN JUAN";
 
-        const rsFinal = facturado ? (miFactura.receptor_nombre || miFactura.razon_social || osPaciente) : (infoOS.razon_social || infoOS.nombre || osPaciente || "");
-        const cuitFinal = facturado ? (miFactura.cuit || "") : (cuitDesdeDict || p.cuit || p.obra_social_cuit || "");
-        const domFinal = facturado ? (miFactura.domicilio || "SAN JUAN") : (domDesdeDict || p.obra_social_domicilio || "SAN JUAN");
+        const rsFinal = facturado 
+   		 ? (miFactura.receptor_nombre || miFactura.razon_social || miFactura.receptor_rs || osPaciente) 
+    	: (infoOS.razon_social || infoOS.nombre || p.razon_social || osPaciente || "");
 
+	// CUIT: Si la factura no tiene CUIT, lo saca del diccionario o del legajo del paciente
+		const cuitFinal = facturado 
+    	? (miFactura.cuit || miFactura.receptor_cuit || cuitDesdeDict || p.cuit || "") 
+    	: (cuitDesdeDict || p.cuit || p.obra_social_cuit || "");
+
+	// DOMICILIO: Lo mismo, prioridad factura, después legajo, después "SAN JUAN"
+		const domFinal = facturado 
+    	? (miFactura.domicilio || miFactura.receptor_dom || domDesdeDict || p.obra_social_domicilio || "SAN JUAN") 
+    	: (domDesdeDict || p.obra_social_domicilio || "SAN JUAN");
+		const detalleFinal = facturado 
+    	? (miFactura.detalle || miFactura.descripcion || miFactura.concepto || p.detalle || "") 
+   		 : (p.detalle || `PRESTACIÓN MÓDULO ${(p.mod || p.modulo || 'rehab').toUpperCase()} - PACIENTE: ${p.nombre || idPaciente}`);
         const mBase = parseFloat(facturado ? (miFactura.neto || miFactura.exento || miFactura.total) : (p.monto_fijo || p.total || p.neto || 0)) || 0;
         const aFinal = parseFloat(facturado ? (miFactura.alicuota || 0) : 0) || 0;
         const totalCalculated = facturado ? (parseFloat(miFactura.total) || 0) : mBase;
@@ -598,7 +610,16 @@ window.actualizarPanelOS = function() {
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''}></td>
             <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
-            <td><textarea class="input-tab det-val" style="min-height:40px; width:100%; overflow:hidden; resize:none;" onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')" ${facturado?'disabled':''}>${p.detalle || (facturado ? (miFactura.concepto || "") : `PRESTACIÓN MÓDULO ${(p.mod || p.modulo || p.pres || 'rehab').toUpperCase()} - PACIENTE: ${p.nombre || idPaciente}`)}</textarea></td>
+            <td>
+    		<textarea class="input-tab det-val" 
+       		 style="min-height:40px; width:100%; overflow:hidden; resize:none;" 
+        	onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')" 
+       		 ${facturado ? 'disabled' : ''}>${
+            facturado 
+            ? (miFactura.detalle || miFactura.descripcion || miFactura.concepto || p.detalle || "") 
+            : (p.detalle || `PRESTACIÓN MÓDULO ${(p.mod || p.modulo || p.pres || 'rehab').toUpperCase()} - PACIENTE: ${p.nombre || idPaciente}`)
+        	}</textarea>
+			</td>
 			<td><input type="number" class="input-tab neto-edit" value="${p.total && aFinal > 0 ? p.total : (aFinal > 0 ? mBase : 0)}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
             <td>
                 <select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
@@ -999,21 +1020,27 @@ const MODELO_FACTURA_B = (d) => {
     </div>`;
 };
 	window.descargarFactura = async (id) => {
+    // 1. Buscamos el dato crudo en Firebase (General o SAEI)
     let snap = await db.ref('facturas_emitidas/' + id).once('value');
-    let rawData = snap.val();
+    let p = snap.val();
 
-    if (!rawData) {
+    if (!p) {
         snap = await db.ref('facturas_emitidas_saei/' + id).once('value');
-        rawData = snap.val();
+        p = snap.val();
     }
 
-    // ⚡ USAMOS LA NORMALIZADORA AQUÍ TAMBIÉN
-    const p = window.normalizarFactura(rawData);
+    // 2. COMPROBACIÓN DIRECTA (Sin funciones raras)
+    // Buscamos el CAE tal como lo guarda el motor (puede ser 'cae' o 'cae_num')
+    const miCAE = p?.cae || p?.cae_num || p?.CAE;
 
-    if (!p || !p.cae) {
-        console.error("Datos recibidos:", p);
-        return alert("Error: No se encontró el CAE. Revisá si el motor guardó el campo como 'cae' o 'cae_num'.");
+    if (!p || !miCAE) {
+        console.error("Datos encontrados en DB:", p);
+        return alert("Error: No se encontró el CAE en el registro de Firebase.");
     }
+
+    // 3. De acá para abajo, el PDF usa los datos de 'p' directamente
+    // p.razon_social, p.cuit, p.total, etc.
+    console.log("Generando PDF para:", p.razon_social, "CAE:", miCAE);
     const cuitEmisor = "30714900192";
         
     const f = (val) => {
