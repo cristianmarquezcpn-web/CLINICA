@@ -621,7 +621,7 @@ tr.innerHTML = `
 
             <td>
                 <input type="number" class="input-tab neto-edit" 
-                    value="${p.total || mBase || 0}" 
+                    value="${p.neto || (aFinal > 0 ? (p.total || mBase) : 0)}" 
                     oninput="window.recalcularTotales(this)">
             </td>
 
@@ -635,9 +635,9 @@ tr.innerHTML = `
 
             <td>
                 <input type="number" class="input-tab exento-edit" 
-                    value="${p.exento || p.total || mBase || 0}" 
+                    value="${p.exento || (aFinal === 0 ? (p.total || mBase) : 0)}" 
                     oninput="window.recalcularTotales(this)" 
-                    onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'total')">
+                    onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'exento')">
             </td>
 
             <td style="text-align:right; font-weight:bold" class="total-render">
