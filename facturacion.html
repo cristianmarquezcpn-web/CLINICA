@@ -613,16 +613,24 @@ window.actualizarPanelOS = function() {
             <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''}></td>
             <td>
     		<td>
-    <textarea class="input-tab det-val" 
-        style="min-height:40px; width:100%; overflow:hidden; resize:none;" 
-        onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')">${p.detalle || `PRESTACIÓN MÓDULO ${(p.mod || p.modulo || p.pres || 'rehab').toUpperCase()} - PACIENTE: ${p.nombre || idPaciente}`}</textarea>
-</td>
-<td>
-    <input type="number" class="input-tab neto-edit" 
-        value="${p.total && aFinal > 0 ? p.total : (aFinal > 0 ? mBase : 0)}" 
-        oninput="window.recalcularTotales(this)">
-</td>
-                <select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
+			<textarea class="input-tab det-val" 
+        	style="min-height:40px; width:100%; overflow:hidden; resize:none;" 
+        	onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')">${p.detalle || `PRESTACIÓN MÓDULO ${(p.mod || p.modulo || p.pres || 'rehab').toUpperCase()} - PACIENTE: ${p.nombre || idPaciente}`}</textarea>
+			</td>
+			 <td>
+    		<input type="number" 
+        	class="input-tab neto-edit" 
+        	value="${p.exento || p.total || (aFinal > 0 ? mBase : 0)}" 
+        	oninput="window.recalcularTotales(this)">
+			</td>
+			<td>
+    		<input type="number" 
+        	class="input-tab total-final" 
+        	style="font-weight:bold;"
+        	value="${p.total || (aFinal > 0 ? mBase : 0)}" 
+        	readonly>
+			</td>
+			select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
                     <option value="0" ${aFinal === 0 ? 'selected' : ''}>Exento</option>
                     <option value="10.5" ${aFinal === 10.5 ? 'selected' : ''}>10.5%</option>
                     <option value="21" ${aFinal === 21 ? 'selected' : ''}>21%</option>
