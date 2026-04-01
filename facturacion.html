@@ -620,6 +620,12 @@ tr.innerHTML = `
             </td>
 
             <td>
+                <input type="number" class="input-tab neto-edit" 
+                    value="${p.total || mBase || 0}" 
+                    oninput="window.recalcularTotales(this)">
+            </td>
+
+            <td>
                 <select class="input-tab sel-ali" onchange="window.recalcularTotales(this)">
                     <option value="0" ${aFinal === 0 ? 'selected' : ''}>Exento</option>
                     <option value="10.5" ${aFinal === 10.5 ? 'selected' : ''}>10.5%</option>
