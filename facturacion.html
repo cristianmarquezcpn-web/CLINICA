@@ -531,7 +531,8 @@ window.actualizarPanelOS = function() {
         const nombreMod  = (p.modulo || p.mod || "S/M").toUpperCase();
         const miFactura = p.ultima_factura_saei || p.ultima_factura; 
         const facturado = !!(miFactura && (miFactura.cae || miFactura.id));
-
+		const estaFacturado = (p.facturado === 'SI' || p.cae != null); 
+		const claseGris = estaFacturado ? 'fila-bloqueada' : '';
         // Lógica de Obra Social que ya tenías (Excelente para evitar errores de tipeo)
         const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
         let infoOS = {};
@@ -1570,18 +1571,25 @@ window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVie
             await db.ref().update(updates);
             
             // 6. ⚡ ACTUALIZACIÓN INDIVIDUAL (Para que no se limpie la pantalla)
-            const p = dataFull.find(x => x.id == idPaciente || x.id_db == idPaciente);
-            if (p) {
-                p.facturado = "NO";
-                p.ultima_factura = null;
-                if (datosRecuperados) {
-                    p.total = datosRecuperados.total || 0;
-                    p.detalle = datosRecuperados.detalle || "";
-                }
-                // En lugar de cargarTodo(), disparamos el render local si existe
-                if (typeof render === 'function') render(); 
-            }
+           const p = dataFull.find(x => x.id == idPaciente || x.id_db == idPaciente);
+if (p) {
+    p.facturado = "NO";
+    p.facturado_saei = "NO";
+    p.ultima_factura = null;
+    p.cae = null;            // <--- IMPORTANTE
+    p.id_factura = null;      // <--- IMPORTANTE
+    p.resultado_afip = null;
+    p.ignorar_factura = idFacturaVieja || "REFAC_MANUAL";
 
+    if (datosRecuperados) {
+        p.total = datosRecuperados.total || 0;
+        p.exento = datosRecuperados.exento || datosRecuperados.total || 0;
+        p.detalle = datosRecuperados.detalle || "";
+    }
+
+    console.log("Objeto local actualizado, disparando render...");
+    if (typeof render === 'function') render(); 
+}
             alert("✅ Paciente habilitado individualmente.");
 
         } catch (e) {
