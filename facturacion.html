@@ -1527,17 +1527,14 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
 window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVieja) {
     if(confirm("¿Habilitar para editar y refacturar? Se recuperarán los datos de la factura anterior.")) {
         try {
-            // 1. Detectamos la ruta raíz real (cd, cet o rehab en minúsculas)
             const modOriginal = (modulo || "rehab").toLowerCase();
             const esSaei = (modulo.toUpperCase() === "SAEI");
-            
-            // Elegimos dónde buscar la factura vieja
             const nodoFacturas = esSaei ? "facturas_emitidas_saei" : "facturas_emitidas";
             
             const updates = {};
             let datosRecuperados = null;
 
-            // 2. 🧠 RECUPERACIÓN DE MEMORIA
+            // 1. Recuperamos la factura vieja de Firebase
             if (idFacturaVieja) {
                 const snapFactura = await db.ref(`${nodoFacturas}/${idFacturaVieja}`).once('value');
                 datosRecuperados = snapFactura.val();
@@ -1552,48 +1549,43 @@ window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVie
                 updates[`${ruta}/facturado`] = "NO";
                 updates[`${ruta}/facturado_saei`] = "NO";
                 updates[`${ruta}/ultima_factura`] = null;
-                updates[`${ruta}/ultima_factura_saei`] = null;
-                updates[`${ruta}/cae`] = null;
-                updates[`${ruta}/id_factura`] = null;
+                updates[`${ruta}/cae`] = null;        // Limpiamos en Firebase
+                updates[`${ruta}/id_factura`] = null;  // Limpiamos en Firebase
                 updates[`${ruta}/ignorar_factura`] = idFacturaVieja || "REFAC_MANUAL";
             };
 
-            // 3. Aplicamos la limpieza en su carpeta (cd, cet o rehab)
-            prepararLimpieza(`${modOriginal}/pacientes/${idPaciente}`)||"Op8R3LFtavLTw2bbFld";
+            prepararLimpieza(`${modOriginal}/pacientes/${idPaciente}`);
 
-            // 4. SI ES SAEI, limpiamos también sus "espejos"
             if (esSaei) {
                 prepararLimpieza(`SAEI/pacientes/${idPaciente}`);
                 prepararLimpieza(`rehab/pacientes/${idPaciente}/saei`);
             }
 
-            // 5. IMPACTO EN FIREBASE
+            // 2. Impactamos en la Base de Datos
             await db.ref().update(updates);
             
-            // 6. ⚡ ACTUALIZACIÓN INDIVIDUAL (Para que no se limpie la pantalla)
-           const p = dataFull.find(x => x.id == idPaciente || x.id_db == idPaciente);
-if (p) {
-    p.facturado = "NO";
-    p.facturado_saei = "NO";
-    p.ultima_factura = null;
-    p.cae = null;            // <--- IMPORTANTE
-    p.id_factura = null;      // <--- IMPORTANTE
-    p.resultado_afip = null;
-    p.ignorar_factura = idFacturaVieja || "REFAC_MANUAL";
+            // 3. ⚡ ELIMINAR EL GRIS DE LA PANTALLA (Limpieza de memoria local)
+            const p = dataFull.find(x => x.id == idPaciente || x.id_db == idPaciente);
+            if (p) {
+                p.facturado = "NO";
+                p.facturado_saei = "NO";
+                p.cae = null;               // <--- ESTO SACA EL COLOR GRIS
+                p.id_factura = null;        // <--- ESTO HABILITA EL BOTÓN
+                p.ultima_factura = null;
+                
+                if (datosRecuperados) {
+                    p.total = datosRecuperados.total || 0;
+                    p.detalle = datosRecuperados.detalle || "";
+                }
+                
+                // Forzamos el dibujado de la tabla para que veas el cambio YA
+                if (typeof render === 'function') render(); 
+            }
 
-    if (datosRecuperados) {
-        p.total = datosRecuperados.total || 0;
-        p.exento = datosRecuperados.exento || datosRecuperados.total || 0;
-        p.detalle = datosRecuperados.detalle || "";
-    }
-
-    console.log("Objeto local actualizado, disparando render...");
-    if (typeof render === 'function') render(); 
-}
-            alert("✅ Paciente habilitado individualmente.");
+            alert("✅ DESBLOQUEADO. La fila ya no debería estar gris.");
 
         } catch (e) {
-            console.error("Error en habilitarParaRefacturar:", e);
+            console.error("Error:", e);
             alert("❌ Error: " + e.message);
         }
     }
