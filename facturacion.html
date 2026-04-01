@@ -620,18 +620,18 @@ tr.innerHTML = `
             </td>
 
             <td>
-                <input type="number" class="input-tab exento-edit" 
-                    value="${p.exento || p.total || mBase || 0}" 
-                    oninput="window.recalcularTotales(this)" 
-                    onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'total')">
-            </td>
-
-            <td>
                 <select class="input-tab sel-ali" onchange="window.recalcularTotales(this)">
                     <option value="0" ${aFinal === 0 ? 'selected' : ''}>Exento</option>
                     <option value="10.5" ${aFinal === 10.5 ? 'selected' : ''}>10.5%</option>
                     <option value="21" ${aFinal === 21 ? 'selected' : ''}>21%</option>
                 </select>
+            </td>
+
+            <td>
+                <input type="number" class="input-tab exento-edit" 
+                    value="${p.exento || p.total || mBase || 0}" 
+                    oninput="window.recalcularTotales(this)" 
+                    onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'total')">
             </td>
 
             <td style="text-align:right; font-weight:bold" class="total-render">
