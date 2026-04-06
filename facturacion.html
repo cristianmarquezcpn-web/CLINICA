@@ -1094,7 +1094,7 @@ const MODELO_FACTURA_B = (d) => {
         
         // PASAMOS LOS CAMPOS DE ASOCIACIÓN AL MODELO
         asoc_pv: p.pv_asoc || p.asoc_pv || 5,
-        asoc_nro: p.nro_asoc || p.asoc_nro || p.comprobante_asociado_nro || null,
+        asoc_nro: p.nro_asoc || p.asoc_nro || p.comprobante_asociado_nro || p.asoc_num || null,
         
         condicion_venta: p.condicion_venta || "CUENTA CORRIENTE",
         concepto: (p.concepto || p.detalle || p.descripcion || p.conceptos || "PRESTACIÓN DE SERVICIOS").toUpperCase(),
