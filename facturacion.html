@@ -1283,9 +1283,12 @@ window.cargarArchivo = async () => {
             db.ref('facturas_emitidas_saei').once('value')
         ]);
 
-        const facturas = { ...snapGral.val(), ...snapSaei.val() };
+        // IMPORTANTE: Unimos los datos pero nos aseguramos de que sean objetos válidos
+        const fGral = snapGral.val() || {};
+        const fSaei = snapSaei.val() || {};
+        const facturas = { ...fGral, ...fSaei };
         
-        let registrosFiltrados = []; // <--- Lista para ordenar antes de mostrar
+        let registrosFiltrados = [];
         let tGral = 0;
         const totalesPorModulo = { "REHAB": 0, "CET": 0, "CD": 0, "SAEI": 0, "OTROS": 0 };
 
@@ -1293,38 +1296,42 @@ window.cargarArchivo = async () => {
             const f = facturas[id];
             if (!f) return;
 
-            // --- NORMALIZACIÓN DE FECHA ---
+            // --- REPARACIÓN DEL FILTRO DE FECHA (MÁS ELÁSTICO) ---
             const fechaOriginal = f.fecha_emision || f.fecha || "";
+            if (!fechaOriginal) return;
+
             let mesAnio = "";
             let diaMes = "";
 
-            if (fechaOriginal.includes('-')) {
-                const p = fechaOriginal.split('-');
-                mesAnio = `${p[0]}-${p[1].padStart(2, '0')}`;
-                diaMes = `${p[2]}/${p[1]}`;
-            } else if (fechaOriginal.includes('/')) {
-                const p = fechaOriginal.split('/');
-                if (p.length === 3) {
+            // Limpiamos la fecha por si trae horas (formato ISO)
+            let limpia = fechaOriginal.split('T')[0].trim(); 
+            let p = limpia.includes('-') ? limpia.split('-') : limpia.split('/');
+
+            if (p.length === 3) {
+                // Si el primer tramo tiene 4 dígitos es YYYY-MM-DD
+                if (p[0].length === 4) { 
+                    mesAnio = `${p[0]}-${p[1].padStart(2, '0')}`;
+                    diaMes = `${p[2]}/${p[1]}`;
+                } else { // Es DD-MM-YYYY
                     mesAnio = `${p[2]}-${p[1].padStart(2, '0')}`;
                     diaMes = `${p[0]}/${p[1]}`;
                 }
             }
 
-            // --- FILTRADO POR MES ---
+            // --- FILTRADO ---
             if (mesAnio === filtro) {
-                // Guardamos en la lista temporal para ordenar después
                 registrosFiltrados.push({ id_db: id, ...f, diaMes_formato: diaMes });
             }
         });
 
-        // --- EL TRUCO: ORDENAMIENTO NUMÉRICO DESCENDENTE ---
+        // --- ORDENAMIENTO DESCENDENTE ---
         registrosFiltrados.sort((a, b) => {
             const nroA = parseInt(a.nro_comp || a.nro || 0);
             const nroB = parseInt(b.nro_comp || b.nro || 0);
-            return nroB - nroA; // El más grande (ej: 30) va ARRIBA del chico (ej: 3)
+            return nroB - nroA;
         });
 
-        // --- CONSTRUCCIÓN DEL HTML ---
+        // --- CONSTRUCCIÓN DEL HTML (IGUAL A TU ESTILO) ---
         let html = "";
         registrosFiltrados.forEach(f => {
             const imp = parseFloat(f.total_facturado || f.total || 0);
@@ -1340,9 +1347,6 @@ window.cargarArchivo = async () => {
             else totalesPorModulo["OTROS"] += valorEfectivo;
 
             const estiloFila = esNC ? 'style="color: #d9534f; font-weight: bold; background-color: #fff5f5;"' : '';
-            const signo = esNC ? "- " : "";
-
-            // Mapeo de nombre para que la 30 no salga vacía si el campo falló
             const nombreFinal = (f.receptor_nombre || f.nombre || f.razon_social || "PACIENTE SIN NOMBRE").toUpperCase();
 
             html += `<tr ${estiloFila}>
@@ -1350,7 +1354,7 @@ window.cargarArchivo = async () => {
                 <td><b>${String(f.punto_venta || 5).padStart(4,'0')}-${String(f.nro_comp || f.nro || 0).padStart(8, '0')}</b></td>
                 <td><small>${f.cae || '<span style="color:orange">PROCESANDO...</span>'}</small></td>
                 <td>${nombreFinal} <br><small>${mod}</small></td>
-                <td style="text-align:right">${signo}$ ${imp.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                <td style="text-align:right">${esNC ? "- " : ""}$ ${imp.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
                 <td style="text-align:center">
                     <button onclick="window.descargarFactura('${f.id_db}')" class="btn" style="background:#2980b9; color:white; border:none; padding:2px 5px; font-size:9px; cursor:pointer;">PDF</button>
                 </td>
@@ -1361,15 +1365,11 @@ window.cargarArchivo = async () => {
         
         if(elGral) elGral.innerText = `$ ${tGral.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
 
-        const actualizar = (idDiv, monto) => {
-            const el = document.getElementById(idDiv);
-            if(el) el.innerText = `$ ${monto.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
-        };
-
-        actualizar('tot-rehab', totalesPorModulo["REHAB"]);
-        actualizar('tot-cet', totalesPorModulo["CET"]);
-        actualizar('tot-cd', totalesPorModulo["CD"]);
-        actualizar('tot-saei', totalesPorModulo["SAEI"]);
+        // Actualización de totales por módulo
+        ['rehab', 'cet', 'cd', 'saei'].forEach(m => {
+            const el = document.getElementById(`tot-${m}`);
+            if(el) el.innerText = `$ ${totalesPorModulo[m.toUpperCase()].toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+        });
 
     } catch (error) {
         console.error("Error en cargarArchivo:", error);
