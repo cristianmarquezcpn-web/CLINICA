@@ -203,14 +203,21 @@ if (!firebase.apps.length) {
 }
 	const hoy = new Date(); // Esta se usa solo para calcular la mora de las facturas que todavía no cobraste
      function calcularNetoFila(f, pIIBB, pGS, pMin) {
-        let bruto = parseFloat(f.total) || 0;
-        const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
-        if (esNC) return -Math.abs(bruto); // La NC resta el bruto directo (sin retenciones)
+    let bruto = parseFloat(f.total) || 0;
+    const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
+    if (esNC) return -Math.abs(bruto); 
 
-        const rIIBB = (f.retIIBB_manual !== undefined) ? f.retIIBB_manual : (bruto * pIIBB);
-        const rGS = (f.retGS_manual !== undefined) ? f.retGS_manual : (bruto < pMin ? 0 : bruto * pGS);
-        return bruto - rIIBB - rGS;
-    }
+    // USAMOS !== null para que si es 0, lo tome como manual
+    const rIIBB = (f.retIIBB_manual !== undefined && f.retIIBB_manual !== null) 
+        ? parseFloat(f.retIIBB_manual) 
+        : (bruto * pIIBB);
+
+    const rGS = (f.retGS_manual !== undefined && f.retGS_manual !== null) 
+        ? parseFloat(f.retGS_manual) 
+        : (bruto < pMin ? 0 : bruto * pGS);
+
+    return bruto - rIIBB - rGS;
+}
 
     // --- 3. MOTOR PRINCIPAL ---
 	async function renderizarTodo() {
@@ -418,7 +425,10 @@ tr.innerHTML = `
             const netoLimpio = typeof f.netoCalc === 'number' ? f.netoCalc : saldoLimpio;
 
             // --- ACUMULADORES ---
-            
+            let saldoLimpio = (typeof saldo === 'number') ? saldo : 0;
+
+		// 2. Determinamos el Neto (para NC)
+			const netoLimpio = (typeof f.netoCalc === 'number') ? f.netoCalc : 0;
             // Ranking OS
             agrupadoOS[os].totalPendienteOS += (esNC ? netoLimpio : saldoLimpio);
             
@@ -544,28 +554,33 @@ await db.ref(`cobranzas/${id}`).update({
 });
     renderizarTodo();
 } 
-async function actualizarRetManual(id, campo, valor) {
-    // Reemplazamos coma por punto y convertimos a número
+	async function actualizarRetManual(id, campo, valor) {
+    // 1. Convertimos a número real (si ponés 0, num será 0)
     let num = parseFloat(String(valor).replace(',', '.'));
     if (isNaN(num)) num = 0; 
 
     const refGral = db.ref(`facturas_emitidas/${id}`);
     const refSaei = db.ref(`facturas_emitidas_saei/${id}`);
 
-    // Solo actualizamos donde hay datos de cliente para no crear fantasmas
-    const snapGral = await refGral.once('value');
-    if (snapGral.exists() && snapGral.val().cliente) {
+    // 2. Verificamos si existe en General o en SAEI antes de actualizar
+    const [snapGral, snapSaei] = await Promise.all([
+        refGral.once('value'),
+        refSaei.once('value')
+    ]);
+
+    // Si existe en General, actualizamos (sin importar el nombre de los campos)
+    if (snapGral.exists()) {
         await refGral.update({ [campo]: num });
     }
 
-    const snapSaei = await refSaei.once('value');
-    if (snapSaei.exists() && snapSaei.val().cliente) {
+    // Si existe en SAEI, actualizamos
+    if (snapSaei.exists()) {
         await refSaei.update({ [campo]: num });
     }
     
-    // Esto es clave: refrescamos para que el cálculo del saldo se vea en el momento
+    // 3. RECARGA TOTAL: Esto es lo que hace que el saldo se actualice en la pantalla
     renderizarTodo(); 
-}	
+}
 
     async function eliminarFactura(id) {
         if(confirm("⚠️ ¿Eliminar comprobante definitivamente? Esto no se puede deshacer.")) {
