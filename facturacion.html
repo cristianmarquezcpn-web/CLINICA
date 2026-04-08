@@ -391,17 +391,23 @@ window.cargarTodo = async () => {
 };
 async function procesarTodo() {
     const dictOS = window.dictOS || {};
+
+    // --- 1. PRIMERO TRAEMOS LOS DATOS (Esto faltaba y causaba el error) ---
+    const snapGral = await db.ref('facturas_emitidas').once('value');
+    const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
+    
     const valGral = snapGral.val() || {};
     const valSaei = snapSaei.val() || {};
+
+    // --- 2. FUSIÓN ANTIFANTASMAS (Para que el 0 de cobranzas no pise la factura real) ---
     const todasLasFacturas = { ...valGral };
 
     for (let key in valSaei) {
         if (!todasLasFacturas[key]) {
-            // Si no existe en Gral, la agregamos de una
             todasLasFacturas[key] = valSaei[key];
         } else {
-            // SI EXISTE EN AMBOS: Mezclamos los datos para no perder nada
-            // Priorizamos la que tenga el nombre del cliente/paciente
+            // Si la factura existe en ambos nodos, mezclamos los datos.
+            // Priorizamos la que tiene el campo 'cliente' (la factura real).
             if (!todasLasFacturas[key].cliente && valSaei[key].cliente) {
                 todasLasFacturas[key] = { ...valSaei[key], ...todasLasFacturas[key] };
             } else {
@@ -410,6 +416,7 @@ async function procesarTodo() {
         }
     }
     
+    // --- 3. CONVERTIMOS A ARRAY Y ORDENAMOS ---
     const facturasArray = Object.values(todasLasFacturas).sort((a, b) => {
         return (b.nro_comp || 0) - (a.nro_comp || 0);
     });
@@ -433,30 +440,26 @@ async function procesarTodo() {
         for (const idPac in pacientes) {
             const p = pacientes[idPac];
             
-            // 1. BUSCAMOS LA ÚLTIMA FACTURA (Cruzamos datos)
+            // BUSCAMOS LA FACTURA (Cruce blindado por ID)
             let ultFact = facturasArray.find(f => 
                 (f.id_paciente === idPac || f.id_paciente_db === idPac) && 
                 String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase()
             );
 
-            // 2. NORMALIZACIÓN DE NOTAS DE CRÉDITO
             if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
                 ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
                 ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
             }
 
-            // 3. LÓGICA DEL GRIS (BLINDADA)
-            // Si tiene CAE, es 'SI'. Si el legajo dice 'NO', es 'NO' (para refacturar).
             let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
             
-            // Si forzamos 'NO' desde el legajo (botón refac), respetamos eso
             if (p.facturado === 'NO') {
                 estadoFinal = 'NO';
             }
 
             tempFull.push({
                 ...p,
-                id_db: idPac, // Mantenemos consistencia con el render
+                id_db: idPac, 
                 id: idPac, 
                 mod: nombreMod,
                 ultima_factura: ultFact, 
@@ -465,15 +468,13 @@ async function procesarTodo() {
         }
     });
     
-    // 🛡️ CORRECCIÓN: Aseguramos que impacte en la variable que lee el Render
     window.dataFull = tempFull;
-    
-    console.log("✅ Datos procesados y cruzados. Llamando al render...");
+    console.log("✅ Datos procesados y cruzados sin pérdidas. Llamando al render...");
     
     if (typeof window.render === "function") {
         window.render();
     }
-}	
+}
 window.actualizarPanelOS = function() {
     const listaOS = document.getElementById('lista-os');
     if(!listaOS) return;
