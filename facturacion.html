@@ -391,13 +391,24 @@ window.cargarTodo = async () => {
 };
 async function procesarTodo() {
     const dictOS = window.dictOS || {};
-    const snapGral = await db.ref('facturas_emitidas').once('value');
-    const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
-    
-    const todasLasFacturas = {
-        ...(snapGral.val() || {}),
-        ...(snapSaei.val() || {})
-    };
+    const valGral = snapGral.val() || {};
+    const valSaei = snapSaei.val() || {};
+    const todasLasFacturas = { ...valGral };
+
+    for (let key in valSaei) {
+        if (!todasLasFacturas[key]) {
+            // Si no existe en Gral, la agregamos de una
+            todasLasFacturas[key] = valSaei[key];
+        } else {
+            // SI EXISTE EN AMBOS: Mezclamos los datos para no perder nada
+            // Priorizamos la que tenga el nombre del cliente/paciente
+            if (!todasLasFacturas[key].cliente && valSaei[key].cliente) {
+                todasLasFacturas[key] = { ...valSaei[key], ...todasLasFacturas[key] };
+            } else {
+                todasLasFacturas[key] = { ...todasLasFacturas[key], ...valSaei[key] };
+            }
+        }
+    }
     
     const facturasArray = Object.values(todasLasFacturas).sort((a, b) => {
         return (b.nro_comp || 0) - (a.nro_comp || 0);
