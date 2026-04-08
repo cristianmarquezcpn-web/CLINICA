@@ -544,15 +544,15 @@ await db.ref(`cobranzas/${id}`).update({
 });
     renderizarTodo();
 } 
-    async function actualizarRetManual(id, campo, valor) {
-    const num = parseFloat(valor) || 0;
-    
-    // Intentamos actualizar en AMBOS pero con una condición de seguridad
-    // Solo actualizamos si el registro tiene datos reales (para no crear fantasmas)
-    
+async function actualizarRetManual(id, campo, valor) {
+    // Reemplazamos coma por punto y convertimos a número
+    let num = parseFloat(String(valor).replace(',', '.'));
+    if (isNaN(num)) num = 0; 
+
     const refGral = db.ref(`facturas_emitidas/${id}`);
     const refSaei = db.ref(`facturas_emitidas_saei/${id}`);
 
+    // Solo actualizamos donde hay datos de cliente para no crear fantasmas
     const snapGral = await refGral.once('value');
     if (snapGral.exists() && snapGral.val().cliente) {
         await refGral.update({ [campo]: num });
@@ -563,8 +563,9 @@ await db.ref(`cobranzas/${id}`).update({
         await refSaei.update({ [campo]: num });
     }
     
-    renderizarTodo();
-}
+    // Esto es clave: refrescamos para que el cálculo del saldo se vea en el momento
+    renderizarTodo(); 
+}	
 
     async function eliminarFactura(id) {
         if(confirm("⚠️ ¿Eliminar comprobante definitivamente? Esto no se puede deshacer.")) {
