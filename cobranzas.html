@@ -545,11 +545,26 @@ await db.ref(`cobranzas/${id}`).update({
     renderizarTodo();
 } 
     async function actualizarRetManual(id, campo, valor) {
-        const num = parseFloat(valor) || 0;
-        await db.ref(`facturas_emitidas/${id}`).update({ [campo]: num });
-		db.ref(`facturas_emitidas_saei/${id}`).update({ [campo]: num })
-        renderizarTodo();
+    const num = parseFloat(valor) || 0;
+    
+    // Intentamos actualizar en AMBOS pero con una condición de seguridad
+    // Solo actualizamos si el registro tiene datos reales (para no crear fantasmas)
+    
+    const refGral = db.ref(`facturas_emitidas/${id}`);
+    const refSaei = db.ref(`facturas_emitidas_saei/${id}`);
+
+    const snapGral = await refGral.once('value');
+    if (snapGral.exists() && snapGral.val().cliente) {
+        await refGral.update({ [campo]: num });
     }
+
+    const snapSaei = await refSaei.once('value');
+    if (snapSaei.exists() && snapSaei.val().cliente) {
+        await refSaei.update({ [campo]: num });
+    }
+    
+    renderizarTodo();
+}
 
     async function eliminarFactura(id) {
         if(confirm("⚠️ ¿Eliminar comprobante definitivamente? Esto no se puede deshacer.")) {
