@@ -432,7 +432,12 @@ async function procesarTodo() {
     const snapsPacientes = await Promise.all(promesas);
 
     const tempFull = [];
-	const mesFiltroActual = document.getElementById('mes_filtro_archivo').value;
+    const valorSelector = document.getElementById('mes_filtro_archivo').value; // ej: "2026-04"
+    
+    // --- PASO CLAVE: Separamos el año y el mes para que coincidan con tus facturas ---
+    const partes = valorSelector.split('-'); // partes[0] = "2026", partes[1] = "04"
+    const anioF = partes[0];
+    const mesF = partes[1];
 
     snapsPacientes.forEach((snap, index) => {
         const nombreMod = rutas[index].mod;
@@ -441,12 +446,11 @@ async function procesarTodo() {
         for (const idPac in pacientes) {
             const p = pacientes[idPac];
             
-            // BUSCAMOS LA FACTURA (Cruce blindado por ID)
+            // BUSCAMOS LA FACTURA (Ahora comparando mes y año por separado)
             let ultFact = facturasArray.find(f => 
                 (f.id_paciente === idPac || f.id_paciente_db === idPac) && 
                 String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase() &&
-				(f.fecha_emision && f.fecha_emision.includes(mesFiltroActual)) 
-						 
+                (f.fecha_emision && f.fecha_emision.includes(mesF) && f.fecha_emision.includes(anioF))
             );
 
             if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
@@ -459,6 +463,7 @@ async function procesarTodo() {
             if (p.facturado === 'NO') {
                 estadoFinal = 'NO';
             }
+
 
             tempFull.push({
                 ...p,
