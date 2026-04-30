@@ -426,7 +426,7 @@ async function procesarTodo() {
 
     const tempFull = [];
 
-    // --- CAPTURAMOS EL MES DEL SELECTOR ---
+    // --- SELECTOR DE MES ---
     const selector = document.getElementById('mes_filtro_archivo');
     const valorSel = selector ? selector.value : ""; // ej: "2026-05"
 
@@ -435,19 +435,17 @@ async function procesarTodo() {
         const pacientes = snap.val() || {};
 
         for (const idPac in pacientes) {
-            // SEGURIDAD: Si no tiene nombre o es una SALA, lo saltamos pero la tabla sigue
             if (idPac.includes("SALA") || !pacientes[idPac].nombre) continue;
 
             const p = pacientes[idPac];
             
-            // BUSCAMOS LA FACTURA
+            // BUSCADOR FLEXIBLE
             let ultFact = facturasArray.find(f => {
                 const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
                 const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
                 
                 if (!valorSel) return coincideID && coincideMod;
 
-                // Buscamos el mes y año de forma flexible (que contenga la cadena del selector)
                 const fechaF = f.fecha_emision || "";
                 return coincideID && coincideMod && fechaF.includes(valorSel);
             });
@@ -457,11 +455,10 @@ async function procesarTodo() {
                 ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
             }
 
-            // COLOR VERDE SOLO SI HAY FACTURA DEL MES
             let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
             if (p.facturado === 'NO') estadoFinal = 'NO';
 
-            // EL PUSH VA AQUÍ: Fuera de cualquier if de factura para que siempre haya pacientes
+            // AGREGAMOS AL PACIENTE (SIEMPRE)
             tempFull.push({
                 ...p,
                 id_db: idPac, 
@@ -470,19 +467,11 @@ async function procesarTodo() {
                 ultima_factura: ultFact, 
                 facturado: estadoFinal   
             });
-        }
-    });
+        } // Cierre del for
+    }); // Cierre del forEach
     
     window.dataFull = tempFull;
     console.log("✅ Pacientes procesados:", tempFull.length);
-    
-    if (typeof window.render === "function") {
-        window.render();
-    }
-}
-    
-    window.dataFull = tempFull;
-    console.log("✅ Proceso completo. Pacientes listos para renderizar:", tempFull.length);
     
     if (typeof window.render === "function") {
         window.render();
