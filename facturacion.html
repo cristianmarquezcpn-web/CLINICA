@@ -432,7 +432,7 @@ async function procesarTodo() {
     const snapsPacientes = await Promise.all(promesas);
 
     const tempFull = [];
-	const mesFiltroActual = document.getElementById('mesFiltro').value;
+	const mesFiltroActual = document.getElementById('mes_filtro_archivo').value;
 
     snapsPacientes.forEach((snap, index) => {
         const nombreMod = rutas[index].mod;
