@@ -392,14 +392,14 @@ window.cargarTodo = async () => {
 async function procesarTodo() {
     const dictOS = window.dictOS || {};
 
-    // 1. TRAEMOS LOS DATOS
+    // 1. CARGA DE DATOS (Facturas y Pacientes)
     const snapGral = await db.ref('facturas_emitidas').once('value');
     const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
     
     const valGral = snapGral.val() || {};
     const valSaei = snapSaei.val() || {};
 
-    // 2. FUSIÓN
+    // Fusión de facturas priorizando datos reales
     const todasLasFacturas = { ...valGral };
     for (let key in valSaei) {
         if (!todasLasFacturas[key]) {
@@ -431,38 +431,44 @@ async function procesarTodo() {
 
     // --- CAPTURAMOS EL MES DEL SELECTOR ---
     const selector = document.getElementById('mes_filtro_archivo');
-    const valorSel = selector ? selector.value : ""; // ej: "2026-04"
+    const valorSel = selector ? selector.value : ""; // ej: "2026-05"
 
     snapsPacientes.forEach((snap, index) => {
         const nombreMod = rutas[index].mod;
         const pacientes = snap.val() || {};
 
         for (const idPac in pacientes) {
+            // Ignoramos nodos que no son pacientes (Salas)
+            if (idPac.includes("SALA") || !pacientes[idPac].nombre) continue;
+
             const p = pacientes[idPac];
             
-            // BUSCAMOS LA FACTURA (Validando que empiece con el año-mes del selector)
+            // BUSCAMOS LA FACTURA EXCLUSIVA DE ESTE MES
             let ultFact = facturasArray.find(f => {
                 const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
                 const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
                 
-                // Si no hay valor en el selector, mostramos la última histórica (tu código viejo)
+                // Si no hay filtro, se comporta como antes (última histórica)
                 if (!valorSel) return coincideID && coincideMod;
 
-                // Tu Firebase usa "2025-02-20", el selector usa "2025-02". Usamos startsWith.
+                // Tu Firebase usa "YYYY-MM-DD". El selector usa "YYYY-MM".
+                // Buscamos que la fecha EMPIECE con el mes elegido.
                 const fechaF = f.fecha_emision || "";
                 const coincideFecha = fechaF.startsWith(valorSel);
 
                 return coincideID && coincideMod && coincideFecha;
             });
 
+            // Procesamos datos de notas de crédito/débito si existen
             if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
                 ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
                 ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
             }
 
-            // Si encontró factura para ESTE mes y tiene CAE, verde. Si no, naranja.
+            // ESTADO FINAL: Solo verde si hay factura del mes seleccionado
             let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
             
+            // Forzamos NO si el paciente está marcado como no facturable
             if (p.facturado === 'NO') {
                 estadoFinal = 'NO';
             }
@@ -472,14 +478,14 @@ async function procesarTodo() {
                 id_db: idPac, 
                 id: idPac, 
                 mod: nombreMod,
-                ultima_factura: ultFact, // Si es de otro mes, aquí irá null
-                facturado: estadoFinal   
+                ultima_factura: ultFact, // Si no hay factura de mayo, esto es null
+                facturado: estadoFinal   // Si es null, el color es naranja
             });
         }
     });
     
     window.dataFull = tempFull;
-    console.log("✅ Datos procesados con filtro de mes. Total:", tempFull.length);
+    console.log("✅ Proceso completo. Pacientes listos para renderizar:", tempFull.length);
     
     if (typeof window.render === "function") {
         window.render();
