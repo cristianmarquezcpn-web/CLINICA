@@ -407,39 +407,41 @@ async function procesarTodo() {
     const snapsPacientes = await Promise.all(promesas);
     const tempFull = [];
 
-    // Capturamos mes y año del selector
-    const selectorMes = document.getElementById('mes_filtro_archivo').value; // ej: "2026-04"
-    const partes = selectorMes.split('-'); 
-    const anioF = partes[0];
-    const mesF = partes[1]; // "04"
+    // --- LÓGICA DE MES SEGURO ---
+    const selector = document.getElementById('mes_filtro_archivo');
+    const valorSelector = selector ? selector.value : ""; // ej: "2026-04"
+    
+    // Si el selector dice "2026-05", buscamos "/5/2026" o "/05/2026"
+    let mesBusqueda = "";
+    let anioBusqueda = "";
+    if (valorSelector.includes('-')) {
+        const p = valorSelector.split('-');
+        anioBusqueda = p[0];
+        mesBusqueda = parseInt(p[1], 10).toString(); // "05" -> "5"
+    }
 
     snapsPacientes.forEach((snap, index) => {
         const nombreMod = rutas[index].mod;
         const pacientes = snap.val() || {};
 
         for (const idPac in pacientes) {
-            // --- FILTRO ANTIFANTASMAS ---
             if (idPac.includes("SALA") || !pacientes[idPac].nombre) continue;
 
             const p = pacientes[idPac];
             
-            // BUSCAMOS LA FACTURA DEL MES SELECCIONADO
+            // BUSCAMOS LA FACTURA QUE COINCIDA CON EL MES ELEGIDO
             let ultFact = facturasArray.find(f => {
                 const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
                 const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
                 
-                // Buscamos que la fecha contenga el mes y el año (ej: "04" y "2026")
-                const fEmision = f.fecha_emision || "";
-                const coincideFecha = fEmision.includes(`/${mesF}/`) || fEmision.includes(`/${parseInt(mesF)}/`);
-                const coincideAnio = fEmision.includes(anioF);
+                if (!mesBusqueda) return coincideID && coincideMod;
 
-                return coincideID && coincideMod && coincideFecha && coincideAnio;
+                const fecha = f.fecha_emision || "";
+                // Solo es VERDE si la fecha tiene el MES y el AÑO del selector
+                const coincideFecha = (fecha.includes(`/${mesBusqueda}/`) || fecha.includes(`/0${mesBusqueda}/`)) && fecha.includes(anioBusqueda);
+
+                return coincideID && coincideMod && coincideFecha;
             });
-
-            if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
-                ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
-                ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
-            }
 
             let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
             if (p.facturado === 'NO') estadoFinal = 'NO';
@@ -452,7 +454,7 @@ async function procesarTodo() {
             });
         }
     });
-    
+
     window.dataFull = tempFull;
     if (typeof window.render === "function") window.render();
 } 
