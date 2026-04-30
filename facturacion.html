@@ -392,14 +392,13 @@ window.cargarTodo = async () => {
 async function procesarTodo() {
     const dictOS = window.dictOS || {};
 
-    // 1. CARGA DE DATOS (Facturas y Pacientes)
+    // 1. CARGA DE DATOS
     const snapGral = await db.ref('facturas_emitidas').once('value');
     const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
     
     const valGral = snapGral.val() || {};
     const valSaei = snapSaei.val() || {};
 
-    // Fusión de facturas priorizando datos reales
     const todasLasFacturas = { ...valGral };
     for (let key in valSaei) {
         if (!todasLasFacturas[key]) {
@@ -413,9 +412,7 @@ async function procesarTodo() {
         }
     }
     
-    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => {
-        return (b.nro_comp || 0) - (a.nro_comp || 0);
-    });
+    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => (b.nro_comp || 0) - (a.nro_comp || 0));
 
     const rutas = [
         { path: 'cd/pacientes', mod: 'CD' },
@@ -438,51 +435,51 @@ async function procesarTodo() {
         const pacientes = snap.val() || {};
 
         for (const idPac in pacientes) {
-            // Ignoramos nodos que no son pacientes (Salas)
+            // SEGURIDAD: Si no tiene nombre o es una SALA, lo saltamos pero la tabla sigue
             if (idPac.includes("SALA") || !pacientes[idPac].nombre) continue;
 
             const p = pacientes[idPac];
             
-            // BUSCAMOS LA FACTURA EXCLUSIVA DE ESTE MES
+            // BUSCAMOS LA FACTURA
             let ultFact = facturasArray.find(f => {
                 const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
                 const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
                 
-                // Si no hay filtro, se comporta como antes (última histórica)
                 if (!valorSel) return coincideID && coincideMod;
 
-                // Tu Firebase usa "YYYY-MM-DD". El selector usa "YYYY-MM".
-                // Buscamos que la fecha EMPIECE con el mes elegido.
+                // Buscamos el mes y año de forma flexible (que contenga la cadena del selector)
                 const fechaF = f.fecha_emision || "";
-                const coincideFecha = fechaF.startsWith(valorSel);
-
-                return coincideID && coincideMod && coincideFecha;
+                return coincideID && coincideMod && fechaF.includes(valorSel);
             });
 
-            // Procesamos datos de notas de crédito/débito si existen
             if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
                 ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
                 ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
             }
 
-            // ESTADO FINAL: Solo verde si hay factura del mes seleccionado
+            // COLOR VERDE SOLO SI HAY FACTURA DEL MES
             let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
-            
-            // Forzamos NO si el paciente está marcado como no facturable
-            if (p.facturado === 'NO') {
-                estadoFinal = 'NO';
-            }
+            if (p.facturado === 'NO') estadoFinal = 'NO';
 
+            // EL PUSH VA AQUÍ: Fuera de cualquier if de factura para que siempre haya pacientes
             tempFull.push({
                 ...p,
                 id_db: idPac, 
                 id: idPac, 
                 mod: nombreMod,
-                ultima_factura: ultFact, // Si no hay factura de mayo, esto es null
-                facturado: estadoFinal   // Si es null, el color es naranja
+                ultima_factura: ultFact, 
+                facturado: estadoFinal   
             });
         }
     });
+    
+    window.dataFull = tempFull;
+    console.log("✅ Pacientes procesados:", tempFull.length);
+    
+    if (typeof window.render === "function") {
+        window.render();
+    }
+}
     
     window.dataFull = tempFull;
     console.log("✅ Proceso completo. Pacientes listos para renderizar:", tempFull.length);
