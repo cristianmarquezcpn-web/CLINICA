@@ -390,11 +390,30 @@ window.cargarTodo = async () => {
     }
 };
 async function procesarTodo() {
+    const dictOS = window.dictOS || {};
+
     const snapGral = await db.ref('facturas_emitidas').once('value');
     const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
     
-    const todasLasFacturas = { ...(snapGral.val() || {}), ...(snapSaei.val() || {}) };
-    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => (b.nro_comp || 0) - (a.nro_comp || 0));
+    const valGral = snapGral.val() || {};
+    const valSaei = snapSaei.val() || {};
+
+    const todasLasFacturas = { ...valGral };
+    for (let key in valSaei) {
+        if (!todasLasFacturas[key]) {
+            todasLasFacturas[key] = valSaei[key];
+        } else {
+            if (!todasLasFacturas[key].cliente && valSaei[key].cliente) {
+                todasLasFacturas[key] = { ...valSaei[key], ...todasLasFacturas[key] };
+            } else {
+                todasLasFacturas[key] = { ...todasLasFacturas[key], ...valSaei[key] };
+            }
+        }
+    }
+    
+    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => {
+        return (b.nro_comp || 0) - (a.nro_comp || 0);
+    });
 
     const rutas = [
         { path: 'cd/pacientes', mod: 'CD' },
@@ -405,59 +424,71 @@ async function procesarTodo() {
 
     const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
     const snapsPacientes = await Promise.all(promesas);
+
     const tempFull = [];
 
-    // --- BUSCADOR DINÁMICO ---
-    const selector = document.getElementById('mes_filtro_archivo');
-    let filtroMes = ""; // Ejemplo: "05"
-    let filtroAnio = ""; // Ejemplo: "2026"
-
-    if (selector && selector.value) {
-        const partes = selector.value.split('-'); // Separa "2026-05"
-        filtroAnio = partes[0];
-        filtroMes = partes[1];
-    }
+    // --- CAPTURAMOS EL MES DEL SELECTOR ---
+    const valorSel = document.getElementById('mes_filtro_archivo').value; // ej: "2026-05"
+    const [anioF, mesF] = valorSel ? valorSel.split('-') : ["", ""];
+    const mesSinCero = mesF ? parseInt(mesF, 10).toString() : ""; // Convierte "05" en "5"
 
     snapsPacientes.forEach((snap, index) => {
         const nombreMod = rutas[index].mod;
         const pacientes = snap.val() || {};
 
         for (const idPac in pacientes) {
+            // Ignoramos nodos de configuración (Salas)
             if (idPac.includes("SALA") || !pacientes[idPac].nombre) continue;
 
             const p = pacientes[idPac];
             
-            // Buscamos la factura que coincida con el mes y año del selector
+            // BUSCAMOS LA FACTURA (Ahora validando el MES y AÑO)
             let ultFact = facturasArray.find(f => {
                 const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
                 const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
                 
-                if (!filtroMes) return coincideID && coincideMod;
+                // Si no hay fecha elegida, no filtra (comportamiento viejo)
+                if (!mesF) return coincideID && coincideMod;
 
-                const fEmision = f.fecha_emision || ""; // ej: "05/05/2026"
-                
-                // Verificamos que la fecha tenga el mes (con o sin cero) y el año
-                const mesPuro = parseInt(filtroMes, 10).toString();
-                const tieneMes = fEmision.includes(`/${filtroMes}/`) || fEmision.includes(`/${mesPuro}/`);
-                const tieneAnio = fEmision.includes(filtroAnio);
+                // Validamos que la factura sea del mes y año seleccionados
+                const fechaE = f.fecha_emision || ""; // ej: "05/05/2026"
+                const esDelMes = fechaE.includes(`/${mesF}/`) || fechaE.includes(`/${mesSinCero}/`);
+                const esDelAnio = fechaE.includes(anioF);
 
-                return coincideID && coincideMod && tieneMes && tieneAnio;
+                return coincideID && coincideMod && esDelMes && esDelAnio;
             });
 
+            if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
+                ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
+                ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
+            }
+
+            // Si no encontró factura para ESTE mes, el estado es 'NO'
             let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
-            if (p.facturado === 'NO') estadoFinal = 'NO';
+            
+            if (p.facturado === 'NO') {
+                estadoFinal = 'NO';
+            }
 
             tempFull.push({
                 ...p,
-                id_db: idPac, id: idPac, mod: nombreMod,
+                id_db: idPac, 
+                id: idPac, 
+                mod: nombreMod,
                 ultima_factura: ultFact, 
                 facturado: estadoFinal   
             });
         }
     });
-
+    
     window.dataFull = tempFull;
-    if (typeof window.render === "function") window.render();
+    console.log("✅ Datos procesados con filtro de fecha.");
+    
+    if (typeof window.render === "function") {
+        window.render();
+    }
+}
+
 } 
 window.actualizarPanelOS = function() {
     const listaOS = document.getElementById('lista-os');
