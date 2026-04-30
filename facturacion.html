@@ -407,17 +407,15 @@ async function procesarTodo() {
     const snapsPacientes = await Promise.all(promesas);
     const tempFull = [];
 
-    // --- LÓGICA DE MES SEGURO ---
+    // --- BUSCADOR DINÁMICO ---
     const selector = document.getElementById('mes_filtro_archivo');
-    const valorSelector = selector ? selector.value : ""; // ej: "2026-04"
-    
-    // Si el selector dice "2026-05", buscamos "/5/2026" o "/05/2026"
-    let mesBusqueda = "";
-    let anioBusqueda = "";
-    if (valorSelector.includes('-')) {
-        const p = valorSelector.split('-');
-        anioBusqueda = p[0];
-        mesBusqueda = parseInt(p[1], 10).toString(); // "05" -> "5"
+    let filtroMes = ""; // Ejemplo: "05"
+    let filtroAnio = ""; // Ejemplo: "2026"
+
+    if (selector && selector.value) {
+        const partes = selector.value.split('-'); // Separa "2026-05"
+        filtroAnio = partes[0];
+        filtroMes = partes[1];
     }
 
     snapsPacientes.forEach((snap, index) => {
@@ -429,18 +427,21 @@ async function procesarTodo() {
 
             const p = pacientes[idPac];
             
-            // BUSCAMOS LA FACTURA QUE COINCIDA CON EL MES ELEGIDO
+            // Buscamos la factura que coincida con el mes y año del selector
             let ultFact = facturasArray.find(f => {
                 const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
                 const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
                 
-                if (!mesBusqueda) return coincideID && coincideMod;
+                if (!filtroMes) return coincideID && coincideMod;
 
-                const fecha = f.fecha_emision || "";
-                // Solo es VERDE si la fecha tiene el MES y el AÑO del selector
-                const coincideFecha = (fecha.includes(`/${mesBusqueda}/`) || fecha.includes(`/0${mesBusqueda}/`)) && fecha.includes(anioBusqueda);
+                const fEmision = f.fecha_emision || ""; // ej: "05/05/2026"
+                
+                // Verificamos que la fecha tenga el mes (con o sin cero) y el año
+                const mesPuro = parseInt(filtroMes, 10).toString();
+                const tieneMes = fEmision.includes(`/${filtroMes}/`) || fEmision.includes(`/${mesPuro}/`);
+                const tieneAnio = fEmision.includes(filtroAnio);
 
-                return coincideID && coincideMod && coincideFecha;
+                return coincideID && coincideMod && tieneMes && tieneAnio;
             });
 
             let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
