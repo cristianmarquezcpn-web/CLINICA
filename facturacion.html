@@ -392,22 +392,19 @@ window.cargarTodo = async () => {
 async function procesarTodo() {
     const dictOS = window.dictOS || {};
 
-    // --- 1. PRIMERO TRAEMOS LOS DATOS (Esto faltaba y causaba el error) ---
+    // --- 1. TRAEMOS LOS DATOS ---
     const snapGral = await db.ref('facturas_emitidas').once('value');
     const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
     
     const valGral = snapGral.val() || {};
     const valSaei = snapSaei.val() || {};
 
-    // --- 2. FUSIÓN ANTIFANTASMAS (Para que el 0 de cobranzas no pise la factura real) ---
+    // --- 2. FUSIÓN ---
     const todasLasFacturas = { ...valGral };
-
     for (let key in valSaei) {
         if (!todasLasFacturas[key]) {
             todasLasFacturas[key] = valSaei[key];
         } else {
-            // Si la factura existe en ambos nodos, mezclamos los datos.
-            // Priorizamos la que tiene el campo 'cliente' (la factura real).
             if (!todasLasFacturas[key].cliente && valSaei[key].cliente) {
                 todasLasFacturas[key] = { ...valSaei[key], ...todasLasFacturas[key] };
             } else {
@@ -416,7 +413,6 @@ async function procesarTodo() {
         }
     }
     
-    // --- 3. CONVERTIMOS A ARRAY Y ORDENAMOS ---
     const facturasArray = Object.values(todasLasFacturas).sort((a, b) => {
         return (b.nro_comp || 0) - (a.nro_comp || 0);
     });
@@ -430,32 +426,31 @@ async function procesarTodo() {
 
     const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
     const snapsPacientes = await Promise.all(promesas);
-	const tempFull = [];
-    const valorSelector = document.getElementById('mes_filtro_archivo').value; // ej: "2026-04"
-    if (!valorSelector) return; // Si no hay mes, no hacemos nada
+
+    const tempFull = [];
+    const valorSelector = document.getElementById('mes_filtro_archivo').value;
+    if (!valorSelector) return;
 
     const partes = valorSelector.split('-'); 
     const anioF = partes[0];
-    const mesF = parseInt(partes[1], 10).toString(); // Esto convierte "04" en "4" para que coincida siempre
+    const mesF = parseInt(partes[1], 10).toString();
 
     snapsPacientes.forEach((snap, index) => {
         const nombreMod = rutas[index].mod;
         const pacientes = snap.val() || {};
 
         for (const idPac in pacientes) {
-            // --- FILTRO ANTIFANTASMAS ---
-            // Si el ID empieza con "SALA" o no tiene nombre, lo ignoramos
+            // Filtro para ignorar salas y registros sin nombre
             if (idPac.includes("SALA") || !pacientes[idPac].nombre) continue;
 
             const p = pacientes[idPac];
             
-            // BUSCAMOS LA FACTURA
             let ultFact = facturasArray.find(f => {
                 const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
                 const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
                 
-                // Buscamos el mes (ej: "/4/") y el año (ej: "2026")
                 const fechaF = f.fecha_emision || "";
+                // Busca el mes con barras para no confundir "4" con "14"
                 const coincideFecha = fechaF.includes(`/${mesF}/`) || fechaF.includes(`/${partes[1]}/`);
                 const coincideAnio = fechaF.includes(anioF);
 
@@ -482,15 +477,14 @@ async function procesarTodo() {
                 facturado: estadoFinal   
             });
         }
-    });
-
+    }); 
     window.dataFull = tempFull;
-    console.log("✅ Datos procesados y cruzados sin pérdidas. Llamando al render...");
+    console.log("✅ Renderizando...");
     
     if (typeof window.render === "function") {
         window.render();
     }
-}
+} 
 window.actualizarPanelOS = function() {
     const listaOS = document.getElementById('lista-os');
     if(!listaOS) return;
