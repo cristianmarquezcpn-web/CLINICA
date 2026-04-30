@@ -430,28 +430,37 @@ async function procesarTodo() {
 
     const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
     const snapsPacientes = await Promise.all(promesas);
-
-    const tempFull = [];
+	const tempFull = [];
     const valorSelector = document.getElementById('mes_filtro_archivo').value; // ej: "2026-04"
-    
-    // --- PASO CLAVE: Separamos el año y el mes para que coincidan con tus facturas ---
-    const partes = valorSelector.split('-'); // partes[0] = "2026", partes[1] = "04"
+    if (!valorSelector) return; // Si no hay mes, no hacemos nada
+
+    const partes = valorSelector.split('-'); 
     const anioF = partes[0];
-    const mesF = partes[1];
+    const mesF = parseInt(partes[1], 10).toString(); // Esto convierte "04" en "4" para que coincida siempre
 
     snapsPacientes.forEach((snap, index) => {
         const nombreMod = rutas[index].mod;
         const pacientes = snap.val() || {};
 
         for (const idPac in pacientes) {
+            // --- FILTRO ANTIFANTASMAS ---
+            // Si el ID empieza con "SALA" o no tiene nombre, lo ignoramos
+            if (idPac.includes("SALA") || !pacientes[idPac].nombre) continue;
+
             const p = pacientes[idPac];
             
-            // BUSCAMOS LA FACTURA (Ahora comparando mes y año por separado)
-            let ultFact = facturasArray.find(f => 
-                (f.id_paciente === idPac || f.id_paciente_db === idPac) && 
-                String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase() &&
-                (f.fecha_emision && f.fecha_emision.includes(mesF) && f.fecha_emision.includes(anioF))
-            );
+            // BUSCAMOS LA FACTURA
+            let ultFact = facturasArray.find(f => {
+                const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
+                const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
+                
+                // Buscamos el mes (ej: "/4/") y el año (ej: "2026")
+                const fechaF = f.fecha_emision || "";
+                const coincideFecha = fechaF.includes(`/${mesF}/`) || fechaF.includes(`/${partes[1]}/`);
+                const coincideAnio = fechaF.includes(anioF);
+
+                return coincideID && coincideMod && coincideFecha && coincideAnio;
+            });
 
             if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
                 ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
@@ -464,7 +473,6 @@ async function procesarTodo() {
                 estadoFinal = 'NO';
             }
 
-
             tempFull.push({
                 ...p,
                 id_db: idPac, 
@@ -475,7 +483,7 @@ async function procesarTodo() {
             });
         }
     });
-    
+
     window.dataFull = tempFull;
     console.log("✅ Datos procesados y cruzados sin pérdidas. Llamando al render...");
     
