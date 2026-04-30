@@ -443,7 +443,9 @@ async function procesarTodo() {
             // BUSCAMOS LA FACTURA (Cruce blindado por ID)
             let ultFact = facturasArray.find(f => 
                 (f.id_paciente === idPac || f.id_paciente_db === idPac) && 
-                String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase()
+                String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase() &&
+				(f.fecha_emision && f.fecha_emision.includes(mesFiltroActual)) 
+						 
             );
 
             if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
