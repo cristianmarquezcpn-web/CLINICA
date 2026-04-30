@@ -390,101 +390,87 @@ window.cargarTodo = async () => {
     }
 };
 async function procesarTodo() {
-    const dictOS = window.dictOS || {};
+    try {
+        const snapGral = await db.ref('facturas_emitidas').once('value');
+        const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
+        const valGral = snapGral.val() || {};
+        const valSaei = snapSaei.val() || {};
 
-    // --- 1. TRAEMOS LOS DATOS ---
-    const snapGral = await db.ref('facturas_emitidas').once('value');
-    const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
-    
-    const valGral = snapGral.val() || {};
-    const valSaei = snapSaei.val() || {};
-
-    // --- 2. FUSIÓN ---
-    const todasLasFacturas = { ...valGral };
-    for (let key in valSaei) {
-        if (!todasLasFacturas[key]) {
-            todasLasFacturas[key] = valSaei[key];
-        } else {
-            if (!todasLasFacturas[key].cliente && valSaei[key].cliente) {
-                todasLasFacturas[key] = { ...valSaei[key], ...todasLasFacturas[key] };
-            } else {
-                todasLasFacturas[key] = { ...todasLasFacturas[key], ...valSaei[key] };
-            }
+        const todasLasFacturas = { ...valGral };
+        for (let key in valSaei) {
+            if (!todasLasFacturas[key]) todasLasFacturas[key] = valSaei[key];
         }
-    }
-    
-    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => {
-        return (b.nro_comp || 0) - (a.nro_comp || 0);
-    });
+        
+        const facturasArray = Object.values(todasLasFacturas).sort((a, b) => (b.nro_comp || 0) - (a.nro_comp || 0));
 
-    const rutas = [
-        { path: 'cd/pacientes', mod: 'CD' },
-        { path: 'cet/pacientes', mod: 'CET' },
-        { path: 'rehab/pacientes', mod: 'REHAB' },
-        { path: 'saei/pacientes', mod: 'SAEI' } 
-    ];
+        const rutas = [
+            { path: 'cd/pacientes', mod: 'CD' },
+            { path: 'cet/pacientes', mod: 'CET' },
+            { path: 'rehab/pacientes', mod: 'REHAB' },
+            { path: 'saei/pacientes', mod: 'SAEI' } 
+        ];
 
-    const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
-    const snapsPacientes = await Promise.all(promesas);
+        const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
+        const snapsPacientes = await Promise.all(promesas);
+        const tempFull = [];
 
-    const tempFull = [];
-    const valorSelector = document.getElementById('mes_filtro_archivo').value;
-    if (!valorSelector) return;
+        // --- LÓGICA DEL FILTRO VERDE ---
+        const selector = document.getElementById('mes_filtro_archivo');
+        const valorSelector = selector ? selector.value : ""; // ej: "2026-04"
+        
+        let mesF = "";
+        let anioF = "";
+        if (valorSelector.includes('-')) {
+            const partes = valorSelector.split('-');
+            anioF = partes[0];
+            mesF = parseInt(partes[1], 10).toString(); // Quita el cero: "04" -> "4"
+        }
 
-    const partes = valorSelector.split('-'); 
-    const anioF = partes[0];
-    const mesF = parseInt(partes[1], 10).toString();
+        snapsPacientes.forEach((snap, index) => {
+            const nombreMod = rutas[index].mod;
+            const pacientes = snap.val() || {};
 
-    snapsPacientes.forEach((snap, index) => {
-        const nombreMod = rutas[index].mod;
-        const pacientes = snap.val() || {};
+            for (const idPac in pacientes) {
+                if (idPac.includes("SALA") || !pacientes[idPac].nombre) continue;
 
-        for (const idPac in pacientes) {
-            // Filtro para ignorar salas y registros sin nombre
-            if (idPac.includes("SALA") || !pacientes[idPac].nombre) continue;
-
-            const p = pacientes[idPac];
-            
-            let ultFact = facturasArray.find(f => {
-                const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
-                const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
+                const p = pacientes[idPac];
                 
-                const fechaF = f.fecha_emision || "";
-                // Busca el mes con barras para no confundir "4" con "14"
-                const coincideFecha = fechaF.includes(`/${mesF}/`) || fechaF.includes(`/${partes[1]}/`);
-                const coincideAnio = fechaF.includes(anioF);
+                // Buscamos la factura que coincida con el mes elegido
+                let ultFact = facturasArray.find(f => {
+                    const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
+                    const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
+                    
+                    const fechaF = f.fecha_emision || ""; // ej: "29/04/2026"
+                    
+                    // Si no hay filtro, mostramos la última que exista. 
+                    // Si hay filtro, comparamos mes y año.
+                    if (!mesF) return coincideID && coincideMod;
 
-                return coincideID && coincideMod && coincideFecha && coincideAnio;
-            });
+                    const tieneMes = fechaF.includes(`/${mesF}/`) || fechaF.includes(`/0${mesF}/`);
+                    const tieneAnio = fechaF.includes(anioF);
+                    return coincideID && coincideMod && tieneMes && tieneAnio;
+                });
 
-            if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
-                ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
-                ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
+                let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
+                if (p.facturado === 'NO') estadoFinal = 'NO';
+
+                tempFull.push({
+                    ...p,
+                    id_db: idPac, id: idPac, mod: nombreMod,
+                    ultima_factura: ultFact, 
+                    facturado: estadoFinal   
+                });
             }
+        });
 
-            let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
-            
-            if (p.facturado === 'NO') {
-                estadoFinal = 'NO';
-            }
+        window.dataFull = tempFull;
+        if (typeof window.render === "function") window.render();
 
-            tempFull.push({
-                ...p,
-                id_db: idPac, 
-                id: idPac, 
-                mod: nombreMod,
-                ultima_factura: ultFact, 
-                facturado: estadoFinal   
-            });
-        }
-    }); 
-    window.dataFull = tempFull;
-    console.log("✅ Renderizando...");
-    
-    if (typeof window.render === "function") {
-        window.render();
+    } catch (error) {
+        console.error("Error en procesarTodo:", error);
+        alert("Hubo un error, pero la pantalla no se bloqueó. Revisá la consola.");
     }
-} 
+}
 window.actualizarPanelOS = function() {
     const listaOS = document.getElementById('lista-os');
     if(!listaOS) return;
