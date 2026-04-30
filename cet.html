@@ -385,7 +385,8 @@
             w.document.write(`<iframe src="${oldData}" width="100%" height="100%" style="border:none"></iframe>`);
         }
     }
-
+    function eliminarPaciente() { if(!confirm("¿Borrar definitivamente a " + nF + "?")) return; database.child(`pacientes/${nF}`).set(null).then(() => { alert("Eliminado"); cerrar(); }); }
+    }
     function borradoMasivoLegajos() {
         if(!confirm("⚠️ ¿BORRAR TODOS LOS PDFs/FOTOS?")) return;
         if(prompt("Escribe BORRAR:") !== "BORRAR") return;
