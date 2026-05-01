@@ -609,9 +609,8 @@ async function procesarTodo() {
         let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${(facturado || !tieneAsist) ? 'disabled' : ''}> ${estadoVisual}`;
         
         // BOTÓN PDF: Ahora usa el ID exacto de la última factura con CAE
-       if (miFactura && miFactura.cae) {
-    const fId = miFactura.id; // Guardamos el ID en una variable limpia
-
+       if (miFactura && miFactura.id) {
+    const fId = miFactura.id;
     colAccion += `<div style="margin-top:5px;">
         <button class="btn" style="background:var(--verde); font-size:8px; padding:4px; color:white; border:none;" 
             onclick="window.descargarFactura('${fId}')">PDF</button>
@@ -619,8 +618,7 @@ async function procesarTodo() {
         <button class="btn" style="background:var(--naranja); font-size:8px; padding:4px; color:white; border:none;" 
             onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${fId}')">Refac</button>
     </div>`;
-}
-
+	   }
         const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
         tr.innerHTML = `
             <td style="text-align:center">${colAccion}</td>
@@ -699,21 +697,18 @@ async function procesarTodo() {
 };
 window.gestionarTipoComp = function(select) {
     const tr = select.closest('tr');
-    if (!tr) return; 
-
+    if (!tr) return;
     const box = tr.querySelector('.asociado-box');
     const pVtaInput = tr.querySelector('.aso-pv');
     
-    // Si existe el box, lo mostramos. Si no, no rompemos nada.
     if (box) {
         box.style.display = (select.value == '3' || select.value == '8') ? 'block' : 'none';
     }
-    
-    // Esto es para que el punto de venta se ponga en 5 automáticamente
     if (pVtaInput && (select.value == '3' || select.value == '8')) {
         pVtaInput.value = 5;
     }
 };
+
 async function enviarAFIP_WS() {
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("Selecciona pacientes");
