@@ -390,93 +390,70 @@ window.cargarTodo = async () => {
     }
 };
 async function procesarTodo() {
-    const dictOS = window.dictOS || {};
+    // 1. Obtenemos el mes actual para saber qué período "debería" estar facturado
+    // Formato: YYYY-MM (ej: 2026-05)
+    const ahora = new Date();
+    const periodoActual = ahora.toISOString().slice(0, 7); 
 
-    // 1. TRAEMOS LOS DATOS
-    const snapGral = await db.ref('facturas_emitidas').once('value');
-    const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
-    
-    const valGral = snapGral.val() || {};
-    const valSaei = snapSaei.val() || {};
+    try {
+        const snapGral = await db.ref('facturas_emitidas').once('value');
+        const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
+        
+        const facturasArray = Object.values({ ...(snapGral.val() || {}), ...(snapSaei.val() || {}) })
+            .sort((a, b) => (b.fecha_emision > a.fecha_emision ? 1 : -1));
 
-    // 2. FUSIÓN
-    const todasLasFacturas = { ...valGral };
-    for (let key in valSaei) {
-        if (!todasLasFacturas[key]) {
-            todasLasFacturas[key] = valSaei[key];
-        } else {
-            if (!todasLasFacturas[key].cliente && valSaei[key].cliente) {
-                todasLasFacturas[key] = { ...valSaei[key], ...todasLasFacturas[key] };
-            } else {
-                todasLasFacturas[key] = { ...todasLasFacturas[key], ...valSaei[key] };
-            }
-        }
-    }
-    
-    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => {
-        return (b.nro_comp || 0) - (a.nro_comp || 0);
-    });
+        const rutas = [
+            { path: 'cd/pacientes', mod: 'CD' },
+            { path: 'cet/pacientes', mod: 'CET' },
+            { path: 'rehab/pacientes', mod: 'REHAB' },
+            { path: 'saei/pacientes', mod: 'SAEI' } 
+        ];
 
-    const rutas = [
-        { path: 'cd/pacientes', mod: 'CD' },
-        { path: 'cet/pacientes', mod: 'CET' },
-        { path: 'rehab/pacientes', mod: 'REHAB' },
-        { path: 'saei/pacientes', mod: 'SAEI' } 
-    ];
+        const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
+        const snaps = await Promise.all(promesas);
+        const tempFull = [];
 
-    const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
-    const snapsPacientes = await Promise.all(promesas);
+        snaps.forEach((snap, index) => {
+            const nombreMod = rutas[index].mod;
+            const pacientes = snap.val() || {};
 
-    const tempFull = [];
+            for (const idPac in pacientes) {
+                const p = pacientes[idPac];
+                if (!p || !p.nombre || idPac.includes("SALA")) continue;
 
-    // --- CAPTURAMOS EL MES DEL SELECTOR ---
-    const selector = document.getElementById('mes_filtro_archivo');
-    const valorSel = selector ? selector.value : ""; // ej: "2026-05"
+                // Buscamos todas las facturas de este paciente
+                const susFacturas = facturasArray.filter(f => 
+                    (f.id_paciente === idPac || f.id_paciente_db === idPac) &&
+                    String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase()
+                );
 
-    snapsPacientes.forEach((snap, index) => {
-        const nombreMod = rutas[index].mod;
-        const pacientes = snap.val() || {};
-
-        for (const idPac in pacientes) {
-            const p = pacientes[idPac];
-            if (idPac.includes("SALA") || !p.nombre) continue;
-            
-            // BUSCAMOS LA FACTURA (Validando el mes del selector)
-            let ultFact = facturasArray.find(f => {
-                const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
-                const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
+                // DETERMINAMOS EL COLOR:
+                // ¿Existe alguna factura que en su campo 'periodo' tenga el mes actual?
+                const facturaDelPeriodo = susFacturas.find(f => f.periodo === periodoActual);
                 
-                if (!valorSel) return coincideID && coincideMod;
+                // DETERMINAMOS EL PDF:
+                // Siempre la última factura con CAE para que el botón funcione
+                const ultimaConCAE = susFacturas.find(f => f.cae);
 
-                const fechaF = f.fecha_emision || "";
-                return coincideID && coincideMod && fechaF.startsWith(valorSel);
-            });
+                // Si hay factura del PERIODO actual -> Verde. Si no -> Naranja.
+                let estadoColor = (facturaDelPeriodo && facturaDelPeriodo.cae) ? 'SI' : 'NO';
 
-            if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
-                ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
-                ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
+                tempFull.push({
+                    ...p,
+                    id_db: idPac, 
+                    id: idPac, 
+                    mod: nombreMod,
+                    ultima_factura: ultimaConCAE || null, 
+                    facturado: estadoColor 
+                });
             }
+        });
 
-            // --- LA CLAVE DEL COLOR ---
-            // Ignoramos p.facturado. El color SOLO es verde si encontramos factura de este mes con CAE.
-            let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
+        window.dataFull = tempFull;
+        if (typeof window.render === "function") window.render();
 
-            tempFull.push({
-                ...p,
-                id_db: idPac, 
-                id: idPac, 
-                mod: nombreMod,
-                ultima_factura: ultFact, 
-                facturado: estadoFinal // Aquí mandamos el estado calculado por el mes, no el de la base
-            });
-        }
-    });
-    
-    window.dataFull = tempFull;
-    console.log("✅ Tabla actualizada por mes. Total:", tempFull.length);
-    
-    if (typeof window.render === "function") {
-        window.render();
+    } catch (e) {
+        console.error("Error en procesarTodo:", e);
     }
 }
 	window.actualizarPanelOS = function() {
