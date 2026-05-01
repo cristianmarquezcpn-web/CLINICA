@@ -390,73 +390,99 @@ window.cargarTodo = async () => {
     }
 };
 async function procesarTodo() {
-    console.log("🚀 Iniciando proceso...");
-    const selector = document.getElementById('mes_filtro_archivo');
-    const valorSel = selector ? selector.value : ""; // ej: "2026-05"
+    const dictOS = window.dictOS || {};
 
-    try {
-        // 1. CARGAMOS FACTURAS (Sin que un error aquí frene lo demás)
-        const snapGral = await db.ref('facturas_emitidas').once('value');
-        const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
-        const facturasArray = Object.values({ ...(snapGral.val() || {}), ...(snapSaei.val() || {}) });
+    // 1. TRAEMOS LOS DATOS
+    const snapGral = await db.ref('facturas_emitidas').once('value');
+    const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
+    
+    const valGral = snapGral.val() || {};
+    const valSaei = snapSaei.val() || {};
 
-        // 2. CARGAMOS PACIENTES
-        const rutas = [
-            { path: 'cd/pacientes', mod: 'CD' },
-            { path: 'cet/pacientes', mod: 'CET' },
-            { path: 'rehab/pacientes', mod: 'REHAB' },
-            { path: 'saei/pacientes', mod: 'SAEI' } 
-        ];
-
-        const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
-        const snaps = await Promise.all(promesas);
-        const tempFull = [];
-
-        snaps.forEach((snap, index) => {
-            const nombreMod = rutas[index].mod;
-            const pacientes = snap.val() || {};
-
-            for (const idPac in pacientes) {
-                const p = pacientes[idPac];
-                if (!p || idPac.includes("SALA") || !p.nombre) continue;
-
-                // BUSCADOR DE FACTURA: Si no encuentra, ultFact será null
-                let ultFact = facturasArray.find(f => {
-                    const mismoID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
-                    const mismoMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
-                    
-                    // Si hay mes elegido, comparamos. Si no hay match, sigue buscando.
-                    const fechaF = f.fecha_emision || "";
-                    const coincideMes = valorSel ? fechaF.includes(valorSel) : true;
-
-                    return mismoID && mismoMod && coincideMes;
-                });
-
-                // ESTADO: Verde solo si hay factura de este mes. Si no, Naranja.
-                let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
-                if (p.facturado === 'NO') estadoFinal = 'NO';
-
-                // EL PUSH ES SAGRADO: Se hace siempre para que la tabla no de 0
-                tempFull.push({
-                    ...p,
-                    id_db: idPac, 
-                    id: idPac, 
-                    mod: nombreMod,
-                    ultima_factura: ultFact, 
-                    facturado: estadoFinal   
-                });
+    // 2. FUSIÓN
+    const todasLasFacturas = { ...valGral };
+    for (let key in valSaei) {
+        if (!todasLasFacturas[key]) {
+            todasLasFacturas[key] = valSaei[key];
+        } else {
+            if (!todasLasFacturas[key].cliente && valSaei[key].cliente) {
+                todasLasFacturas[key] = { ...valSaei[key], ...todasLasFacturas[key] };
+            } else {
+                todasLasFacturas[key] = { ...todasLasFacturas[key], ...valSaei[key] };
             }
-        });
-
-        window.dataFull = tempFull;
-        console.log("🏁 Finalizado. Pacientes en lista:", tempFull.length);
-
-        if (typeof window.render === "function") {
-            window.render();
         }
+    }
+    
+    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => {
+        return (b.nro_comp || 0) - (a.nro_comp || 0);
+    });
 
-    } catch (error) {
-        console.error("❌ Error crítico en procesarTodo:", error);
+    const rutas = [
+        { path: 'cd/pacientes', mod: 'CD' },
+        { path: 'cet/pacientes', mod: 'CET' },
+        { path: 'rehab/pacientes', mod: 'REHAB' },
+        { path: 'saei/pacientes', mod: 'SAEI' } 
+    ];
+
+    const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
+    const snapsPacientes = await Promise.all(promesas);
+
+    const tempFull = [];
+
+    // --- CAPTURAMOS EL MES DEL SELECTOR ---
+    const selector = document.getElementById('mes_filtro_archivo');
+    const valorSel = selector ? selector.value : ""; // ej: "2026-04"
+
+    snapsPacientes.forEach((snap, index) => {
+        const nombreMod = rutas[index].mod;
+        const pacientes = snap.val() || {};
+
+        for (const idPac in pacientes) {
+            const p = pacientes[idPac];
+            
+            // BUSCAMOS LA FACTURA (Validando que empiece con el año-mes del selector)
+            let ultFact = facturasArray.find(f => {
+                const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
+                const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
+                
+                // Si no hay valor en el selector, mostramos la última histórica (tu código viejo)
+                if (!valorSel) return coincideID && coincideMod;
+
+                // Tu Firebase usa "2025-02-20", el selector usa "2025-02". Usamos startsWith.
+                const fechaF = f.fecha_emision || "";
+                const coincideFecha = fechaF.startsWith(valorSel);
+
+                return coincideID && coincideMod && coincideFecha;
+            });
+
+            if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
+                ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
+                ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
+            }
+
+            // Si encontró factura para ESTE mes y tiene CAE, verde. Si no, naranja.
+            let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
+            
+            if (p.facturado === 'NO') {
+                estadoFinal = 'NO';
+            }
+
+            tempFull.push({
+                ...p,
+                id_db: idPac, 
+                id: idPac, 
+                mod: nombreMod,
+                ultima_factura: ultFact, // Si es de otro mes, aquí irá null
+                facturado: estadoFinal   
+            });
+        }
+    });
+    
+    window.dataFull = tempFull;
+    console.log("✅ Datos procesados con filtro de mes. Total:", tempFull.length);
+    
+    if (typeof window.render === "function") {
+        window.render();
     }
 }
 	window.actualizarPanelOS = function() {
