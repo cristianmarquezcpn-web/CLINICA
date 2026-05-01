@@ -612,7 +612,7 @@ async function procesarTodo() {
 if (miFactura && miFactura.cae) {
     colAccion += `<div style="margin-top:5px;">
         <button class="btn" style="background:var(--verde); font-size:8px; padding:4px; color:white; border:none;" 
-            onclick='window.generarPDF(${JSON.stringify(miFactura)})'>PDF</button>
+            onclick='window.descargarFactura(${JSON.stringify(miFactura)})'>PDF</button>
         
         <button class="btn" style="background:var(--naranja); font-size:8px; padding:4px; color:white; border:none;" 
             onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button>
