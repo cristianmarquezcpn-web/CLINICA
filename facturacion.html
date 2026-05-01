@@ -590,14 +590,17 @@ window.render = function() {
         
         // El checkbox se bloquea solo si no hay asistencia o si ya se facturó ESTE mes
         // --- LÓGICA DE BOTONES (CORREGIDA PARA ENCONTRAR EL PDF) ---
-        let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${(facturado || !tieneAsist) ? 'disabled' : ''}> ${estadoVisual}`;
-        
         if (miFactura && miFactura.cae) {
-            colAccion += `<div style="margin-top:5px;">
-                <button class="btn" style="background:#2ecc71; font-size:8px; padding:4px; color:white; border:none;" onclick="window.descargarFactura('${miFactura.id || idPaciente}')">PDF</button>
-                <button class="btn" style="background:#e67e22; font-size:8px; padding:4px; color:white; border:none; margin-left:2px;" onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button>
-            </div>`;
-        }
+    // Usamos p.nombre o el id que usas como nombre (el que aparece en la tabla)
+    const nombreParaBuscar = p.nombre || idPaciente;
+
+    colAccion += `<div style="margin-top:5px;">
+        <button class="btn" style="background:#2ecc71; font-size:8px; padding:4px; color:white; border:none;" 
+            onclick="window.descargarFactura('${nombreParaBuscar}')">PDF</button>
+        <button class="btn" style="background:#e67e22; font-size:8px; padding:4px; color:white; border:none; margin-left:2px;" 
+            onclick="window.habilitarParaRefacturar('${idPaciente}')">Refac</button>
+    </div>`;
+}
         const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
 
         tr.innerHTML = `
@@ -1026,27 +1029,29 @@ const MODELO_FACTURA_B = (d) => {
         </div>
     </div>`;
 };
-	window.descargarFactura = async (id) => {
-    // 1. Buscamos el dato crudo en Firebase (General o SAEI)
-    let snap = await db.ref('facturas_emitidas/' + id).once('value');
-    let p = snap.val();
+	window.descargarFactura = async (nombrePaciente) => { // Ahora recibe el NOMBRE
+    if (!nombrePaciente) return alert("No se reconoce al paciente");
 
-    if (!p) {
-        snap = await db.ref('facturas_emitidas_saei/' + id).once('value');
-        p = snap.val();
-    }
+    // 1. Buscamos en Firebase la factura que tenga ese nombre de paciente
+    const snap = await db.ref('facturas_emitidas').once('value');
+    const facturas = snap.val() || {};
+    
+    // Filtramos las facturas del paciente y nos quedamos con la última (por fecha)
+    const lista = Object.values(facturas)
+        .filter(f => String(f.id_paciente).toUpperCase().includes(String(nombrePaciente).toUpperCase()))
+        .sort((a, b) => (b.fecha_emision || "").localeCompare(a.fecha_emision || ""));
 
-    // 2. COMPROBACIÓN DIRECTA (Sin funciones raras)
-    // Buscamos el CAE tal como lo guarda el motor (puede ser 'cae' o 'cae_num')
+    const p = lista[0]; // Tomamos la más reciente
+
+    // 2. COMPROBACIÓN DIRECTA
     const miCAE = p?.cae || p?.cae_num || p?.CAE;
 
     if (!p || !miCAE) {
-        console.error("Datos encontrados en DB:", p);
-        return alert("Error: No se encontró el CAE en el registro de Firebase.");
+        console.error("No se encontró factura para:", nombrePaciente);
+        return alert("Error: No se encontró factura con CAE para este paciente.");
     }
 
-    // 3. De acá para abajo, el PDF usa los datos de 'p' directamente
-    // p.razon_social, p.cuit, p.total, etc.
+    // 3. De acá para abajo, TU CÓDIGO SIGUE IGUAL (No toques nada más)
     console.log("Generando PDF para:", p.razon_social, "CAE:", miCAE);
     const cuitEmisor = "30714900192";
         
