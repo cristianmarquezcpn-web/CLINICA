@@ -612,7 +612,7 @@ async function procesarTodo() {
 if (miFactura && miFactura.cae) {
     colAccion += `<div style="margin-top:5px;">
         <button class="btn" style="background:var(--verde); font-size:8px; padding:4px; color:white; border:none;" 
-            onclick='window.descargarFactura(${JSON.stringify(miFactura)})'>PDF</button>
+            onclick="window.descargarFactura('${miFactura.id}')"
         
         <button class="btn" style="background:var(--naranja); font-size:8px; padding:4px; color:white; border:none;" 
             onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button>
@@ -1057,6 +1057,10 @@ const MODELO_FACTURA_B = (d) => {
     </div>`;
 };
 	window.descargarFactura = async (id) => {
+    if (!id || typeof id !== 'string') {
+        console.error("El ID recibido no es válido:", id);
+        return;
+	}
     // 1. Buscamos el dato crudo en Firebase (General o SAEI)
     let snap = await db.ref('facturas_emitidas/' + id).once('value');
     let p = snap.val();
