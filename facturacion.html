@@ -390,91 +390,73 @@ window.cargarTodo = async () => {
     }
 };
 async function procesarTodo() {
-    const dictOS = window.dictOS || {};
-
-    // 1. CARGA DE DATOS
-    const snapGral = await db.ref('facturas_emitidas').once('value');
-    const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
-    
-    const valGral = snapGral.val() || {};
-    const valSaei = snapSaei.val() || {};
-
-    const todasLasFacturas = { ...valGral };
-    for (let key in valSaei) {
-        if (!todasLasFacturas[key]) {
-            todasLasFacturas[key] = valSaei[key];
-        } else {
-            if (!todasLasFacturas[key].cliente && valSaei[key].cliente) {
-                todasLasFacturas[key] = { ...valSaei[key], ...todasLasFacturas[key] };
-            } else {
-                todasLasFacturas[key] = { ...todasLasFacturas[key], ...valSaei[key] };
-            }
-        }
-    }
-    
-    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => (b.nro_comp || 0) - (a.nro_comp || 0));
-
-    const rutas = [
-        { path: 'cd/pacientes', mod: 'CD' },
-        { path: 'cet/pacientes', mod: 'CET' },
-        { path: 'rehab/pacientes', mod: 'REHAB' },
-        { path: 'saei/pacientes', mod: 'SAEI' } 
-    ];
-
-    const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
-    const snapsPacientes = await Promise.all(promesas);
-
-    const tempFull = [];
-
-    // --- SELECTOR DE MES ---
+    console.log("🚀 Iniciando proceso...");
     const selector = document.getElementById('mes_filtro_archivo');
     const valorSel = selector ? selector.value : ""; // ej: "2026-05"
 
-    snapsPacientes.forEach((snap, index) => {
-        const nombreMod = rutas[index].mod;
-        const pacientes = snap.val() || {};
+    try {
+        // 1. CARGAMOS FACTURAS (Sin que un error aquí frene lo demás)
+        const snapGral = await db.ref('facturas_emitidas').once('value');
+        const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
+        const facturasArray = Object.values({ ...(snapGral.val() || {}), ...(snapSaei.val() || {}) });
 
-        for (const idPac in pacientes) {
-            if (idPac.includes("SALA") || !pacientes[idPac].nombre) continue;
+        // 2. CARGAMOS PACIENTES
+        const rutas = [
+            { path: 'cd/pacientes', mod: 'CD' },
+            { path: 'cet/pacientes', mod: 'CET' },
+            { path: 'rehab/pacientes', mod: 'REHAB' },
+            { path: 'saei/pacientes', mod: 'SAEI' } 
+        ];
 
-            const p = pacientes[idPac];
-            
-            // BUSCADOR FLEXIBLE
-            let ultFact = facturasArray.find(f => {
-                const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
-                const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
-                
-                if (!valorSel) return coincideID && coincideMod;
+        const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
+        const snaps = await Promise.all(promesas);
+        const tempFull = [];
 
-                const fechaF = f.fecha_emision || "";
-                return coincideID && coincideMod && fechaF.includes(valorSel);
-            });
+        snaps.forEach((snap, index) => {
+            const nombreMod = rutas[index].mod;
+            const pacientes = snap.val() || {};
 
-            if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
-                ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
-                ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
+            for (const idPac in pacientes) {
+                const p = pacientes[idPac];
+                if (!p || idPac.includes("SALA") || !p.nombre) continue;
+
+                // BUSCADOR DE FACTURA: Si no encuentra, ultFact será null
+                let ultFact = facturasArray.find(f => {
+                    const mismoID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
+                    const mismoMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
+                    
+                    // Si hay mes elegido, comparamos. Si no hay match, sigue buscando.
+                    const fechaF = f.fecha_emision || "";
+                    const coincideMes = valorSel ? fechaF.includes(valorSel) : true;
+
+                    return mismoID && mismoMod && coincideMes;
+                });
+
+                // ESTADO: Verde solo si hay factura de este mes. Si no, Naranja.
+                let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
+                if (p.facturado === 'NO') estadoFinal = 'NO';
+
+                // EL PUSH ES SAGRADO: Se hace siempre para que la tabla no de 0
+                tempFull.push({
+                    ...p,
+                    id_db: idPac, 
+                    id: idPac, 
+                    mod: nombreMod,
+                    ultima_factura: ultFact, 
+                    facturado: estadoFinal   
+                });
             }
+        });
 
-            let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
-            if (p.facturado === 'NO') estadoFinal = 'NO';
+        window.dataFull = tempFull;
+        console.log("🏁 Finalizado. Pacientes en lista:", tempFull.length);
 
-            // AGREGAMOS AL PACIENTE (SIEMPRE)
-            tempFull.push({
-                ...p,
-                id_db: idPac, 
-                id: idPac, 
-                mod: nombreMod,
-                ultima_factura: ultFact, 
-                facturado: estadoFinal   
-            });
-        } // Cierre del for
-    }); // Cierre del forEach
-    
-    window.dataFull = tempFull;
-    console.log("✅ Pacientes procesados:", tempFull.length);
-    
-    if (typeof window.render === "function") {
-        window.render();
+        if (typeof window.render === "function") {
+            window.render();
+        }
+
+    } catch (error) {
+        console.error("❌ Error crítico en procesarTodo:", error);
     }
 }
 	window.actualizarPanelOS = function() {
