@@ -589,14 +589,21 @@ window.render = function() {
         let estadoVisual = facturado ? `<br><b style="color:green; font-size:9px;">FACTURADO</b>` : (!tieneAsist ? `<br><b style="color:red; font-size:9px;">SIN ASISTENCIA</b>` : `<br><b style="color:orange; font-size:9px;">PENDIENTE</b>`);
         
         // El checkbox se bloquea solo si no hay asistencia o si ya se facturó ESTE mes
-        let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${(facturado || !tieneAsist) ? 'disabled' : ''}> ${estadoVisual}`;
-        
-        if (miFactura && miFactura.cae) {
-            colAccion += `<div style="margin-top:5px;">
-                <button class="btn" style="background:#2ecc71; font-size:8px; padding:4px; color:white; border:none;" onclick="window.descargarFactura('${miFactura.id || idPaciente}')">PDF</button>
-                <button class="btn" style="background:#e67e22; font-size:8px; padding:4px; color:white; border:none; margin-left:2px;" onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button>
-            </div>`;
-        }
+        // --- LÓGICA DE BOTONES (CORREGIDA PARA ENCONTRAR EL PDF) ---
+let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${(facturado || !tieneAsist) ? 'disabled' : ''}> ${estadoVisual}`;
+
+if (miFactura && miFactura.cae) {
+    // CAMBIO CLAVE: Usamos el nombre que figura en la factura o el nombre del legajo.
+    // Esto es lo que tu Firebase Realtime Database tiene en el campo 'id_paciente'.
+    const nombreParaBusqueda = miFactura.receptor_nombre || p.nombre || idPaciente;
+
+    colAccion += `<div style="margin-top:5px;">
+        <button class="btn" style="background:#2ecc71; font-size:8px; padding:4px; color:white; border:none;" 
+            onclick="window.descargarFactura('${nombreParaBusqueda}')">PDF</button>
+        <button class="btn" style="background:#e67e22; font-size:8px; padding:4px; color:white; border:none; margin-left:2px;" 
+            onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button>
+    </div>`;
+}
 
         const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
 
