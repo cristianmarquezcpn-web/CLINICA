@@ -523,27 +523,24 @@ async function procesarTodo() {
 };
 	window.render = function() {
     const b = document.getElementById('tabla-body');
-    // Usamos window.dataFull para asegurar que leemos la versión de Firebase
     if (!b || !window.dataFull) return;
 
-    // 🛡️ ESCUDO ANTI-INTERRUPCIÓN
-    // Si el usuario está escribiendo en un filtro, no redibujamos la tabla todavía
     if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
         return; 
     }
 
-    b.innerHTML = ""; // Limpiamos la tabla antes de reconstruir
+    b.innerHTML = ""; 
 
     const diccOS = (window.config && window.config.obras_sociales) ? window.config.obras_sociales : (window.dictOS || {});
     const listaNombresOS = Object.keys(diccOS);
 
-    // Variable para acumular el HTML y hacer una sola carga al DOM (más rápido)
-    let htmlGenerado = "";
+    // DETERMINAMOS EL MES ACTUAL (Ej: "2026-05")
+    const hoy = new Date();
+    const periodoActual = hoy.getFullYear() + "-" + String(hoy.getMonth() + 1).padStart(2, '0');
 
     window.dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
     .filter(p => {
-        // Mantenemos tu lógica de filtro por módulo
         if (typeof filtroActual === 'undefined' || filtroActual === 'TODOS') return true;
         const mod = (p.modulo || p.mod || "").toUpperCase();
         return mod === filtroActual.toUpperCase();
@@ -552,13 +549,18 @@ async function procesarTodo() {
         const idPaciente = p.id || p.id_db || "S/N";
         const nombreMod  = (p.modulo || p.mod || "S/M").toUpperCase();
         const miFactura = p.ultima_factura_saei || p.ultima_factura; 
-        const facturado = !!(miFactura && (miFactura.cae || miFactura.id));
-		const estaFacturado = (p.facturado === 'SI' || p.cae != null); 
-		const claseGris = estaFacturado ? 'fila-bloqueada' : '';
-        // Lógica de Obra Social que ya tenías (Excelente para evitar errores de tipeo)
+
+        // --- LÓGICA DE CONTROL DE MES ---
+        // Solo está facturado si tiene CAE Y la fecha es de este mes
+        const esDeEsteMes = miFactura && (miFactura.fecha_emision || "").startsWith(periodoActual);
+        const tieneCAE = !!(miFactura && miFactura.cae);
+        const facturado = esDeEsteMes && tieneCAE;
+        
+        // La clase gris solo si realmente se facturó este mes
+        const claseGris = facturado ? 'row-facturada' : '';
+
         const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
         let infoOS = {};
-
         if (osPaciente) {
             if (diccOS[osPaciente]) {
                 infoOS = diccOS[osPaciente];
@@ -574,23 +576,19 @@ async function procesarTodo() {
         const domDesdeDict = infoOS.domicilio || "SAN JUAN";
 
         const rsFinal = facturado 
-   		 ? (miFactura.receptor_nombre || miFactura.razon_social || miFactura.receptor_rs || osPaciente) 
-    	: (infoOS.razon_social || infoOS.nombre || p.razon_social || osPaciente || "");
+         ? (miFactura.receptor_nombre || miFactura.razon_social || miFactura.receptor_rs || osPaciente) 
+        : (infoOS.razon_social || infoOS.nombre || p.razon_social || osPaciente || "");
 
-	// CUIT: Si la factura no tiene CUIT, lo saca del diccionario o del legajo del paciente
-		const cuitFinal = facturado 
-    	? (miFactura.cuit || miFactura.receptor_cuit || cuitDesdeDict || p.cuit || "") 
-    	: (cuitDesdeDict || p.cuit || p.obra_social_cuit || "");
+        const cuitFinal = facturado 
+        ? (miFactura.cuit || miFactura.receptor_cuit || cuitDesdeDict || p.cuit || "") 
+        : (cuitDesdeDict || p.cuit || p.obra_social_cuit || "");
 
-	// DOMICILIO: Lo mismo, prioridad factura, después legajo, después "SAN JUAN"
-		const domFinal = facturado 
-    	? (miFactura.domicilio || miFactura.receptor_dom || domDesdeDict || p.obra_social_domicilio || "SAN JUAN") 
-    	: (domDesdeDict || p.obra_social_domicilio || "SAN JUAN");
-		const detalleFinal = facturado 
-    	? (miFactura.detalle || miFactura.descripcion || miFactura.concepto || p.detalle || "") 
-   		 : (p.detalle || `PRESTACIÓN MÓDULO ${(p.mod || p.modulo || 'rehab').toUpperCase()} - PACIENTE: ${p.nombre || idPaciente}`);
+        const domFinal = facturado 
+        ? (miFactura.domicilio || miFactura.receptor_dom || domDesdeDict || p.obra_social_domicilio || "SAN JUAN") 
+        : (domDesdeDict || p.obra_social_domicilio || "SAN JUAN");
+
+        // RESPETAMOS TU LÓGICA DE IMPORTES ORIGINAL
         const mBase = parseFloat(facturado ? (miFactura.neto || miFactura.exento || miFactura.total) : (p.monto_fijo || p.total || p.neto || 0)) || 0;
-        const aFinal = parseFloat(facturado ? (miFactura.alicuota || 0) : 0) || 0;
         const totalCalculated = facturado ? (parseFloat(miFactura.total) || 0) : mBase;
 
         let tipoComp = 6; 
@@ -604,10 +602,14 @@ async function procesarTodo() {
         const tr = document.createElement('tr');
         if(facturado) tr.className = "row-facturada";
 
+        // ESTADO VISUAL: Ahora depende de si es de este mes
         let estadoVisual = facturado ? `<br><b style="color:green; font-size:9px;">FACTURADO</b>` : (!tieneAsist ? `<br><b style="color:red; font-size:9px;">SIN ASISTENCIA</b>` : `<br><b style="color:orange; font-size:9px;">PENDIENTE</b>`);
-        let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${(!tieneAsist) ? 'disabled' : ''}> ${estadoVisual}`;
         
-        if (facturado) {
+        // CHECKBOX: Se habilita si NO está facturado este mes
+        let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${(facturado || !tieneAsist) ? 'disabled' : ''}> ${estadoVisual}`;
+        
+        // BOTONES: El de Refac ahora tiene sentido porque al apretarlo, 'facturado' pasará a ser false
+        if (miFactura && miFactura.cae) {
             colAccion += `<div style="margin-top:5px;"><button class="btn" style="background:var(--verde); font-size:8px; padding:4px; color:white; border:none;" onclick="window.descargarFactura('${miFactura.id || idPaciente}')">PDF</button>
             <button class="btn" style="background:var(--naranja); font-size:8px; padding:4px; color:white; border:none;" onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button></div>`;
         }
@@ -616,7 +618,6 @@ async function procesarTodo() {
         tr.innerHTML = `
             <td style="text-align:center">${colAccion}</td>
             <td><small>${nombreMod}</small><br><b>${idPaciente}</b></td>
-            
             <td>
                 <select class="input-tab sel-tipo" onchange="window.gestionarTipoComp(this)">
                     <option value="6" ${tipoComp === 6 ? 'selected' : ''}>Factura B</option>
@@ -624,11 +625,6 @@ async function procesarTodo() {
                     <option value="8" ${tipoComp === 8 ? 'selected' : ''}>NC B</option>
                     <option value="3" ${tipoComp === 3 ? 'selected' : ''}>NC A</option>
                 </select>
-                <div class="asociado-box" style="display:${displayAsociado}; margin-top:5px; background:#f9f9f9; padding:2px; border:1px dashed #ccc; font-size:10px;">
-                    <label>Pto Vta:</label><input type="number" class="aso-pv" value="5" style="width:30px">
-                    <label>Num:</label><input type="number" class="aso-num" placeholder="00001" style="width:50px"><br>
-                    <label>Fecha:</label><input type="date" class="aso-fec" style="width:85px">
-                </div>
             </td>
 
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}"></td>
@@ -638,7 +634,7 @@ async function procesarTodo() {
             <td>
                 <textarea class="input-tab det-val" 
                     style="min-height:40px; width:100%; overflow:hidden; resize:none;" 
-                    onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')">${p.detalle || `PRESTACIÓN MÓDULO ${(p.mod || p.modulo || p.pres || 'rehab').toUpperCase()} - PACIENTE: ${p.nombre || idPaciente}`}</textarea>
+                    onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')">${p.detalle || `PRESTACIÓN MÓDULO ${(p.mod || p.modulo || 'rehab').toUpperCase()} - PACIENTE: ${p.nombre || idPaciente}`}</textarea>
             </td>
 
             <td>
