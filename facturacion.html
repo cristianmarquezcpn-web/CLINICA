@@ -431,7 +431,7 @@ async function procesarTodo() {
 
     // --- CAPTURAMOS EL MES DEL SELECTOR ---
     const selector = document.getElementById('mes_filtro_archivo');
-    const valorSel = selector ? selector.value : ""; // ej: "2026-04"
+    const valorSel = selector ? selector.value : ""; // ej: "2026-05"
 
     snapsPacientes.forEach((snap, index) => {
         const nombreMod = rutas[index].mod;
@@ -439,20 +439,17 @@ async function procesarTodo() {
 
         for (const idPac in pacientes) {
             const p = pacientes[idPac];
+            if (idPac.includes("SALA") || !p.nombre) continue;
             
-            // BUSCAMOS LA FACTURA (Validando que empiece con el año-mes del selector)
+            // BUSCAMOS LA FACTURA (Validando el mes del selector)
             let ultFact = facturasArray.find(f => {
                 const coincideID = (f.id_paciente === idPac || f.id_paciente_db === idPac);
                 const coincideMod = String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase();
                 
-                // Si no hay valor en el selector, mostramos la última histórica (tu código viejo)
                 if (!valorSel) return coincideID && coincideMod;
 
-                // Tu Firebase usa "2025-02-20", el selector usa "2025-02". Usamos startsWith.
                 const fechaF = f.fecha_emision || "";
-                const coincideFecha = fechaF.startsWith(valorSel);
-
-                return coincideID && coincideMod && coincideFecha;
+                return coincideID && coincideMod && fechaF.startsWith(valorSel);
             });
 
             if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
@@ -460,26 +457,23 @@ async function procesarTodo() {
                 ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
             }
 
-            // Si encontró factura para ESTE mes y tiene CAE, verde. Si no, naranja.
+            // --- LA CLAVE DEL COLOR ---
+            // Ignoramos p.facturado. El color SOLO es verde si encontramos factura de este mes con CAE.
             let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
-            
-            if (p.facturado === 'NO') {
-                estadoFinal = 'NO';
-            }
 
             tempFull.push({
                 ...p,
                 id_db: idPac, 
                 id: idPac, 
                 mod: nombreMod,
-                ultima_factura: ultFact, // Si es de otro mes, aquí irá null
-                facturado: estadoFinal   
+                ultima_factura: ultFact, 
+                facturado: estadoFinal // Aquí mandamos el estado calculado por el mes, no el de la base
             });
         }
     });
     
     window.dataFull = tempFull;
-    console.log("✅ Datos procesados con filtro de mes. Total:", tempFull.length);
+    console.log("✅ Tabla actualizada por mes. Total:", tempFull.length);
     
     if (typeof window.render === "function") {
         window.render();
