@@ -697,17 +697,20 @@ async function procesarTodo() {
     const total = neto + (neto * ali / 100) + exento;
     totalTd.innerText = `$ ${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
 };
-
 window.gestionarTipoComp = function(select) {
     const tr = select.closest('tr');
+    if (!tr) return; 
+
     const box = tr.querySelector('.asociado-box');
     const pVtaInput = tr.querySelector('.aso-pv');
     
-    // Mostrar/Ocultar cuadro de asociación
-    box.style.display = (select.value == '3' || select.value == '8') ? 'block' : 'none';
+    // Si existe el box, lo mostramos. Si no, no rompemos nada.
+    if (box) {
+        box.style.display = (select.value == '3' || select.value == '8') ? 'block' : 'none';
+    }
     
-    // Si es NC (8 o 3), clavamos el Pto Venta en 5
-    if (select.value == '3' || select.value == '8') {
+    // Esto es para que el punto de venta se ponga en 5 automáticamente
+    if (pVtaInput && (select.value == '3' || select.value == '8')) {
         pVtaInput.value = 5;
     }
 };
