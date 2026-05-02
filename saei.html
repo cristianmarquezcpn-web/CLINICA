@@ -565,11 +565,23 @@ window.actualizarPanelOS = function() {
             colAccion += `<div style="margin-top:5px;"><button class="btn" style="background:var(--verde); font-size:8px; padding:4px; color:white; border:none;" onclick="window.descargarFactura('${miFactura.id || idPaciente}')">PDF</button>
             <button class="btn" style="background:var(--naranja); font-size:8px; padding:4px; color:white; border:none;" onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button></div>`;
         }
+    
+    const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
 
-        const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
+        // Fechas por defecto para que ARCA no rebote si los inputs globales están vacíos
+        const hoy = new Date();
+        const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0];
+        const ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split('T')[0];
+        const fechaVto = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 15).toISOString().split('T')[0];
 
         tr.innerHTML = `
-            <td style="text-align:center">${colAccion}</td>
+            <td style="text-align:center">
+                ${colAccion}
+                <!-- CAMPOS OCULTOS CON LAS CLASES QUE BUSCA TU SCRIPT DE FACTURACIÓN -->
+                <input type="hidden" class="f-desde" value="${p.periodo_desde || primerDia}">
+                <input type="hidden" class="f-hasta" value="${p.periodo_hasta || ultimoDia}">
+                <input type="hidden" class="f-vto" value="${p.vto_pago || fechaVto}">
+            </td>
             <td><small>SAEI</small><br><b>${idPaciente}</b></td>
             <td>
                 <select class="input-tab sel-tipo" ${facturado?'disabled':''} onchange="window.gestionarTipoComp(this)">
@@ -578,6 +590,11 @@ window.actualizarPanelOS = function() {
                     <option value="8" ${tipoComp === 8 ? 'selected' : ''}>NC B</option>
                     <option value="3" ${tipoComp === 3 ? 'selected' : ''}>NC A</option>
                 </select>
+                <!-- CAJA PARA NOTA DE CRÉDITO -->
+                <div class="div-asociado" style="display:${displayAsociado}; margin-top:4px; background:#fff3cd; padding:2px; border:1px dashed #e67e22;">
+                    <small style="font-size:8px; color:#d35400;">Comp. Asociado:</small><br>
+                    <input type="text" class="input-tab aso-val" placeholder="00005-00000001" style="width:100%; font-size:10px;" ${facturado?'disabled':''}>
+                </div>
             </td>
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''} onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'cuit')"></td>
             <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''} onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'razon_social')"></td>
