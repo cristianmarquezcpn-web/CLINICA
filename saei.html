@@ -1480,53 +1480,58 @@ window.filtrarRender = function() {
     });
 };
 	window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVieja) {
-    if(confirm("¿Habilitar para editar y refacturar en SAEI?")) {
-        try {
-            const rutaSaei = `saei/${idPaciente}`;
-            
-            const datosLimpios = {
-                estado: "PENDIENTE", 
-                facturado: "no",
-                facturado_saei: "no",
-                ultima_factura: null,
-                ultima_factura_saei: null,
-                cae: null,
-                cae_vto: null,
-                nro_comp: null,
-                ignorar_factura: idFacturaVieja || "REFAC_MANUAL"
-            };
+    if(!confirm("¿Habilitar para editar y refacturar?")) return;
 
-            // 1. Limpiamos en Firebase
-            await db.ref(rutaSaei).update(datosLimpios);
+    try {
+        // 1. Definimos las dos rutas posibles (la nueva y la vieja)
+        const rutaMinus = `saei/${idPaciente}`;
+        const rutaMayus = `SAEI/${idPaciente}`;
+        
+        const datosLimpios = {
+            estado: "PENDIENTE", 
+            facturado: "no",
+            facturado_saei: "no",
+            ultima_factura: null,
+            ultima_factura_saei: null,
+            cae: null,
+            cae_vto: null,
+            nro_comp: null,
+            ignorar_factura: idFacturaVieja || "REFAC_MANUAL"
+        };
 
-            // 2. Limpiamos en la memoria local (dataFull)
-            if (window.dataFull) {
-                const p = window.dataFull.find(x => (x.id || x.id_db || x.id_paciente) == idPaciente);
-                if (p) {
-                    p.estado = "PENDIENTE";
-                    p.facturado = "no";
-                    p.ultima_factura = null;
-                    p.ultima_factura_saei = null;
-                    p.cae = null;
-                }
+        // 2. Limpiamos en AMBAS carpetas al mismo tiempo
+        // Promise.allSettled hace que si una falla (porque no existe), la otra siga igual
+        await Promise.allSettled([
+            db.ref(rutaMinus).update(datosLimpios),
+            db.ref(rutaMayus).update(datosLimpios)
+        ]);
+
+        // 3. Limpiamos la memoria local (dataFull)
+        if (window.dataFull) {
+            const p = window.dataFull.find(x => (x.id || x.id_db || x.id_paciente) == idPaciente);
+            if (p) {
+                p.estado = "PENDIENTE";
+                p.facturado = "no";
+                p.ultima_factura = null;
+                p.ultima_factura_saei = null;
+                p.cae = null;
             }
-
-            alert("✅ DESBLOQUEADO. La fila debería volver a PENDIENTE.");
-            
-            // 3. Ejecutamos tu render directamente
-            if (typeof window.render === 'function') {
-                window.render();
-            } else {
-                location.reload();
-            }
-
-        } catch (e) {
-            console.error("Error en Refac SAEI:", e);
-            alert("❌ Error de permisos o ruta.");
         }
+
+        alert("✅ Desbloqueado en ambas carpetas. La fila debería volver a PENDIENTE.");
+        
+        // 4. Tu render para refrescar la vista
+        if (typeof window.render === 'function') {
+            window.render();
+        } else {
+            location.reload();
+        }
+
+    } catch (e) {
+        console.error("Error en Refac SAEI:", e);
+        alert("❌ Error: Revisá los permisos de Firebase.");
     }
 };
-
 // --- 3. LIMPIAR TODO ---
 window.limpiarFiltros = function() {
     // Limpiar textos
