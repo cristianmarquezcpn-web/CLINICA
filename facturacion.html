@@ -39,6 +39,7 @@
             <button class="btn" style="background:var(--violeta)" onclick="toggleArchivo()">📚 ARCHIVO</button>
             <button class="btn" style="background:var(--naranja)" onclick="toggleOS()">🏢 OBRAS SOCIALES</button>
             <button class="btn" style="background:var(--rojo)" onclick="location.href='index.html'">SALIR</button>
+			<button class="btn" style="background-color: #FFD700; color: #333; font-weight: bold;" onclick="cierreMensualUniversal()">📋 Cierre Total</button>
             <button class="btn" style="background-color: #5cb85c;" onclick="window.refacturarMasivoProximoMes()">🔄 Próximo Mes</button>
         </div>
     </div>
@@ -1643,7 +1644,44 @@ window.filtrarRender = function() {
         fila.style.display = mostrar ? "" : "none";
     });
 };
+async function cierreMensualUniversal() {
+    const conf1 = confirm("⚠️ ¿VAS A INICIAR EL CIERRE MENSUAL TOTAL? \n\nSe limpiarán las asistencias de CD, CET y REHABILITACIÓN.");
+    if(!conf1) return;
 
+    const conf2 = confirm("❗ ¿Estás SEGURO? Recordá que esto vacía los registros de facturación para el nuevo mes.");
+    if(!conf2) return;
+
+    try {
+        const modulos = ['cd', 'cet', 'rehab'];
+        let conteoPacientes = 0;
+
+        for (const mod of modulos) {
+            // Accedemos a la raíz de cada módulo (cd, cet o rehab)
+            const snapshot = await firebase.database().ref(`/${mod}/pacientes`).once('value');
+            const pacientes = snapshot.val();
+
+            if (pacientes) {
+                const actualizaciones = {};
+                Object.keys(pacientes).forEach(id => {
+                    // Limpiamos el link de asistencia y el estado de facturado
+                    actualizaciones[`${id}/asistF_link`] = null;
+                    actualizaciones[`${id}/facturado`] = "no";
+                    conteoPacientes++;
+                });
+                
+                // Aplicamos los cambios específicamente en la rama de este módulo
+                await firebase.database().ref(`/${mod}/pacientes`).update(actualizaciones);
+            }
+        }
+
+        alert(`✨ ¡Misión cumplida! \n\nSe resetearon los registros de los 3 módulos correctamente. \nPacientes actualizados: ${conteoPacientes}`);
+        location.reload();
+
+    } catch (e) {
+        console.error(e);
+        alert("Hubo un error en el proceso: " + e.message);
+    }
+}
 // --- 3. LIMPIAR TODO ---
 window.limpiarFiltros = function() {
     // Limpiar textos
