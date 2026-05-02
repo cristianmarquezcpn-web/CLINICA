@@ -485,33 +485,34 @@ function cerrarReset() {
 }
 // Función para borrar un turno específico (Día a día)
 async function prepararBorradoIndividual() {
-    const dia = prompt("¿De qué día querés borrar? (Lunes, Martes, Miércoles, Jueves, Viernes)");
+    const dia = prompt("¿Día? (Ej: Lunes, Martes, Miércoles...)");
     if(!dia) return;
     
-    const cons = prompt("¿Qué consultorio? (Número del 1 al 10)");
+    const cons = prompt("¿Consultorio? (Ej: 1)");
     if(!cons) return;
     
-    let hora = prompt("¿A qué hora? (Podés poner 13 o 13:30)");
+    let hora = prompt("¿Hora? (Ej: 13:00 o 13)");
     if(!hora) return;
 
-    // Si ponés "13", se convierte en "13:00". Si ponés "13:30", se queda igual.
+    // Ajuste de formato: "13" -> "13:00"
     if (!hora.includes(':')) {
         hora = hora + ":00";
     }
 
-    // Armamos la clave exacta de tu Firebase (Ej: "13:00-1")
+    // ARMAMOS LA CLAVE EXACTA: "13:00-1"
     const claveFirebase = `${hora}-${cons}`;
 
-    if(confirm(`¿Seguro que querés vaciar el turno de los ${dia} a las ${hora} en el Cons ${cons}?`)) {
+    if(confirm(`¿Borrar a ${dia} a las ${hora} (Cons ${cons})?`)) {
         try {
-            // Entramos a: turnos -> Lunes -> 1 -> 13:00-1
-            await database.child('turnos').child(dia).child(cons).child(claveFirebase).set(null);
+            // RUTA CORREGIDA: Entramos directo de 'dia' a 'claveFirebase'
+            // Quitamos el .child(cons) intermedio porque no existe como carpeta
+            await database.child('turnos').child(dia).child(claveFirebase).set(null);
             
-            alert("✅ Turno liberado: " + claveFirebase);
+            alert("✅ Borrado exitoso: " + claveFirebase);
             location.reload();
         } catch(e) {
             console.error(e);
-            alert("Error al borrar: " + e.message);
+            alert("Error: " + e.message);
         }
     }
 }
