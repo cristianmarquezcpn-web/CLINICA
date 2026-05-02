@@ -228,6 +228,18 @@
     <div id="lista-saei-exclusiva"></div>
     <button class="btn" onclick="cerrar()" style="background:black; width:100%; margin-top:15px">CERRAR</button>
 </div>
+	<div id="panel-borrado" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:20px; border-radius:12px; box-shadow:0 0 20px rgba(0,0,0,0.5); z-index:3000; text-align:center; border: 2px solid var(--rojo);">
+    <h3 style="color:var(--rojo)">🗑️ GESTIÓN DE TURNOS</h3>
+    <p>¿Qué acción desea realizar?</p>
+    
+    <!-- Opción 1: Borrado de a uno (Lo que vas a usar siempre) -->
+    <button class="btn" style="background:var(--azul); width:100%; margin-bottom:10px" onclick="prepararBorradoIndividual()">❌ QUITAR UN PACIENTE</button>
+    
+    <!-- Opción 2: Borrado total (Solo para fin de mes) -->
+    <button class="btn" style="background:var(--rojo); width:100%; margin-bottom:10px; font-size:10px" onclick="borradoMasivoTurnos()">💣 BORRAR TODO EL TURNERO</button>
+    
+    <button class="btn" style="background:black; color:white; width:100%" onclick="cerrarReset()">CANCELAR</button>
+</div>
 <style>
     /* Efecto para que la ventana de Alta de Nuevo Paciente cobre vida */
     #modal-masivo {
@@ -326,7 +338,6 @@
     }
 
     function abrirMasivo() { document.getElementById('modal-masivo').style.display='block'; document.getElementById('overlay').style.display='block'; }
-    function abrirReset() { document.getElementById('panel-borrado').style.display='block'; document.getElementById('overlay').style.display='block'; }
     function actualizarEdad(f, id) { if(!f) return; const hoy = new Date(); const nac = new Date(f); let e = hoy.getFullYear() - nac.getFullYear(); if (hoy.getMonth() < nac.getMonth() || (hoy.getMonth() === nac.getMonth() && hoy.getDate() < nac.getDate())) e--; document.getElementById(id).value = e; }
 
     function render() {
@@ -462,13 +473,49 @@
         });
         database.update(act).then(() => { alert("Legajos Limpios"); cerrar(); });
     }
+	// Abre el panel (Corregida para que no dé error)
+function abrirReset() { 
+    document.getElementById('panel-borrado').style.display = 'block'; 
+    document.getElementById('overlay').style.display = 'block'; 
+}
 
-    function borradoMasivoTurnos() {
-        if(confirm("¿Limpiar todo el turnero?")) {
-            database.child('turnos').set({}).then(() => { alert("Turnero reseteado"); cerrar(); });
+function cerrarReset() {
+    document.getElementById('panel-borrado').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+}
+
+// Función para el día a día: Borra solo un casillero
+async function prepararBorradoIndividual() {
+    const dia = prompt("¿De qué día querés borrar? (Lunes, Martes, Miércoles, Jueves, Viernes)");
+    if(!dia) return;
+    
+    const cons = prompt("¿Qué consultorio? (Número del 1 al 10)");
+    if(!cons) return;
+    
+    const hora = prompt("¿A qué hora? (Ejemplo: 08:00)");
+    if(!hora) return;
+
+    if(confirm(`¿Seguro que querés vaciar el turno de los ${dia} a las ${hora} en el Cons ${cons}?`)) {
+        try {
+            // Borramos solo esa coordenada exacta en Firebase
+            await db.ref(`turnos/${dia}/${cons}/${hora.replace(':', '_')}`).set(null);
+            alert("✅ Turno liberado.");
+            location.reload();
+        } catch(e) {
+            alert("Error al borrar: " + e.message);
         }
     }
+}
 
+// Función "Bomba Atómica": Borra todo
+function borradoMasivoTurnos() {
+    if(confirm("⚠️ ESTÁS POR BORRAR TODOS LOS TURNOS DE LA CLÍNICA. ¿ESTÁS SEGURO?")) {
+        db.ref('turnos').set(null).then(() => { 
+            alert("Turnero reseteado por completo."); 
+            location.reload(); 
+        });
+    }
+}
     // --- NUEVO: Se actualizaron los selectores (al buscar ".fr") para que miren dentro del Modal de Alta si este existe ---
     function registrar() {
         // Modificación para buscar los inputs dentro del modal si está abierto, sino usa los originales
