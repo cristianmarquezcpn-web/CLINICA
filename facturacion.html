@@ -1539,67 +1539,64 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
 window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVieja) {
     if(confirm("¿Habilitar para editar y refacturar?")) {
         try {
-            // SEGURIDAD: Si no viene el módulo, asumimos REHAB (que es lo normal)
+            // SEGURIDAD: Si no viene el modulo, usamos REHAB por defecto
             const nombreMod = modulo ? modulo.toUpperCase() : "REHAB";
-            const modOriginal = nombreMod.toLowerCase();
             const esSaei = (nombreMod === "SAEI");
             
-            const nodoFacturas = esSaei ? "facturas_emitidas_saei" : "facturas_emitidas";
-            const updates = {};
-            let datosRecuperados = null;
-
-            // 1. Intentamos recuperar datos viejos solo si hay un ID de factura
-            if (idFacturaVieja) {
-                const snapFactura = await db.ref(`${nodoFacturas}/${idFacturaVieja}`).once('value');
-                datosRecuperados = snapFactura.val();
-            }
-
-            // 2. FUNCIÓN DE LIMPIEZA (Corregida para tu Firebase)
-            const prepararLimpieza = (ruta) => {
-                updates[`${ruta}/facturado`] = "no";
-                updates[`${ruta}/facturado_saei`] = "no";
-                updates[`${ruta}/ultima_factura`] = null;
-                updates[`${ruta}/ultima_factura_saei`] = null;
-                updates[`${ruta}/cae`] = null;
-                updates[`${ruta}/ignorar_factura`] = idFacturaVieja || "REFAC_MANUAL";
-                
-                if (datosRecuperados) {
-                    updates[`${ruta}/total`] = datosRecuperados.total || 0;
-                    updates[`${ruta}/detalle`] = datosRecuperados.detalle || "";
-                }
+            // Definimos la ruta exacta para evitar el PERMISSION_DENIED
+            // Según tus datos, la ruta es pacientes/Nombre del Paciente
+            const rutaPaciente = `pacientes/${idPaciente}`;
+            
+            // 1. Objeto de actualización directo
+            const datosLimpios = {
+                facturado: "no",
+                facturado_saei: "no",
+                ultima_factura: null,
+                ultima_factura_saei: null,
+                cae: null,
+                ignorar_factura: idFacturaVieja || "REFAC_MANUAL"
             };
 
-            // 3. Aplicamos la limpieza según tu estructura de carpetas
-            // Intentamos en la ruta que nos pasaste de Acosta Nuñez
-            prepararLimpieza(`pacientes/${idPaciente}`);
-            
-            // También disparamos a las rutas secundarias por las dudas
-            prepararLimpieza(`rehab/pacientes/${idPaciente}`);
-            if (esSaei) prepararLimpieza(`SAEI/pacientes/${idPaciente}`);
+            // 2. Impactamos directamente en el nodo del paciente
+            // Usar una ruta específica es lo que soluciona el error de Firebase
+            await db.ref(rutaPaciente).update(datosLimpios);
 
-            // 4. Impactamos en Firebase
-            await db.ref().update(updates);
-            
-            // 5. ⚡ LIMPIEZA EN PANTALLA (Para que se ponga BLANCO al instante)
+            // 3. Por las dudas, si tenés los datos duplicados en /rehab/pacientes
+            try {
+                await db.ref(`rehab/${rutaPaciente}`).update(datosLimpios);
+                if (esSaei) {
+                    await db.ref(`SAEI/${rutaPaciente}`).update(datosLimpios);
+                }
+            } catch (err) {
+                console.log("Rutas secundarias no encontradas o sin permisos, pero la principal ya se actualizó.");
+            }
+
+            // 4. ⚡ LIMPIEZA EN PANTALLA (Memoria local)
+            // Buscamos al paciente en tu variable global dataFull
             const p = window.dataFull.find(x => (x.id || x.id_db) == idPaciente);
             if (p) {
                 p.facturado = "no";
+                p.facturado_saei = "no";
                 p.ultima_factura = null;
                 p.ultima_factura_saei = null;
+                p.cae = null; // Esto es vital para que el render lo vea como PENDIENTE
                 
-                // Si el render usa 'facturado' como booleano en el código, lo forzamos
-                // Esto es lo que saca la clase "row-facturada" (el gris/verde)
-                console.log("Limpiando datos locales de:", idPaciente);
+                console.log("Memoria local limpia para:", idPaciente);
             }
 
             alert("✅ DESBLOQUEADO. La fila debería volver a blanco.");
             
-            // 6. Refrescamos el dibujo de la tabla
-            if (typeof window.render === 'function') window.render();
+            // 5. Refrescamos el dibujo de la tabla sin recargar la página
+            if (typeof window.render === 'function') {
+                window.render();
+            } else {
+                // Si el render falla, recargamos como plan B
+                location.reload();
+            }
 
         } catch (e) {
-            console.error("Error en Refacturación:", e);
-            alert("❌ Error: No se pudo habilitar.");
+            console.error("Error crítico en Refacturación:", e);
+            alert("❌ Error de Permisos: Asegurate de estar logueado o revisá la ruta en Firebase.");
         }
     }
 };
