@@ -507,27 +507,39 @@ window.render = function() {
     // REGLA: Si la prestación es SAEI o el detalle lo dice, se muestra.
     return (p_pres === "SAEI" || p_det.includes("SAEI") || p.facturado_saei !== undefined);
 })
-    .forEach(p => {
+        .forEach(p => {
+        // 1. Unificamos los datos de los dos posibles lugares
         const idPaciente = p.id || p.id_db || "S/N";
-        const nombreMod  = (p.modulo || p.mod || "REHAB").toUpperCase();
         
-        let facturado = (p.facturado === "SI" || p.facturado_saei === "SI");
-        if (p.facturado === "NO" || p.facturado_saei === "NO") facturado = false;
+        // Buscamos la factura en cualquier variante de nombre que haya creado Firebase
+        const miFactura = p.ultima_factura_saei || p.ultima_factura || {};
 
-        const miFactura = facturado ? (p.ultima_factura_saei || p.ultima_factura) : null;
+        // 2. Filtro de Módulo (que acepte Mayúsculas y Minúsculas)
+        const presVal = (p.pres || "").toUpperCase();
+        const detVal = (p.detalle || "").toUpperCase();
+        // Si no es SAEI en ninguna de sus formas, lo saltamos
+        if (presVal !== "SAEI" && !detVal.includes("SAEI")) return;
 
-        const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
-        let infoOS = {};
-        if (osPaciente) {
-            if (diccOS[osPaciente]) infoOS = diccOS[osPaciente];
-            else {
-                const coincidencia = listaNombresOS.find(nombre => 
-                    nombre.toUpperCase().includes(osPaciente) || osPaciente.includes(nombre.toUpperCase())
-                );
-                if (coincidencia) infoOS = diccOS[coincidencia];
+        // 3. Lógica de Facturado (Mayo 2026)
+        const hoy = new Date();
+        const mAct = (hoy.getMonth() + 1).toString(); // 5
+        const aAct = hoy.getFullYear().toString();   // 2026
+        
+        let facturado = false;
+        let tieneCAE = !!(miFactura && miFactura.cae);
+
+        if (tieneCAE && miFactura.fecha) {
+            const partes = miFactura.fecha.split('/');
+            // Si coincide mes 5 y año 2026, se pone en gris
+            if (partes.length === 3 && partes[1] === mAct && partes[2] === aAct) {
+                facturado = true;
             }
         }
 
+        // 4. Forzamos 'saei' en minúscula para que las NUEVAS facturas 
+        // se guarden en una sola carpeta de ahora en adelante
+        const nombreMod = "saei";
+        
         const rsFinal = facturado ? (miFactura.receptor_nombre || miFactura.razon_social || osPaciente) : (p.razon_social || infoOS.razon_social || infoOS.nombre || osPaciente || "");
         const cuitFinal = facturado ? (miFactura.cuit || "") : (p.cuit || infoOS.cuit || p.obra_social_cuit || "");
         const domFinal = facturado ? (miFactura.domicilio || "SAN JUAN") : (p.domicilio || infoOS.domicilio || p.obra_social_domicilio || "SAN JUAN");
