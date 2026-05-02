@@ -971,18 +971,30 @@ const MODELO_FACTURA_B = (d) => {
         </div>
     </div>`;
 };
-window.descargarFactura = async (id) => {
-    // 1. BÚSQUEDA DOBLE
-    let snap = await db.ref('facturas_emitidas/' + id).once('value');
-    let p = snap.val();
+  window.descargarFactura = async (nombrePaciente) => { // Ahora recibe el NOMBRE
+    if (!nombrePaciente) return alert("No se reconoce al paciente");
 
-    if (!p) {
-        snap = await db.ref('facturas_emitidas_saei/' + id).once('value');
-        p = snap.val();
+    // 1. Buscamos en Firebase la factura que tenga ese nombre de paciente
+    const snap = await db.ref('facturas_emitidas_saei').once('value');
+    const facturas = snap.val() || {};
+    
+    // Filtramos las facturas del paciente y nos quedamos con la última (por fecha)
+    const lista = Object.values(facturas)
+        .filter(f => String(f.id_paciente).toUpperCase().includes(String(nombrePaciente).toUpperCase()))
+        .sort((a, b) => (b.fecha_emision || "").localeCompare(a.fecha_emision || ""));
+
+    const p = lista[0]; // Tomamos la más reciente
+
+    // 2. COMPROBACIÓN DIRECTA
+    const miCAE = p?.cae || p?.cae_num || p?.CAE;
+
+    if (!p || !miCAE) {
+        console.error("No se encontró factura para:", nombrePaciente);
+        return alert("Error: No se encontró factura con CAE para este paciente.");
     }
 
-    if (!p || !p.cae) return alert("Error: No se encontró la factura o no tiene datos de CAE.");        
-    
+    // 3. De acá para abajo, TU CÓDIGO SIGUE IGUAL (No toques nada más)
+    console.log("Generando PDF para:", p.razon_social, "CAE:", miCAE);
     const cuitEmisor = "30714900192";
         
     const f = (val) => {
@@ -1007,11 +1019,10 @@ window.descargarFactura = async (id) => {
 
 		// 2. PUNTO DE VENTA (00005)
 		ptoVta: String(p.punto_venta || 5).padStart(5, '0'),
-
+		
 		// 3. NÚMERO DE COMPROBANTE (00000024)
 		nro: String(p.nro_comp || 0).padStart(8, '0'),
-        fecha: p.fecha_emision || p.fecha || new Date().toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'}),
-        
+        fecha: (p.fecha_emision || p.fecha || "").includes('/') ? (p.fecha_emision || p.fecha).split('/').map(x => x.padStart(2, '0')).join('/') : new Date().toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'}).replace(/\D/g, '/').substring(0, 10),
         desde: f(p.periodo_desde), 
         hasta: f(p.periodo_hasta),
         vto_pago: f(p.vto_pago),
@@ -1023,10 +1034,13 @@ window.descargarFactura = async (id) => {
         
         // PASAMOS LOS CAMPOS DE ASOCIACIÓN AL MODELO
         asoc_pv: p.pv_asoc || p.asoc_pv || 5,
-        asoc_nro: p.nro_asoc || p.asoc_nro || p.comprobante_asociado_nro || null,
+        asoc_nro: p.nro_asoc || p.asoc_nro || p.comprobante_asociado_nro || p.asoc_num || null,
         
         condicion_venta: p.condicion_venta || "CUENTA CORRIENTE",
-        concepto: (p.concepto || p.descripcion || "").toUpperCase(),
+        concepto: (p.concepto || p.detalle || p.descripcion || p.conceptos || "PRESTACIÓN DE SERVICIOS").toUpperCase(),
+        
+        total: parseFloat(p.total || 0),
+        cae: p.cae,
         
         total: parseFloat(p.total || 0),
         cae: p.cae,
