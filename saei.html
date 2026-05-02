@@ -544,18 +544,18 @@ window.actualizarPanelOS = function() {
         const tr = document.createElement('tr');
         tr.style.background = facturado ? "#f4f4f4" : "#ffffff";
         tr.style.color = facturado ? "#777" : "#000";
-
+		
         let estadoVisual = facturado ? `<br><b style="color:green; font-size:9px;">FACTURADO</b>` : `<br><b style="color:orange; font-size:9px;">PENDIENTE</b>`;
         
         let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${facturado ? 'disabled' : ''}> ${estadoVisual}`;
-        
+        const nombreParaBuscar = pag.receptor_nombre || pag.nombre || pag.razon_social;
         // Agregamos los campos ocultos que AFIP necesita leer
         colAccion += `
             <input type="hidden" class="f-desde" value="${fDesde}">
             <input type="hidden" class="f-hasta" value="${fHasta}">
             <input type="hidden" class="f-vto" value="${fVto}">
         `;
-
+              
         if (tieneCAE) {
             colAccion += `<div style="margin-top:5px;"><button class="btn" style="background:var(--verde); font-size:8px; padding:4px; color:white; border:none;" onclick="window.descargarFactura('${miFactura.id || idPaciente}')">PDF</button>
             <button class="btn" style="background:var(--naranja); font-size:8px; padding:4px; color:white; border:none;" onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button></div>`;
