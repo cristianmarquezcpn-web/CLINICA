@@ -568,7 +568,7 @@ window.actualizarPanelOS = function() {
     
     const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
 
-        // Fechas por defecto para que ARCA no rebote si los inputs globales están vacíos
+        // Fechas por defecto para evitar errores en ARCA
         const hoy = new Date();
         const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0];
         const ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().split('T')[0];
@@ -577,7 +577,6 @@ window.actualizarPanelOS = function() {
         tr.innerHTML = `
             <td style="text-align:center">
                 ${colAccion}
-                <!-- CAMPOS OCULTOS CON LAS CLASES QUE BUSCA TU SCRIPT DE FACTURACIÓN -->
                 <input type="hidden" class="f-desde" value="${p.periodo_desde || primerDia}">
                 <input type="hidden" class="f-hasta" value="${p.periodo_hasta || ultimoDia}">
                 <input type="hidden" class="f-vto" value="${p.vto_pago || fechaVto}">
@@ -590,10 +589,14 @@ window.actualizarPanelOS = function() {
                     <option value="8" ${tipoComp === 8 ? 'selected' : ''}>NC B</option>
                     <option value="3" ${tipoComp === 3 ? 'selected' : ''}>NC A</option>
                 </select>
-                <!-- CAJA PARA NOTA DE CRÉDITO -->
-                <div class="div-asociado" style="display:${displayAsociado}; margin-top:4px; background:#fff3cd; padding:2px; border:1px dashed #e67e22;">
-                    <small style="font-size:8px; color:#d35400;">Comp. Asociado:</small><br>
-                    <input type="text" class="input-tab aso-val" placeholder="00005-00000001" style="width:100%; font-size:10px;" ${facturado?'disabled':''}>
+                
+                <!-- Ajustado a las clases de tu función: asociado-box y aso-pv -->
+                <div class="asociado-box" style="display:${displayAsociado}; margin-top:4px; background:#fff3cd; padding:4px; border:1px dashed #e67e22; border-radius:4px;">
+                    <small style="font-size:8px; color:#d35400; font-weight:bold;">COMPROBANTE ASOCIADO:</small><br>
+                    <div style="display:flex; gap:2px;">
+                        <input type="number" class="input-tab aso-pv" placeholder="P.V." style="width:35px; font-size:10px;" value="5" ${facturado?'disabled':''}>
+                        <input type="text" class="input-tab aso-val" placeholder="Número" style="flex:1; font-size:10px;" value="${miFactura?.comprobante_asociado || ''}" ${facturado?'disabled':''}>
+                    </div>
                 </div>
             </td>
             <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''} onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'cuit')"></td>
@@ -611,10 +614,10 @@ window.actualizarPanelOS = function() {
             <td><input type="number" class="input-tab exento-edit" value="${p.total || p.exento || mBase || 0}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)" onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'total')"></td>
             <td style="text-align:right; font-weight:bold" class="total-render">$ ${totalCalculated.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
         `;
-        b.appendChild(tr);
+		b.appendChild(tr);
     });
 };
-    window.recalcularTotales = function(el) {
+	window.recalcularTotales = function(el) {
     const tr = el.closest('tr');
     const netoInput = tr.querySelector('.neto-edit');
     const exentoInput = tr.querySelector('.exento-edit');
