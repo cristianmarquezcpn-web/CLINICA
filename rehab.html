@@ -484,7 +484,7 @@ function cerrarReset() {
     document.getElementById('overlay').style.display = 'none';
 }
 
-// Función para el día a día: Borra solo un casillero
+// Función para borrar un turno específico (Día a día)
 async function prepararBorradoIndividual() {
     const dia = prompt("¿De qué día querés borrar? (Lunes, Martes, Miércoles, Jueves, Viernes)");
     if(!dia) return;
@@ -497,23 +497,25 @@ async function prepararBorradoIndividual() {
 
     if(confirm(`¿Seguro que querés vaciar el turno de los ${dia} a las ${hora} en el Cons ${cons}?`)) {
         try {
-            // Borramos solo esa coordenada exacta en Firebase
-            await db.ref(`turnos/${dia}/${cons}/${hora.replace(':', '_')}`).set(null);
-            alert("✅ Turno liberado.");
+            // Como 'database' ya es ref('/rehab'), entramos directo a 'turnos'
+            await database.child('turnos').child(dia).child(cons).child(hora.replace(':', '_')).set(null);
+            
+            alert("✅ Turno liberado correctamente.");
             location.reload();
         } catch(e) {
+            console.error(e);
             alert("Error al borrar: " + e.message);
         }
     }
 }
 
-// Función "Bomba Atómica": Borra todo
+// Función para resetear todo el turnero (Fin de mes)
 function borradoMasivoTurnos() {
-    if(confirm("⚠️ ESTÁS POR BORRAR TODOS LOS TURNOS DE LA CLÍNICA. ¿ESTÁS SEGURO?")) {
-        db.ref('turnos').set(null).then(() => { 
+    if(confirm("⚠️ ATENCIÓN: Vas a borrar TODOS los turnos de Rehabilitación. ¿Continuar?")) {
+        database.child('turnos').set(null).then(() => { 
             alert("Turnero reseteado por completo."); 
             location.reload(); 
-        });
+        }).catch(e => alert("Error: " + e.message));
     }
 }
     // --- NUEVO: Se actualizaron los selectores (al buscar ".fr") para que miren dentro del Modal de Alta si este existe ---
