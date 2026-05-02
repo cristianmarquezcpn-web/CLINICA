@@ -548,7 +548,7 @@ window.actualizarPanelOS = function() {
         let estadoVisual = facturado ? `<br><b style="color:green; font-size:9px;">FACTURADO</b>` : `<br><b style="color:orange; font-size:9px;">PENDIENTE</b>`;
         
         let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${facturado ? 'disabled' : ''}> ${estadoVisual}`;
-        const nombreParaBuscar = p.receptor_nombre || pag.nombre || p.razon_social;
+        const nombreParaBuscar = p.receptor_nombre || p.nombre || p.razon_social;
         // Agregamos los campos ocultos que AFIP necesita leer
         colAccion += `
             <input type="hidden" class="f-desde" value="${fDesde}">
