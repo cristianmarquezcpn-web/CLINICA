@@ -1479,6 +1479,53 @@ window.filtrarRender = function() {
         fila.style.display = mostrar ? "" : "none";
     });
 };
+	window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVieja) {
+    if(confirm("¿Habilitar para editar y refacturar en SAEI?")) {
+        try {
+            const rutaSaei = `saei/${idPaciente}`;
+            
+            const datosLimpios = {
+                estado: "PENDIENTE", 
+                facturado: "no",
+                facturado_saei: "no",
+                ultima_factura: null,
+                ultima_factura_saei: null,
+                cae: null,
+                cae_vto: null,
+                nro_comp: null,
+                ignorar_factura: idFacturaVieja || "REFAC_MANUAL"
+            };
+
+            // 1. Limpiamos en Firebase
+            await db.ref(rutaSaei).update(datosLimpios);
+
+            // 2. Limpiamos en la memoria local (dataFull)
+            if (window.dataFull) {
+                const p = window.dataFull.find(x => (x.id || x.id_db || x.id_paciente) == idPaciente);
+                if (p) {
+                    p.estado = "PENDIENTE";
+                    p.facturado = "no";
+                    p.ultima_factura = null;
+                    p.ultima_factura_saei = null;
+                    p.cae = null;
+                }
+            }
+
+            alert("✅ DESBLOQUEADO. La fila debería volver a PENDIENTE.");
+            
+            // 3. Ejecutamos tu render directamente
+            if (typeof window.render === 'function') {
+                window.render();
+            } else {
+                location.reload();
+            }
+
+        } catch (e) {
+            console.error("Error en Refac SAEI:", e);
+            alert("❌ Error de permisos o ruta.");
+        }
+    }
+};
 
 // --- 3. LIMPIAR TODO ---
 window.limpiarFiltros = function() {
