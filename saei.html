@@ -971,30 +971,44 @@ const MODELO_FACTURA_B = (d) => {
         </div>
     </div>`;
 };
-  window.descargarFactura = async (nombrePaciente) => { // Ahora recibe el NOMBRE
-    if (!nombrePaciente) return alert("No se reconoce al paciente");
+  window.descargarFactura = async (identificador) => { 
+    if (!identificador) return alert("No se reconoce al paciente o registro");
 
-    // 1. Buscamos en Firebase la factura que tenga ese nombre de paciente
+    // 1. Buscamos en la carpeta correcta
     const snap = await db.ref('facturas_emitidas_saei').once('value');
     const facturas = snap.val() || {};
     
-    // Filtramos las facturas del paciente y nos quedamos con la última (por fecha)
-    const lista = Object.values(facturas)
-        .filter(f => String(f.id_paciente).toUpperCase().includes(String(nombrePaciente).toUpperCase()))
-        .sort((a, b) => (b.fecha_emision || "").localeCompare(a.fecha_emision || ""));
+    // --- NUEVO FILTRO MÁS FUERTE ---
+    // Buscamos si el identificador coincide con la KEY de Firebase, 
+    // con el id_paciente o con el nombre del receptor.
+    const lista = Object.keys(facturas).filter(key => {
+        const f = facturas[key];
+        const buscado = String(identificador).toUpperCase();
+        
+        return key.toUpperCase() === buscado || 
+               String(f.id_paciente).toUpperCase().includes(buscado) ||
+               String(f.receptor_nombre || "").toUpperCase().includes(buscado) ||
+               String(f.razon_social || "").toUpperCase().includes(buscado);
+    }).map(key => facturas[key]); // Convertimos las llaves encontradas en los datos de la factura
 
-    const p = lista[0]; // Tomamos la más reciente
+    // Ordenamos por fecha (la más nueva arriba)
+    lista.sort((a, b) => (b.fecha_emision || "").localeCompare(a.fecha_emision || ""));
+
+    const p = lista[0]; 
 
     // 2. COMPROBACIÓN DIRECTA
     const miCAE = p?.cae || p?.cae_num || p?.CAE;
 
     if (!p || !miCAE) {
-        console.error("No se encontró factura para:", nombrePaciente);
-        return alert("Error: No se encontró factura con CAE para este paciente.");
+        console.error("No se encontró factura con CAE para:", identificador);
+        // Imprimimos en consola qué recibimos para debuguear
+        console.log("Datos de la búsqueda:", identificador); 
+        return alert("Error: No se encontró factura con CAE para este registro en SAEI.");
     }
 
-    // 3. De acá para abajo, TU CÓDIGO SIGUE IGUAL (No toques nada más)
-    console.log("Generando PDF para:", p.razon_social, "CAE:", miCAE);
+    // 3. TU CÓDIGO SIGUE IGUAL (No toques nada más abajo)
+    console.log("Generando PDF para:", p.receptor_nombre || p.razon_social, "CAE:", miCAE);
+    
     const cuitEmisor = "30714900192";
         
     const f = (val) => {
