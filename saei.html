@@ -519,11 +519,22 @@ window.actualizarPanelOS = function() {
         const miFactura = p.ultima_factura; // Usamos el nombre exacto que aparece en tu Firebase
 
         // --- LÓGICA DE FILTRO TEMPORAL ---
-        // 'facturado' solo es true si tiene CAE Y es de este mes. 
-        // Si es de un mes viejo, pasará a verse como 'PENDIENTE' automáticamente.
-        const esDeEsteMes = miFactura && (miFactura.fecha_emision || "").startsWith(periodoActual);
-        const tieneCAE = !!(miFactura && miFactura.cae);
-        const facturado = esDeEsteMes && tieneCAE;
+
+const hoy = new Date();
+const mesActual = (hoy.getMonth() + 1).toString(); // Mayo es 5
+const anioActual = hoy.getFullYear().toString();
+
+let facturado = false;
+if (miFactura && miFactura.cae && miFactura.fecha) {
+    // Rompemos el string "8/4/2026" por las barras
+    const partes = miFactura.fecha.split('/'); 
+    if (partes.length === 3) {
+        // Verificamos si el mes (índice 1) y el año (índice 2) coinciden con hoy
+        if (partes[1] === mesActual && partes[2] === anioActual) {
+            facturado = true;
+        }
+    }
+			}
 
         const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
         let infoOS = {};
