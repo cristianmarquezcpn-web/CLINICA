@@ -483,7 +483,6 @@ function cerrarReset() {
     document.getElementById('panel-borrado').style.display = 'none';
     document.getElementById('overlay').style.display = 'none';
 }
-
 // Función para borrar un turno específico (Día a día)
 async function prepararBorradoIndividual() {
     const dia = prompt("¿De qué día querés borrar? (Lunes, Martes, Miércoles, Jueves, Viernes)");
@@ -492,15 +491,23 @@ async function prepararBorradoIndividual() {
     const cons = prompt("¿Qué consultorio? (Número del 1 al 10)");
     if(!cons) return;
     
-    const hora = prompt("¿A qué hora? (Ejemplo: 08:00)");
+    let hora = prompt("¿A qué hora? (Podés poner 13 o 13:30)");
     if(!hora) return;
+
+    // Si ponés "13", se convierte en "13:00". Si ponés "13:30", se queda igual.
+    if (!hora.includes(':')) {
+        hora = hora + ":00";
+    }
+
+    // Armamos la clave exacta de tu Firebase (Ej: "13:00-1")
+    const claveFirebase = `${hora}-${cons}`;
 
     if(confirm(`¿Seguro que querés vaciar el turno de los ${dia} a las ${hora} en el Cons ${cons}?`)) {
         try {
-            // Como 'database' ya es ref('/rehab'), entramos directo a 'turnos'
-            await database.child('turnos').child(dia).child(cons).child(hora.replace(':', '_')).set(null);
+            // Entramos a: turnos -> Lunes -> 1 -> 13:00-1
+            await database.child('turnos').child(dia).child(cons).child(claveFirebase).set(null);
             
-            alert("✅ Turno liberado correctamente.");
+            alert("✅ Turno liberado: " + claveFirebase);
             location.reload();
         } catch(e) {
             console.error(e);
@@ -508,7 +515,6 @@ async function prepararBorradoIndividual() {
         }
     }
 }
-
 // Función para resetear todo el turnero (Fin de mes)
 function borradoMasivoTurnos() {
     if(confirm("⚠️ ATENCIÓN: Vas a borrar TODOS los turnos de Rehabilitación. ¿Continuar?")) {
