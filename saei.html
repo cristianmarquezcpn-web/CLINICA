@@ -519,22 +519,23 @@ window.actualizarPanelOS = function() {
         const miFactura = p.ultima_factura; // Usamos el nombre exacto que aparece en tu Firebase
 
         // --- LÓGICA DE FILTRO TEMPORAL ---
-
 const hoy = new Date();
-const mesActual = (hoy.getMonth() + 1).toString(); // Mayo es 5
+const mesActual = (hoy.getMonth() + 1).toString();
 const anioActual = hoy.getFullYear().toString();
 
 let facturado = false;
-if (miFactura && miFactura.cae && miFactura.fecha) {
-    // Rompemos el string "8/4/2026" por las barras
+
+// Verificamos que miFactura exista Y que tenga una fecha antes de intentar el split
+if (miFactura && miFactura.cae && typeof miFactura.fecha === 'string') {
     const partes = miFactura.fecha.split('/'); 
     if (partes.length === 3) {
-        // Verificamos si el mes (índice 1) y el año (índice 2) coinciden con hoy
+        // Comparamos mes y año
         if (partes[1] === mesActual && partes[2] === anioActual) {
             facturado = true;
         }
     }
-			}
+}
+
 
         const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
         let infoOS = {};
