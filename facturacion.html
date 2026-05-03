@@ -391,24 +391,23 @@ window.cargarTodo = async () => {
     }
 };
 async function procesarTodo() {
-    const dictOS = window.dictOS || {};
+    // --- 0. INTELIGENCIA TEMPORAL ---
+    const hoy = new Date();
+    const mesActual = hoy.getMonth() + 1; 
+    const añoActual = hoy.getFullYear();
 
-    // --- 1. PRIMERO TRAEMOS LOS DATOS (Esto faltaba y causaba el error) ---
+    const dictOS = window.dictOS || {};
     const snapGral = await db.ref('facturas_emitidas').once('value');
     const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
     
     const valGral = snapGral.val() || {};
     const valSaei = snapSaei.val() || {};
 
-    // --- 2. FUSIÓN ANTIFANTASMAS (Para que el 0 de cobranzas no pise la factura real) ---
     const todasLasFacturas = { ...valGral };
-
     for (let key in valSaei) {
         if (!todasLasFacturas[key]) {
             todasLasFacturas[key] = valSaei[key];
         } else {
-            // Si la factura existe en ambos nodos, mezclamos los datos.
-            // Priorizamos la que tiene el campo 'cliente' (la factura real).
             if (!todasLasFacturas[key].cliente && valSaei[key].cliente) {
                 todasLasFacturas[key] = { ...valSaei[key], ...todasLasFacturas[key] };
             } else {
@@ -417,10 +416,7 @@ async function procesarTodo() {
         }
     }
     
-    // --- 3. CONVERTIMOS A ARRAY Y ORDENAMOS ---
-    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => {
-        return (b.nro_comp || 0) - (a.nro_comp || 0);
-    });
+    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => (b.nro_comp || 0) - (a.nro_comp || 0));
 
     const rutas = [
         { path: 'cd/pacientes', mod: 'CD' },
@@ -429,9 +425,7 @@ async function procesarTodo() {
         { path: 'saei/pacientes', mod: 'SAEI' } 
     ];
 
-    const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
-    const snapsPacientes = await Promise.all(promesas);
-
+    const snapsPacientes = await Promise.all(rutas.map(obj => db.ref(obj.path).once('value')));
     const tempFull = [];
 
     snapsPacientes.forEach((snap, index) => {
@@ -441,20 +435,27 @@ async function procesarTodo() {
         for (const idPac in pacientes) {
             const p = pacientes[idPac];
             
-            // BUSCAMOS LA FACTURA (Cruce blindado por ID)
             let ultFact = facturasArray.find(f => 
                 (f.id_paciente === idPac || f.id_paciente_db === idPac) && 
                 String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase()
             );
 
-            if (ultFact && (ultFact.tipo_comp == 3 || ultFact.tipo_comp == 8)) {
-                ultFact.asoc_num = ultFact.asoc_num || ultFact.factura_asoc_num || "";
-                ultFact.asoc_fecha = ultFact.asoc_fecha || ultFact.factura_asoc_fecha || "";
+            // --- FILTRO INTELIGENTE DE FECHA ---
+            let facturaEsDeEsteMes = false;
+            if (ultFact && ultFact.fecha_emision) {
+                const partes = ultFact.fecha_emision.split('/');
+                const mesF = parseInt(partes[1]);
+                const añoF = parseInt(partes[2]);
+                if (mesF === mesActual && añoF === añoActual) {
+                    facturaEsDeEsteMes = true;
+                }
             }
 
-            let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
+            // Solo bloqueamos si es de ESTE MES y tiene CAE
+            let estadoFinal = (ultFact && ultFact.cae && facturaEsDeEsteMes) ? 'SI' : 'NO';
             
-            if (p.facturado === 'NO') {
+            // Si el paciente tiene 'NO' manual o 'no' de refac, se queda en NO
+            if (p.facturado === 'NO' || p.facturado === 'no' || p.facturado_saei === 'no') {
                 estadoFinal = 'NO';
             }
 
@@ -470,8 +471,6 @@ async function procesarTodo() {
     });
     
     window.dataFull = tempFull;
-    console.log("✅ Datos procesados y cruzados sin pérdidas. Llamando al render...");
-    
     if (typeof window.render === "function") {
         window.render();
     }
