@@ -495,25 +495,42 @@ window.actualizarPanelOS = function() {
 
     const diccOS = (window.config && window.config.obras_sociales) ? window.config.obras_sociales : (window.dictOS || {});
     const listaNombresOS = Object.keys(diccOS);
+// 1. Definimos el tiempo FUERA del filter para no gastar memoria
+const hoy = new Date();
+const mesActual = hoy.getMonth() + 1; 
+const añoActual = hoy.getFullYear(); 
 
-    dataFull
+dataFull
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
     .filter(p => {
-        const p_pres = (p.pres || "").toUpperCase();
-        const p_det = (p.detalle || "").toUpperCase();
-        return (p_pres === "SAEI" || p_det.includes("SAEI") || p.facturado_saei !== undefined);
-    })
-    .forEach(p => {
-        const idPaciente = p.id || p.id_db || "S/N";
-        const nombreMod  = "saei"; 
+        // Usamos nombres claros:
+        const prestacion = (p.pres || "").toUpperCase();
+        const detalle = (p.detalle || "").toUpperCase();
         
+        // Filtramos solo los pacientes que pertenecen a esta prestación
+        return (prestacion === "SAEI" || detalle.includes("SAEI"));
+    })    
+    .forEach(p => {
+        // --- IDENTIFICACIÓN DE FACTURA ---
+        // Seguimos usando 'ultima_factura' como el estándar de datos
+        const miFactura = p.ultima_factura || p.ultima_factura_saei || null;
+        const tieneCAE = !!(miFactura && miFactura.cae); 
+		const idPaciente = p.id || p.id_db || "S/N";
+        const nombreMod  = "saei"; 
+
+        // --- COMPARACIÓN DE MES ---
+        // Extraemos el mes de la fecha de emisión (ej: "15/5/2026")
+        const partesFecha = (miFactura && miFactura.fecha_emision) ? miFactura.fecha_emision.split('/') : [];
+        
+        const esMismoMes = partesFecha.length === 3 && 
+                           parseInt(partesFecha[1]) === mesActual && 
+                           parseInt(partesFecha[2]) === añoActual;
+
+        // La fila se bloquea y se pone gris SOLO si se facturó en el mes corriente
+        const facturado = esMismoMes && tieneCAE;
         let facturado = (p.facturado === "SI" || p.facturado_saei === "SI");
         if (p.facturado === "NO" || p.facturado_saei === "NO") facturado = false;
-
-        const miFactura = p.ultima_factura_saei || p.ultima_factura || null;
-        const tieneCAE = !!(miFactura && miFactura.cae); 
-
-        // --- RESCATE DE FECHAS PARA AFIP ---
+	    // --- RESCATE DE FECHAS PARA AFIP ---
         const fDesde = (facturado && miFactura) ? (miFactura.periodo_desde || "") : (p.periodo_desde || "");
         const fHasta = (facturado && miFactura) ? (miFactura.periodo_hasta || "") : (p.periodo_hasta || "");
         const fVto   = (facturado && miFactura) ? (miFactura.vto_pago || "") : (p.vto_pago || "");
@@ -775,22 +792,34 @@ window.gestionarTipoComp = function(select) {
     };
 
     let updates = {};
-
     // 3. ACTUALIZACIÓN MULTI-RUTA
-    updates['/' + rutaHistorial + '/' + nuevaFacturaKey] = facturaLegal;
-    
-    if (facturaLegal.id_paciente) {
-        const rutaPaciente = '/' + moduloUpper + '/pacientes/' + facturaLegal.id_paciente;
+updates['/' + rutaHistorial + '/' + nuevaFacturaKey] = facturaLegal;
+
+if (facturaLegal.id_paciente) {
+    // Normalizamos a minúsculas para que el refacturador lo encuentre
+    const moduloLower = modOriginal.toLowerCase();
+    const rutaPaciente = '/' + moduloLower + '/pacientes/' + facturaLegal.id_paciente;
+
+    if (esSaei) {
+        // --- AQUÍ ESTÁN TUS LLAVES ---
+        updates[rutaPaciente + '/ultima_factura_saei'] = facturaLegal;
+        updates[rutaPaciente + '/facturado_saei'] = 'SI';
+        updates[rutaPaciente + '/facturado'] = 'SI';
         
-        if (esSaei) {
-            updates[rutaPaciente + '/ultima_factura_saei'] = facturaLegal;
-            updates[rutaPaciente + '/facturado_saei'] = 'SI';
-            updates[rutaPaciente + '/facturado'] = 'SI';
-        } else {
-            updates[rutaPaciente + '/ultima_factura'] = facturaLegal;
-            updates[rutaPaciente + '/facturado'] = 'SI';
-        }
+        // Agrego esta para que el BOT de Tesorería lo encuentre fácil después
+        updates[rutaPaciente + '/ultima_factura'] = facturaLegal; 
+    } 
+    else {
+        // --- LAS LLAVES DEL ELSE ---
+        updates[rutaPaciente + '/ultima_factura'] = facturaLegal;
+        updates[rutaPaciente + '/facturado'] = 'SI';
     }
+    
+    // Sincronizamos con la carpeta en Mayúsculas por si las moscas
+    const rutaPacienteMayus = '/' + moduloUpper + '/pacientes/' + facturaLegal.id_paciente;
+    updates[rutaPacienteMayus + '/facturado'] = 'SI';
+    updates[rutaPacienteMayus + '/ultima_factura'] = facturaLegal;
+}
 
     return db.ref().update(updates).then(() => {
         console.log("✅ Sincronizado y guardado con periodos y asociados: " + moduloUpper);
@@ -1479,13 +1508,13 @@ window.filtrarRender = function() {
         fila.style.display = mostrar ? "" : "none";
     });
 };
-	window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVieja) {
+window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVieja) {
     if(!confirm("¿Habilitar para editar y refacturar?")) return;
 
     try {
-        // 1. Definimos las dos rutas posibles (la nueva y la vieja)
-        const rutaMinus = `saei/${idPaciente}`;
-        const rutaMayus = `SAEI/${idPaciente}`;
+        // --- CORRECCIÓN DE RUTA: Agregamos '/pacientes/' ---
+        const rutaMinus = `saei/pacientes/${idPaciente}`;
+        const rutaMayus = `SAEI/pacientes/${idPaciente}`;
         
         const datosLimpios = {
             estado: "PENDIENTE", 
@@ -1499,14 +1528,12 @@ window.filtrarRender = function() {
             ignorar_factura: idFacturaVieja || "REFAC_MANUAL"
         };
 
-        // 2. Limpiamos en AMBAS carpetas al mismo tiempo
-        // Promise.allSettled hace que si una falla (porque no existe), la otra siga igual
+        // El resto del código (Promise.allSettled, dataFull y render) está perfecto
         await Promise.allSettled([
             db.ref(rutaMinus).update(datosLimpios),
             db.ref(rutaMayus).update(datosLimpios)
         ]);
 
-        // 3. Limpiamos la memoria local (dataFull)
         if (window.dataFull) {
             const p = window.dataFull.find(x => (x.id || x.id_db || x.id_paciente) == idPaciente);
             if (p) {
@@ -1518,9 +1545,8 @@ window.filtrarRender = function() {
             }
         }
 
-        alert("✅ Desbloqueado en ambas carpetas. La fila debería volver a PENDIENTE.");
+        alert("✅ Desbloqueado correctamente en la carpeta de pacientes.");
         
-        // 4. Tu render para refrescar la vista
         if (typeof window.render === 'function') {
             window.render();
         } else {
@@ -1529,9 +1555,9 @@ window.filtrarRender = function() {
 
     } catch (e) {
         console.error("Error en Refac SAEI:", e);
-        alert("❌ Error: Revisá los permisos de Firebase.");
+        alert("❌ Error: Revisá la conexión.");
     }
-};
+};	
 // --- 3. LIMPIAR TODO ---
 window.limpiarFiltros = function() {
     // Limpiar textos
