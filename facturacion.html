@@ -1550,20 +1550,16 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
     }
 };
 // --- FUNCIÓN GLOBAL PARA REFACTURAR ---
-
-		window.habilitarParaRefacturar = async function(idPaciente) {
+// --- FUNCIÓN GLOBAL PARA REFACTURAR ---
+window.habilitarParaRefacturar = async function(idPaciente) {
     if(confirm("¿Habilitar para editar y refacturar este mes?")) {
         try {
-            // 1. Buscamos al paciente en la memoria global
             const p = window.dataFull.find(x => (x.id || x.id_db) == idPaciente);
             
-            // 2. VALIDACIÓN CRÍTICA: Si no hay módulo, frenamos todo
             if (!p || (!p.modulo && !p.mod)) {
-                console.error("Paciente sin módulo:", p);
-                return alert("❌ ERROR CRÍTICO: No se puede determinar si el paciente es de CD, CET, REHAB o SAEI. No se realizó ningún cambio para evitar errores.");
+                return alert("❌ ERROR CRÍTICO: No se pudo determinar el módulo.");
             }
 
-            // 3. Determinamos el nombre exacto de la carpeta (siempre en minúsculas)
             const nombreMod = (p.modulo || p.mod).toLowerCase();
             const rutaBase = `${nombreMod}/pacientes/${idPaciente}`;
 
@@ -1575,83 +1571,71 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
                 cae: null
             };
 
-            // 4. IMPACTO SEGURO
             await db.ref(rutaBase).update(datosLimpios);
 
-            // 5. Actualizamos la memoria local
             p.facturado = "NO";
             p.ultima_factura = null;
             p.cae = null;
 
-            alert(`✅ DESBLOQUEADO: Se limpió el registro en la carpeta '${nombreMod}'.`);
-            
-            if (typeof window.render === 'function') {
-                window.render();
-            }
+            alert(`✅ DESBLOQUEADO: Carpeta '${nombreMod}'.`);
+            if (typeof window.render === 'function') window.render();
 
         } catch (e) {
             console.error("Error en Refacturación:", e);
-            alert("❌ Error de red o permisos: No se pudo actualizar Firebase.");
+            alert("❌ Error en Firebase.");
         }
     }
 };
-// --- 1. SELECCIONAR TODOS (Solo visibles y habilitados) ---
+
+// --- 1. SELECCIONAR TODOS ---
 window.seleccionarTodos = function(master) {
     const filas = document.querySelectorAll('#tabla-body tr');
     filas.forEach(fila => {
-        // Solo afectamos a las filas que NO están ocultas por el filtro
         if (fila.style.display !== 'none') {
             const ck = fila.querySelector('.ck');
             if (ck && !ck.disabled) {
                 ck.checked = master.checked;
             }
-        } 
-    }); // <--- Esta es la que cierra el forEach
+        }
+    });
 };
-// --- 2. FILTRADO MULTICOLUMNA INTELIGENTE ---
+
+// --- 2. FILTRADO MULTICOLUMNA ---
 window.filtrarRender = function() {
     const filtros = document.querySelectorAll('.f-filtro');
     const filas = document.querySelectorAll('#tabla-body tr');
 
     filas.forEach(fila => {
         let mostrar = true;
-
         filtros.forEach(inputFiltro => {
             const valorBusqueda = inputFiltro.value.toLowerCase().trim();
-            if (valorBusqueda === "") return; // Si el filtro está vacío, saltamos
+            if (valorBusqueda === "") return;
 
             const colIndex = parseInt(inputFiltro.getAttribute('data-col'));
             const celda = fila.cells[colIndex];
             
             if (celda) {
-                // Lógica especial: Buscar en texto o dentro de inputs/textareas de la celda
                 const inputInterno = celda.querySelector('input, textarea');
                 let textoComparar = inputInterno ? inputInterno.value : celda.innerText;
-                
                 if (textoComparar.toLowerCase().indexOf(valorBusqueda) === -1) {
                     mostrar = false;
                 }
-              }
-			});
-
+            } // <--- Esta llave faltaba en tu código
+        });
         fila.style.display = mostrar ? "" : "none";
     });
 };
-// --- CIERRE MENSUAL UNIVERSAL ---
-async function cierreMensualUniversal() {
-    const conf1 = confirm("⚠️ ¿VAS A INICIAR EL CIERRE MENSUAL TOTAL? \n\nSe limpiarán las asistencias de CD, CET y REHABILITACIÓN.");
-    if(!conf1) return;
 
-    const conf2 = confirm("❗ ¿Estás SEGURO? Recordá que esto vacía los registros de facturación para el nuevo mes.");
-    if(!conf2) return;
+// --- 3. CIERRE MENSUAL UNIVERSAL ---
+async function cierreMensualUniversal() {
+    if(!confirm("⚠️ ¿INICIAR CIERRE MENSUAL TOTAL?")) return;
+    if(!confirm("❗ ¿SEGURO? Se vaciarán los registros.")) return;
 
     try {
-        // Unificamos modulos en minúsculas y agregamos saei
         const modulos = ['cd', 'cet', 'rehab', 'saei'];
         let conteoPacientes = 0;
 
         for (const mod of modulos) {
-            // Usamos db.ref para ser consistentes
             const snapshot = await db.ref(`/${mod}/pacientes`).once('value');
             const pacientes = snapshot.val();
 
@@ -1660,56 +1644,43 @@ async function cierreMensualUniversal() {
                 Object.keys(pacientes).forEach(id => {
                     actualizaciones[`${id}/asistF_link`] = null;
                     actualizaciones[`${id}/facturado`] = "NO";
-                    // Limpieza de campos viejos
                     actualizaciones[`${id}/ultima_factura_saei`] = null;
                     actualizaciones[`${id}/facturado_saei`] = null;
                     conteoPacientes++;
                 });
-                
                 await db.ref(`/${mod}/pacientes`).update(actualizaciones);
             }
         }
-
-        alert(`✨ ¡Misión cumplida! \n\nSe resetearon los registros correctamente. \nPacientes actualizados: ${conteoPacientes}`);
+        alert(`✨ Misión cumplida. Actualizados: ${conteoPacientes}`);
         location.reload();
-
     } catch (e) {
         console.error(e);
-        alert("Hubo un error en el proceso: " + e.message);
+        alert("Error: " + e.message);
     }
 }
 
-// --- 3. LIMPIAR TODO ---
+// --- 4. LIMPIAR FILTROS ---
 window.limpiarFiltros = function() {
     document.querySelectorAll('.f-filtro').forEach(i => i.value = "");
-    
     const master = document.getElementById('check-all');
     if (master) master.checked = false;
-
-    const filas = document.querySelectorAll('#tabla-body tr');
-    filas.forEach(fila => {
+    document.querySelectorAll('#tabla-body tr').forEach(fila => {
         fila.style.display = "";
         const ck = fila.querySelector('.ck');
         if (ck && !ck.disabled) ck.checked = false;
     });
 };
 
-// --- ESCUCHAS DE BASE DE DATOS (REORDENADAS) ---
+// --- ESCUCHAS DE BASE DE DATOS ---
 db.ref('facturas_emitidas').on('value', () => {
-    console.log("⚡ Cambio detectado en Facturas Gral");
     if (typeof procesarTodo === 'function') procesarTodo();
 });
-
 db.ref('facturas_emitidas_saei').on('value', () => {
-    console.log("⚡ Cambio detectado en Facturas SAEI");
     if (typeof procesarTodo === 'function') procesarTodo();
 });
-
 db.ref('cola_facturacion').on('value', () => {
-    console.log("⚡ La cola se movió");
     if (typeof render === 'function') render();
 });
-
 // --- ESTADO DE AUTENTICACIÓN ---
 auth.onAuthStateChanged((user) => {
     if (user) {
