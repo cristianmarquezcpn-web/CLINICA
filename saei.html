@@ -378,11 +378,12 @@ window.cargarTodo = async () => {
             }
         });
 async function procesarTodo() {
-    // 1. Definimos el "Hoy" para comparar meses
+    // 1. Definimos el mes actual para el filtro inteligente
     const hoy = new Date();
-    const mesActual = hoy.getMonth() + 1; 
+    const mesActual = hoy.getMonth() + 1; // Mayo = 5
     const añoActual = hoy.getFullYear();
 
+    // 2. Traemos las facturas de ambos nodos
     const snapGral = await db.ref('facturas_emitidas').once('value');
     const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
     
@@ -391,15 +392,18 @@ async function procesarTodo() {
         ...(snapSaei.val() || {})
     };
     
-    // Ordenamos para tener la más nueva primero
+    // Ordenamos para que la primera que encuentre el .find() sea la más reciente
     const facturasArray = Object.values(todasLasFacturas).sort((a, b) => (b.nro_comp || 0) - (a.nro_comp || 0));
 
+    // 3. Definimos las rutas (ya unificadas en minúsculas)
     const rutas = [
         { path: 'rehab/pacientes', mod: 'REHAB' },
         { path: 'saei/pacientes', mod: 'SAEI' } 
     ];
 
-    const snapsPacientes = await Promise.all(rutas.map(obj => db.ref(obj.path).once('value')));
+    const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
+    const snapsPacientes = await Promise.all(promesas);
+
     const mapaPacientes = {};
 
     snapsPacientes.forEach((snap, index) => {
@@ -410,33 +414,35 @@ async function procesarTodo() {
             const prestacion = (p.pres || "").toString().toUpperCase().trim();
             const detalle = (p.detalle || "").toUpperCase();
 
+            // Filtro para capturar todo lo que sea SAEI
             if (prestacion === "SAEI" || detalle.includes("SAEI") || index === 1) {
                 
-                // Buscamos la última factura de este paciente
+                // Buscamos si existe una factura para este paciente
                 let ultFact = facturasArray.find(f => 
                     (f.id_paciente === idPac || f.id_paciente_db === idPac)
                 );
 
-                // --- INTEGRACIÓN DE INTELIGENCIA TEMPORAL ---
+                // --- APLICACIÓN DEL FILTRO INTELIGENTE ---
                 let facturaEsDeEsteMes = false;
                 if (ultFact && ultFact.fecha_emision) {
-                    const partes = ultFact.fecha_emision.split('/'); // Asume formato DD/MM/AAAA
-                    const mesFactura = parseInt(partes[1]);
-                    const añoFactura = parseInt(partes[2]);
+                    const partes = ultFact.fecha_emision.split('/');
+                    const mesF = parseInt(partes[1]);
+                    const añoF = parseInt(partes[2]);
                     
-                    if (mesFactura === mesActual && añoFactura === añoActual) {
+                    if (mesF === mesActual && añoF === añoActual) {
                         facturaEsDeEsteMes = true;
                     }
                 }
 
-                // El estado final solo será 'SI' si hay CAE Y es de este mes
+                // El estado final solo es SI si la factura es de MAYO y tiene CAE
                 let estadoFinal = (ultFact && ultFact.cae && facturaEsDeEsteMes) ? 'SI' : 'NO';
-
-                // Si en Firebase forzaste el "no" (por Refac), le hacemos caso al "no"
-                if (p.facturado === 'no' || p.facturado_saei === 'no') {
+                
+                // Prioridad al 'no' manual (del botón Refac)
+                if (p.facturado === 'NO' || p.facturado === 'no' || p.facturado_saei === 'no') {
                     estadoFinal = 'NO';
                 }
 
+                // Guardamos en el mapa para evitar duplicados
                 mapaPacientes[idPac] = {
                     ...p,
                     id: idPac,
@@ -449,14 +455,15 @@ async function procesarTodo() {
         }
     });
     
+    // 4. Actualizamos la variable global y dibujamos
     window.dataFull = Object.values(mapaPacientes);
+    console.log("✅ Proceso terminado. Pacientes listos para Mayo.");
     
-    if (typeof render === "function") {
-        render();
+    if (typeof window.render === "function") {
+        window.render();
     }
 }
-        
-window.actualizarPanelOS = function() {
+    window.actualizarPanelOS = function() {
     const listaOS = document.getElementById('lista-os');
     if(!listaOS) return;
     const datosParaListar = window.dictOS || {};
