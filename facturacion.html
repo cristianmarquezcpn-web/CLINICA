@@ -1633,11 +1633,13 @@ window.filtrarRender = function() {
                 if (textoComparar.toLowerCase().indexOf(valorBusqueda) === -1) {
                     mostrar = false;
                 }
-            });
+              }
+			});
 
         fila.style.display = mostrar ? "" : "none";
     });
 };
+// --- CIERRE MENSUAL UNIVERSAL ---
 async function cierreMensualUniversal() {
     const conf1 = confirm("⚠️ ¿VAS A INICIAR EL CIERRE MENSUAL TOTAL? \n\nSe limpiarán las asistencias de CD, CET y REHABILITACIÓN.");
     if(!conf1) return;
@@ -1646,29 +1648,31 @@ async function cierreMensualUniversal() {
     if(!conf2) return;
 
     try {
-        const modulos = ['cd', 'cet', 'rehab'];
+        // Unificamos modulos en minúsculas y agregamos saei
+        const modulos = ['cd', 'cet', 'rehab', 'saei'];
         let conteoPacientes = 0;
 
         for (const mod of modulos) {
-            // Accedemos a la raíz de cada módulo (cd, cet o rehab)
-            const snapshot = await firebase.database().ref(`/${mod}/pacientes`).once('value');
+            // Usamos db.ref para ser consistentes
+            const snapshot = await db.ref(`/${mod}/pacientes`).once('value');
             const pacientes = snapshot.val();
 
             if (pacientes) {
                 const actualizaciones = {};
                 Object.keys(pacientes).forEach(id => {
-                    // Limpiamos el link de asistencia y el estado de facturado
                     actualizaciones[`${id}/asistF_link`] = null;
-                    actualizaciones[`${id}/facturado`] = "no";
+                    actualizaciones[`${id}/facturado`] = "NO";
+                    // Limpieza de campos viejos
+                    actualizaciones[`${id}/ultima_factura_saei`] = null;
+                    actualizaciones[`${id}/facturado_saei`] = null;
                     conteoPacientes++;
                 });
                 
-                // Aplicamos los cambios específicamente en la rama de este módulo
-                await firebase.database().ref(`/${mod}/pacientes`).update(actualizaciones);
+                await db.ref(`/${mod}/pacientes`).update(actualizaciones);
             }
         }
 
-        alert(`✨ ¡Misión cumplida! \n\nSe resetearon los registros de los 3 módulos correctamente. \nPacientes actualizados: ${conteoPacientes}`);
+        alert(`✨ ¡Misión cumplida! \n\nSe resetearon los registros correctamente. \nPacientes actualizados: ${conteoPacientes}`);
         location.reload();
 
     } catch (e) {
@@ -1676,16 +1680,14 @@ async function cierreMensualUniversal() {
         alert("Hubo un error en el proceso: " + e.message);
     }
 }
+
 // --- 3. LIMPIAR TODO ---
 window.limpiarFiltros = function() {
-    // Limpiar textos
     document.querySelectorAll('.f-filtro').forEach(i => i.value = "");
     
-    // Resetear checkbox maestro
     const master = document.getElementById('check-all');
     if (master) master.checked = false;
 
-    // Mostrar todas las filas y desmarcar checks
     const filas = document.querySelectorAll('#tabla-body tr');
     filas.forEach(fila => {
         fila.style.display = "";
@@ -1693,24 +1695,27 @@ window.limpiarFiltros = function() {
         if (ck && !ck.disabled) ck.checked = false;
     });
 };
-		db.ref('facturas_emitidas').on('value', () => {
-    console.log("⚡ Cambio detectado en Facturas Gral, actualizando...");
+
+// --- ESCUCHAS DE BASE DE DATOS (REORDENADAS) ---
+db.ref('facturas_emitidas').on('value', () => {
+    console.log("⚡ Cambio detectado en Facturas Gral");
     if (typeof procesarTodo === 'function') procesarTodo();
 });
 
 db.ref('facturas_emitidas_saei').on('value', () => {
-    console.log("⚡ Cambio detectado en Facturas SAEI, actualizando...");
+    console.log("⚡ Cambio detectado en Facturas SAEI");
     if (typeof procesarTodo === 'function') procesarTodo();
 });
-	// 3. Escucha cambios en la Cola de Facturación (Motor)
+
 db.ref('cola_facturacion').on('value', () => {
-    console.log("⚡ La cola se movió, actualizando vista...");
+    console.log("⚡ La cola se movió");
     if (typeof render === 'function') render();
-});	
+});
+
+// --- ESTADO DE AUTENTICACIÓN ---
 auth.onAuthStateChanged((user) => {
     if (user) {
         setTimeout(() => {
-            // Si tus funciones usan 'db', esto va a andar de diez
             if (typeof cargarTodo === 'function') cargarTodo();
         }, 500);
     } else {
