@@ -527,7 +527,7 @@ dataFull
                            parseInt(partesFecha[2]) === añoActual;
 
         // La fila se bloquea y se pone gris SOLO si se facturó en el mes corriente
-        const facturado = esMismoMes && tieneCAE;
+        
         let facturado = (p.facturado === "SI" || p.facturado_saei === "SI");
         if (p.facturado === "NO" || p.facturado_saei === "NO") facturado = false;
 	    // --- RESCATE DE FECHAS PARA AFIP ---
