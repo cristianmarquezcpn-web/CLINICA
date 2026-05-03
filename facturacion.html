@@ -1606,7 +1606,6 @@ window.seleccionarTodos = function(master) {
             if (ck && !ck.disabled) {
                 ck.checked = master.checked;
             }
-        }
     });
 };
 
@@ -1633,8 +1632,7 @@ window.filtrarRender = function() {
                 if (textoComparar.toLowerCase().indexOf(valorBusqueda) === -1) {
                     mostrar = false;
                 }
-            }
-        });
+            });
 
         fila.style.display = mostrar ? "" : "none";
     });
