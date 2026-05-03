@@ -541,7 +541,7 @@ window.render = function() {
         const nombreMod  = (p.modulo || p.mod || "S/M").toUpperCase();
         const miFactura = p.ultima_factura; 
         // --- LÓGICA DE FILTRO TEMPORAL ---
-const hoy = new Date();
+
 const mesActual = hoy.getMonth() + 1; // Debería dar 5
 const añoActual = hoy.getFullYear();  // Debería dar 2026
 
