@@ -1550,49 +1550,48 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
     }
 };
 // --- FUNCIÓN GLOBAL PARA REFACTURAR ---
-window.habilitarParaRefacturar = async function(idPaciente) {
+
+		window.habilitarParaRefacturar = async function(idPaciente) {
     if(confirm("¿Habilitar para editar y refacturar este mes?")) {
         try {
-            // 1. Buscamos al paciente en la memoria para saber su módulo real
+            // 1. Buscamos al paciente en la memoria global
             const p = window.dataFull.find(x => (x.id || x.id_db) == idPaciente);
             
-            if (!p) {
-                return alert("❌ Error: No se encontró al paciente en la lista actual.");
+            // 2. VALIDACIÓN CRÍTICA: Si no hay módulo, frenamos todo
+            if (!p || (!p.modulo && !p.mod)) {
+                console.error("Paciente sin módulo:", p);
+                return alert("❌ ERROR CRÍTICO: No se puede determinar si el paciente es de CD, CET, REHAB o SAEI. No se realizó ningún cambio para evitar errores.");
             }
 
-            // 2. Definimos la ruta correcta usando el módulo en MINÚSCULAS
-            const nombreMod = (p.modulo || p.mod || "rehab").toLowerCase();
+            // 3. Determinamos el nombre exacto de la carpeta (siempre en minúsculas)
+            const nombreMod = (p.modulo || p.mod).toLowerCase();
             const rutaBase = `${nombreMod}/pacientes/${idPaciente}`;
 
-            // 3. Objeto de limpieza absoluta
             const datosLimpios = {
                 facturado: "NO",
                 ultima_factura: null,
-                // Limpiamos rastros viejos por si quedan
                 facturado_saei: null,
                 ultima_factura_saei: null,
                 cae: null
             };
 
-            // 4. IMPACTO EN FIREBASE
-            // Esto irá directo a saei/pacientes/Nombre o cd/pacientes/Nombre
+            // 4. IMPACTO SEGURO
             await db.ref(rutaBase).update(datosLimpios);
 
-            // 5. LIMPIEZA EN MEMORIA LOCAL (Para que el cambio sea instantáneo)
+            // 5. Actualizamos la memoria local
             p.facturado = "NO";
             p.ultima_factura = null;
             p.cae = null;
 
-            alert(`✅ ${idPaciente} desbloqueado en el módulo ${nombreMod.toUpperCase()}.`);
+            alert(`✅ DESBLOQUEADO: Se limpió el registro en la carpeta '${nombreMod}'.`);
             
-            // 6. Refrescamos la tabla
             if (typeof window.render === 'function') {
                 window.render();
             }
 
         } catch (e) {
             console.error("Error en Refacturación:", e);
-            alert("❌ No se pudo desbloquear. Revisá la conexión.");
+            alert("❌ Error de red o permisos: No se pudo actualizar Firebase.");
         }
     }
 };
@@ -1605,11 +1604,10 @@ window.seleccionarTodos = function(master) {
             const ck = fila.querySelector('.ck');
             if (ck && !ck.disabled) {
                 ck.checked = master.checked;
-          }
+            }
         } 
-    }); 
+    }); // <--- Esta es la que cierra el forEach
 };
-
 // --- 2. FILTRADO MULTICOLUMNA INTELIGENTE ---
 window.filtrarRender = function() {
     const filtros = document.querySelectorAll('.f-filtro');
