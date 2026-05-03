@@ -416,7 +416,10 @@ async function procesarTodo() {
         }
     }
     
-    const facturasArray = Object.values(todasLasFacturas).sort((a, b) => (b.nro_comp || 0) - (a.nro_comp || 0));
+const facturasArray = [
+    ...Object.keys(valGral).map(key => ({ ...valGral[key], id: key })),
+    ...Object.keys(valSaei).map(key => ({ ...valSaei[key], id: key }))
+];
 
     const rutas = [
         { path: 'cd/pacientes', mod: 'CD' },
@@ -607,13 +610,14 @@ const facturado = esDeEsteMes && tieneCAE;
     // Usamos p.nombre o el id que usas como nombre (el que aparece en la tabla)
     const nombreParaBuscar = p.nombre || idPaciente;
     colAccion += `<div style="margin-top:5px;">
-    <button onclick="descargarFactura('${p.ultima_factura ? p.ultima_factura.id : ''}')" 
-            style="background:#2ecc71; font-size:8px; padding:4px; color:white; border:none; cursor:pointer;" 
-            class="btn-pdf">📄 PDF</button>
-    
+    <button onclick="if(this.dataset.id) { descargarFactura(this.dataset.id) } else { alert('No hay ID de factura') }" 
+            data-id="${p.ultima_factura ? p.ultima_factura.id : ''}" 
+            class="btn" style="background:#2ecc71; font-size:8px; padding:4px; color:white; border:none; cursor:pointer;">
+        PDF
+    </button>
     <button style="background:#e67e22; font-size:8px; padding:4px; color:white; border:none; margin-left:2px; cursor:pointer;" 
             onclick="window.habilitarParaRefacturar('${idPaciente}')">Refac</button>
-</div>`;    
+</div>`;
 }
         const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
 
@@ -1047,14 +1051,21 @@ const MODELO_FACTURA_B = (d) => {
     </div>`;
 };
 	window.descargarFactura = async (idFactura) => { 
-    if (!idFactura) return alert("No hay factura emitida para este módulo");
+    if (!idFactura || idFactura === 'undefined') return alert("No hay factura emitida para este módulo");
 
     const snapGral = await db.ref('facturas_emitidas').once('value');
     const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
-    const todas = { ...(snapGral.val() || {}), ...(snapSaei.val() || {}) };
-    const p = todas[idFactura]; // Búsqueda directa por ID
-    if (!p) return alert("Error: Factura no encontrada.");
-    // Filtramos las facturas del paciente y nos quedamos con la última (por fecha)
+    const todas = {
+        ...(snapGral.val() || {}),
+        ...(snapSaei.val() || {})
+    };
+    
+    // Traemos la factura usando el ID que ahora sí es la llave de Firebase
+    const p = todas[idFactura];
+    if (!p) {
+        console.error("ID buscado:", idFactura);
+        return alert("Error: La factura no se encuentra en el historial de Firebase.");
+	}
     const lista = Object.values(facturas)
         .filter(f => String(f.id_paciente).toUpperCase().includes(String(nombrePaciente).toUpperCase()))
         .sort((a, b) => (b.fecha_emision || "").localeCompare(a.fecha_emision || ""));
