@@ -874,6 +874,7 @@ return db.ref().update(updates).then(() => {
 }).catch(error => {
     console.error("❌ Error en el guardado unificado:", error);
 });
+}
 const MODELO_FACTURA_B = (d) => {
    // 1. CÁLCULOS (No tocamos esto, ya funciona bien)
     const totalFacturado = d.total || d.total_facturado || 0;
