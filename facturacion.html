@@ -1670,27 +1670,34 @@ window.limpiarFiltros = function() {
         if (ck && !ck.disabled) ck.checked = false;
     });
 };
+} catch(e) { console.error("Error detectado en bloques superiores:", e); }
+} } } 
 
 // --- ESCUCHAS DE BASE DE DATOS ---
-db.ref('facturas_emitidas').on('value', () => {
-    if (typeof procesarTodo === 'function') procesarTodo();
-});
-db.ref('facturas_emitidas_saei').on('value', () => {
-    if (typeof procesarTodo === 'function') procesarTodo();
-});
-db.ref('cola_facturacion').on('value', () => {
-    if (typeof render === 'function') render();
-});
+if (typeof db !== 'undefined') {
+    db.ref('facturas_emitidas').on('value', () => {
+        if (typeof procesarTodo === 'function') procesarTodo();
+    });
+    db.ref('facturas_emitidas_saei').on('value', () => {
+        if (typeof procesarTodo === 'function') procesarTodo();
+    });
+    db.ref('cola_facturacion').on('value', () => {
+        if (typeof render === 'function') render();
+    });
+}
+
 // --- ESTADO DE AUTENTICACIÓN ---
-auth.onAuthStateChanged((user) => {
-    if (user) {
-        setTimeout(() => {
-            if (typeof cargarTodo === 'function') cargarTodo();
-        }, 500);
-    } else {
-        window.location.href = "index.html";
-    }
-});
+if (typeof auth !== 'undefined') {
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            setTimeout(() => {
+                if (typeof cargarTodo === 'function') cargarTodo();
+            }, 500);
+        } else {
+            window.location.href = "index.html";
+        }
+    });
+}
 </script>
 </body>
 </html>
