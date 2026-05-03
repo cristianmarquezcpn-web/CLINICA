@@ -1670,9 +1670,11 @@ window.limpiarFiltros = function() {
         if (ck && !ck.disabled) ck.checked = false;
     });
 };
-} catch(e) { console.error("Error detectado en bloques superiores:", e); }
-} } } 
-
+} 
+// Ahora sí, el catch tiene su lugar
+catch(e) { 
+    console.error("Se cerró un error pendiente de arriba:", e); 
+}
 // --- ESCUCHAS DE BASE DE DATOS ---
 if (typeof db !== 'undefined') {
     db.ref('facturas_emitidas').on('value', () => {
@@ -1685,7 +1687,6 @@ if (typeof db !== 'undefined') {
         if (typeof render === 'function') render();
     });
 }
-
 // --- ESTADO DE AUTENTICACIÓN ---
 if (typeof auth !== 'undefined') {
     auth.onAuthStateChanged((user) => {
