@@ -539,14 +539,25 @@ window.render = function() {
     .forEach(p => {
         const idPaciente = p.id || p.id_db || "S/N";
         const nombreMod  = (p.modulo || p.mod || "S/M").toUpperCase();
-        const miFactura = p.ultima_factura_saei || p.ultima_factura; 
-
+        const miFactura = p.ultima_factura; 
         // --- LÓGICA DE FILTRO TEMPORAL ---
-        // 'facturado' solo es true si tiene CAE Y es de este mes. 
-        // Si es de un mes viejo, pasará a verse como 'PENDIENTE' automáticamente.
-        const esDeEsteMes = miFactura && (miFactura.fecha_emision || "").startsWith(periodoActual);
-        const tieneCAE = !!(miFactura && miFactura.cae);
-        const facturado = esDeEsteMes && tieneCAE;
+const hoy = new Date();
+const mesActual = hoy.getMonth() + 1; // Debería dar 5
+const añoActual = hoy.getFullYear();  // Debería dar 2026
+
+// miFactura.fecha es "9/4/2026" u "11/5/2026"
+const partesFecha = (miFactura && miFactura.fecha) ? miFactura.fecha.split('/') : [];
+
+// Comparamos numéricamente el mes (posición 1) y el año (posición 2)
+const esDeEsteMes = partesFecha.length === 3 && 
+                    parseInt(partesFecha[1]) === mesActual && 
+                    parseInt(partesFecha[2]) === añoActual;
+
+const tieneCAE = !!(miFactura && miFactura.cae);
+
+// Si es de mayo y tiene CAE, se activa el VERDE
+const facturado = esDeEsteMes && tieneCAE;
+        
 
         const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
         let infoOS = {};
@@ -836,31 +847,33 @@ async function enviarAFIP_WS() {
 
     let updates = {};
 
-    // 3. ACTUALIZACIÓN MULTI-RUTA
-    updates['/' + rutaHistorial + '/' + nuevaFacturaKey] = facturaLegal;
-    
-    if (facturaLegal.id_paciente) {
-        const rutaPaciente = '/' + moduloUpper + '/pacientes/' + facturaLegal.id_paciente;
-        
-        if (esSaei) {
-            updates[rutaPaciente + '/ultima_factura_saei'] = facturaLegal;
-            updates[rutaPaciente + '/facturado_saei'] = 'SI';
-            updates[rutaPaciente + '/facturado'] = 'SI';
-        } else {
-            updates[rutaPaciente + '/ultima_factura'] = facturaLegal;
-            updates[rutaPaciente + '/facturado'] = 'SI';
-        }
-    }
+    // 3. ACTUALIZACIÓN MULTI-RUTA UNIFICADA (Todo a minúsculas)
+updates['/' + rutaHistorial + '/' + nuevaFacturaKey] = facturaLegal;
 
-    return db.ref().update(updates).then(() => {
-        console.log("✅ Sincronizado y guardado con periodos y asociados: " + moduloUpper);
-        if(typeof descargarFactura === 'function') {
-            descargarFactura(nuevaFacturaKey); 
-        }
-    }).catch(error => {
-        console.error("❌ Error en el guardado final:", error);
-    });
+if (facturaLegal.id_paciente) {
+    // Forzamos que el nombre del módulo sea siempre en minúsculas (saei, cd, cet, rehab)
+    const nombreModuloLimpio = modOriginal.toLowerCase();
+    const rutaPaciente = '/' + nombreModuloLimpio + '/pacientes/' + facturaLegal.id_paciente;
+    
+    // Grabamos siempre en 'ultima_factura' para todos los módulos por igual
+    updates[rutaPaciente + '/ultima_factura'] = facturaLegal;
+    updates[rutaPaciente + '/facturado'] = 'SI';
+    
+    // Limpieza de seguridad: Si existía el campo viejo con _saei, lo borramos para no duplicar
+    if (nombreModuloLimpio === 'saei') {
+        updates[rutaPaciente + '/ultima_factura_saei'] = null;
+        updates[rutaPaciente + '/facturado_saei'] = null;
+    }
 }
+
+return db.ref().update(updates).then(() => {
+    console.log("✅ Sincronización unificada en minúsculas para: " + modOriginal);
+    if(typeof descargarFactura === 'function') {
+        descargarFactura(nuevaFacturaKey); 
+    }
+}).catch(error => {
+    console.error("❌ Error en el guardado unificado:", error);
+});
 const MODELO_FACTURA_B = (d) => {
    // 1. CÁLCULOS (No tocamos esto, ya funciona bien)
     const totalFacturado = d.total || d.total_facturado || 0;
@@ -1537,67 +1550,49 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
     }
 };
 // --- FUNCIÓN GLOBAL PARA REFACTURAR ---
-window.habilitarParaRefacturar = async function(idPaciente, modulo, idFacturaVieja) {
-    if(confirm("¿Habilitar para editar y refacturar?")) {
+window.habilitarParaRefacturar = async function(idPaciente) {
+    if(confirm("¿Habilitar para editar y refacturar este mes?")) {
         try {
-            // SEGURIDAD: Si no viene el modulo, usamos REHAB por defecto
-            const nombreMod = modulo ? modulo.toUpperCase() : "REHAB";
-            const esSaei = (nombreMod === "SAEI");
+            // 1. Buscamos al paciente en la memoria para saber su módulo real
+            const p = window.dataFull.find(x => (x.id || x.id_db) == idPaciente);
             
-            // Definimos la ruta exacta para evitar el PERMISSION_DENIED
-            // Según tus datos, la ruta es pacientes/Nombre del Paciente
-            const rutaPaciente = `pacientes/${idPaciente}`;
-            
-            // 1. Objeto de actualización directo
+            if (!p) {
+                return alert("❌ Error: No se encontró al paciente en la lista actual.");
+            }
+
+            // 2. Definimos la ruta correcta usando el módulo en MINÚSCULAS
+            const nombreMod = (p.modulo || p.mod || "rehab").toLowerCase();
+            const rutaBase = `${nombreMod}/pacientes/${idPaciente}`;
+
+            // 3. Objeto de limpieza absoluta
             const datosLimpios = {
-                facturado: "no",
-                facturado_saei: "no",
+                facturado: "NO",
                 ultima_factura: null,
+                // Limpiamos rastros viejos por si quedan
+                facturado_saei: null,
                 ultima_factura_saei: null,
-                cae: null,
-                ignorar_factura: idFacturaVieja || "REFAC_MANUAL"
+                cae: null
             };
 
-            // 2. Impactamos directamente en el nodo del paciente
-            // Usar una ruta específica es lo que soluciona el error de Firebase
-            await db.ref(rutaPaciente).update(datosLimpios);
+            // 4. IMPACTO EN FIREBASE
+            // Esto irá directo a saei/pacientes/Nombre o cd/pacientes/Nombre
+            await db.ref(rutaBase).update(datosLimpios);
 
-            // 3. Por las dudas, si tenés los datos duplicados en /rehab/pacientes
-            try {
-                await db.ref(`rehab/${rutaPaciente}`).update(datosLimpios);
-                if (esSaei) {
-                    await db.ref(`SAEI/${rutaPaciente}`).update(datosLimpios);
-                }
-            } catch (err) {
-                console.log("Rutas secundarias no encontradas o sin permisos, pero la principal ya se actualizó.");
-            }
+            // 5. LIMPIEZA EN MEMORIA LOCAL (Para que el cambio sea instantáneo)
+            p.facturado = "NO";
+            p.ultima_factura = null;
+            p.cae = null;
 
-            // 4. ⚡ LIMPIEZA EN PANTALLA (Memoria local)
-            // Buscamos al paciente en tu variable global dataFull
-            const p = window.dataFull.find(x => (x.id || x.id_db) == idPaciente);
-            if (p) {
-                p.facturado = "no";
-                p.facturado_saei = "no";
-                p.ultima_factura = null;
-                p.ultima_factura_saei = null;
-                p.cae = null; // Esto es vital para que el render lo vea como PENDIENTE
-                
-                console.log("Memoria local limpia para:", idPaciente);
-            }
-
-            alert("✅ DESBLOQUEADO. La fila debería volver a blanco.");
+            alert(`✅ ${idPaciente} desbloqueado en el módulo ${nombreMod.toUpperCase()}.`);
             
-            // 5. Refrescamos el dibujo de la tabla sin recargar la página
+            // 6. Refrescamos la tabla
             if (typeof window.render === 'function') {
                 window.render();
-            } else {
-                // Si el render falla, recargamos como plan B
-                location.reload();
             }
 
         } catch (e) {
-            console.error("Error crítico en Refacturación:", e);
-            alert("❌ Error de Permisos: Asegurate de estar logueado o revisá la ruta en Firebase.");
+            console.error("Error en Refacturación:", e);
+            alert("❌ No se pudo desbloquear. Revisá la conexión.");
         }
     }
 };
