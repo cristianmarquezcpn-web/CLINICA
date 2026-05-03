@@ -396,30 +396,17 @@ async function procesarTodo() {
     const mesActual = hoy.getMonth() + 1; 
     const añoActual = hoy.getFullYear();
 
-    const dictOS = window.dictOS || {};
     const snapGral = await db.ref('facturas_emitidas').once('value');
     const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
     
     const valGral = snapGral.val() || {};
     const valSaei = snapSaei.val() || {};
 
-    const todasLasFacturas = { ...valGral };
-    for (let key in valSaei) {
-        if (!todasLasFacturas[key]) {
-            todasLasFacturas[key] = valSaei[key];
-        } else {
-            if (!todasLasFacturas[key].cliente && valSaei[key].cliente) {
-                todasLasFacturas[key] = { ...valSaei[key], ...todasLasFacturas[key] };
-            } else {
-                todasLasFacturas[key] = { ...todasLasFacturas[key], ...valSaei[key] };
-            }
-        }
-    }
-    
-const facturasArray = [
-    ...Object.keys(valGral).map(key => ({ ...valGral[key], id: key })),
-    ...Object.keys(valSaei).map(key => ({ ...valSaei[key], id: key }))
-];
+    // UNIÓN QUIRÚRGICA: Mapeamos las llaves de Firebase como 'id'
+    const facturasArray = [
+        ...Object.keys(valGral).map(key => ({ ...valGral[key], id: key })),
+        ...Object.keys(valSaei).map(key => ({ ...valSaei[key], id: key }))
+    ].sort((a, b) => (b.nro_comp || 0) - (a.nro_comp || 0));
 
     const rutas = [
         { path: 'cd/pacientes', mod: 'CD' },
@@ -438,47 +425,40 @@ const facturasArray = [
         for (const idPac in pacientes) {
             const p = pacientes[idPac];
             
+            // BUSQUEDA POR PACIENTE Y MÓDULO EXACTO
             let ultFact = facturasArray.find(f => 
                 (f.id_paciente === idPac || f.id_paciente_db === idPac) && 
-                String(f.modulo).toUpperCase() === String(nombreMod).toUpperCase()
+                String(f.modulo || "").toUpperCase().trim() === String(nombreMod).toUpperCase().trim()
             );
 
-            // --- FILTRO INTELIGENTE DE FECHA ---
             let facturaEsDeEsteMes = false;
             if (ultFact && ultFact.fecha_emision) {
                 const partes = ultFact.fecha_emision.split('/');
-                const mesF = parseInt(partes[1]);
-                const añoF = parseInt(partes[2]);
-                if (mesF === mesActual && añoF === añoActual) {
+                if (parseInt(partes[1]) === mesActual && parseInt(partes[2]) === añoActual) {
                     facturaEsDeEsteMes = true;
                 }
             }
 
-            // Solo bloqueamos si es de ESTE MES y tiene CAE
-            let estadoFinal = (ultFact && ultFact.cae && facturaEsDeEsteMes) ? 'SI' : 'NO';
+            let estadoFinal = (ultFact && (ultFact.cae || ultFact.CAE) && facturaEsDeEsteMes) ? 'SI' : 'NO';
             
-            // Si el paciente tiene 'NO' manual o 'no' de refac, se queda en NO
             if (p.facturado === 'NO' || p.facturado === 'no' || p.facturado_saei === 'no') {
                 estadoFinal = 'NO';
             }
 
             tempFull.push({
                 ...p,
-                id_db: idPac, 
                 id: idPac,
-				id_fila: idPac + "_" + nombreMod,
+                id_fila: idPac + "_" + nombreMod,
                 mod: nombreMod,
-                ultima_factura: ultFact, 
+                ultima_factura: ultFact, // Lleva el .id que necesita el botón
                 facturado: estadoFinal   
             });
         }
     });
     
     window.dataFull = tempFull;
-    if (typeof window.render === "function") {
-        window.render();
-    }
-}
+    if (typeof window.render === "function") window.render();
+}            
 window.actualizarPanelOS = function() {
     const listaOS = document.getElementById('lista-os');
     if(!listaOS) return;
@@ -610,13 +590,12 @@ const facturado = esDeEsteMes && tieneCAE;
     // Usamos p.nombre o el id que usas como nombre (el que aparece en la tabla)
     const nombreParaBuscar = p.nombre || idPaciente;
     colAccion += `<div style="margin-top:5px;">
-    <button onclick="if(this.dataset.id) { descargarFactura(this.dataset.id) } else { alert('No hay ID de factura') }" 
-            data-id="${p.ultima_factura ? p.ultima_factura.id : ''}" 
-            class="btn" style="background:#2ecc71; font-size:8px; padding:4px; color:white; border:none; cursor:pointer;">
-        PDF
-    </button>
+    <button onclick="window.descargarFactura('${p.ultima_factura ? p.ultima_factura.id : ''}')" 
+            class="btn" 
+            style="background:#2ecc71; font-size:8px; padding:4px; color:white; border:none; cursor:pointer;">
+        PDF</button>
     <button style="background:#e67e22; font-size:8px; padding:4px; color:white; border:none; margin-left:2px; cursor:pointer;" 
-            onclick="window.habilitarParaRefacturar('${idPaciente}')">Refac</button>
+            onclick="window.habilitarParaRefacturar('${p.id}')">Refac</button>
 </div>`;
 }
         const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
@@ -1051,33 +1030,24 @@ const MODELO_FACTURA_B = (d) => {
     </div>`;
 };
 	window.descargarFactura = async (idFactura) => { 
-    if (!idFactura || idFactura === 'undefined') return alert("No hay factura emitida para este módulo");
+    if (!idFactura || idFactura === 'undefined' || idFactura === '') {
+        return alert("No hay factura emitida para este módulo");
+    }
 
     const snapGral = await db.ref('facturas_emitidas').once('value');
     const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
-    const todas = {
-        ...(snapGral.val() || {}),
-        ...(snapSaei.val() || {})
-    };
+    const todas = { ...(snapGral.val() || {}), ...(snapSaei.val() || {}) };
     
-    // Traemos la factura usando el ID que ahora sí es la llave de Firebase
-    const p = todas[idFactura];
-    if (!p) {
-        console.error("ID buscado:", idFactura);
-        return alert("Error: La factura no se encuentra en el historial de Firebase.");
-	}
-    const lista = Object.values(facturas)
-        .filter(f => String(f.id_paciente).toUpperCase().includes(String(nombrePaciente).toUpperCase()))
-        .sort((a, b) => (b.fecha_emision || "").localeCompare(a.fecha_emision || ""));
-    // 2. COMPROBACIÓN DIRECTA
+    // 1. LA MAGIA: Búsqueda directa por ID (la llave de Firebase)
+    const p = todas[idFactura]; 
+
+    // 2. COMPROBACIÓN QUIRÚRGICA
     const miCAE = p?.cae || p?.cae_num || p?.CAE;
 
     if (!p || !miCAE) {
-        console.error("No se encontró factura para:", nombrePaciente);
-        return alert("Error: No se encontró factura con CAE para este paciente.");
+        return alert("Error: No se encontró factura con CAE en la base de datos.");
     }
-
-    // 3. De acá para abajo, TU CÓDIGO SIGUE IGUAL (No toques nada más)
+	
     console.log("Generando PDF para:", p.razon_social, "CAE:", miCAE);
     const cuitEmisor = "30714900192";
         
