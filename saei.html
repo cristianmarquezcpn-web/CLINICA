@@ -377,12 +377,12 @@ window.cargarTodo = async () => {
                 });
             }
         });
+async function procesarTodo() {
+    // 1. Definimos el "Hoy" para comparar meses
+    const hoy = new Date();
+    const mesActual = hoy.getMonth() + 1; 
+    const añoActual = hoy.getFullYear();
 
-        if (typeof procesarTodo === "function") procesarTodo();
-    } catch (e) { console.error(e); }
-};
-	async function procesarTodo() {
-    const dictOS = window.dictOS || {};
     const snapGral = await db.ref('facturas_emitidas').once('value');
     const snapSaei = await db.ref('facturas_emitidas_saei').once('value');
     
@@ -391,6 +391,7 @@ window.cargarTodo = async () => {
         ...(snapSaei.val() || {})
     };
     
+    // Ordenamos para tener la más nueva primero
     const facturasArray = Object.values(todasLasFacturas).sort((a, b) => (b.nro_comp || 0) - (a.nro_comp || 0));
 
     const rutas = [
@@ -398,9 +399,7 @@ window.cargarTodo = async () => {
         { path: 'saei/pacientes', mod: 'SAEI' } 
     ];
 
-    const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
-    const snapsPacientes = await Promise.all(promesas);
-
+    const snapsPacientes = await Promise.all(rutas.map(obj => db.ref(obj.path).once('value')));
     const mapaPacientes = {};
 
     snapsPacientes.forEach((snap, index) => {
@@ -411,47 +410,52 @@ window.cargarTodo = async () => {
             const prestacion = (p.pres || "").toString().toUpperCase().trim();
             const detalle = (p.detalle || "").toUpperCase();
 
-            // FILTRO: Solo si es SAEI
             if (prestacion === "SAEI" || detalle.includes("SAEI") || index === 1) {
                 
+                // Buscamos la última factura de este paciente
                 let ultFact = facturasArray.find(f => 
-                    (f.id_paciente === idPac || f.id_paciente_db === idPac) && 
-                    // Buscamos facturas previas en AMBOS módulos para estar seguros
-                    (String(f.modulo).toUpperCase() === "SAEI" || String(f.modulo).toUpperCase() === "REHAB")
+                    (f.id_paciente === idPac || f.id_paciente_db === idPac)
                 );
 
-                let estadoFinal = (ultFact && ultFact.cae) ? 'SI' : 'NO';
-                if (p.facturado === 'NO') estadoFinal = 'NO';
-
-                if (mapaPacientes[idPac]) {
-                    // Si ya existe, actualizamos la factura si encontramos una
-                    if (ultFact) {
-                        mapaPacientes[idPac].ultima_factura = ultFact;
-                        mapaPacientes[idPac].facturado = estadoFinal;
+                // --- INTEGRACIÓN DE INTELIGENCIA TEMPORAL ---
+                let facturaEsDeEsteMes = false;
+                if (ultFact && ultFact.fecha_emision) {
+                    const partes = ultFact.fecha_emision.split('/'); // Asume formato DD/MM/AAAA
+                    const mesFactura = parseInt(partes[1]);
+                    const añoFactura = parseInt(partes[2]);
+                    
+                    if (mesFactura === mesActual && añoFactura === añoActual) {
+                        facturaEsDeEsteMes = true;
                     }
-                    Object.assign(mapaPacientes[idPac], p);
-                    // IMPORTANTE: Forzamos el módulo a SAEI aunque lo hayamos pisado
-                    mapaPacientes[idPac].mod = "SAEI"; 
-                } else {
-                    mapaPacientes[idPac] = {
-                        ...p,
-                        id: idPac,
-                        pres: "SAEI",
-                        mod: "SAEI", // <--- ACÁ: No importa de qué ruta venga, es SAEI.
-                        ultima_factura: ultFact, 
-                        facturado: estadoFinal   
-                    };
                 }
+
+                // El estado final solo será 'SI' si hay CAE Y es de este mes
+                let estadoFinal = (ultFact && ultFact.cae && facturaEsDeEsteMes) ? 'SI' : 'NO';
+
+                // Si en Firebase forzaste el "no" (por Refac), le hacemos caso al "no"
+                if (p.facturado === 'no' || p.facturado_saei === 'no') {
+                    estadoFinal = 'NO';
+                }
+
+                mapaPacientes[idPac] = {
+                    ...p,
+                    id: idPac,
+                    pres: "SAEI",
+                    mod: "SAEI",
+                    ultima_factura: ultFact, 
+                    facturado: estadoFinal   
+                };
             }
         }
     });
     
-    dataFull = Object.values(mapaPacientes);
+    window.dataFull = Object.values(mapaPacientes);
     
     if (typeof render === "function") {
         render();
     }
 }
+        
 window.actualizarPanelOS = function() {
     const listaOS = document.getElementById('lista-os');
     if(!listaOS) return;
