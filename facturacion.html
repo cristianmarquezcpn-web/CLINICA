@@ -1058,9 +1058,6 @@ const MODELO_FACTURA_B = (d) => {
     const lista = Object.values(facturas)
         .filter(f => String(f.id_paciente).toUpperCase().includes(String(nombrePaciente).toUpperCase()))
         .sort((a, b) => (b.fecha_emision || "").localeCompare(a.fecha_emision || ""));
-
-    const p = lista[0]; // Tomamos la más reciente
-
     // 2. COMPROBACIÓN DIRECTA
     const miCAE = p?.cae || p?.cae_num || p?.CAE;
 
