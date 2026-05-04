@@ -529,8 +529,8 @@ const mesActual = hoy.getMonth() + 1; // Debería dar 5
 const añoActual = hoy.getFullYear();  // Debería dar 2026
 
 // miFactura.fecha es "9/4/2026" u "11/5/2026"
-const partesFecha = (miFactura && miFactura.fecha) ? miFactura.fecha.split('/') : [];
-
+const fechaParaValidar = miFactura ? (miFactura.fecha || miFactura.fecha_emision) : "";
+const partesFecha = fechaParaValidar ? fechaParaValidar.split('/') : [];
 // Comparamos numéricamente el mes (posición 1) y el año (posición 2)
 const esDeEsteMes = partesFecha.length === 3 && 
                     parseInt(partesFecha[1]) === mesActual && 
