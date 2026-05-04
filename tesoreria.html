@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>CFO TITANIUM v8.5 - INTELIGENCIA FULL</title>
     <link rel="manifest" href="manifest.json">
-
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
@@ -20,7 +19,6 @@
         .btn { background: var(--acento); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
         .sem-card { background: #1f2937; padding: 15px; border-radius: 10px; text-align: center; border-bottom: 4px solid var(--acento); }
         .monto-final { font-size: 16px; font-weight: 800; display: block; margin-top: 5px; }
-        .alerta-ia { padding: 15px; border-radius: 10px; margin-bottom: 15px; font-size: 13px; border-left: 5px solid; line-height: 1.4; display:none; }
     </style>
 </head>
 <body>
@@ -31,7 +29,9 @@
     <h2 style="margin:0">🧠 CFO <span style="color:var(--acento)">TITANIUM v8.5</span></h2>
     <div style="display:flex; gap:10px;">
         <input type="month" id="mesFiltro" onchange="conectarMes()" style="margin:0; width:180px;">
-        <button class="btn" onclick="sincronizacionTotal()" style="background:var(--oro); color:black; width:auto; padding: 0 15px;">⚡ SINCRO TOTAL</button>
+        <button class="btn" onclick="dispararMotorTitanium()" style="background:var(--oro); color:black; width:auto; padding: 0 15px;">
+    ⚡ SINCRO TOTAL
+        </button>
         <button class="btn" onclick="conectarMes()" style="background:#374151; width:auto; padding: 0 15px;">🔄 RECONECTAR</button>
         <button onclick="window.location.href='index.html'" style="background: transparent; border: 1px solid #374151; color: #94a3b8; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 11px;">← VOLVER</button>
     </div>
@@ -58,6 +58,7 @@
         <div class="card">
             <h3>📈 Flujo Semanal (Proyectado desde Cobranzas)</h3>
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;" id="gridSemanas"></div>
+            <div id="resumenMensual"></div>
         </div>
         <div class="card">
             <h3>🧪 Simulador de Impacto</h3>
@@ -83,9 +84,7 @@
     </div>
 </div>
 
-<script>
-
-    // 1. CONFIGURACIÓN ÚNICA (Borrá cualquier otra repetición de esto)
+// 1. CONFIGURACIÓN ÚNICA
     const firebaseConfig = { 
         apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8", 
         authDomain: "clinicaintegral-5c488.firebaseapp.com", 
@@ -96,105 +95,122 @@
         appId: "1:184090967634:web:09715937b33ea48288698b" 
     };
 
-    // 2. INICIALIZACIÓN SEGURA
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
     }
 
-    // 3. INSTANCIAS Y GLOBALES (Declaradas UNA SOLA VEZ)
+    // Inicialización de servicios (Movido arriba para evitar errores de referencia)
     const db = firebase.database();
     const auth = firebase.auth();
     
     let refMes = null; 
     let datosMes = {};
     let motorGlobal = {};
-    let saldoFinalProyectado = 0;
-    
-    // 1. ESCUCHA MOTOR IA (ACTUALIZACIÓN EN TIEMPO REAL)
-// 1. ESCUCHA MOTOR IA (ACTUALIZACIÓN EN TIEMPO REAL)
-db.ref('tesoreria/motor_ia').on('value', snap => {
-    const val = snap.val() || {};
-    const m = val.mercado || {};
-    const intel = val.inteligencia_cobro || {};
-    const cli = val.clinica || {};
 
-    // CÁLCULOS DE SALUD FINANCIERA
-    const infIndec = parseFloat(m.inflacion_mensual || 0);
-    const infClinica = parseFloat(m.inflacion_real_clinica || 0); 
-    const gap = (infClinica - infIndec).toFixed(1);
-    const colorGap = gap > 0 ? 'var(--rojo)' : 'var(--verde)';
-    
-    // Normalización de Tasas (Fix del 0.3 a 30)
-    let pfVista = parseFloat(m.tasa_pf || 0);
-    if (pfVista < 1 && pfVista > 0) pfVista *= 100;
-    
-    let fciVista = parseFloat(m.tasa_fci || 0);
-    if (fciVista < 1 && fciVista > 0) fciVista *= 100;
+    function dispararMotorTitanium() {
+        const motorRef = db.ref('comandos/ejecutar_motor');
 
-    const riesgo = m.riesgo_pais || 0;
-    const colorRiesgo = riesgo > 1300 ? 'var(--rojo)' : 'var(--oro)';
-
-    // Inyectar en el HTML (Lado derecho del panel)
-    document.getElementById('motorVars').innerHTML = `
-        Efectividad Cobro: <b style="color:var(--verde)">${(intel.indice_cobranza * 100 || 85).toFixed(1)}%</b><br>
-        Delay Entrenado: <b>${intel.delay_entrenado_dias || 60} días</b>
-        <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
-        Dólar MEP: <b style="color:var(--acento)">$${m.dolar_mep || '-'}</b><br>
-        Riesgo País: <b style="color:${colorRiesgo}">${riesgo} pts</b><br>
-        <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
-        🏦 Tasa Plazo Fijo: <b>${pfVista.toFixed(1)}%</b><br>
-        📱 Billeteras (FCI): <b style="color:var(--verde)">${fciVista.toFixed(1)}%</b><br>
-        <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
-        📊 Inflación INDEC: <b>${infIndec}%</b><br>
-        Inflación Clínica: <b style="color:var(--rojo)">${infClinica}%</b><br>
-        <span style="font-size:10px; color:${colorGap}">⚠ DESFASAJE (GAP): <b>${gap}%</b></span>
-    `;
-    
-    document.getElementById('statusIA').innerText = `Sincro Motor: ${cli.ultima_sincro || 'Pendiente'}`;
-    
-    motorGlobal = val; 
-    actualizarBannerDinamico();
-    if (typeof proyectarTodo === 'function') proyectarTodo();
-});
-    // 2. CONECTAR MES Y ARRASTRE
-    async function conectarMes() {
-        const mes = document.getElementById('mesFiltro').value;
-        if(refMes) refMes.off();
-
-        const [y, m] = mes.split('-').map(Number);
-        const mAnt = `${m===1?y-1:y}-${String(m===1?12:m-1).padStart(2,'0')}`;
-        const snapAnt = await db.ref(`tesoreria/meses/${mAnt}/cierre`).once('value');
-        const arrastre = snapAnt.val() || 0;
-        
-        document.getElementById('infoArrastre').innerText = `⚠ Arrastre de ${mAnt}: $${Math.round(arrastre).toLocaleString()}`;
-
-        refMes = db.ref(`tesoreria/meses/${mes}`);
-        refMes.on('value', snap => {
-            const data = snap.val();
-            if(data) {
-                datosMes = data;
-                document.getElementById('bancoGalicia').value = data.bancos?.galicia || 0;
-                document.getElementById('bancoSantander').value = data.bancos?.santander || 0;
-            } else {
-                document.getElementById('bancoGalicia').value = arrastre;
-                document.getElementById('bancoSantander').value = 0;
-                datosMes = { bancos: {galicia: arrastre, santander:0}, gastos: {} };
-            }
-            dibujarGastos();
-            proyectarTodo();
+        motorRef.set({
+            status: 'request',
+            timestamp: Date.now()
+        }).then(() => {
+            console.log("🚀 Señal enviada al Motor Titanium...");
+        }).catch((error) => {
+            console.error("❌ Error al disparar el motor:", error);
         });
     }
 
-    // 3. PROYECCIÓN BASADA EN COBRANZAS PENDIENTES (TU FLUJO)
+    // 1. ESCUCHA MOTOR IA
+    db.ref('tesoreria/motor_ia').on('value', snap => {
+        const val = snap.val() || {};
+        motorGlobal = val; 
+
+        const m = val.mercado || {};
+        const rep = val.reporte || {}; 
+        const consejos = val.bot_financiero || []; 
+
+        const eficienciaReal = rep.calle > 0 ? (rep.esperado / rep.calle) : 0.85;
+        const colorRiesgo = m.riesgo > 1300 ? 'var(--rojo)' : 'var(--oro)';
+        const colorEstado = rep.estado === "CRÍTICO" ? 'var(--rojo)' : 'var(--verde)';
+
+        const motorVars = document.getElementById('motorVars');
+        if (motorVars) {
+            motorVars.innerHTML = `
+                Efectividad Stress: <b style="color:${colorEstado}">${(eficienciaReal * 100).toFixed(1)}%</b><br>
+                Delay Entrenado: <b style="color:var(--acento)">${rep.delay_historico || 60} días</b><br>
+                Supervivencia: <b>${rep.supervivencia || 0} días</b>
+                <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
+                Dólar MEP: <b style="color:var(--acento)">$${m.mep || '-'}</b><br>
+                Riesgo País: <b style="color:${colorRiesgo}">${m.riesgo || 0} pts</b><br>
+                <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
+                🏦 Tasa PF: <b>${(m.pf || 0).toFixed(1)}%</b><br>
+                📱 Billeteras (FCI): <b style="color:var(--verde)">${(m.fci || 0).toFixed(1)}%</b><br>
+                <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
+                📢 <span style="font-size:11px; color:var(--oro)"><b>AI BOT:</b> ${consejos[0] || 'Analizando...'}</span>
+            `;
+        }
+        
+        const statusIA = document.getElementById('statusIA');
+        if (statusIA) {
+            statusIA.innerText = `Sincro Motor: ${val.ultima_sincro || 'Pendiente'}`;
+        }
+        
+        const selectMes = document.getElementById('mesFiltro');
+        const mesActual = selectMes ? selectMes.value : null;
+
+        if (mesActual) {
+            actualizarBannerDinamico(mesActual);
+            proyectarTodo();
+        }
+    });
+    // 2. CONECTAR MES Y ARRASTRE
+    async function conectarMes() {
+    const mes = document.getElementById('mesFiltro').value;
+    if (!mes) return;
+    if (refMes) refMes.off();
+
+    const [y, m] = mes.split('-').map(Number);
+    // Mejora en la lógica de cálculo del mes anterior
+    const mAnt = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+    
+    const snapAnt = await db.ref(`tesoreria/meses/${mAnt}/cierre`).once('value');
+    const arrastre = snapAnt.val() || 0;
+    
+    const infoArrastre = document.getElementById('infoArrastre');
+    if (infoArrastre) {
+        infoArrastre.innerText = `⚠ Arrastre de ${mAnt}: $${Math.round(arrastre).toLocaleString()}`;
+    }
+
+    refMes = db.ref(`tesoreria/meses/${mes}`);
+    refMes.on('value', snap => {
+        const data = snap.val();
+        if (data) {
+            datosMes = data;
+            document.getElementById('bancoGalicia').value = data.bancos?.galicia || 0;
+            document.getElementById('bancoSantander').value = data.bancos?.santander || 0;
+        } else {
+            document.getElementById('bancoGalicia').value = arrastre;
+            document.getElementById('bancoSantander').value = 0;
+            datosMes = { 
+                bancos: { galicia: arrastre, santander: 0 }, 
+                gastos: {},
+                metadata: { creado: new Date().toISOString() } 
+            };
+        }
+        if (typeof dibujarGastos === 'function') dibujarGastos(); 
+        proyectarTodo();
+    });
+}
+
 async function proyectarTodo() {
     const mesSeleccionado = document.getElementById('mesFiltro').value;
     if (!mesSeleccionado) return;
 
-    // 1. Saldo Inicial (Bancos)
-    let saldo = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
+    let saldoAcumulado = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + 
+                         (parseFloat(document.getElementById('bancoSantander').value) || 0);
     
     let ingS = { 1: 0, 2: 0, 3: 0, 4: 0 }, gasS = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    let detI = { 1: [], 2: [], 3: [], 4: [] }, detG = { 1: [], 2: [], 3: [], 4: [] };
+    let detG = { 1: [], 2: [], 3: [], 4: [] };
 
     const [snapFacts, snapSaei, snapCobros, snapGastos] = await Promise.all([
         db.ref('facturas_emitidas').once('value'),
@@ -206,319 +222,260 @@ async function proyectarTodo() {
     const todasLasFacturas = { ...(snapFacts.val() || {}), ...(snapSaei.val() || {}) };
     const cobranzas = snapCobros.val() || {};
     const gastosMaestros = snapGastos.val() || {};
-// --- 🧠 1. APRENDIZAJE DE DELAYS REALES (UNIFICADO Y CORREGIDO) ---
-    const mapaDelays = {};
-    let totalFacturadoHist = 0, totalCobradoHist = 0;
 
-    // USAMOS 'todasLasFacturas' porque ya es la unión de emitidas y saei
+    const reporteGral = motorGlobal.reporte || {};
+    const delayBase = reporteGral.delay_historico || 60;
+    const eficienciaBase = (reporteGral.esperado / reporteGral.calle) || 0.85;
+
+    const hoy = new Date();
+    const hoyISO = hoy.toISOString().slice(0, 7);
+    const semAct = Math.min(Math.ceil(hoy.getDate() / 7), 4);
+
+    const parseFecha = (s) => {
+        if (!s) return null;
+        let p = s.includes('/') ? s.split('/') : s.split('-');
+        return s.includes('/') ? new Date(p[2], p[1]-1, p[0]) : new Date(p[0], p[1]-1, p[2]);
+    };
+
+    let acumuladorIngresos = { 1: {}, 2: {}, 3: {}, 4: {} };
+
     Object.keys(todasLasFacturas).forEach(id => {
         const f = todasLasFacturas[id];
-        const c = cobranzas[id]; 
+        const cobro = cobranzas[id];
+        if (!f || (cobro && cobro.estado === 'COBRADO')) return;
 
-        if (f && c && c.fecha_pago && f.receptor_cuit) {
-            const parse = (s) => {
-                if (!s) return null;
-                let p = s.includes('/') ? s.split('/') : s.split('-');
-                return s.includes('/') ? new Date(p[2], p[1]-1, p[0]) : new Date(p[0], p[1]-1, p[2]);
-            };
+        const inteligencia = motorGlobal.inteligencia_cuit || [];
+        const estudio = inteligencia.find(i => i.cuit === f.receptor_cuit);
+        const dUso = estudio ? (estudio.delay || estudio.delay_historico) : delayBase;
+        const iUso = estudio ? (estudio.indice || eficienciaBase) : eficienciaBase;
 
-            const f1 = parse(f.fecha_emision || f.fecha);
-            const f2 = parse(c.fecha_pago);
+        const fEmision = parseFecha(f.fecha_emision || f.fecha);
+        if (!fEmision) return;
 
-            if (f1 && f2 && !isNaN(f1.getTime()) && !isNaN(f2.getTime())) {
-                const diff = Math.floor((f2 - f1) / 86400000);
-                if (diff > 0 && diff < 210) {
-                    if (!mapaDelays[f.receptor_cuit]) mapaDelays[f.receptor_cuit] = [];
-                    mapaDelays[f.receptor_cuit].push(diff);
-                }
-            }
-            
-            totalFacturadoHist += parseFloat(f.total || f.monto || 0);
-            totalCobradoHist += parseFloat(c.monto_cobrado || 0);
+        let fCobro = new Date(fEmision);
+        fCobro.setDate(fCobro.getDate() + dUso);
+
+        const mesC = fCobro.toISOString().slice(0, 7);
+        let s = 1; // Valor por defecto para evitar undefined
+
+        if (mesC < mesSeleccionado) { 
+            s = (mesSeleccionado === hoyISO) ? semAct : 1; 
+        } else if (mesC === mesSeleccionado) {
+            const semC = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
+            s = (mesSeleccionado === hoyISO && semC < semAct) ? semAct : semC;
+        } else { return; }
+
+        const montoP = (parseFloat(f.total || f.monto || 0)) * iUso;
+        const nombreOS = (f.receptor_nombre || 'S/D').trim().toUpperCase();
+
+        if (!acumuladorIngresos[s][nombreOS]) {
+            acumuladorIngresos[s][nombreOS] = { monto: 0, delay: dUso, esMora: (fCobro < hoy) };
         }
+        acumuladorIngresos[s][nombreOS].monto += montoP;
+        ingS[s] += montoP;
     });
 
-    const delayFinalPorCuit = {};
-    Object.keys(mapaDelays).forEach(c => {
-        const sum = mapaDelays[c].reduce((a, b) => a + b, 0);
-        delayFinalPorCuit[c] = Math.round(sum / mapaDelays[c].length);
-    });
-
-    // USAMOS UN PISO DEL 95% para que el Dashboard sea realista
-    const indiceRealIA = totalFacturadoHist > 0 
-        ? Math.max(0.85, (totalCobradoHist / totalFacturadoHist)) 
-        : 0.85;
-
-    const delayGral = motorGlobal.inteligencia_cobro?.delay_entrenado_dias || 65;
-   // --- 📅 2. PROCESAR FACTURAS (AGRUPADAS POR O.S. Y CON DELAY ESPECÍFICO) ---
-const hoy = new Date(), hoyISO = hoy.toISOString().slice(0, 7);
-const semAct = Math.min(Math.ceil(hoy.getDate() / 7), 4);
-
-// 1. Creamos un acumulador temporal para no repetir nombres
-let acumuladorSemanal = { 1: {}, 2: {}, 3: {}, 4: {} };
-
-Object.keys(todasLasFacturas).forEach(id => {
-    const f = todasLasFacturas[id];
-    if (id === 'saei' || (cobranzas[id] && cobranzas[id].fecha_pago)) return;
-
-    let fechaBase = f.fecha_emision || f.fecha || f.fecha_peticion;
-    if (!fechaBase) return;
-
-    let p = fechaBase.includes('/') ? fechaBase.split('/') : fechaBase.split('-');
-    let fCobro = fechaBase.includes('/') ? new Date(p[2], p[1]-1, p[0]) : new Date(p[0], p[1]-1, p[2]);
-    
-    const cuit = f.receptor_cuit || "S/D";
-    const nombreOS = (f.receptor_nombre || 'S/D').trim().toUpperCase();
-    
-    // 2. Aplicamos el Delay Específico que aprendió la IA
-    const dUso = delayFinalPorCuit[cuit] || delayGral;
-    fCobro.setDate(fCobro.getDate() + dUso);
-
-    const mesC = fCobro.toISOString().slice(0, 7);
-    let s;
-    if (mesC < mesSeleccionado) { s = 1; } 
-    else if (mesC === mesSeleccionado) {
-        const semC = Math.min(Math.ceil(fCobro.getDate() / 7), 4);
-        s = (mesSeleccionado === hoyISO && semC < semAct) ? semAct : semC;
-    } else { return; }
-
-    const montoP = parseFloat(f.total || f.monto || 0) * indiceRealIA;
-    
-    // 3. Sumamos al acumulador de esa semana y esa OS
-    if (!acumuladorSemanal[s][nombreOS]) {
-        acumuladorSemanal[s][nombreOS] = {
-            monto: 0,
-            delay: dUso,
-            esMora: (mesC < hoyISO) || (mesC === hoyISO && Math.min(Math.ceil(fCobro.getDate() / 7), 4) < semAct)
-        };
-    }
-    acumuladorSemanal[s][nombreOS].monto += montoP;
-    ingS[s] += montoP; // Mantenemos el total general de la semana para el saldo
-});
-
-// 4. Transformamos el acumulador en HTML (esto limpia tu interfaz)
-for (let s = 1; s <= 4; s++) {
-    Object.keys(acumuladorSemanal[s]).forEach(os => {
-        const info = acumuladorSemanal[s][os];
-        const nombreVisible = os.substring(0, 12);
-        
-        detI[s].push(`
-            <div style="display:flex; justify-content:space-between; font-size:9px; margin-bottom:3px; border-bottom:1px solid #1e293b; padding:2px 0;">
-                <span style="color:${info.esMora ? '#f87171' : '#60a5fa'}; font-weight:bold;">
-                    ${info.esMora ? '⚠️' : '🤖'} ${nombreVisible} 
-                    <small style="opacity:0.7; font-weight:normal;">(+${info.delay}d)</small>
-                </span>
-                <span style="color:#93c5fd;">$${Math.round(info.monto/1000).toLocaleString()}k</span>
+    Object.keys(gastosMaestros).forEach(id => {
+        const g = gastosMaestros[id];
+        if (!g.monto || g.monto <= 0) return;
+        let sG = g.dia_pago ? Math.min(Math.ceil(g.dia_pago / 7), 4) : 1;
+        gasS[sG] += parseFloat(g.monto);
+        detG[sG].push(`
+            <div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5; margin-bottom:2px;">
+                <span>📉 ${g.nombre.substring(0,12)}</span>
+                <span>$${Math.round(g.monto/1000)}k</span>
             </div>
         `);
     });
-}
-    // --- 💸 3. GASTOS ---
-    Object.values(gastosMaestros).forEach(rubro => {
-        if (rubro.items) {
-            rubro.items.forEach(i => {
-                if ((!i.desde || mesSeleccionado >= i.desde) && (!i.hasta || mesSeleccionado <= i.hasta)) {
-                    const s = parseInt(i.semana) || 1;
-                    gasS[s] += (parseFloat(i.monto) || 0);
-                    detG[s].push(`<span style="color:var(--rojo); font-size:8px;">💸 ${i.nombre}</span>`);
-                }
-            });
-        }
-    });
 
-    // --- 📊 4. DIBUJO DEL GRID (SEMANAS) ---
     const grid = document.getElementById('gridSemanas');
-    grid.innerHTML = "";
-    for (let i = 1; i <= 4; i++) {
-        saldo += (ingS[i] - gasS[i]);
-        grid.innerHTML += `
-            <div class="sem-card" style="border-color:${saldo < 0 ? 'var(--rojo)':'var(--verde)'}; min-height:150px; display:flex; flex-direction:column;">
-                <span style="font-size:9px; color:#94a3b8;">${(i === semAct && mesSeleccionado === hoyISO) ? '⭐ SEMANA ' + i : 'SEMANA ' + i}</span>
-                <b class="monto-final" style="color:${saldo < 0 ? 'var(--rojo)':'white'}">$${Math.round(saldo).toLocaleString()}</b>
-                <div style="flex-grow:1; margin:5px 0; overflow-y:auto; max-height:80px;">${detI[i].join('')}${detG[i].join('<br>')}</div>
-                <div style="display:flex; justify-content:space-between; font-size:9px; border-top:1px solid #333; padding-top:4px;">
-                    <span style="color:var(--verde)">+$${Math.round(ingS[i]/1000)}k</span>
-                    <span style="color:var(--rojo)">-$${Math.round(gasS[i]/1000)}k</span>
+    if (grid) {
+        grid.innerHTML = ""; 
+        for (let i = 1; i <= 4; i++) {
+            saldoAcumulado += (ingS[i] - gasS[i]);
+            const sortedOS = Object.keys(acumuladorIngresos[i]).sort((a,b) => acumuladorIngresos[i][b].monto - acumuladorIngresos[i][a].monto);
+            
+            let htmlIngresos = sortedOS.map(os => {
+                const info = acumuladorIngresos[i][os];
+                return `
+                    <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:3px; border-bottom:1px solid #1e293b; padding-bottom:2px;">
+                        <span style="color:${info.esMora ? 'var(--rojo)' : 'var(--acento)'}; font-weight:bold;">
+                            ${info.esMora ? '⚠️' : '🤖'} ${os.substring(0, 12)}
+                        </span>
+                        <span style="color:#e2e8f0;">$${Math.round(info.monto/1000)}k</span>
+                    </div>`;
+            }).join('');
+
+            grid.innerHTML += `
+                <div class="sem-card" style="border-top: 3px solid ${saldoAcumulado < 0 ? 'var(--rojo)':'var(--verde)'}; padding:10px; background:#0f172a; border-radius:8px; display:flex; flex-direction:column; min-height:200px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <span style="font-size:10px; color:#94a3b8;">${(i === semAct && mesSeleccionado === hoyISO) ? '⭐ ACTUAL' : 'SEMANA ' + i}</span>
+                        <b style="color:${saldoAcumulado < 0 ? 'var(--rojo)':'#4ade80'}; font-size:15px;">$${Math.round(saldoAcumulado).toLocaleString()}</b>
+                    </div>
+                    <div style="flex-grow:1; overflow-y:auto; max-height:150px; margin-bottom:10px; scrollbar-width: thin;">
+                        ${htmlIngresos}
+                        <div style="margin-top:8px; border-top: 1px dashed #334155; pt:4px;">${detG[i].join('')}</div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:10px; border-top:1px solid #334155; padding-top:6px; font-weight:bold;">
+                        <span style="color:var(--verde)">+ $${Math.round(ingS[i]/1000)}k</span>
+                        <span style="color:var(--rojo)">- $${Math.round(gasS[i]/1000)}k</span>
+                    </div>
+                </div>`;
+        }
+    }
+
+    const totalMesIng = Object.values(ingS).reduce((a,b) => a+b, 0);
+    const totalMesGas = Object.values(gasS).reduce((a,b) => a+b, 0);
+    const resumenDiv = document.getElementById('resumenMensual');
+    if(resumenDiv) {
+        resumenDiv.innerHTML = `
+            <div style="display:flex; justify-content:around; background:#1e293b; padding:10px; border-radius:10px; margin-top:15px; color:white;">
+                <div style="text-align:center; flex:1;">
+                    <small style="color:#94a3b8;">INGRESOS ESPERADOS</small><br>
+                    <b style="color:var(--verde); font-size:18px;">$${Math.round(totalMesIng).toLocaleString()}</b>
+                </div>
+                <div style="text-align:center; flex:1; border-left:1px solid #334155;">
+                    <small style="color:#94a3b8;">GASTOS TOTALES</small><br>
+                    <b style="color:var(--rojo); font-size:18px;">$${Math.round(totalMesGas).toLocaleString()}</b>
                 </div>
             </div>`;
     }
-
-    // --- 🎯 5. ACTUALIZACIÓN DE ESTADOS Y BANNER ---
-    window.saldoFinalProyectado = saldo; 
-
-    const porcentajeEfectividad = (indiceRealIA * 100).toFixed(1);
-    const colorIndice = indiceRealIA > 0.90 ? 'var(--verde)' : (indiceRealIA > 0.80 ? '#fbbf24' : 'var(--rojo)');
-
-    const statusIA = document.getElementById('statusIA'); 
-    if (statusIA) {
-        statusIA.innerHTML = `
-            <span style="color:rgba(255,255,255,0.5)">Índice Cobranza:</span> 
-            <b style="color:${colorIndice}">${porcentajeEfectividad}%</b>
-            <span style="margin-left:10px; color:rgba(255,255,255,0.5)">Delay Promedio:</span> 
-            <b style="color:#60a5fa">${delayGral}d</b>
-        `;
-    }
-
+    window.saldoFinalProyectado = saldoAcumulado; 
     actualizarBannerDinamico(mesSeleccionado);
 }
-// --- FUNCIÓN DEL BANNER (AFUERA, SOLA) ---
 function actualizarBannerDinamico(mesSel) {
     const banner = document.getElementById('iaBanner');
+    if (!banner) return; // Seguridad si el elemento no existe
+
     const motor = motorGlobal || {}; 
-    if (!motor.clinica) return; 
+    const m = motor.mercado || { mep: 1250, riesgo: 1200, rem: 4, pf: 60, fci: 52 };
+    const rep = motor.reporte || {}; 
+    const consejosDelBot = motor.bot_financiero || []; 
+    const intelCuit = motor.inteligencia_cuit || []; 
 
-    const m = motor.mercado || {};
-    const intel = motor.inteligencia_cobro || {};
-    const op = motor.oportunidades || {};
-    const cli = motor.clinica || {};
+    // Si no hay datos de deuda, ocultamos para no mostrar basura
+    if (!rep.calle) {
+        banner.style.display = "none";
+        return;
+    }
 
-    // --- 1. VARIABLES DE CÁLCULO ---
-    const saldo = parseFloat(cli.saldo_total || 0);
-    const diasVida = parseInt(cli.dias_supervivencia || 0);
-    const mep = parseFloat(m.dolar_mep || 1);
-    const riesgo = parseInt(m.riesgo_pais || 0);
-    const inflacionMensual = parseFloat(m.inflacion_mensual || 0);
-    const tasaFCI = parseFloat(m.tasa_fci || 0);
-    const deudaCalle = parseFloat(intel.monto_en_calle || 0);
-    const gastoMensual = parseFloat(intel.promedio_gastos_mensuales || 0);
-    const excedente = parseFloat(op.monto_sugerido || 0);
-    const facturacionPromedio = parseFloat(intel.facturacion_promedio || 0);
+    const diasVida = rep.supervivencia || 0;
+    const mep = m.mep || 1;
+    const inflacionMensual = m.rem || 4;
+    const deudaCalle = rep.calle || 0;
 
-    // --- 2. ANÁLISIS DE PÉRDIDA DUAL ---
-    const perdidaInflacion = (deudaCalle * (inflacionMensual / 100));
-    const deudaEnDolaresHoy = deudaCalle / mep;
+    // Cálculos financieros
+    const perdidaInflacion = deudaCalle * (inflacionMensual / 100);
     const sangriaUSD = (deudaCalle / mep) * (inflacionMensual / 100);
 
-    // --- 3. LÓGICA DE ARBITRAJE (INTELIGENCIA AGREGADA) ---
-    const rindeRealFCI = tasaFCI - inflacionMensual;
-    const convieneMEP = rindeRealFCI < 0 || riesgo > 1300; 
-    const gananciaEstimada = Math.round(excedente * (tasaFCI / 100));
+    // Lógica de Semáforo (Panick Mode)
+    const MODO_PANICO = rep.estado === "CRÍTICO" || diasVida < 20;
+    let colorBorde = MODO_PANICO ? '#ef4444' : (diasVida > 60 ? '#10b981' : '#f59e0b');
 
-    // --- 4. CALENDARIO TÁCTICO ---
-    const hoy = new Date();
-    const fechaRescate = new Date(hoy);
-    fechaRescate.setDate(hoy.getDate() + 30);
-    const strHoy = hoy.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
-    const strRescate = fechaRescate.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
-
-    // --- 5. LÓGICA DE ALERTAS ---
-    const MODO_PANICO = riesgo > 1500;
-    const PRIORIZAR_CAJA = diasVida < 25;
-    
     banner.style.display = "block";
-    let colorBorde = MODO_PANICO || PRIORIZAR_CAJA ? '#ef4444' : (excedente > 1000 ? '#10b981' : '#f59e0b');
-
     banner.innerHTML = `
-        <div style="background:rgba(10,10,20,0.98); border:2px solid ${colorBorde}; border-left:15px solid ${colorBorde}; border-radius:15px; padding:25px; color:#fff; font-family: 'Segoe UI', sans-serif; box-shadow: 0 15px 50px rgba(0,0,0,0.7);">
-            
+        <div style="background:rgba(10,10,20,0.98); border:2px solid ${colorBorde}; border-left:15px solid ${colorBorde}; border-radius:15px; padding:25px; color:#fff; font-family: 'Segoe UI', sans-serif; box-shadow: 0 15px 50px rgba(0,0,0,0.7); margin-bottom:20px;">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:15px; margin-bottom:20px;">
-                <div style="flex:2;">
-                    <h2 style="margin:0; font-size:22px; color:${colorBorde}; font-weight:900;">
-                        ${MODO_PANICO ? '🚨 ALERTA CAMBIARIA: SALIR DEL PESO' : (PRIORIZAR_CAJA ? '⚠️ PRIORIDAD: CUIDAR CAJA' : '🛡️ CEREBRO ESTRATÉGICO TITANIUM')}
-                    </h2>
-                    <p style="margin:5px 0 0 0; font-size:13px; color:#aaa;">Proyección: ${mesSel} | Sincronizado: ${cli.ultima_sincro || 'Ahora'}</p>
-                </div>
-                <div style="flex:1; text-align:right; background:rgba(255,255,255,0.05); padding:10px; border-radius:10px;">
-                    <span style="font-size:11px; color:#888;">AUTONOMÍA DE CAJA:</span><br>
-                    <b style="font-size:24px; color:${colorBorde};">${diasVida} DÍAS</b><br>
-                    <small style="font-size:9px; color:#666;">(Gastos proyectados: $${Math.round(gastoMensual).toLocaleString()}/mes)</small>
+                <div><h2 style="margin:0; font-size:24px; color:${colorBorde}; font-weight:900;">${MODO_PANICO ? '🚨 ESTADO: ' + (rep.estado || 'CRÍTICO') : '🛡️ SISTEMA TITANIUM'}</h2></div>
+                <div style="text-align:right; background:rgba(255,255,255,0.05); padding:10px 20px; border-radius:12px;">
+                    <span style="font-size:11px; color:#888;">PÉSIMO (VaR p5) + BANCOS:</span><br>
+                    <b style="font-size:28px; color:${colorBorde};">${diasVida} DÍAS</b>
                 </div>
             </div>
 
-            <div style="display:flex; gap:20px;">
-                <div style="flex:1.2; background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border:1px solid rgba(239,68,68,0.3);">
-                    <h3 style="margin:0 0 15px 0; font-size:12px; color:#ef4444; text-transform:uppercase; letter-spacing:1px;">🩸 Análisis de Destrucción de Capital</h3>
-                    <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
-                        <span>Deuda OS en Calle:</span>
-                        <b>$${deudaCalle.toLocaleString()}</b>
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+                <div style="text-align:center;"><span style="font-size:10px; color:#888;">PLAZO FIJO</span><br><b style="color:#60a5fa; font-size:18px;">${m.pf || 0}%</b></div>
+                <div style="text-align:center; border-left:1px solid rgba(255,255,255,0.1);"><span style="font-size:10px; color:#888;">FCI / BILL.</span><br><b style="color:#10b981; font-size:18px;">${m.fci || 0}%</b></div>
+                <div style="text-align:center; border-left:1px solid rgba(255,255,255,0.1);"><span style="font-size:10px; color:#888;">INFLACIÓN</span><br><b style="color:#ef4444; font-size:18px;">${inflacionMensual}%</b></div>
+                <div style="text-align:center; border-left:1px solid rgba(255,255,255,0.1);"><span style="font-size:10px; color:#888;">DOLAR MEP</span><br><b style="color:#60a5fa; font-size:18px;">$${mep}</b></div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:20px; margin-bottom:20px;">
+                <div style="background:rgba(239,68,68,0.03); padding:20px; border-radius:12px; border:1px solid rgba(239,68,68,0.3);">
+                    <h3 style="margin:0 0 15px 0; font-size:13px; color:#ef4444; text-transform:uppercase;">🩸 Sangría en Calle</h3>
+                    <div style="background:rgba(239,68,68,0.1); padding:15px; border-radius:10px; margin-bottom:10px;">
+                        <p style="margin:0; font-size:11px; color:#ef4444;">PÉRDIDA ESTIMADA:</p>
+                        <b style="font-size:24px;">-$${Math.round(perdidaInflacion).toLocaleString()}</b>
                     </div>
-                    <div style="background:rgba(239,68,68,0.1); padding:12px; border-radius:8px;">
-                        <p style="margin:0; font-size:11px; color:#ef4444;">1. PÉRDIDA POR INFLACIÓN (${inflacionMensual}%):</p>
-                        <b style="font-size:18px;">-$${Math.round(perdidaInflacion).toLocaleString()}</b>
-                        
-                        <p style="margin:10px 0 0 0; font-size:11px; color:#ef4444;">2. PÉRDIDA POR DEVALUACIÓN (MEP):</p>
-                        <b style="font-size:18px;">U$D ${Math.round(sangriaUSD)} <small style="font-size:10px; font-weight:normal;">/ mes</small></b>
-                        <div style="font-size:10px; color:#888; margin-top:5px;">Cobro hoy: U$D ${Math.round(deudaEnDolaresHoy)} | Delay: U$D ${Math.round(deudaEnDolaresHoy - sangriaUSD)}</div>
+                    <div style="font-size:13px; color:#aaa;">Equivale a: <b style="color:#eee">U$D ${Math.round(sangriaUSD)}</b></div>
+                </div>
+                <div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border:1px solid ${colorBorde};">
+                    <h3 style="margin:0 0 15px 0; font-size:12px; color:${colorBorde}; text-transform:uppercase;">🤖 Recomendaciones</h3>
+                    <div style="font-size:14px; color:#ddd; line-height:1.6;">
+                        ${consejosDelBot.length > 0 
+                            ? consejosDelBot.map(c => `<div style="margin-bottom:8px; padding-left:15px; border-left:2px solid ${colorBorde};">${c}</div>`).join('')
+                            : 'Analizando flujos para optimizar...'}
                     </div>
                 </div>
+            </div>
 
-                <div style="flex:1; background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border:1px solid ${colorBorde};">
-                    <h3 style="margin:0 0 15px 0; font-size:12px; color:${colorBorde}; text-transform:uppercase;">🎯 Orden Ejecutiva</h3>
-                    
-                    ${PRIORIZAR_CAJA ? `
-                        <div style="text-align:center; padding:10px;">
-                            <b style="color:#ef4444; font-size:16px;">CAJA CRÍTICA</b>
-                            <p style="font-size:13px; color:#ddd; margin:10px 0;">No invertir. Necesitás los <b>$${saldo.toLocaleString()}</b> para el operativo de 20 días.</p>
-                        </div>
-                    ` : `
-                        <div style="text-align:center;">
-                            <p style="font-size:11px; color:#aaa; margin-bottom:5px;">SUGERENCIA: <b>${convieneMEP ? 'COBERTURA MEP' : 'RENDIMIENTO ' + (op.mejor_tasa || 'FCI')}</b></p>
-                            <b style="font-size:26px; color:${convieneMEP ? '#ef4444' : '#10b981'};">
-                                ${convieneMEP ? 'U$D ' + Math.floor(excedente/mep).toLocaleString() : '$' + excedente.toLocaleString()}
-                            </b>
-                            
-                            <div style="margin:15px 0; background:rgba(255,255,255,0.05); padding:12px; border-radius:8px; border-left:4px solid ${convieneMEP ? '#ef4444' : '#10b981'}; text-align:left;">
-                                <p style="margin:0; font-size:12px; color:${convieneMEP ? '#ef4444' : '#10b981'};"><b>🚀 RETORNO / COBERTURA:</b></p>
-                                <p style="margin:5px 0; font-size:15px; font-weight:bold;">
-                                    ${convieneMEP ? 'Evita pérdida de ' + inflacionMensual + '%' : '+$' + gananciaEstimada.toLocaleString()}
-                                </p>
-                                
-                                <p style="margin:10px 0 0 0; font-size:11px; color:#888;"><b>📅 VENTANA TÁCTICA:</b></p>
-                                <p style="margin:3px 0; font-size:13px;">${strHoy} —> ${strRescate}</p>
+            <div style="background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+                <h4 style="margin:0 0 12px 0; color:#60a5fa; font-size:11px; text-transform:uppercase;">🏆 Top Pagadores</h4>
+                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px;">
+                    ${intelCuit.slice(0, 3).map(os => `
+                        <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:8px;">
+                            <div style="font-size:10px; color:#888;">CUIT: ${os.cuit || 'S/D'}</div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
+                                <b style="color:#10b981; font-size:14px;">${((os.indice || 0.85) * 100).toFixed(0)}% Efic.</b>
+                                <span style="font-size:12px; color:#60a5fa;">Delay: ${os.delay_historico || os.delay || 0}d</span>
                             </div>
-                            ${rindeRealFCI < 0 && !convieneMEP ? '<small style="color:#ef4444; font-size:9px;">⚠️ Alerta: Tasa FCI por debajo de inflación</small>' : ''}
                         </div>
-                    `}
+                    `).join('')}
                 </div>
             </div>
-
-            <div style="margin-top:20px; display:flex; justify-content:space-between; font-size:11px; color:#555; border-top:1px solid rgba(255,255,255,0.05); padding-top:10px;">
-                <span>RIESGO: <b>${riesgo} pts</b> | MEP: <b>$${mep}</b> | TASA FCI: <b>${tasaFCI}%</b></span>
-                <span>EFICIENCIA DE ESTRUCTURA: <b style="color:#3b82f6;">${((facturacionPromedio/gastoMensual)*100).toFixed(0)}%</b></span>
+            <div style="margin-top:20px; display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#555; border-top:1px solid rgba(255,255,255,0.05); padding-top:15px;">
+                <span>RIESGO PAÍS: <b>${m.riesgo || 0} pts</b> | SINCRO: ${motor.ultima_sincro || 'OK'}</span>
+                <span style="color:#3b82f6; font-weight:900; letter-spacing:1px;">TITANIUM INTELLIGENCE 🔥</span>
             </div>
         </div>
     `;
-}
-    // --- ENTRENAMIENTO Y MANTENIMIENTO ---
- // --- FUNCIONES DE APOYO DEL MOTOR IA ---
+}   
+// --- FUNCIONES DE APOYO DEL MOTOR IA ---
 function parseFecha(s) { 
     if (!s) return null;
-    // Si ya es un objeto Date, lo devolvemos tal cual
     if (s instanceof Date) return s;
     
-    // Soporta formatos DD/MM/YYYY y YYYY-MM-DD
-    const p = s.includes('/') ? s.split('/') : s.split('-'); 
-    return s.includes('/') ? 
-        new Date(p[2], p[1] - 1, p[0]) : 
-        new Date(p[0], p[1] - 1, p[2]); 
+    // Detecta el separador y divide la cadena
+    const sep = s.includes('/') ? '/' : '-';
+    const p = s.split(sep); // 🟢P
+    
+    // Si el primer segmento tiene 4 dígitos, es formato YYYY-MM-DD
+    if (p[0].length === 4) {
+        return new Date(p[0], p[1] - 1, p[2]);
+    } // 🔵AC
+    
+    // De lo contrario, asume DD/MM/YYYY
+    return new Date(p[2], p[1] - 1, p[0]);
 }
 
 function limpiarOutliers(arr) { 
-    // Si tenemos pocos datos, no tiene sentido recortar extremos
     if (arr.length < 4) return arr; 
     
-    // Ordenamos de menor a mayor
-    arr.sort((a, b) => a - b); 
+    // Clonamos para no mutar el array original accidentalmente
+    const temp = [...arr].sort((a, b) => a - b); 
     
-    // Eliminamos el 10% de los casos más rápidos y el 10% de los más lentos
-    // Esto quita "ruido" de pagos excepcionales o deudas incobrables
-    return arr.slice(Math.floor(arr.length * 0.1), Math.ceil(arr.length * 0.9)); 
+    // Recorte simétrico del 10% en ambos extremos
+    const inicio = Math.floor(temp.length * 0.1);
+    const fin = Math.ceil(temp.length * 0.9);
+    
+    return temp.slice(inicio, fin); 
 }
 
 function mediaPonderada(arr) { 
-    // Si no hay datos, devolvemos el estándar de la industria (65 días)
     if (!arr || !arr.length) return 65; 
     
-    // Calculamos el promedio simple sobre la lista ya filtrada
     const sum = arr.reduce((a, b) => a + b, 0); 
     return Math.round(sum / arr.length); 
 }
-   async function verificarYEntrenar() {
+
+// --- PROCESO DE ENTRENAMIENTO DINÁMICO ---
+
+async function verificarYEntrenar() {
     // 1. CAPTURA TOTAL DE DATOS (Facturas de ambos pulmones + Gastos Maestros)
     const [fSnap, sSnap, gSnap] = await Promise.all([
         db.ref('facturas_emitidas').once('value'),
         db.ref('facturas_emitidas_saei').once('value'),
-        db.ref('configuracion/gastos_recurrentes').once('value') // <--- Nuevo: La IA ahora mira los gastos fijos
+        db.ref('configuracion/gastos_recurrentes').once('value')
     ]);
     
     const facturas = { ...(fSnap.val() || {}), ...(sSnap.val() || {}) };
@@ -529,307 +486,264 @@ function mediaPonderada(arr) {
     const motorSnap = await db.ref('tesoreria/motor_ia').once('value');
     const motorData = motorSnap.val() || { cantidad_entrenada: 0 };
 
-    // Solo entrenamos si hay facturas nuevas o si queremos forzar el aprendizaje del flujo de gastos
+    // Solo entrenamos si hay facturas nuevas o cambios detectados 🔵AC
     if (cantidadActual !== motorData.cantidad_entrenada) {
-        document.getElementById('statusIA').innerText = "🤖 IA: Analizando cobros y gastos fijos...";
+        const statusIA = document.getElementById('statusIA');
+        if (statusIA) statusIA.innerText = "🤖 IA: Analizando cobros y gastos fijos...";
         
-        // Traemos el historial de cobranzas real
         const cSnap = await db.ref('cobranzas').once('value');
         const cobranzas = cSnap.val() || {};
         
         // 3. EJECUCIÓN DEL APRENDIZAJE
-        // Pasamos facturas, cobranzas y ahora también la estructura de gastos
-        await ejecutarIA(facturas, cobranzas, gastosMaestros);
-        
-        // 4. ACTUALIZACIÓN DE METADATOS
-        await db.ref('tesoreria/motor_ia').update({ 
-            cantidad_entrenada: cantidadActual, 
-            ultima_sincro: new Date().toLocaleString(),
-            estado: "optimizado"
-        });
-        
-        document.getElementById('statusIA').innerText = "✅ Motor Sincronizado";
-        
-        // Refrescamos la proyección con los nuevos parámetros aprendidos
-        proyectarTodo(); 
+        try {
+            await ejecutarIA(facturas, cobranzas, gastosMaestros);
+            
+            // 4. ACTUALIZACIÓN DE METADATOS
+            await db.ref('tesoreria/motor_ia').update({ 
+                cantidad_entrenada: cantidadActual, 
+                ultima_sincro: new Date().toLocaleString("es-AR"),
+                estado: "optimizado"
+            });
+            
+            if (statusIA) statusIA.innerText = "✅ Motor Sincronizado";
+            
+            // Refrescamos la UI con los nuevos parámetros aprendidos
+            if (typeof proyectarTodo === 'function') proyectarTodo(); 
+            
+        } catch (error) {
+            console.error("❌ Error en entrenamiento IA:", error);
+            if (statusIA) statusIA.innerText = "⚠️ Error en Sincronización";
+        }
     } else {
-        document.getElementById('statusIA').innerText = "✅ Motor al día";
+        const statusIA = document.getElementById('statusIA');
+        if (statusIA) statusIA.innerText = "✅ Motor al día";
     }
 }
-async function ejecutarIA(f, c, g) {
-    let delays = []; 
-    let cobradas = 0; 
-    let emitidas = Object.keys(f).length;
-    let burnRateMensual = 0;
+    // 1. GESTIÓN DE BANCOS (ESTADO BASE)
+// 1. GESTIÓN DE BANCOS (ESTADO BASE)
+function guardarBancos() {
+    const mes = document.getElementById('mesFiltro').value;
+    const galicia = parseFloat(document.getElementById('bancoGalicia').value) || 0;
+    const santander = parseFloat(document.getElementById('bancoSantander').value) || 0;
 
-    // 1. ANÁLISIS DE COBRANZAS (Cálculo de eficiencia)
-    Object.keys(f).forEach(id => {
-        const fact = f[id];
-        if (c[id] && c[id].fecha_pago) {
-            const fEmi = parseFecha(fact.fecha_emision || fact.fecha || fact.fecha_peticion);
-            const fPag = parseFecha(c[id].fecha_pago);
-            if (fEmi && fPag) {
-                const diff = Math.floor((fPag - fEmi) / 86400000);
-                if (diff >= 0 && diff < 200) delays.push(diff);
-                cobradas++;
-            }
-        }
+    db.ref(`tesoreria/meses/${mes}/bancos`).update({
+        galicia: galicia,
+        santander: santander
+    }).then(() => {
+        // Forzamos al motor a recalcular con los nuevos saldos reales 🔵AC
+        if (typeof verificarYEntrenar === 'function') verificarYEntrenar(); 
+        if (typeof proyectarTodo === 'function') proyectarTodo();
     });
-
-    // 2. CÁLCULOS ESTADÍSTICOS
-    const delayFinal = mediaPonderada(limpiarOutliers(delays));
-    const indiceCobranza = emitidas > 0 ? (cobradas / emitidas) : 0.85;
-
-    // 3. ANÁLISIS DE GASTOS Y STRESS TEST
-    Object.values(g || {}).forEach(rubro => {
-        if (rubro.items) {
-            rubro.items.forEach(i => { if (!i.hasta) burnRateMensual += (parseFloat(i.monto) || 0); });
-        }
-    });
-
-    // --- AQUÍ EMPIEZA LA MAGIA: TOMA DE DECISIONES ---
-    
-    // Simulamos un escenario de Stress: ¿Qué pasa si cobramos solo el 70%?
-    const saldoActual = (parseFloat(document.getElementById('bancoGalicia')?.value) || 0) + (parseFloat(document.getElementById('bancoSantander')?.value) || 0);
-    const riesgoQuiebra = saldoActual < (burnRateMensual * 0.5); // Si no cubrimos ni medio mes de gastos fijos
-    
-    const escenario_stress = {
-        resiste: !riesgoQuiebra,
-        alertaCEO: riesgoQuiebra ? "RIESGO DE LIQUIDEZ INMEDIATO" : "FLUJO CONTROLADO",
-        saldoFinalStress: saldoActual - burnRateMensual,
-        fechaPeligro: riesgoQuiebra ? "Próximos 15 días" : "Sin riesgo a la vista"
-    };
-
-    // Calculamos Oportunidades (Si sobra más de un 20% del burn rate)
-    const excedente = saldoActual - (burnRateMensual * 1.2);
-    const oportunidades = {
-        monto_sugerido: excedente > 500000 ? Math.round(excedente) : 0,
-        instrumento: "FCI Galicia / Money Market",
-        alerta_inflacion: "Inflación proyectada estable. No dejar pesos quietos.",
-        consejo_uva: "Usa fondos con rescate inmediato por si surge una emergencia."
-    };
-
-    // 4. GUARDADO COMPLETO EN FIREBASE
-    const dataUpdate = {
-        delay_historico: delayFinal,
-        indice_cobranza: indiceCobranza,
-        burn_rate_fijo: burnRateMensual,
-        salud_financiera: riesgoQuiebra ? "CRÍTICO" : "ESTABLE",
-        escenario_stress: escenario_stress, // <--- Esto hace que salga el cartel rojo
-        oportunidades: oportunidades,       // <--- Esto hace que salga el cartel verde
-        ultima_actualizacion: new Date().toISOString()
-    };
-
-    await db.ref('tesoreria/motor_ia').update(dataUpdate);
-
-    // Actualizamos variables locales
-    motorGlobal = { ...motorGlobal, ...dataUpdate };
-    
-    console.log("🚀 Motor IA: Decisiones actualizadas en Firebase");
 }
-       function dibujarGastos() {
+
+// 2. RENDERIZADO DE GASTOS (INTERFAZ)
+function dibujarGastos() {
     const cont = document.getElementById('contGastos');
+    if (!cont) return;
     cont.innerHTML = "";
     const mesSeleccionado = document.getElementById('mesFiltro').value;
 
-    // Ahora leemos de un nodo central, no del mes
     db.ref('configuracion/gastos_recurrentes').once('value', snapshot => {
         const gastos = snapshot.val() || {};
         
         Object.keys(gastos).forEach(cat => {
             const rubro = gastos[cat];
-            let itemsHtml = (rubro.items || []).map((it, i) => {
-                // FILTRO AUTOMÁTICO DE LÍNEA DE TIEMPO
+            const items = rubro.items || [];
+            
+            let itemsHtml = items.map((it, i) => {
+                // Filtro de línea de tiempo: si el mes no está en rango, no se dibuja 🟢P
                 if (it.desde && mesSeleccionado < it.desde) return '';
                 if (it.hasta && mesSeleccionado > it.hasta) return '';
 
+                const esUltimoMes = it.hasta === mesSeleccionado;
+
                 return `
-                <div class="gasto-row" style="border-left: 4px solid ${it.hasta === mesSeleccionado ? 'var(--rojo)' : 'var(--acento)'}">
-                    <div class="gasto-header">
-                        <input class="gasto-input-txt" value="${it.nombre}" onchange="updateGastoRecurrente('${cat}', ${i}, 'nombre', this.value)">
-                        <button onclick="eliminarGastoRecurrente('${cat}', ${i})" style="color:#ef4444; background:none; border:none; cursor:pointer;">✕</button>
+                <div class="gasto-row" style="border-left: 4px solid ${esUltimoMes ? '#ef4444' : '#3b82f6'}; margin-bottom:10px; padding:10px; background:rgba(255,255,255,0.02); border-radius:8px;">
+                    <div class="gasto-header" style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                        <input class="gasto-input-txt" value="${it.nombre}" onchange="updateGastoRecurrente('${cat}', ${i}, 'nombre', this.value)" style="background:none; border:none; color:#fff; font-weight:600; width:80%;">
+                        <button onclick="eliminarGastoRecurrente('${cat}', ${i})" style="color:#ef4444; background:none; border:none; cursor:pointer; font-size:16px;">✕</button>
                     </div>
                     
                     <div class="gasto-inputs" style="display:grid; grid-template-columns: 1fr 1fr 80px; gap:10px;">
                         <div style="position:relative;">
-                            <span style="position:absolute; left:5px; top:8px; color:var(--verde);">$</span>
-                            <input type="number" value="${it.monto}" onchange="updateGastoRecurrente('${cat}', ${i}, 'monto', this.value)" style="padding-left:15px; font-weight:bold;">
+                            <span style="position:absolute; left:8px; top:8px; color:#10b981;">$</span>
+                            <input type="number" value="${it.monto}" onchange="updateGastoRecurrente('${cat}', ${i}, 'monto', this.value)" style="padding-left:20px; width:100%; background:rgba(0,0,0,0.3); border:1px solid #333; color:#fff; border-radius:5px; height:35px;">
                         </div>
-                        <select onchange="updateGastoRecurrente('${cat}', ${i}, 'semana', this.value)">
-                            <option value="1" ${it.semana==1?'selected':''}>Semana 1</option>
-                            <option value="2" ${it.semana==2?'selected':''}>Semana 2</option>
-                            <option value="3" ${it.semana==3?'selected':''}>Semana 3</option>
-                            <option value="4" ${it.semana==4?'selected':''}>Semana 4</option>
+                        <select onchange="updateGastoRecurrente('${cat}', ${i}, 'semana', this.value)" style="background:#222; color:#fff; border:1px solid #333; border-radius:5px;">
+                            <option value="1" ${it.semana == 1 ? 'selected' : ''}>Semana 1</option>
+                            <option value="2" ${it.semana == 2 ? 'selected' : ''}>Semana 2</option>
+                            <option value="3" ${it.semana == 3 ? 'selected' : ''}>Semana 3</option>
+                            <option value="4" ${it.semana == 4 ? 'selected' : ''}>Semana 4</option>
                         </select>
-                         <button class="btn-mini" style="height:35px" onclick="cambiarPeriodo('${cat}', ${i})">📅 PLAZO</button>
+                         <button class="btn-mini" onclick="cambiarPeriodo('${cat}', ${i})" style="font-size:10px; background:#444; color:#ccc; border:none; border-radius:4px;">📅 PLAZO</button>
                     </div>
 
-                    <div style="margin-top:8px; display:flex; gap:10px;">
-                        <span class="gasto-badge badge-inicio">DESDE: ${it.desde || 'SIEMPRE'}</span>
-                        <span class="gasto-badge ${it.hasta ? 'badge-fin' : ''}">${it.hasta ? 'HASTA: ' + it.hasta : 'INDEFINIDO'}</span>
+                    <div style="margin-top:8px; display:flex; gap:10px; font-size:10px; opacity:0.6;">
+                        <span class="gasto-badge">DESDE: ${it.desde || 'INICIO'}</span>
+                        <span class="gasto-badge" style="${it.hasta ? 'color:#ef4444' : ''}">${it.hasta ? 'HASTA: ' + it.hasta : 'INDEFINIDO'}</span>
                     </div>
                 </div>`;
             }).join('');
 
             cont.innerHTML += `
-                <div class="card">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                        <h3 style="margin:0; font-size:14px; letter-spacing:1px;">${cat.toUpperCase()}</h3>
-                        <button class="btn-mini" onclick="nuevoGastoRecurrente('${cat}')" style="background:var(--acento); color:white;">+ AÑADIR</button>
+                <div class="card" style="background:#111; border:1px solid #222; padding:15px; border-radius:12px; margin-bottom:20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #222; padding-bottom:10px;">
+                        <h3 style="margin:0; font-size:12px; color:#888; letter-spacing:1.5px; text-transform:uppercase;">${cat}</h3>
+                        <button class="btn-mini" onclick="nuevoGastoRecurrente('${cat}')" style="background:#3b82f6; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px;">+ AÑADIR</button>
                     </div>
-                    ${itemsHtml}
+                    ${itemsHtml || '<p style="font-size:11px; color:#444; text-align:center;">Sin gastos activos este mes</p>'}
                 </div>`;
         });
     });
 }
-function updateItem(cat, idx, campo, valor) {
-    if(campo==='monto') valor = parseFloat(valor)||0;
-    db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/gastos/${cat}/items/${idx}`)
-      .update({[campo]: valor})
-      .then(() => proyectarTodo()); // <-- Agregado el punto (.)
+
+// 3. ACTUALIZACIÓN (PERSISTENCIA)
+function updateGastoRecurrente(cat, idx, campo, valor) {
+    if (campo === 'monto') valor = parseFloat(valor) || 0;
+    
+    db.ref(`configuracion/gastos_recurrentes/${cat}/items/${idx}`)
+      .update({ [campo]: valor })
+      .then(() => {
+          if (typeof proyectarTodo === 'function') proyectarTodo(); // 🔵AC
+      });
 }
-function guardarBancos() {
-    db.ref(`tesoreria/meses/${document.getElementById('mesFiltro').value}/bancos`).update({
-        galicia: parseFloat(document.getElementById('bancoGalicia').value) || 0,
-        santander: parseFloat(document.getElementById('bancoSantander').value) || 0
+
+// 4. ELIMINACIÓN SEGURA
+function eliminarGastoRecurrente(cat, idx) {
+    if(!confirm(`¿Eliminar este gasto de ${cat}?`)) return;
+
+    const ref = db.ref(`configuracion/gastos_recurrentes/${cat}/items`);
+    
+    ref.once('value', snap => {
+        let items = snap.val() || [];
+        items.splice(idx, 1); 
+        
+        // Si no quedan ítems, podemos optar por dejar el array vacío o borrar el nodo
+        if (items.length === 0) {
+            db.ref(`configuracion/gastos_recurrentes/${cat}`).remove();
+        } else {
+            ref.set(items);
+        }
     }).then(() => {
-        // Forzamos al motor a re-calcular con los nuevos saldos
-        verificarYEntrenar(); 
-        proyectarTodo();
+        dibujarGastos();
+        if (typeof proyectarTodo === 'function') proyectarTodo();
     });
 }
-    function nuevaCategoria() {
-    const n = prompt("Nombre del nuevo Rubro (ej: IMPUESTOS, SEGUROS):");
-    if(n) {
-        // Guardamos en la configuración global, no solo en el mes
-        db.ref(`configuracion/gastos_recurrentes/${n.toUpperCase()}`).set({ 
-            items: [{ nombre: "Gasto Inicial", monto: 0, semana: 1, desde: document.getElementById('mesFiltro').value }] 
-        }).then(() => dibujarGastos());
+
+// --- SIMULADOR DE IMPACTO FINANCIERO ---
+function simularImpacto() {
+    const montoSimulado = parseFloat(document.getElementById('simMonto').value) || 0;
+    const mesesSimulados = parseInt(document.getElementById('simMeses').value) || 1;
+    const res = document.getElementById('resSim');
+
+    if (!res) return;
+
+    // 1. CONSUMIMOS LA REALIDAD PROBABILÍSTICA (Del Motor IA)
+    const motorData = window.motorGlobal || {}; 
+    const saldoPesimista = motorData.var_pesimista || 0; 
+    const burnRate = motorData.burn_rate || 0; 
+
+    let tempSaldo = saldoPesimista;
+    let mesesResistidos = 0;
+
+    // 2. SIMULACIÓN CON GASTO ESTRUCTURAL
+    for (let i = 0; i < mesesSimulados; i++) { 
+        // El impacto real: gasto puntual + burn rate mensual recurrente
+        tempSaldo -= (montoSimulado + burnRate); 
+        if (tempSaldo >= 0) mesesResistidos++; 
+    }
+
+    // 3. RESPUESTA BASADA EN RIESGO
+    const esViable = mesesResistidos >= mesesSimulados;
+    res.style.color = esViable ? "#10b981" : "#ef4444";
+
+    if (esViable) {
+        res.innerText = `✅ VIABLE: Titanium confirma soporte por ${mesesSimulados} meses incluso en escenario de estrés.`;
+    } else {
+        const mesFalla = mesesResistidos + 1;
+        res.innerText = `🚨 ALERTA: Quiebra técnica en el mes ${mesFalla} debido al Burn Rate estructural.`;
     }
 }
 
-    function simularImpacto() {
-        const monto = parseFloat(document.getElementById('simMonto').value) || 0;
-        const meses = parseInt(document.getElementById('simMeses').value) || 1;
-        const res = document.getElementById('resSim');
-        let tempSaldo = saldoFinalProyectado;
-        let mesesResistidos = 0;
-        for(let i=0; i<meses; i++) { tempSaldo -= monto; if(tempSaldo >= 0) mesesResistidos++; }
-        res.style.color = mesesResistidos >= meses ? "var(--verde)" : "var(--rojo)";
-        res.innerText = mesesResistidos >= meses ? `✅ VIABLE por ${meses} meses.` : `❌ QUIEBRA en mes ${mesesResistidos + 1}.`;
-    }
 // --- INICIALIZACIÓN Y EVENTOS ---
-        window.onload = async () => {
-        const hoy = new Date();
-        const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}`;
-        document.getElementById('mesFiltro').value = mesActual; 
-        
-        await conectarMes();
-        verificarYEntrenar();
-    };
+window.onload = async () => {
+    const hoy = new Date();
+    // Normalización YYYY-MM para nodos de Firebase
+    const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+    
+    const filtroMes = document.getElementById('mesFiltro');
+    if (filtroMes) {
+        filtroMes.value = mesActual; 
+    }
+    
+    // 1. Conectamos datos base del mes
+    if (typeof conectarMes === 'function') await conectarMes();
+    
+    // 2. Verificamos reentrenamiento del motor 🔵AC
+    if (typeof verificarYEntrenar === 'function') verificarYEntrenar();
+};
 
-    async function sincronizacionTotal() {
-    const btn = event.target;
+async function sincronizacionTotal(event) {
+    const btn = event?.target;
+    if (!btn) return;
+
     const originalText = btn.innerText;
-    btn.innerText = "⏳ PROCESANDO...";
+    btn.innerText = "⏳ PROCESANDO IA...";
     btn.disabled = true;
 
     try {
-        // Traemos TODO: Facturas, Cobranzas y la Lista Maestra de Gastos
+        // 1. CAPTURA INTEGRAL
         const [fSnap, sSnap, cSnap, gSnap] = await Promise.all([
             db.ref('facturas_emitidas').once('value'),
             db.ref('facturas_emitidas_saei').once('value'),
             db.ref('cobranzas').once('value'),
-            db.ref('configuracion/gastos_recurrentes').once('value') // <--- Faltaba esto
+            db.ref('configuracion/gastos_recurrentes').once('value')
         ]);
         
         const facturas = { ...(fSnap.val() || {}), ...(sSnap.val() || {}) };
         const cobranzas = cSnap.val() || {};
         const gastosMaestros = gSnap.val() || {};
         
-        // Ahora sí, ejecutamos con los 3 argumentos
-        await ejecutarIA(facturas, cobranzas, gastosMaestros); 
-        await conectarMes();
-        await proyectarTodo();
+        // 2. EJECUCIÓN DEL NÚCLEO 🟢P
+        if (typeof ejecutarIA === 'function') {
+            await ejecutarIA(facturas, cobranzas, gastosMaestros); 
+        }
+        
+        // 3. REFRESCO DE INTERFAZ
+        if (typeof conectarMes === 'function') await conectarMes();
+        if (typeof proyectarTodo === 'function') await proyectarTodo();
 
         btn.innerText = "✅ ¡LISTO!";
-        setTimeout(() => { btn.innerText = originalText; btn.disabled = false; }, 2000);
+        btn.style.backgroundColor = "#10b981";
+
+        setTimeout(() => { 
+            btn.innerText = originalText; 
+            btn.disabled = false;
+            btn.style.backgroundColor = "";
+        }, 2500);
 
     } catch (e) {
-        console.error("Error en sincro:", e);
-        btn.innerText = "❌ ERROR";
+        console.error("❌ Error Crítico en Sincronización:", e);
+        btn.innerText = "❌ ERROR DE MOTOR";
         btn.disabled = false;
+        
+        setTimeout(() => { 
+            btn.innerText = originalText; 
+        }, 3000);
     }
 }
-    function nuevoGastoRecurrente(cat) {
-    const mesActual = document.getElementById('mesFiltro').value;
-    db.ref(`configuracion/gastos_recurrentes/${cat}/items`).once('value', snap => {
-        const items = snap.val() || [];
-        items.push({
-            nombre: "Nuevo Gasto",
-            monto: 0,
-            semana: 1,
-            desde: mesActual, // Nace en el mes que estás viendo
-            hasta: ""         // Por defecto es para siempre
-        });
-        db.ref(`configuracion/gastos_recurrentes/${cat}/items`).set(items).then(() => {
-            dibujarGastos();
-            proyectarTodo();
-        });
-    });
-}
 
-function updateGastoRecurrente(cat, idx, campo, valor) {
-    db.ref(`configuracion/gastos_recurrentes/${cat}/items/${idx}`).update({ [campo]: valor })
-      .then(() => proyectarTodo());
-}
-
-function cambiarPeriodo(cat, idx) {
-    const d = prompt("¿Desde qué mes impacta? (YYYY-MM)", "2026-01");
-    const h = prompt("¿Hasta qué mes impacta? (Dejar vacío si es fijo)", "");
-    
-    const updates = {};
-    if(d) updates.desde = d;
-    updates.hasta = h || null;
-
-    db.ref(`configuracion/gastos_recurrentes/${cat}/items/${idx}`).update(updates)
-      .then(() => {
-          dibujarGastos();
-          proyectarTodo();
-      });
-}
- function cambiarPeriodo(cat, idx) {
-    const d = prompt("¿Desde qué mes impacta? (YYYY-MM)", "2026-01");
-    const h = prompt("¿Hasta qué mes impacta? (Dejar vacío si es fijo)", "");
-    
-    const updates = {};
-    if(d) updates.desde = d;
-    updates.hasta = h || null;
-
-    db.ref(`configuracion/gastos_recurrentes/${cat}/items/${idx}`).update(updates)
-      .then(() => {
-          dibujarGastos();
-          proyectarTodo();
-      });
-}
-function eliminarGastoRecurrente(cat, idx) {
-    if(!confirm("¿Eliminar este gasto de la lista maestra?")) return;
-    db.ref(`configuracion/gastos_recurrentes/${cat}/items/${idx}`).remove()
-      .then(() => {
-          dibujarGastos();
-          proyectarTodo();
-      });
-}
-    auth.onAuthStateChanged((user) => {
-        if (user) {
-            console.log("Tesorería autorizada para:", user.email);
-            setTimeout(() => {
-                if (typeof proyectarTodo === 'function') proyectarTodo();
-            }, 700);
-        } else {
-            window.location.href = "index.html";
-        }
-    });
+// --- GESTIÓN DE ACCESO Y SEGURIDAD ---
+auth.onAuthStateChanged((user) => {
+    if (user) {
+        console.log("🚀 Sesión activa:", user.email);
+        setTimeout(() => {
+            if (typeof proyectarTodo === 'function') proyectarTodo();
+        }, 1000);
+    } else {
+        window.location.href = "index.html";
+    }
+});    
 </script>
 </body>
 </html>
