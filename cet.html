@@ -855,26 +855,39 @@ window.Dominguito = {
     },
 
     procesarConIA: async function(mensaje) {
-        if(!mensaje) return;
-        this.hablar("Procesando...");
-        try {
-            const res = await fetch(this.serverUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt: mensaje })
-            });
-            const data = await res.json();
-            
-            if (data.accion && data.ruta && this.db) {
-                const ref = this.db.ref(data.ruta);
-                data.metodo === 'set' ? await ref.set(data.payload) : await ref.push(data.payload);
-            }
-            this.hablar(data.respuesta || "Listo");
-        } catch (e) {
-            console.error("Error Dominguito:", e);
-            this.hablar("Error de conexión.");
+    if(!mensaje) return;
+    
+    // 1. Esto confirma que el botón funciona
+    this.hablar("Procesando, Cristian..."); 
+    
+    try {
+        const res = await fetch("https://dominguito-san-juan.vercel.app/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: mensaje }) 
+        });
+
+        const data = await res.json();
+        console.log("Respuesta del servidor:", data);
+
+        // 2. Aquí está el secreto: tu chat.py manda el texto en "respuesta"
+        // Buscamos 'data.respuesta' porque así figura en tu Python
+        const textoParaHablar = data.respuesta || "No recibí texto del servidor";
+        
+        // 3. Dominguito habla la respuesta real
+        this.hablar(textoParaHablar);
+
+        // 4. Si la IA mandó una acción para la clínica (Firebase)
+        if (data.accion && data.ruta && this.db) {
+            const ref = this.db.ref(data.ruta);
+            data.metodo === 'set' ? await ref.set(data.payload) : await ref.push(data.payload);
         }
-    },
+
+    } catch (e) {
+        console.error("Error en la conexión:", e);
+        this.hablar("Cristian, no pude conectar con el servidor de San Juan.");
+    }
+}
 
     hablar: function(texto) {
         const s = new SpeechSynthesisUtterance(texto);
