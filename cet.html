@@ -819,10 +819,8 @@ function actualizarContadores() {
     @keyframes listening-shake { 0% { transform: rotate(0deg); } 25% { transform: rotate(3deg); } 75% { transform: rotate(-3deg); } 100% { transform: rotate(0deg); } }
 </style>
 <script>
-// --- NÚCLEO DE DOMINGUITO ---
 window.Dominguito = {
     serverUrl: "https://dominguito-san-juan.vercel.app/api/chat", 
-    // Usamos la base de datos que ya inicializaste arriba
     db: (typeof firebase !== "undefined") ? firebase.database() : null,
 
     toggleInput: function() {
@@ -834,19 +832,26 @@ window.Dominguito = {
     },
 
     escuchar: function() {
-        console.log("Escuchando...");
+        console.log("Iniciando micrófono...");
         const container = document.getElementById('dominguito-container');
         const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Speech) return alert("Navegador no compatible.");
+        if (!Speech) return alert("Navegador no compatible. Usa Chrome.");
 
         const rec = new Speech();
         rec.lang = 'es-AR';
         container.classList.add('dominguito-escuchando');
         
         rec.start();
-        rec.onresult = (e) => this.procesarConIA(e.results[0][0].transcript);
+        rec.onresult = (e) => {
+            const transcript = e.results[0][0].transcript;
+            console.log("Escuchado:", transcript);
+            this.procesarConIA(transcript);
+        };
         rec.onend = () => container.classList.remove('dominguito-escuchando');
-        rec.onerror = () => container.classList.remove('dominguito-escuchando');
+        rec.onerror = (e) => {
+            console.error("Error micro:", e.error);
+            container.classList.remove('dominguito-escuchando');
+        };
     },
 
     procesarConIA: async function(mensaje) {
@@ -860,7 +865,6 @@ window.Dominguito = {
             });
             const data = await res.json();
             
-            // Si la IA decide actuar en la base de datos de la clínica
             if (data.accion && data.ruta && this.db) {
                 const ref = this.db.ref(data.ruta);
                 data.metodo === 'set' ? await ref.set(data.payload) : await ref.push(data.payload);
@@ -879,6 +883,24 @@ window.Dominguito = {
     }
 };
 
+// --- LÓGICA DE INTERACCIÓN (PC Y MÓVIL) ---
+const visual = document.getElementById("dominguito-visual");
+let timer;
+
+// Soporte para Celular: Toque largo activa voz, toque corto activa teclado
+visual.addEventListener("touchstart", (e) => {
+    timer = setTimeout(() => {
+        window.Dominguito.escuchar();
+    }, 600); // Mantener 600ms para hablar
+}, {passive: true});
+
+visual.addEventListener("touchend", () => {
+    clearTimeout(timer);
+});
+
+// Soporte para PC: Clic abre teclado
+visual.onclick = () => window.Dominguito.toggleInput();
+
 // --- LÓGICA PARA DESPLAZAR (DRAG) ---
 const el = document.getElementById("dominguito-container");
 let isDragging = false;
@@ -887,7 +909,6 @@ let offset = { x: 0, y: 0 };
 el.addEventListener("mousedown", (e) => {
     if(e.target.id === "dominguito-texto") return;
     isDragging = true;
-    el.style.cursor = "grabbing";
     offset.x = e.clientX - el.offsetLeft;
     offset.y = e.clientY - el.offsetTop;
 });
@@ -900,18 +921,14 @@ document.addEventListener("mousemove", (e) => {
     el.style.bottom = "auto";
 });
 
-document.addEventListener("mouseup", () => {
-    isDragging = false;
-    if(el) el.style.cursor = "default";
-});
-// --- INICIO DE SESIÓN Y CARGA (ESTE ES EL QUE QUEDA) ---
+document.addEventListener("mouseup", () => { isDragging = false; });
+
+// --- INICIO DE SESIÓN ---
 if (typeof auth !== 'undefined') {
     auth.onAuthStateChanged((user) => {
         if (user) {
-            console.log("Acceso concedido:", user.email);
             setTimeout(() => {
                 if (typeof cargarTodo === 'function') cargarTodo();
-                if (typeof renderizarTodo === 'function') renderizarTodo();
                 if (typeof renderChat === 'function') renderChat();
                 if (typeof actualizarContadores === 'function') actualizarContadores();
             }, 500);
