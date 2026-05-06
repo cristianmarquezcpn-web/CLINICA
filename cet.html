@@ -802,7 +802,8 @@ auth.onAuthStateChanged((user) => {
     }
 });
 </script>
-<div id="dominguito-container" onclick="Dominguito.escuchar()" 
+<div id="dominguito-container" onclick="window.Dominguito.escuchar()" 
+     style="position:fixed; bottom:30px; right:30px; z-index:999999; cursor:pointer;">
      style="position:fixed; bottom:30px; right:30px; z-index:999999; cursor:pointer; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
     
     <!-- Aura pulsante de actividad -->
@@ -881,8 +882,6 @@ window.Dominguito = {
     escuchar: function() {
         console.log("Iniciando escucha de Dominguito...");
         const container = document.getElementById('dominguito-container');
-        
-        // Soporte para múltiples navegadores
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         
         if (!SpeechRecognition) {
@@ -892,25 +891,31 @@ window.Dominguito = {
 
         const recognition = new SpeechRecognition();
         recognition.lang = 'es-AR';
+        recognition.continuous = false; // Se detiene apenas terminás de hablar
 
-        // Animación visual
         if (container) container.classList.add('dominguito-escuchando');
         
         recognition.start();
 
         recognition.onresult = (event) => {
-            if (container) container.classList.remove('dominguito-escuchando');
             const mensaje = event.results[0][0].transcript;
             console.log("Comando recibido:", mensaje);
-            this.procesarConIA(mensaje);
+            // Usamos la ruta completa para evitar errores de contexto
+            window.Dominguito.procesarConIA(mensaje);
         };
 
         recognition.onerror = (event) => {
             console.error("Error en el mic:", event.error);
             if (container) container.classList.remove('dominguito-escuchando');
+            if (event.error === 'not-allowed') alert("Permiso de micrófono denegado.");
+        };
+
+        // SEGURIDAD: Si se detiene por cualquier razón, quitamos la animación
+        recognition.onend = () => {
+            if (container) container.classList.remove('dominguito-escuchando');
         };
     },
-
+};
     procesarConIA: async function(mensaje) {
         this.hablar("Procesando, Cristian...");
         try {
