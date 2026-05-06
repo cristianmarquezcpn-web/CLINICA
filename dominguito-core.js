@@ -2,9 +2,21 @@
  * DOMINGUITO CORE V1.0
  * Sistema de inteligencia centralizada para Clínica SAEI
  */
+const firebaseConfig = {
+  apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8",
+  authDomain: "clinicaintegral-5c488.firebaseapp.com",
+  databaseURL: "https://clinicaintegral-5c488-default-rtdb.firebaseio.com",
+  projectId: "clinicaintegral-5c488",
+  storageBucket: "clinicaintegral-5c488.firebasestorage.app",
+  messagingSenderId: "184090967634",
+  appId: "1:184090967634:web:09715937b33ea48288698b"
+};
 
-window.Dominguito = {
-    // 1. CONFIGURACIÓN DE CONEXIÓN
+// Inicializar Firebase ANTES de Dominguito
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+// 1. CONFIGURACIÓN DE CONEXIÓN
     serverUrl: "https://dominguito-san-juan.vercel.app/v1/chat/completions",
     db: (typeof firebase !== "undefined") ? firebase.database() : null,
 
