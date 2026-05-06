@@ -818,14 +818,16 @@ function actualizarContadores() {
     @keyframes listening-shake { 0% { transform: rotate(0deg); } 25% { transform: rotate(3deg); } 75% { transform: rotate(-3deg); } 100% { transform: rotate(0deg); } }
 </style>
 <script>
+// --- NÚCLEO DE DOMINGUITO ---
 window.Dominguito = {
     serverUrl: "https://dominguito-san-juan.vercel.app/api/chat", 
-    db: firebase.database(),  
+    // Usamos la base de datos que ya inicializaste arriba
+    db: (typeof firebase !== "undefined") ? firebase.database() : null,
 
-    // Función para mostrar teclado
     toggleInput: function() {
         const box = document.getElementById('dominguito-input-box');
         const input = document.getElementById('dominguito-texto');
+        if(!box) return;
         box.style.display = (box.style.display === 'none') ? 'block' : 'none';
         if(box.style.display === 'block') input.focus();
     },
@@ -856,12 +858,15 @@ window.Dominguito = {
                 body: JSON.stringify({ prompt: mensaje })
             });
             const data = await res.json();
-            if (data.accion && data.ruta) {
+            
+            // Si la IA decide actuar en la base de datos de la clínica
+            if (data.accion && data.ruta && this.db) {
                 const ref = this.db.ref(data.ruta);
                 data.metodo === 'set' ? await ref.set(data.payload) : await ref.push(data.payload);
             }
-            this.hablar(data.respuesta);
+            this.hablar(data.respuesta || "Listo");
         } catch (e) {
+            console.error("Error Dominguito:", e);
             this.hablar("Error de conexión.");
         }
     },
@@ -879,7 +884,7 @@ let isDragging = false;
 let offset = { x: 0, y: 0 };
 
 el.addEventListener("mousedown", (e) => {
-    if(e.target.id === "dominguito-texto") return; // No arrastrar si escribe
+    if(e.target.id === "dominguito-texto") return;
     isDragging = true;
     el.style.cursor = "grabbing";
     offset.x = e.clientX - el.offsetLeft;
@@ -896,36 +901,39 @@ document.addEventListener("mousemove", (e) => {
 
 document.addEventListener("mouseup", () => {
     isDragging = false;
-    el.style.cursor = "default";
+    if(el) el.style.cursor = "default";
 });
+// --- INICIO DE SESIÓN Y CARGA (ESTE ES EL QUE QUEDA) ---
+if (typeof auth !== 'undefined') {
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            console.log("Acceso concedido:", user.email);
+            setTimeout(() => {
+                if (typeof cargarTodo === 'function') cargarTodo();
+                if (typeof renderizarTodo === 'function') renderizarTodo();
+                if (typeof renderChat === 'function') renderChat();
+                if (typeof actualizarContadores === 'function') actualizarContadores();
+            }, 500);
+        } else {
+            window.location.href = "index.html";
+        }
+    });
+}
 
 // Evento ENTER para el input
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('dominguito-texto');
-    input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            window.Dominguito.procesarConIA(input.value);
-            input.value = "";
-            document.getElementById('dominguito-input-box').style.display = 'none';
-        }
-    });
-});
-// --- BLOQUE DE SEGURIDAD Y CARGA (No tocar nombres de funciones) ---
-auth.onAuthStateChanged((user) => {
-    if (user) {
-        console.log("Acceso concedido:", user.email);
-        setTimeout(() => {
-            // Aquí intenta llamar a TUS funciones originales
-            if (typeof cargarTodo === 'function') { cargarTodo(); }
-            else if (typeof renderizarTodo === 'function') { renderizarTodo(); }
-            // Agregado por seguridad para asegurar que el chat y contadores se inicien
-            if (typeof renderChat === 'function') renderChat();
-            if (typeof actualizarContadores === 'function') actualizarContadores();
-        }, 500);
-    } else {
-        window.location.href = "index.html";
+    if(input) {
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                window.Dominguito.procesarConIA(input.value);
+                input.value = "";
+                document.getElementById('dominguito-input-box').style.display = 'none';
+            }
+        });
     }
 });
 </script>    
 </body>
 </html>
+
