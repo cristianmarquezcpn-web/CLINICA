@@ -6,7 +6,7 @@
 window.Dominguito = {
     // 1. CONFIGURACIÓN DE CONEXIÓN
     // Quitamos 'const' y usamos la URL que ya está online
-   serverUrl: "https://dominguito-san-juan.vercel.app/v1/chat/completions"
+   serverUrl: "https://dominguito-san-juan.vercel.app/v1/chat/completions",
     db: firebase.database(),
 
     // 2. PROCESAMIENTO CON IA (VERCEL + DEEPSEEK)
