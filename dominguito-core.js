@@ -3,7 +3,7 @@
  * Sistema de inteligencia centralizada para Clínica SAEI
  */
 
-const Dominguito = {
+window.Dominguito = {
     // 1. CONFIGURACIÓN DE CONEXIÓN
     // Se conecta automáticamente al Firebase (v9 compat) de tus sistemas
     serverUrl: "https://dominguito-san-juan.vercel.app/api/chat", 
