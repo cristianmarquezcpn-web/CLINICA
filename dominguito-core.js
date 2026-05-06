@@ -2,6 +2,7 @@
  * DOMINGUITO CORE V1.0
  * Sistema de inteligencia centralizada para Clínica SAEI
  */
+// 1. CONFIGURACIÓN DE FIREBASE (EXTERNA)
 const firebaseConfig = {
   apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8",
   authDomain: "clinicaintegral-5c488.firebaseapp.com",
@@ -16,9 +17,12 @@ const firebaseConfig = {
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
-// 1. CONFIGURACIÓN DE CONEXIÓN
+
+// 2. NÚCLEO DE DOMINGUITO
+window.Dominguito = { // <--- ¡ESTA LLAVE ES LA QUE FALTABA!
+    // 1. CONFIGURACIÓN DE CONEXIÓN
     serverUrl: "https://dominguito-san-juan.vercel.app/v1/chat/completions",
-    db: (typeof firebase !== "undefined") ? firebase.database() : null,
+    db: firebase.database(),
 
     // 2. PROCESAMIENTO CON IA
     procesarConIA: async function(mensaje, archivo = null) {
@@ -39,12 +43,10 @@ if (!firebase.apps.length) {
             
             const data = await response.json();
             
-            // Lógica de Firebase si la IA lo requiere
             if (data.accion && data.ruta && this.db) {
                 await this.ejecutarAccion(data.ruta, data.payload, data.metodo === 'set');
             }
 
-            // Captura de respuesta según el formato de tu Python
             const respuestaTexto = data.choices ? data.choices[0].message.content : (data.respuesta || "Sin respuesta");
             this.hablar(respuestaTexto);
             
@@ -53,7 +55,7 @@ if (!firebase.apps.length) {
             this.hablar("Error de conexión con el servidor.");
         }
     },
-   
+    
     // 3. EJECUTOR MAESTRO DE FIREBASE
     ejecutarAccion: async function(ruta, datos, esSet = false) {
         try {
@@ -107,4 +109,4 @@ if (!firebase.apps.length) {
         s.lang = 'es-AR';
         window.speechSynthesis.speak(s);
     }
-};
+}; // <--- Cierre del objeto
