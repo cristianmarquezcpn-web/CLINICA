@@ -5,18 +5,21 @@
 
 window.Dominguito = {
     // 1. CONFIGURACIÓN DE CONEXIÓN
-    // Se conecta automáticamente al Firebase (v9 compat) de tus sistemas
+    // Quitamos 'const' y usamos la URL que ya está online
     serverUrl: "https://dominguito-san-juan.vercel.app/api/chat", 
     db: firebase.database(),
 
-    // 2. PROCESAMIENTO CON IA (VERCEL + GEMINI)
+    // 2. PROCESAMIENTO CON IA (VERCEL + DEEPSEEK)
     procesarConIA: async function(mensaje, archivo = null) {
         this.hablar("Procesando, Cristian...");
         try {
             const response = await fetch(this.serverUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt: mensaje, file: archivo })
+                body: JSON.stringify({ 
+                    messages: [{ role: "user", content: mensaje }], // Formato que espera tu Python
+                    file: archivo 
+                })
             });
             const data = await response.json();
             
@@ -24,18 +27,21 @@ window.Dominguito = {
             if (data.accion && data.ruta) {
                 await this.ejecutarAccion(data.ruta, data.payload, data.metodo === 'set');
             }
-            this.hablar(data.respuesta);
+
+            // DeepSeek suele responder en data.choices[0].message.content
+            const respuestaTexto = data.choices ? data.choices[0].message.content : data.respuesta;
+            this.hablar(respuestaTexto || "Ya está listo.");
+            
         } catch (e) {
             console.error("Error en conexión Vercel:", e);
             this.hablar("Hubo un error al conectar con mi cerebro en el servidor.");
         }
     },
 
-    // 3. EJECUTOR MAESTRO DE FIREBASE (ACCESO TOTAL)
+    // 3. EJECUTOR MAESTRO DE FIREBASE
     ejecutarAccion: async function(ruta, datos, esSet = false) {
         try {
             const ref = this.db.ref(ruta);
-            // 'set' crea carpetas nuevas; 'push' agrega registros a lo existente
             if (esSet) {
                 await ref.set(datos);
             } else {
@@ -47,16 +53,15 @@ window.Dominguito = {
         }
     },
 
-    // 4. INTERFAZ DE VOZ (OÍDO Y HABLA)
+    // 4. INTERFAZ DE VOZ
     escuchar: function() {
         const visual = document.getElementById('dominguito-visual');
         const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!Rec) return alert("Tu navegador no soporta comandos de voz.");
 
         const recognition = new Rec();
-        recognition.lang = 'es-AR'; // Configurado para San Juan, Argentina
+        recognition.lang = 'es-AR'; 
         
-        // Feedback visual: se agranda y cambia a verde al oírte
         if (visual) {
             visual.style.transform = "scale(1.2)";
             visual.style.borderColor = "#2ecc71";
@@ -84,6 +89,6 @@ window.Dominguito = {
     hablar: function(texto) {
         const s = new SpeechSynthesisUtterance(texto);
         s.lang = 'es-AR';
-        window.speechSynthesis.speak(s); // Respuesta audible de Dominguito
+        window.speechSynthesis.speak(s);
     }
 };
