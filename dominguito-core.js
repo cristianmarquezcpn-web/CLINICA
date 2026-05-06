@@ -2,7 +2,7 @@
  * DOMINGUITO CORE V1.0
  * Sistema de inteligencia centralizada para Clínica SAEI
  */
-// 1. CONFIGURACIÓN DE FIREBASE (Asegurate que esté arriba)
+// 1. CONFIGURACIÓN DE FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8",
   authDomain: "clinicaintegral-5c488.firebaseapp.com",
@@ -13,14 +13,15 @@ const firebaseConfig = {
   appId: "1:184090967634:web:09715937b33ea48288698b"
 };
 
+// Inicializar antes de usar cualquier función de firebase
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 
-// 2. OBJETO DOMINGUITO (Corregido el error del token ':')
+// 2. NÚCLEO DE DOMINGUITO (Corregido para evitar el Error del Token ':')
 window.Dominguito = { 
     serverUrl: "https://dominguito-san-juan.vercel.app/v1/chat/completions",
-    db: firebase.database(),
+    db: firebase.database(), // Ahora que inicializamos arriba, esto funciona
 
     procesarConIA: async function(mensaje, archivo = null) {
         if (!this.serverUrl) return console.error("URL de servidor no definida");
@@ -56,7 +57,7 @@ window.Dominguito = {
         try {
             const ref = this.db.ref(ruta);
             if (esSet) { await ref.set(datos); } else { await ref.push(datos); }
-            console.log("Dominguito: Acción exitosa en " + ruta);
+            console.log("Acción exitosa en " + ruta);
         } catch (error) {
             console.error("Error de escritura en Firebase:", error);
         }
@@ -66,15 +67,18 @@ window.Dominguito = {
         const visual = document.getElementById('dominguito-visual');
         const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!Rec) return alert("Tu navegador no soporta comandos de voz.");
+        
         const recognition = new Rec();
         recognition.lang = 'es-AR'; 
         if (visual) { visual.style.transform = "scale(1.2)"; visual.style.borderColor = "#2ecc71"; }
+        
         recognition.start();
+        
         recognition.onresult = (e) => {
             if (visual) { visual.style.transform = "scale(1)"; visual.style.borderColor = "#f1c40f"; }
-            this.procesarConIA(e.results[0][0].transcript);
+            const comando = e.results[0][0].transcript;
+            this.procesarConIA(comando);
         };
-        recognition.onerror = () => { if (visual) { visual.style.transform = "scale(1)"; visual.style.borderColor = "#f1c40f"; } };
     },
 
     hablar: function(texto) {
