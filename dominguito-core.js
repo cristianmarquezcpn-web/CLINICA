@@ -5,8 +5,7 @@
 
 window.Dominguito = {
     // 1. CONFIGURACIÓN DE CONEXIÓN
-    // Quitamos 'const' y usamos la URL que ya está online
-   serverUrl: "https://dominguito-san-juan.vercel.app/v1/chat/completions",
+    serverUrl: "https://dominguito-san-juan.vercel.app/v1/chat/completions",
     db: firebase.database(),
 
     // 2. PROCESAMIENTO CON IA (VERCEL + DEEPSEEK)
@@ -17,18 +16,17 @@ window.Dominguito = {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ 
-                    messages: [{ role: "user", content: mensaje }], // Formato que espera tu Python
+                    messages: [{ role: "user", content: mensaje }],
                     file: archivo 
                 })
             });
             const data = await response.json();
             
-            // Si la IA decide ejecutar una acción en tu Firebase
             if (data.accion && data.ruta) {
                 await this.ejecutarAccion(data.ruta, data.payload, data.metodo === 'set');
             }
 
-            // DeepSeek suele responder en data.choices[0].message.content
+            // Buscamos la respuesta en el formato de DeepSeek o el genérico
             const respuestaTexto = data.choices ? data.choices[0].message.content : data.respuesta;
             this.hablar(respuestaTexto || "Ya está listo.");
             
