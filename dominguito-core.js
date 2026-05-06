@@ -6,11 +6,13 @@
 window.Dominguito = {
     // 1. CONFIGURACIÓN DE CONEXIÓN
     serverUrl: "https://dominguito-san-juan.vercel.app/v1/chat/completions",
-    db: firebase.database(),
+    db: (typeof firebase !== "undefined") ? firebase.database() : null,
 
-    // 2. PROCESAMIENTO CON IA (VERCEL + DEEPSEEK)
+    // 2. PROCESAMIENTO CON IA
     procesarConIA: async function(mensaje, archivo = null) {
+        if (!this.serverUrl) return console.error("URL de servidor no definida");
         this.hablar("Procesando, Cristian...");
+        
         try {
             const response = await fetch(this.serverUrl, {
                 method: "POST",
@@ -20,22 +22,26 @@ window.Dominguito = {
                     file: archivo 
                 })
             });
+
+            if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+            
             const data = await response.json();
             
-            if (data.accion && data.ruta) {
+            // Lógica de Firebase si la IA lo requiere
+            if (data.accion && data.ruta && this.db) {
                 await this.ejecutarAccion(data.ruta, data.payload, data.metodo === 'set');
             }
 
-            // Buscamos la respuesta en el formato de DeepSeek o el genérico
-            const respuestaTexto = data.choices ? data.choices[0].message.content : data.respuesta;
-            this.hablar(respuestaTexto || "Ya está listo.");
+            // Captura de respuesta según el formato de tu Python
+            const respuestaTexto = data.choices ? data.choices[0].message.content : (data.respuesta || "Sin respuesta");
+            this.hablar(respuestaTexto);
             
         } catch (e) {
-            console.error("Error en conexión Vercel:", e);
-            this.hablar("Hubo un error al conectar con mi cerebro en el servidor.");
+            console.error("Error en Dominguito Core:", e);
+            this.hablar("Error de conexión con el servidor.");
         }
     },
-
+   
     // 3. EJECUTOR MAESTRO DE FIREBASE
     ejecutarAccion: async function(ruta, datos, esSet = false) {
         try {
