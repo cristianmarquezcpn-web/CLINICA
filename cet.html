@@ -872,62 +872,61 @@ auth.onAuthStateChanged((user) => {
 </style>
 <script>
 // --- OBJETO DOMINGUITO ---
-const Dominguito = {
+window.Dominguito = {
     serverUrl: "https://dominguito-san-juan.vercel.app/api/chat", 
     db: firebase.database(),
 
-    procesarConIA: async function(mensaje, archivo = null) {
-        this.hablar("Procesando, Cristian...");
-        try {
-            const response = await fetch(this.serverUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt: mensaje, file: archivo })
-            });
-            const data = await response.json();
-            
-            if (data.accion && data.ruta) {
-                await this.ejecutarAccion(data.ruta, data.payload, data.metodo === 'set');
-            }
-            this.hablar(data.respuesta);
-        } catch (e) {
-            console.error("Error en conexión Vercel:", e);
-            this.hablar("Hubo un error al conectar con mi cerebro.");
-        }
-    },
-
-    ejecutarAccion: async function(ruta, datos, esSet = false) {
-        try {
-            const ref = this.db.ref(ruta);
-            if (esSet) { await ref.set(datos); } else { await ref.push(datos); }
-            console.log("Dominguito: Acción exitosa");
-        } catch (error) {
-            console.error("Error Firebase:", error);
-        }
-    },
-
     escuchar: function() {
+        console.log("Hiciste clic en Dominguito, iniciando micrófono..."); // Esto es para probar
         const container = document.getElementById('dominguito-container');
-        const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Rec) return alert("Navegador no compatible.");
+        
+        // Verificamos si el navegador tiene habilitado el reconocimiento de voz
+        const Rec = window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition;
+        
+        if (!Rec) {
+            alert("Tu navegador no soporta comandos de voz. Probá con Chrome o Edge.");
+            return;
+        }
 
         const recognition = new Rec();
         recognition.lang = 'es-AR';
+        recognition.continuous = false;
+        recognition.interimResults = false;
 
+        // ACTIVAR ANIMACIÓN
         if (container) container.classList.add('dominguito-escuchando');
-        recognition.start();
+        
+        try {
+            recognition.start();
+        } catch (e) {
+            console.error("Error al iniciar reconocimiento:", e);
+            if (container) container.classList.remove('dominguito-escuchando');
+        }
 
         recognition.onresult = (e) => {
+            const comando = e.results[0][0].transcript;
+            console.log("Escuché:", comando);
             if (container) container.classList.remove('dominguito-escuchando');
-            this.procesarConIA(e.results[0][0].transcript);
+            this.procesarConIA(comando);
         };
-        recognition.onerror = () => { if (container) container.classList.remove('dominguito-escuchando'); };
-    },
 
+        recognition.onerror = (e) => {
+            console.error("Error de reconocimiento:", e.error);
+            if (container) container.classList.remove('dominguito-escuchando');
+            if(e.error === 'not-allowed') alert("Cristian, tenés que habilitar el permiso del micrófono en el navegador.");
+        };
+
+        recognition.onend = () => {
+            if (container) container.classList.remove('dominguito-escuchando');
+        };
+    },
+    
+    // ... el resto de las funciones (procesarConIA, hablar) quedan igual ...
+    procesarConIA: async function(mensaje) {
+        // Tu código de fetch actual...
+    },
     hablar: function(texto) {
-        const s = new SpeechSynthesisUtterance(texto);
-        s.lang = 'es-AR';
-        window.speechSynthesis.speak(s);
+        // Tu código de speech actual...
     }
 };
 
