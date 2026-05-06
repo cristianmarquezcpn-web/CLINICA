@@ -1,16 +1,37 @@
-/**
- * DOMINGUITO CORE V1.0
- * Sistema de inteligencia centralizada para Clínica SAEI
- */
-// 1. CONFIGURACIÓN DE FIREBASE
-// 2. NÚCLEO DE DOMINGUITO (Versión compatible)
 window.Dominguito = { 
     serverUrl: "https://dominguito-san-juan.vercel.app/v1/chat/completions",
-    // Usamos 'firebase.database()' directamente para no chocar con otras variables
     db: (typeof firebase !== "undefined") ? firebase.database() : null,
 
+    // 1. NUEVA FUNCIÓN PARA VINCULAR EL CELULAR
+    iniciar: function() {
+        const visual = document.getElementById('dominguito-visual');
+        if (!visual) return;
+
+        let tiempoPresionado;
+
+        // Detectar toque largo en celular
+        visual.addEventListener('touchstart', (e) => {
+            tiempoPresionado = setTimeout(() => {
+                this.escuchar(); 
+            }, 600); // Si mantiene el dedo 0.6 segundos, activa micro
+        }, {passive: true});
+
+        visual.addEventListener('touchend', () => {
+            clearTimeout(tiempoPresionado);
+        });
+
+        // Click simple para el teclado (PC y Celular)
+        visual.onclick = () => {
+            const box = document.getElementById('dominguito-input-box');
+            if(box) box.style.display = (box.style.display === 'none') ? 'block' : 'none';
+        };
+        
+        // Doble click para PC
+        visual.ondblclick = () => this.escuchar();
+    },
+
     procesarConIA: async function(mensaje, archivo = null) {
-        if (!this.serverUrl) return console.error("URL de servidor no definida");
+        if (!mensaje) return;
         this.hablar("Procesando pedido...");
         
         try {
@@ -23,18 +44,16 @@ window.Dominguito = {
                 })
             });
 
-            if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
             const data = await response.json();
             
             if (data.accion && data.ruta && this.db) {
                 await this.ejecutarAccion(data.ruta, data.payload, data.metodo === 'set');
             }
 
-            const respuestaTexto = data.choices ? data.choices[0].message.content : (data.respuesta || "Sin respuesta");
+            const respuestaTexto = data.choices ? data.choices[0].message.content : (data.respuesta || "Listo");
             this.hablar(respuestaTexto);
             
         } catch (e) {
-            console.error("Error en Dominguito Core:", e);
             this.hablar("Error de conexión.");
         }
     },
@@ -43,9 +62,8 @@ window.Dominguito = {
         try {
             const ref = this.db.ref(ruta);
             if (esSet) { await ref.set(datos); } else { await ref.push(datos); }
-            console.log("Acción exitosa en " + ruta);
         } catch (error) {
-            console.error("Error en base de datos:", error);
+            console.error("Error DB:", error);
         }
     },
 
@@ -56,13 +74,24 @@ window.Dominguito = {
         
         const recognition = new Rec();
         recognition.lang = 'es-AR'; 
-        if (visual) { visual.style.transform = "scale(1.2)"; visual.style.borderColor = "#2ecc71"; }
+        
+        // Efecto visual de escucha
+        if (visual) { 
+            visual.style.border = "5px solid #2ecc71"; 
+            visual.style.boxShadow = "0 0 15px #2ecc71";
+        }
         
         recognition.start();
         
         recognition.onresult = (e) => {
-            if (visual) { visual.style.transform = "scale(1)"; visual.style.borderColor = "#f1c40f"; }
             this.procesarConIA(e.results[0][0].transcript);
+        };
+
+        recognition.onend = () => {
+            if (visual) { 
+                visual.style.border = "4px solid #1a2a6c";
+                visual.style.boxShadow = "none";
+            }
         };
     },
 
@@ -72,3 +101,6 @@ window.Dominguito = {
         window.speechSynthesis.speak(s);
     }
 };
+
+// 2. ACTIVAR AL CARGAR LA PÁGINA
+setTimeout(() => window.Dominguito.iniciar(), 1000);
