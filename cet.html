@@ -802,23 +802,23 @@ auth.onAuthStateChanged((user) => {
 });
 </script>
 <script src="dominguito-core.js"></script>
- <div id="dominguito-container" 
-     style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; transition: transform 0.3s; user-select: none;">
+<div id="dominguito-container" 
+     style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; cursor: grab; user-select: none;">
     
-    <div id="dominguito-bubble" style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 15px; margin-bottom: 15px; max-width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; color: #333; position: relative;">
+    <div id="dominguito-bubble" style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 15px; margin-bottom: 15px; max-width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: 'Segoe UI', sans-serif; font-size: 14px; color: #333; position: relative;">
         <div id="dominguito-texto-respuesta"></div>
         <div style="position: absolute; bottom: -12px; right: 25px; width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 12px solid #1a2a6c;"></div>
     </div>
 
     <div id="dominguito-input-box" style="margin-bottom: 20px; display: none;">
         <textarea id="dominguito-texto" placeholder="Escribile al Director Ejecutivo de Esencial..." 
-               style="padding: 15px; border-radius: 15px; border: 2px solid #1a2a6c; outline: none; width: 320px; height: 100px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; resize: none; font-size: 14px; background: white; color: #333;"></textarea>
+               style="padding: 15px; border-radius: 15px; border: 2px solid #1a2a6c; outline: none; width: 320px; height: 100px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-family: 'Segoe UI', sans-serif; resize: none; font-size: 14px; background: white; color: #333;"></textarea>
     </div>
 
-    <div id="dominguito-handle" style="cursor:grab; text-align: center; position: relative;">
-        <div id="dominguito-aura" style="position:absolute; width:120px; height:120px; border-radius:50%; background: rgba(26, 42, 108, 0.15); animation: pulse-dominguito 2s infinite; left: -10px; top: -10px; pointer-events: none;"></div>
+    <div id="dominguito-handle" style="text-align: center; position: relative;">
+        <div id="dominguito-aura" style="position:absolute; width:120px; height:120px; border-radius:50%; background: rgba(26, 42, 108, 0.2); animation: pulse-dominguito 2s infinite; left: -10px; top: -10px; pointer-events: none;"></div>
         
-        <div class="contenedor-dominguito" 
+        <div class="burbuja-dominguito" 
              onclick="window.Dominguito.toggleInput()"
              ondblclick="window.Dominguito.escuchar()"
              style="width: 100px; height: 100px; border: 4px solid #1a2a6c; box-shadow: 0 10px 25px rgba(0,0,0,0.4); position: relative; transition: all 0.3s; background: white; overflow: hidden; border-radius: 50%;">
@@ -826,50 +826,33 @@ auth.onAuthStateChanged((user) => {
             <img src="https://raw.githubusercontent.com/cristianmarquezcpn-web/dominguito_san_juan/febb7c7288a3ec8365d0e86ea7daf25996e5460c/Gemini_Generated_Image_bi2em1bi2em1bi2e.png" 
                  class="avatar-dominguito" 
                  alt="Dominguito Director Esencial"
-                 style="width: 100%; height: 100%; object-fit: cover; pointer-events: none;">
+                 style="width: 100%; height: 100%; object-fit: cover; pointer-events: none; animation: breathe 5s ease-in-out infinite;">
             
             <div class="parpado"></div>
         </div>
         
-        <div id="dominguito-label" style="background: linear-gradient(135deg, #1a2a6c, #b21f1f); color: #f1c40f; font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 12px; font-weight: bold; padding: 6px 18px; border-radius: 20px; margin-top: 10px; border: 2px solid #f1c40f; box-shadow: 0 4px 8px rgba(0,0,0,0.3); letter-spacing: 1px; pointer-events: none;">
+        <div id="dominguito-label" style="background: linear-gradient(135deg, #1a2a6c, #b21f1f); color: #f1c40f; font-family: 'Segoe UI', sans-serif; font-size: 12px; font-weight: bold; padding: 6px 18px; border-radius: 20px; margin-top: 10px; border: 2px solid #f1c40f; box-shadow: 0 4px 8px rgba(0,0,0,0.3); letter-spacing: 1px; pointer-events: none; white-space: nowrap;">
             ESENCIAL DIRECTOR
         </div>
     </div>
 </div>
 
 <style>
-    /* 1. EFECTO RESPIRACIÓN (Suave en la imagen) */
-    .avatar-dominguito {
-        animation: breathe 5s ease-in-out infinite;
-    }
+    /* 1. RESPIRACIÓN */
+    @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
 
-    @keyframes breathe {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.04); } /* Crece apenas */
-    }
-
-    /* 2. EFECTO PARPADEO (El párpado baja y sube rápido) */
+    /* 2. PARPADEO */
     .parpado {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 0%;
-        background-color: #5d4037; /* Color similar a la piel */
-        z-index: 10;
-        animation: blink 6s infinite; /* Un parpadeo cada 6 segundos */
+        position: absolute; top: 0; left: 0; width: 100%; height: 0%;
+        background-color: #5d4037; z-index: 10; animation: blink 6s infinite;
         pointer-events: none;
     }
+    @keyframes blink { 0%, 92%, 100% { height: 0%; } 95% { height: 100%; } }
 
-    @keyframes blink {
-        0%, 92%, 100% { height: 0%; }
-        95% { height: 100%; } /* Baja el párpado de golpe */
-    }
-
-    /* 3. AURA Y ESTADOS (Escuchando) */
+    /* 3. AURA Y ESTADOS */
     @keyframes pulse-dominguito { 0% { transform: scale(0.95); opacity: 0.8; } 70% { transform: scale(1.2); opacity: 0; } 100% { transform: scale(0.95); opacity: 0; } }
     
-    .dominguito-escuchando .contenedor-dominguito { 
+    .dominguito-escuchando .burbuja-dominguito { 
         border-color: #2ecc71 !important; /* Verde Esencial */
         box-shadow: 0 0 30px #2ecc71 !important; 
         animation: listening-shake 0.3s infinite;
@@ -883,7 +866,6 @@ auth.onAuthStateChanged((user) => {
 
 <script>
 window.Dominguito = {
-    // Reemplazá esto por tu URL real de Vercel si cambia
     serverUrl: "https://dominguito-san-juan.vercel.app/api/chat", 
     
     toggleInput: function() {
@@ -901,37 +883,49 @@ window.Dominguito = {
     },
 
     hablarYMostrar: function(texto) {
-        if (!texto || texto.trim() === "") return;
-        console.log("Dominguito dice:", texto);
+    if (!texto || texto.trim() === "") return;
 
-        // 1. Mostrar texto escrito (Globo)
-        const bubble = document.getElementById('dominguito-bubble');
-        const textDiv = document.getElementById('dominguito-texto-respuesta');
-        if(bubble && textDiv) {
-            bubble.style.display = 'block';
-            textDiv.innerText = texto;
+    // 1. Mostrar texto escrito en el globo de Dominguito
+    const bubble = document.getElementById('dominguito-bubble');
+    const textDiv = document.getElementById('dominguito-texto-respuesta');
+    if(bubble && textDiv) {
+        bubble.style.display = 'block';
+        textDiv.innerText = texto;
+    }
+
+    // 2. Configuración del habla
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // Corta cualquier audio anterior
+        const mensaje = new SpeechSynthesisUtterance(texto);
+        
+        mensaje.lang = 'es-AR'; // Forzamos acento local
+        mensaje.rate = 0.85;    // Más lento para sonar más serio y ejecutivo
+        mensaje.pitch = 0.8;    // Bajamos el tono para que sea una voz más grave/masculina
+
+        // Buscamos voces masculinas en el sistema del usuario
+        const voces = window.speechSynthesis.getVoices();
+        
+        // Buscamos específicamente nombres de voces masculinas comunes
+        const vozMasculina = voces.find(v => 
+            (v.name.toLowerCase().includes('male') || 
+             v.name.toLowerCase().includes('pablo') || 
+             v.name.toLowerCase().includes('david') || 
+             v.name.toLowerCase().includes('sergio') ||
+             v.name.toLowerCase().includes('microsoft bart') || // Voz clásica de Windows
+             v.name.toLowerCase().includes('google español')) && 
+            v.lang.includes('es')
+        );
+
+        if (vozMasculina) {
+            mensaje.voice = vozMasculina;
         }
 
-        // 2. Respuesta Oral (Voz Masculina forzada)
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const s = new SpeechSynthesisUtterance(texto);
-            s.lang = 'es-AR'; // Acento argentino
-            s.rate = 0.9; // Tono ejecutivo, un poco más lento
-            
-            // Intentar buscar y forzar una voz masculina
-            const voces = window.speechSynthesis.getVoices();
-            const vozMasculina = voces.find(v => (v.name.includes('Male') || v.name.includes('Pablo') || v.name.includes('Helena') === false) && v.lang.includes('es'));
-            if (vozMasculina) s.voice = vozMasculina;
+        window.speechSynthesis.speak(mensaje);
+    }
 
-            window.speechSynthesis.speak(s);
-        }
-
-        // Ocultar globo después de 12 segundos para no molestar
-        setTimeout(() => { 
-            if(bubble) bubble.style.display = 'none'; 
-        }, 12000);
-    },
+    // Ocultar globo automáticamente después de 12 segundos
+    setTimeout(() => { if(bubble) bubble.style.display = 'none'; }, 12000);
+},
 
     escuchar: function() {
         console.log("Activando micrófono de Esencial...");
@@ -953,57 +947,114 @@ window.Dominguito = {
             this.procesarConIA(transcript);
         };
         rec.onend = () => container.classList.remove('dominguito-escuchando');
-        rec.onerror = (err) => {
-            console.error("Error micrófono:", err);
-            container.classList.remove('dominguito-escuchando');
-        };
+        rec.onerror = () => container.classList.remove('dominguito-escuchando');
     },
 
     procesarConIA: async function(mensaje) {
         if(!mensaje) return;
         try {
-            console.log("Enviando a Vercel:", mensaje);
             const res = await fetch(this.serverUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ prompt: mensaje })
             });
-            if(!res.ok) throw new Error(`Error HTTP: ${res.status}`);
             const data = await res.json();
             if (data.respuesta) {
                 this.hablarYMostrar(data.respuesta);
             }
         } catch (e) {
-            console.error("Error IA:", e);
             this.hablarYMostrar("Cristian, tuve un problema de conexión con el servidor de Esencial.");
         }
     }
 };
 
-// Asegura que las voces estén cargadas apenas arranca
-if ('speechSynthesis' in window) {
-    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-}
+// Carga de voces
+if ('speechSynthesis' in window) { window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices(); }
 
-// Lógica de carga y eventos de teclado
+// --- LÓGICA DE ARRASTRE (DRAG & DROP) ---
+const el = document.getElementById('dominguito-container');
+const handle = document.getElementById('dominguito-handle');
+let isDragging = false;
+let startX, startY, initialX, initialY;
+
+handle.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    initialX = el.offsetLeft;
+    initialY = el.offsetTop;
+    startX = e.clientX - initialX;
+    startY = e.clientY - initialY;
+    
+    el.style.cursor = 'grabbing';
+    el.style.bottom = 'auto'; // Desactivar la posición fija de la esquina
+    el.style.right = 'auto';
+    el.style.transition = 'none'; // Quitar animaciones al arrastrar
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    
+    // Calcular nueva posición
+    const newX = e.clientX - startX;
+    const newY = e.clientY - startY;
+    
+    // Aplicar la nueva posición
+    el.style.left = newX + 'px';
+    el.style.top = newY + 'px';
+});
+
+document.addEventListener('mouseup', () => {
+    if (!isDragging) return;
+    isDragging = false;
+    el.style.cursor = 'grab';
+    el.style.transition = 'transform 0.3s'; // Volver a activar la animación suave
+});
+
+// Soporte para Táctil (Móviles)
+handle.addEventListener('touchstart', (e) => {
+    isDragging = true;
+    const touch = e.touches[0];
+    initialX = el.offsetLeft;
+    initialY = el.offsetTop;
+    startX = touch.clientX - initialX;
+    startY = touch.clientY - initialY;
+    
+    el.style.bottom = 'auto';
+    el.style.right = 'auto';
+    el.style.transition = 'none';
+}, {passive: true});
+
+document.addEventListener('touchmove', (e) => {
+    if (!isDragging) return;
+    const touch = e.touches[0];
+    
+    const newX = touch.clientX - startX;
+    const newY = touch.clientY - startY;
+    
+    el.style.left = newX + 'px';
+    el.style.top = newY + 'px';
+});
+
+document.addEventListener('touchend', () => { isDragging = false; });
+
+// --- GESTIÓN DEL TECLADO (Enter para enviar) ---
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('dominguito-texto');
     if(input) {
         input.addEventListener('keydown', (e) => {
-            // Enter para enviar, Shift+Enter para nueva línea
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 const mensaje = input.value.trim();
                 if(mensaje !== "") {
                     window.Dominguito.procesarConIA(mensaje);
                     input.value = "";
-                    // Ocultar caja después de enviar
                     document.getElementById('dominguito-input-box').style.display = 'none';
                 }
             }
         });
     }
 });
+window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 </script>    
 </body>
 </html>
