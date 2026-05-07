@@ -849,40 +849,47 @@ window.Dominguito = {
         rec.onend = () => container.classList.remove('dominguito-escuchando');
         rec.onerror = () => container.classList.remove('dominguito-escuchando');
     },
-
     procesarConIA: async function(mensaje) {
-        if(!mensaje) return;
-        console.log("Enviando mensaje:", mensaje);
-        this.hablar("Procesando, Cristian...");
+    if(!mensaje) return;
+    console.log("Enviando mensaje:", mensaje);
+    
+    // Quitamos el "Procesando..." de acá para que no bloquee la respuesta real
+    
+    try {
+        const res = await fetch(this.serverUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: mensaje })
+        });
+        const data = await res.json();
         
-        try {
-            const res = await fetch(this.serverUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt: mensaje })
-            });
-            const data = await res.json();
-            
-            // Si el servidor de Vercel contesta, Dominguito lo dice
-            const respuestaTexto = data.respuesta || "Sin respuesta del servidor";
-            this.hablar(respuestaTexto);
-            
-            if (data.accion && data.ruta && this.db) {
-                const ref = this.db.ref(data.ruta);
-                data.metodo === 'set' ? await ref.set(data.payload) : await ref.push(data.payload);
-            }
-        } catch (e) {
-            console.error("Error Dominguito:", e);
-            this.hablar("Error de conexión con San Juan.");
-        }
-    }, // <-- ESTA COMA ES VITAL PARA QUE NO DE ERROR 'hablar'
+        console.log("Datos recibidos:", data);
 
-    hablar: function(texto) {
-        const s = new SpeechSynthesisUtterance(texto);
-        s.lang = 'es-AR';
-        window.speechSynthesis.speak(s);
+        if (data.respuesta) {
+            // Mandamos la respuesta directamente a la voz
+            this.hablar(data.respuesta);
+        } else {
+            this.hablar("Recibí una respuesta vacía del servidor.");
+        }
+        
+        // Lógica de base de datos
+        if (data.accion && data.ruta && this.db) {
+            const ref = this.db.ref(data.ruta);
+            data.metodo === 'set' ? await ref.set(data.payload) : await ref.push(data.payload);
+        }
+    } catch (e) {
+        console.error("Error Dominguito:", e);
+        this.hablar("Cristian, hubo un error de conexión.");
     }
-};
+},
+    hablar: function(texto) {
+    // Esto limpia cualquier orden de voz trabada antes de decir la nueva
+    window.speechSynthesis.cancel(); 
+    const s = new SpeechSynthesisUtterance(texto);
+    s.lang = 'es-AR';
+    s.rate = 1.0; // Velocidad normal
+    window.speechSynthesis.speak(s);
+}
 
 // --- CONFIGURACIÓN DE EVENTOS (TECLADO Y CLICK) ---
 document.addEventListener('DOMContentLoaded', () => {
