@@ -849,69 +849,66 @@ window.Dominguito = {
         rec.onend = () => container.classList.remove('dominguito-escuchando');
         rec.onerror = () => container.classList.remove('dominguito-escuchando');
     },
-    procesarConIA: async function(mensaje) {
-    if(!mensaje) return;
-    console.log("Enviando mensaje:", mensaje);
-    
-    // Quitamos el "Procesando..." de acá para que no bloquee la respuesta real
-    
-    try {
-        const res = await fetch(this.serverUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: mensaje })
-        });
-        const data = await res.json();
-        
-        console.log("Datos recibidos:", data);
 
-        if (data.respuesta) {
-            // Mandamos la respuesta directamente a la voz
-            this.hablar(data.respuesta);
-        } else {
-            this.hablar("Recibí una respuesta vacía del servidor.");
-        }
+    procesarConIA: async function(mensaje) {
+        if(!mensaje) return;
+        console.log("Enviando mensaje:", mensaje);
         
-        // Lógica de base de datos
-        if (data.accion && data.ruta && this.db) {
-            const ref = this.db.ref(data.ruta);
-            data.metodo === 'set' ? await ref.set(data.payload) : await ref.push(data.payload);
+        try {
+            const res = await fetch(this.serverUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prompt: mensaje })
+            });
+            const data = await res.json();
+            
+            console.log("Datos recibidos de Vercel:", data);
+
+            if (data.respuesta) {
+                this.hablar(data.respuesta);
+            } else {
+                this.hablar("Recibí una respuesta vacía del servidor.");
+            }
+            
+            if (data.accion && data.ruta && this.db) {
+                const ref = this.db.ref(data.ruta);
+                data.metodo === 'set' ? await ref.set(data.payload) : await ref.push(data.payload);
+            }
+        } catch (e) {
+            console.error("Error Dominguito:", e);
+            this.hablar("Cristian, hubo un error de conexión.");
         }
-    } catch (e) {
-        console.error("Error Dominguito:", e);
-        this.hablar("Cristian, hubo un error de conexión.");
-    }
-},
+    },
+
     hablar: function(texto) {
-    // Esto limpia cualquier orden de voz trabada antes de decir la nueva
-    window.speechSynthesis.cancel(); 
-    const s = new SpeechSynthesisUtterance(texto);
-    s.lang = 'es-AR';
-    s.rate = 1.0; // Velocidad normal
-    window.speechSynthesis.speak(s);
-}
+        window.speechSynthesis.cancel(); 
+        const s = new SpeechSynthesisUtterance(texto);
+        s.lang = 'es-AR';
+        s.rate = 1.0; 
+        window.speechSynthesis.speak(s);
+    }
+}; // <--- ESTA LLAVE Y PUNTO Y COMA FALTABAN PARA CERRAR EL OBJETO
 
 // --- CONFIGURACIÓN DE EVENTOS (TECLADO Y CLICK) ---
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('dominguito-texto');
     const visual = document.getElementById("dominguito-visual");
 
-    // Función para el ENTER
     if(input) {
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                e.preventDefault(); // Evita que la página se recargue
+                e.preventDefault();
                 const mensaje = input.value.trim();
                 if(mensaje !== "") {
                     window.Dominguito.procesarConIA(mensaje);
-                    input.value = ""; // Limpia el cuadro
-                    document.getElementById('dominguito-input-box').style.display = 'none';
+                    input.value = "";
+                    const box = document.getElementById('dominguito-input-box');
+                    if(box) box.style.display = 'none';
                 }
             }
         });
     }
 
-    // Configuración visual (Toque y Click)
     if (visual) {
         visual.onclick = () => window.Dominguito.toggleInput();
         visual.ondblclick = () => window.Dominguito.escuchar();
