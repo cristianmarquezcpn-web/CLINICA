@@ -830,7 +830,6 @@ window.Dominguito = {
         box.style.display = (box.style.display === 'none') ? 'block' : 'none';
         if(box.style.display === 'block') {
             input.focus();
-            console.log("Caja de texto abierta");
         }
     },
 
@@ -840,19 +839,32 @@ window.Dominguito = {
         const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!Speech) return alert("Navegador no compatible.");
 
+        // Desbloqueo preventivo de audio
+        this.hablar(""); 
+
         const rec = new Speech();
         rec.lang = 'es-AR';
         container.classList.add('dominguito-escuchando');
         
         rec.start();
-        rec.onresult = (e) => this.procesarConIA(e.results[0][0].transcript);
+        rec.onresult = (e) => {
+            const transcript = e.results[0][0].transcript;
+            console.log("Escuchado:", transcript);
+            this.procesarConIA(transcript);
+        };
         rec.onend = () => container.classList.remove('dominguito-escuchando');
-        rec.onerror = () => container.classList.remove('dominguito-escuchando');
+        rec.onerror = (err) => {
+            console.error("Error micrófono:", err);
+            container.classList.remove('dominguito-escuchando');
+        };
     },
 
     procesarConIA: async function(mensaje) {
         if(!mensaje) return;
-        console.log("Enviando mensaje:", mensaje);
+        console.log("Enviando a San Juan:", mensaje);
+        
+        // Mantenemos el canal de audio "caliente"
+        this.hablar(""); 
         
         try {
             const res = await fetch(this.serverUrl, {
@@ -860,36 +872,54 @@ window.Dominguito = {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ prompt: mensaje })
             });
-            const data = await res.json();
             
-            console.log("Datos recibidos de Vercel:", data);
+            if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
+            
+            const data = await res.json();
+            console.log("Respuesta de Vercel:", data);
 
             if (data.respuesta) {
                 this.hablar(data.respuesta);
             } else {
-                this.hablar("Recibí una respuesta vacía del servidor.");
+                this.hablar("No recibí una respuesta clara del servidor.");
             }
             
+            // Integración con Firebase (Módulos de la clínica)
             if (data.accion && data.ruta && this.db) {
                 const ref = this.db.ref(data.ruta);
                 data.metodo === 'set' ? await ref.set(data.payload) : await ref.push(data.payload);
             }
         } catch (e) {
-            console.error("Error Dominguito:", e);
-            this.hablar("Cristian, hubo un error de conexión.");
+            console.error("Error en procesarConIA:", e);
+            this.hablar("Cristian, tuve un problema conectando con el servidor.");
         }
     },
 
     hablar: function(texto) {
-        window.speechSynthesis.cancel(); 
+        // Cancelamos cualquier locución pendiente
+        window.speechSynthesis.cancel();
+        
+        if (!texto) return; // Si es solo para desbloquear audio, salimos aquí
+
         const s = new SpeechSynthesisUtterance(texto);
         s.lang = 'es-AR';
         s.rate = 1.0; 
+        s.pitch = 1.0;
+
+        // Intentar seleccionar una voz en español si está cargada
+        const voces = window.speechSynthesis.getVoices();
+        if (voces.length > 0) {
+            s.voice = voces.find(v => v.lang.includes('es')) || voces[0];
+        }
+
         window.speechSynthesis.speak(s);
     }
-}; // <--- ESTA LLAVE Y PUNTO Y COMA FALTABAN PARA CERRAR EL OBJETO
+};
 
-// --- CONFIGURACIÓN DE EVENTOS (TECLADO Y CLICK) ---
+// Cargar voces preventivamente para algunos navegadores
+window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+
+// --- CONFIGURACIÓN DE EVENTOS ---
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('dominguito-texto');
     const visual = document.getElementById("dominguito-visual");
@@ -913,6 +943,7 @@ document.addEventListener('DOMContentLoaded', () => {
         visual.onclick = () => window.Dominguito.toggleInput();
         visual.ondblclick = () => window.Dominguito.escuchar();
         
+        // Soporte táctil para el celular
         let timer;
         visual.addEventListener("touchstart", () => {
             timer = setTimeout(() => window.Dominguito.escuchar(), 700);
