@@ -802,16 +802,18 @@ auth.onAuthStateChanged((user) => {
 });
 </script>
 <script src="dominguito-core.js"></script>
-<div id="dominguito-container" 
+ <div id="dominguito-container" 
      style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; cursor: grab; user-select: none;">
     
-    <div id="dominguito-bubble" style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 15px; margin-bottom: 15px; max-width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: 'Segoe UI', sans-serif; font-size: 14px; color: #333; position: relative;">
-        <div id="dominguito-texto-respuesta"></div>
+    <div id="dominguito-bubble" onclick="this.style.display='none'" 
+         style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 15px; margin-bottom: 15px; max-width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: 'Segoe UI', sans-serif; font-size: 14px; color: #333; position: relative; cursor: pointer;">
+        <div id="dominguito-texto-respuesta" style="white-space: pre-wrap;"></div>
         <div style="position: absolute; bottom: -12px; right: 25px; width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 12px solid #1a2a6c;"></div>
+        <small style="display:block; color:#999; margin-top:5px; font-size:10px;">(Clic para cerrar)</small>
     </div>
 
     <div id="dominguito-input-box" style="margin-bottom: 20px; display: none;">
-        <textarea id="dominguito-texto" placeholder="Escribile al Director Ejecutivo de Esencial..." 
+        <textarea id="dominguito-texto" placeholder="Escribile al Director Ejecutivo..." 
                style="padding: 15px; border-radius: 15px; border: 2px solid #1a2a6c; outline: none; width: 320px; height: 100px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); font-family: 'Segoe UI', sans-serif; resize: none; font-size: 14px; background: white; color: #333;"></textarea>
     </div>
 
@@ -821,12 +823,11 @@ auth.onAuthStateChanged((user) => {
         <div class="burbuja-dominguito" 
              onclick="window.Dominguito.toggleInput()"
              ondblclick="window.Dominguito.escuchar()"
-             style="width: 100px; height: 100px; border: 4px solid #1a2a6c; box-shadow: 0 10px 25px rgba(0,0,0,0.4); position: relative; transition: border 0.3s; background: white; overflow: hidden; border-radius: 50%; display: flex; justify-content: center; align-items: center;">
-             <img src="https://raw.githubusercontent.com/cristianmarquezcpn-web/dominguito_san_juan/main/Gemini_Generated_Image_x4mgrlx4mgrlx4mg.png" 
-             alt="Dominguito Director" 
-             style="width: 100%; height: 100%; object-fit: cover; display: block;"
-             class="breathe-animation" 
-             onerror="this.src='https://ui-avatars.com/api/?name=Dominguito&background=1a2a6c&color=fff'"/>
+             style="width: 100px; height: 100px; border: 4px solid #1a2a6c; box-shadow: 0 10px 25px rgba(0,0,0,0.4); position: relative; background: white; overflow: hidden; border-radius: 50%; display: flex; justify-content: center; align-items: center;">
+             <img src="https://res.cloudinary.com/duscmxxws/image/upload/v1778185388/mzejyrmeje5lcpcs8h2b.png" 
+                  alt="Dominguito Director" 
+                  style="width: 100%; height: 100%; object-fit: cover; display: block;"
+                  class="breathe-animation" />
         </div>
         <div id="dominguito-label" style="background: linear-gradient(135deg, #1a2a6c, #b21f1f); color: #f1c40f; font-family: 'Segoe UI', sans-serif; font-size: 12px; font-weight: bold; padding: 6px 18px; border-radius: 20px; margin-top: 10px; border: 2px solid #f1c40f; box-shadow: 0 4px 8px rgba(0,0,0,0.3); letter-spacing: 1px; pointer-events: none; white-space: nowrap;">
             ESENCIAL DIRECTOR
@@ -837,23 +838,18 @@ auth.onAuthStateChanged((user) => {
 <style>
     @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
     .breathe-animation { animation: breathe 4s ease-in-out infinite; }
-    
     @keyframes pulse-dominguito { 0% { transform: scale(0.95); opacity: 0.8; } 70% { transform: scale(1.2); opacity: 0; } 100% { transform: scale(0.95); opacity: 0; } }
-    
-    .dominguito-escuchando .burbuja-dominguito { 
-        border-color: #2ecc71 !important;
-        box-shadow: 0 0 30px #2ecc71 !important; 
-    }
+    .dominguito-escuchando .burbuja-dominguito { border-color: #2ecc71 !important; box-shadow: 0 0 30px #2ecc71 !important; }
 </style>
+
 <script>
 window.Dominguito = {
     serverUrl: "https://dominguito-san-juan.vercel.app/api/chat", 
     
     toggleInput: function() {
         const box = document.getElementById('dominguito-input-box');
-        const input = document.getElementById('dominguito-texto');
         box.style.display = (box.style.display === 'none') ? 'block' : 'none';
-        if(box.style.display === 'block') input.focus();
+        if(box.style.display === 'block') document.getElementById('dominguito-texto').focus();
     },
 
     hablarYMostrar: function(texto) {
@@ -861,19 +857,25 @@ window.Dominguito = {
         const bubble = document.getElementById('dominguito-bubble');
         const textDiv = document.getElementById('dominguito-texto-respuesta');
         
-        // MOSTRAR ESCRITO
         bubble.style.display = 'block';
         textDiv.innerText = texto;
 
-        // RESPUESTA ORAL
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
             const mensaje = new SpeechSynthesisUtterance(texto);
             mensaje.lang = 'es-AR';
             mensaje.rate = 0.9;
+            mensaje.pitch = 0.8; // Voz un poco más grave
+            
+            // Forzar voz masculina si está disponible
+            const voces = window.speechSynthesis.getVoices();
+            const vozHombre = voces.find(v => v.lang.includes('es') && (v.name.includes('Male') || v.name.includes('Microsoft Pablo') || v.name.includes('Google español')));
+            if (vozHombre) mensaje.voice = vozHombre;
+
             window.speechSynthesis.speak(mensaje);
         }
-        setTimeout(() => { bubble.style.display = 'none'; }, 12000);
+        // Ahora dura 30 segundos para que puedas leer tranquilo
+        setTimeout(() => { bubble.style.display = 'none'; }, 30000);
     },
 
     procesarConIA: async function(mensaje) {
@@ -892,7 +894,10 @@ window.Dominguito = {
 
     escuchar: function() {
         const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Speech) return;
+        if (!Speech) {
+            alert("Tu navegador no soporta entrada de audio.");
+            return;
+        }
         const rec = new Speech();
         rec.lang = 'es-AR';
         document.getElementById('dominguito-container').classList.add('dominguito-escuchando');
@@ -902,32 +907,48 @@ window.Dominguito = {
     }
 };
 
-// --- LÓGICA DE DESPLAZAMIENTO (DRAG) ---
+// --- LÓGICA DE ARRASTRE MEJORADA (PC Y CELU) ---
 const el = document.getElementById('dominguito-container');
 const handle = document.getElementById('dominguito-handle');
-let isDragging = false, startX, startY, initialX, initialY;
+let isDragging = false, startX, startY;
 
-handle.addEventListener('mousedown', (e) => {
+const startDrag = (e) => {
     isDragging = true;
-    initialX = el.offsetLeft; initialY = el.offsetTop;
-    startX = e.clientX - initialX; startY = e.clientY - initialY;
-    el.style.bottom = 'auto'; el.style.right = 'auto';
-});
+    const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+    startX = clientX - el.offsetLeft;
+    startY = clientY - el.offsetTop;
+    el.style.bottom = 'auto';
+    el.style.right = 'auto';
+};
 
-document.addEventListener('mousemove', (e) => {
+const doDrag = (e) => {
     if (!isDragging) return;
-    el.style.left = (e.clientX - startX) + 'px';
-    el.style.top = (e.clientY - startY) + 'px';
-});
+    const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+    el.style.left = (clientX - startX) + 'px';
+    el.style.top = (clientY - startY) + 'px';
+};
 
-document.addEventListener('mouseup', () => isDragging = false);
+const stopDrag = () => isDragging = false;
+
+handle.addEventListener('mousedown', startDrag);
+handle.addEventListener('touchstart', startDrag, {passive: false});
+document.addEventListener('mousemove', doDrag);
+document.addEventListener('touchmove', doDrag, {passive: false});
+document.addEventListener('mouseup', stopDrag);
+document.addEventListener('touchend', stopDrag);
 
 // Enter para enviar
 document.getElementById('dominguito-texto').addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         const m = e.target.value.trim();
-        if(m) { window.Dominguito.procesarConIA(m); e.target.value = ""; document.getElementById('dominguito-input-box').style.display = 'none'; }
+        if(m) { 
+            window.Dominguito.procesarConIA(m); 
+            e.target.value = ""; 
+            document.getElementById('dominguito-input-box').style.display = 'none'; 
+        }
     }
 });
 </script>         
