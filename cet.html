@@ -837,38 +837,47 @@ auth.onAuthStateChanged((user) => {
     </div>
 </div>
 <style>
-    /* RESPIRACIÓN (Mantenemos el efecto) */
-    @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-    .breathe-animation { animation: breathe 4s ease-in-out infinite; }
+ /* 1. EFECTO RESPIRACIÓN */
+@keyframes breathe { 
+    0%, 100% { transform: scale(1); } 
+    50% { transform: scale(1.05); } 
+}
+.breathe-animation { 
+    animation: breathe 4s ease-in-out infinite; 
+}
 
-    /* PARPADEO (LO DESACTIVAMOS, el GIF lo hace) */
-    .parpado { display: none; }
+/* 2. PARPADEO (Ocultamos el div porque el GIF ya lo hace) */
+.parpado { 
+    display: none !important; 
+}
 
-    /* ESTILO DE LA BURBUJA - Ahora transparente y profesional */
-    .burbuja-dominguito {
-        width: 100px; height: 100px;
-        border: 4px solid #1a2a6c;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.4);
-        position: relative;
-        transition: all 0.3s;
-        background: transparent; /* SACAMOS EL FONDO BLANCO */
-        overflow: hidden;
-        border-radius: 50%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
+/* 3. LA BURBUJA (Círculo transparente) */
+.burbuja-dominguito {
+    width: 100px; 
+    height: 100px;
+    border: 4px solid #1a2a6c;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    position: relative;
+    transition: all 0.3s;
+    background: transparent !important; /* Aquí forzamos que no sea blanco */
+    overflow: hidden;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 
-    /* AURA Y ESTADOS (Mantenemos igual) */
-    @keyframes pulse-dominguito { 0% { transform: scale(0.95); opacity: 0.8; } 70% { transform: scale(1.2); opacity: 0; } 100% { transform: scale(0.95); opacity: 0; } }
-    
-    .dominguito-escuchando .burbuja-dominguito { 
-        border-color: #2ecc71 !important;
-        box-shadow: 0 0 30px #2ecc71 !important; 
-        animation: listening-shake 0.3s infinite;
-    }
+/* 4. ANIMACIÓN DE ESCUCHA */
+@keyframes pulse-dominguito { 
+    0% { transform: scale(0.95); opacity: 0.8; } 
+    70% { transform: scale(1.2); opacity: 0; } 
+    100% { transform: scale(0.95); opacity: 0; } 
+}
 
-    @keyframes listening-shake { 0% { transform: rotate(0deg); } 25% { transform: rotate(2deg); } 75% { transform: rotate(-2deg); } 100% { transform: rotate(0deg); } }
+.dominguito-escuchando .burbuja-dominguito { 
+    border-color: #2ecc71 !important;
+    box-shadow: 0 0 30px #2ecc71 !important; 
+}   
 </style>
 <script>
 window.Dominguito = {
