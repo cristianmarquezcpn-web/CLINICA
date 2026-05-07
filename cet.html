@@ -828,66 +828,54 @@ window.Dominguito = {
         const input = document.getElementById('dominguito-texto');
         if(!box) return;
         box.style.display = (box.style.display === 'none') ? 'block' : 'none';
-        if(box.style.display === 'block') input.focus();
+        if(box.style.display === 'block') {
+            input.focus();
+            console.log("Caja de texto abierta");
+        }
     },
 
     escuchar: function() {
         console.log("Iniciando micrófono...");
         const container = document.getElementById('dominguito-container');
         const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Speech) return alert("Navegador no compatible. Usa Chrome.");
+        if (!Speech) return alert("Navegador no compatible.");
 
         const rec = new Speech();
         rec.lang = 'es-AR';
         container.classList.add('dominguito-escuchando');
         
         rec.start();
-        rec.onresult = (e) => {
-            const transcript = e.results[0][0].transcript;
-            console.log("Escuchado:", transcript);
-            this.procesarConIA(transcript);
-        };
+        rec.onresult = (e) => this.procesarConIA(e.results[0][0].transcript);
         rec.onend = () => container.classList.remove('dominguito-escuchando');
-        rec.onerror = (e) => {
-            console.error("Error micro:", e.error);
-            container.classList.remove('dominguito-escuchando');
-        };
+        rec.onerror = () => container.classList.remove('dominguito-escuchando');
     },
 
     procesarConIA: async function(mensaje) {
-    if(!mensaje) return;
-    
-    // 1. Esto confirma que el botón funciona
-    this.hablar("Procesando, Cristian..."); 
-    
-    try {
-        const res = await fetch("https://dominguito-san-juan.vercel.app/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: mensaje }) 
-        });
-
-        const data = await res.json();
-        console.log("Respuesta del servidor:", data);
-
-        // 2. Aquí está el secreto: tu chat.py manda el texto en "respuesta"
-        // Buscamos 'data.respuesta' porque así figura en tu Python
-        const textoParaHablar = data.respuesta || "No recibí texto del servidor";
+        if(!mensaje) return;
+        console.log("Enviando mensaje:", mensaje);
+        this.hablar("Procesando, Cristian...");
         
-        // 3. Dominguito habla la respuesta real
-        this.hablar(textoParaHablar);
-
-        // 4. Si la IA mandó una acción para la clínica (Firebase)
-        if (data.accion && data.ruta && this.db) {
-            const ref = this.db.ref(data.ruta);
-            data.metodo === 'set' ? await ref.set(data.payload) : await ref.push(data.payload);
+        try {
+            const res = await fetch(this.serverUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prompt: mensaje })
+            });
+            const data = await res.json();
+            
+            // Si el servidor de Vercel contesta, Dominguito lo dice
+            const respuestaTexto = data.respuesta || "Sin respuesta del servidor";
+            this.hablar(respuestaTexto);
+            
+            if (data.accion && data.ruta && this.db) {
+                const ref = this.db.ref(data.ruta);
+                data.metodo === 'set' ? await ref.set(data.payload) : await ref.push(data.payload);
+            }
+        } catch (e) {
+            console.error("Error Dominguito:", e);
+            this.hablar("Error de conexión con San Juan.");
         }
-
-    } catch (e) {
-        console.error("Error en la conexión:", e);
-        this.hablar("Cristian, no pude conectar con el servidor de San Juan.");
-    }
-}
+    }, // <-- ESTA COMA ES VITAL PARA QUE NO DE ERROR 'hablar'
 
     hablar: function(texto) {
         const s = new SpeechSynthesisUtterance(texto);
@@ -896,72 +884,36 @@ window.Dominguito = {
     }
 };
 
-// --- LÓGICA DE INTERACCIÓN (PC Y MÓVIL) ---
-const visual = document.getElementById("dominguito-visual");
-let timer;
-
-// Soporte para Celular: Toque largo activa voz, toque corto activa teclado
-visual.addEventListener("touchstart", (e) => {
-    timer = setTimeout(() => {
-        window.Dominguito.escuchar();
-    }, 600); // Mantener 600ms para hablar
-}, {passive: true});
-
-visual.addEventListener("touchend", () => {
-    clearTimeout(timer);
-});
-
-// Soporte para PC: Clic abre teclado
-visual.onclick = () => window.Dominguito.toggleInput();
-
-// --- LÓGICA PARA DESPLAZAR (DRAG) ---
-const el = document.getElementById("dominguito-container");
-let isDragging = false;
-let offset = { x: 0, y: 0 };
-
-el.addEventListener("mousedown", (e) => {
-    if(e.target.id === "dominguito-texto") return;
-    isDragging = true;
-    offset.x = e.clientX - el.offsetLeft;
-    offset.y = e.clientY - el.offsetTop;
-});
-
-document.addEventListener("mousemove", (e) => {
-    if (!isDragging) return;
-    el.style.left = (e.clientX - offset.x) + "px";
-    el.style.top = (e.clientY - offset.y) + "px";
-    el.style.right = "auto";
-    el.style.bottom = "auto";
-});
-
-document.addEventListener("mouseup", () => { isDragging = false; });
-
-// --- INICIO DE SESIÓN ---
-if (typeof auth !== 'undefined') {
-    auth.onAuthStateChanged((user) => {
-        if (user) {
-            setTimeout(() => {
-                if (typeof cargarTodo === 'function') cargarTodo();
-                if (typeof renderChat === 'function') renderChat();
-                if (typeof actualizarContadores === 'function') actualizarContadores();
-            }, 500);
-        } else {
-            window.location.href = "index.html";
-        }
-    });
-}
-
-// Evento ENTER para el input
+// --- CONFIGURACIÓN DE EVENTOS (TECLADO Y CLICK) ---
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('dominguito-texto');
+    const visual = document.getElementById("dominguito-visual");
+
+    // Función para el ENTER
     if(input) {
-        input.addEventListener('keypress', (e) => {
+        input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                window.Dominguito.procesarConIA(input.value);
-                input.value = "";
-                document.getElementById('dominguito-input-box').style.display = 'none';
+                e.preventDefault(); // Evita que la página se recargue
+                const mensaje = input.value.trim();
+                if(mensaje !== "") {
+                    window.Dominguito.procesarConIA(mensaje);
+                    input.value = ""; // Limpia el cuadro
+                    document.getElementById('dominguito-input-box').style.display = 'none';
+                }
             }
         });
+    }
+
+    // Configuración visual (Toque y Click)
+    if (visual) {
+        visual.onclick = () => window.Dominguito.toggleInput();
+        visual.ondblclick = () => window.Dominguito.escuchar();
+        
+        let timer;
+        visual.addEventListener("touchstart", () => {
+            timer = setTimeout(() => window.Dominguito.escuchar(), 700);
+        }, {passive: true});
+        visual.addEventListener("touchend", () => clearTimeout(timer));
     }
 });
 </script>    
