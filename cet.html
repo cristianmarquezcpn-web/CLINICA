@@ -805,8 +805,8 @@ auth.onAuthStateChanged((user) => {
 <div id="dominguito-container" 
      style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; cursor: grab; user-select: none;">
     
-    <div id="dominguito-bubble" style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 15px; margin-bottom: 15px; max-width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: 'Segoe UI', sans-serif; font-size: 14px; color: #333; position: relative; z-index: 1000000;">
-        <div id="dominguito-texto-respuesta" style="white-space: pre-wrap; line-height: 1.4;"></div>
+    <div id="dominguito-bubble" style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 15px; margin-bottom: 15px; max-width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: 'Segoe UI', sans-serif; font-size: 14px; color: #333; position: relative;">
+        <div id="dominguito-texto-respuesta"></div>
         <div style="position: absolute; bottom: -12px; right: 25px; width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 12px solid #1a2a6c;"></div>
     </div>
 
@@ -821,14 +821,12 @@ auth.onAuthStateChanged((user) => {
         <div class="burbuja-dominguito" 
              onclick="window.Dominguito.toggleInput()"
              ondblclick="window.Dominguito.escuchar()"
-             style="width: 100px; height: 100px; border: 4px solid #1a2a6c; box-shadow: 0 10px 25px rgba(0,0,0,0.4); position: relative; transition: all 0.3s; background: white; overflow: hidden; border-radius: 50%; display: flex; justify-content: center; align-items: center;">
+             style="width: 100px; height: 100px; border: 4px solid #1a2a6c; box-shadow: 0 10px 25px rgba(0,0,0,0.4); position: relative; transition: border 0.3s; background: white; overflow: hidden; border-radius: 50%; display: flex; justify-content: center; align-items: center;">
             
-            <img src="https://dominguito.pythonanywhere.com/static/dominguito.gif" alt="Dominguito Director" style="width: 100%; height: 100%; object-fit: cover;">
-             alt="Dominguito Director" 
-             style="width: 100%; height: 100%; object-fit: cover;"
-             class="breathe-animation"
-             />      
-            <div class="parpado"></div>
+            <img src="https://dominguito.pythonanywhere.com/static/dominguito.gif" 
+                 alt="Dominguito Director" 
+                 style="width: 100%; height: 100%; object-fit: cover;"
+                 class="breathe-animation" />
         </div>
         
         <div id="dominguito-label" style="background: linear-gradient(135deg, #1a2a6c, #b21f1f); color: #f1c40f; font-family: 'Segoe UI', sans-serif; font-size: 12px; font-weight: bold; padding: 6px 18px; border-radius: 20px; margin-top: 10px; border: 2px solid #f1c40f; box-shadow: 0 4px 8px rgba(0,0,0,0.3); letter-spacing: 1px; pointer-events: none; white-space: nowrap;">
@@ -836,105 +834,50 @@ auth.onAuthStateChanged((user) => {
         </div>
     </div>
 </div>
+
 <style>
- /* 1. EFECTO RESPIRACIÓN */
-@keyframes breathe { 
-    0%, 100% { transform: scale(1); } 
-    50% { transform: scale(1.05); } 
-}
-.breathe-animation { 
-    animation: breathe 4s ease-in-out infinite; 
-}
-
-/* 2. PARPADEO (Ocultamos el div porque el GIF ya lo hace) */
-.parpado { 
-    display: none !important; 
-}
-
-/* 3. LA BURBUJA (Círculo transparente) */
-.burbuja-dominguito {
-    width: 100px; 
-    height: 100px;
-    border: 4px solid #1a2a6c;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.4);
-    position: relative;
-    transition: all 0.3s;
-    background: transparent !important; /* Aquí forzamos que no sea blanco */
-    overflow: hidden;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-/* 4. ANIMACIÓN DE ESCUCHA */
-@keyframes pulse-dominguito { 
-    0% { transform: scale(0.95); opacity: 0.8; } 
-    70% { transform: scale(1.2); opacity: 0; } 
-    100% { transform: scale(0.95); opacity: 0; } 
-}
-
-.dominguito-escuchando .burbuja-dominguito { 
-    border-color: #2ecc71 !important;
-    box-shadow: 0 0 30px #2ecc71 !important; 
-}   
+    @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+    .breathe-animation { animation: breathe 4s ease-in-out infinite; }
+    
+    @keyframes pulse-dominguito { 0% { transform: scale(0.95); opacity: 0.8; } 70% { transform: scale(1.2); opacity: 0; } 100% { transform: scale(0.95); opacity: 0; } }
+    
+    .dominguito-escuchando .burbuja-dominguito { 
+        border-color: #2ecc71 !important;
+        box-shadow: 0 0 30px #2ecc71 !important; 
+    }
 </style>
 <script>
 window.Dominguito = {
     serverUrl: "https://dominguito-san-juan.vercel.app/api/chat", 
-     toggleInput: function() {
+    
+    toggleInput: function() {
         const box = document.getElementById('dominguito-input-box');
         const input = document.getElementById('dominguito-texto');
-        if(box.style.display === 'none') {
-            box.style.display = 'block';
-            input.focus();
-        } else {
-            box.style.display = 'none';
-        }
+        box.style.display = (box.style.display === 'none') ? 'block' : 'none';
+        if(box.style.display === 'block') input.focus();
     },
 
     hablarYMostrar: function(texto) {
         if (!texto) return;
-        
-        // MOSTRAR TEXTO (Corregido)
         const bubble = document.getElementById('dominguito-bubble');
         const textDiv = document.getElementById('dominguito-texto-respuesta');
-        if(bubble && textDiv) {
-            bubble.style.display = 'block';
-            textDiv.innerText = texto;
-            // Scroll automático si el texto es largo
-            bubble.scrollTop = 0;
-        }
+        
+        // MOSTRAR ESCRITO
+        bubble.style.display = 'block';
+        textDiv.innerText = texto;
 
-        // HABLAR
+        // RESPUESTA ORAL
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
             const mensaje = new SpeechSynthesisUtterance(texto);
             mensaje.lang = 'es-AR';
             mensaje.rate = 0.9;
-            mensaje.pitch = 0.8;
-            
-            const voces = window.speechSynthesis.getVoices();
-            const vozMasculina = voces.find(v => v.lang.includes('es') && (v.name.includes('Male') || v.name.includes('Helena') === false));
-            if (vozMasculina) mensaje.voice = vozMasculina;
-            
             window.speechSynthesis.speak(mensaje);
         }
-
-        // El globo se queda 15 segundos para que de tiempo a leerlo
-        setTimeout(() => { bubble.style.display = 'none'; }, 15000);
+        setTimeout(() => { bubble.style.display = 'none'; }, 12000);
     },
 
     procesarConIA: async function(mensaje) {
-        const bubble = document.getElementById('dominguito-bubble');
-        const textDiv = document.getElementById('dominguito-texto-respuesta');
-        
-        // Feedback visual de "pensando"
-        if(bubble && textDiv) {
-            bubble.style.display = 'block';
-            textDiv.innerText = "Pensando, Cristian...";
-        }
-
         try {
             const res = await fetch(this.serverUrl, {
                 method: "POST",
@@ -942,11 +885,9 @@ window.Dominguito = {
                 body: JSON.stringify({ prompt: mensaje })
             });
             const data = await res.json();
-            if (data.respuesta) {
-                this.hablarYMostrar(data.respuesta);
-            }
+            this.hablarYMostrar(data.respuesta);
         } catch (e) {
-            this.hablarYMostrar("Se me cortó el sistema de la clínica, avisame si el servidor está caído.");
+            this.hablarYMostrar("Error de conexión con el servidor de la clínica.");
         }
     },
 
@@ -962,21 +903,32 @@ window.Dominguito = {
     }
 };
 
-// Evento para enviar con Enter
-document.addEventListener('DOMContentLoaded', () => {
-    const input = document.getElementById('dominguito-texto');
-    if(input) {
-        input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                const m = input.value.trim();
-                if(m) {
-                    window.Dominguito.procesarConIA(m);
-                    input.value = "";
-                    document.getElementById('dominguito-input-box').style.display = 'none';
-                }
-            }
-        });
+// --- LÓGICA DE DESPLAZAMIENTO (DRAG) ---
+const el = document.getElementById('dominguito-container');
+const handle = document.getElementById('dominguito-handle');
+let isDragging = false, startX, startY, initialX, initialY;
+
+handle.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    initialX = el.offsetLeft; initialY = el.offsetTop;
+    startX = e.clientX - initialX; startY = e.clientY - initialY;
+    el.style.bottom = 'auto'; el.style.right = 'auto';
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    el.style.left = (e.clientX - startX) + 'px';
+    el.style.top = (e.clientY - startY) + 'px';
+});
+
+document.addEventListener('mouseup', () => isDragging = false);
+
+// Enter para enviar
+document.getElementById('dominguito-texto').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const m = e.target.value.trim();
+        if(m) { window.Dominguito.procesarConIA(m); e.target.value = ""; document.getElementById('dominguito-input-box').style.display = 'none'; }
     }
 });
 </script>         
