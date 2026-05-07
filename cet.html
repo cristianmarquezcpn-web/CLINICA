@@ -805,8 +805,8 @@ auth.onAuthStateChanged((user) => {
 <div id="dominguito-container" 
      style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; cursor: grab; user-select: none;">
     
-    <div id="dominguito-bubble" style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 15px; margin-bottom: 15px; max-width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: 'Segoe UI', sans-serif; font-size: 14px; color: #333; position: relative;">
-        <div id="dominguito-texto-respuesta"></div>
+    <div id="dominguito-bubble" style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 15px; margin-bottom: 15px; max-width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: 'Segoe UI', sans-serif; font-size: 14px; color: #333; position: relative; z-index: 1000000;">
+        <div id="dominguito-texto-respuesta" style="white-space: pre-wrap; line-height: 1.4;"></div>
         <div style="position: absolute; bottom: -12px; right: 25px; width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 12px solid #1a2a6c;"></div>
     </div>
 
@@ -821,11 +821,11 @@ auth.onAuthStateChanged((user) => {
         <div class="burbuja-dominguito" 
              onclick="window.Dominguito.toggleInput()"
              ondblclick="window.Dominguito.escuchar()"
-             style="width: 100px; height: 100px; border: 4px solid #1a2a6c; box-shadow: 0 10px 25px rgba(0,0,0,0.4); position: relative; transition: all 0.3s; background: white; overflow: hidden; border-radius: 50%;">
+             style="width: 100px; height: 100px; border: 4px solid #1a2a6c; box-shadow: 0 10px 25px rgba(0,0,0,0.4); position: relative; transition: all 0.3s; background: white; overflow: hidden; border-radius: 50%; display: flex; justify-content: center; align-items: center;">
             
-            <img src="https://github.com/cristianmarquezcpn-web/dominguito_san_juan/blob/dc6d871af482bb9784117d74591086b8f888f4d4/Gemini_Generated_Image_x4mgrlx4mgrlx4mg.png" 
+            <img src="https://raw.githubusercontent.com/cristianmarquezcpn-web/dominguito_san_juan/dc6d871af482bb9784117d74591086b8f888f4d4/Gemini_Generated_Image_x4mgrlx4mgrlx4mg.png" 
              alt="Dominguito Director" 
-             style="width: 90px; height: 90px; border: none; object-fit: contain;"
+             style="width: 100%; height: 100%; object-fit: cover;"
              class="breathe-animation"
              />      
             <div class="parpado"></div>
@@ -838,120 +838,74 @@ auth.onAuthStateChanged((user) => {
 </div>
 
 <style>
-    /* 1. RESPIRACIÓN */
-    @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+    @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+    .breathe-animation { animation: breathe 4s ease-in-out infinite; }
 
-    /* 2. PARPADEO */
     .parpado {
         position: absolute; top: 0; left: 0; width: 100%; height: 0%;
-        background-color: #5d4037; z-index: 10; animation: blink 6s infinite;
-        pointer-events: none;
+        background-color: #5d4037; z-index: 10; animation: blink 7s infinite;
+        pointer-events: none; opacity: 0.9;
     }
-    @keyframes blink { 0%, 92%, 100% { height: 0%; } 95% { height: 100%; } }
+    @keyframes blink { 0%, 94%, 100% { height: 0%; } 96% { height: 100%; } }
 
-    /* 3. AURA Y ESTADOS */
     @keyframes pulse-dominguito { 0% { transform: scale(0.95); opacity: 0.8; } 70% { transform: scale(1.2); opacity: 0; } 100% { transform: scale(0.95); opacity: 0; } }
-    
-    .dominguito-escuchando .burbuja-dominguito { 
-        border-color: #2ecc71 !important; /* Verde Esencial */
-        box-shadow: 0 0 30px #2ecc71 !important; 
-        animation: listening-shake 0.3s infinite;
-    }
-
-    @keyframes listening-shake { 0% { transform: rotate(0deg); } 25% { transform: rotate(2deg); } 75% { transform: rotate(-2deg); } 100% { transform: rotate(0deg); } }
-    
-    /* Hover suave en todo el contenedor */
-    #dominguito-container:hover { transform: scale(1.03); }
 </style>
-
 <script>
 window.Dominguito = {
     serverUrl: "https://dominguito-san-juan.vercel.app/api/chat", 
-    
-    toggleInput: function() {
+     toggleInput: function() {
         const box = document.getElementById('dominguito-input-box');
         const input = document.getElementById('dominguito-texto');
-        if(!box || !input) return;
-        
         if(box.style.display === 'none') {
             box.style.display = 'block';
             input.focus();
-            console.log("Caja de gestión de Esencial abierta");
         } else {
             box.style.display = 'none';
         }
     },
 
     hablarYMostrar: function(texto) {
-    if (!texto || texto.trim() === "") return;
-
-    // 1. Mostrar texto escrito en el globo de Dominguito
-    const bubble = document.getElementById('dominguito-bubble');
-    const textDiv = document.getElementById('dominguito-texto-respuesta');
-    if(bubble && textDiv) {
-        bubble.style.display = 'block';
-        textDiv.innerText = texto;
-    }
-
-    // 2. Configuración del habla
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel(); // Corta cualquier audio anterior
-        const mensaje = new SpeechSynthesisUtterance(texto);
+        if (!texto) return;
         
-        mensaje.lang = 'es-AR'; // Forzamos acento local
-        mensaje.rate = 0.85;    // Más lento para sonar más serio y ejecutivo
-        mensaje.pitch = 0.8;    // Bajamos el tono para que sea una voz más grave/masculina
-
-        // Buscamos voces masculinas en el sistema del usuario
-        const voces = window.speechSynthesis.getVoices();
-        
-        // Buscamos específicamente nombres de voces masculinas comunes
-        const vozMasculina = voces.find(v => 
-            (v.name.toLowerCase().includes('male') || 
-             v.name.toLowerCase().includes('pablo') || 
-             v.name.toLowerCase().includes('david') || 
-             v.name.toLowerCase().includes('sergio') ||
-             v.name.toLowerCase().includes('microsoft bart') || // Voz clásica de Windows
-             v.name.toLowerCase().includes('google español')) && 
-            v.lang.includes('es')
-        );
-
-        if (vozMasculina) {
-            mensaje.voice = vozMasculina;
+        // MOSTRAR TEXTO (Corregido)
+        const bubble = document.getElementById('dominguito-bubble');
+        const textDiv = document.getElementById('dominguito-texto-respuesta');
+        if(bubble && textDiv) {
+            bubble.style.display = 'block';
+            textDiv.innerText = texto;
+            // Scroll automático si el texto es largo
+            bubble.scrollTop = 0;
         }
 
-        window.speechSynthesis.speak(mensaje);
-    }
+        // HABLAR
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const mensaje = new SpeechSynthesisUtterance(texto);
+            mensaje.lang = 'es-AR';
+            mensaje.rate = 0.9;
+            mensaje.pitch = 0.8;
+            
+            const voces = window.speechSynthesis.getVoices();
+            const vozMasculina = voces.find(v => v.lang.includes('es') && (v.name.includes('Male') || v.name.includes('Helena') === false));
+            if (vozMasculina) mensaje.voice = vozMasculina;
+            
+            window.speechSynthesis.speak(mensaje);
+        }
 
-    // Ocultar globo automáticamente después de 12 segundos
-    setTimeout(() => { if(bubble) bubble.style.display = 'none'; }, 12000);
-},
-
-    escuchar: function() {
-        console.log("Activando micrófono de Esencial...");
-        const container = document.getElementById('dominguito-container');
-        const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Speech) return alert("Tu navegador no soporta reconocimiento de voz.");
-
-        // Desbloqueo de audio para iOS/Safari
-        this.hablarYMostrar(""); 
-
-        const rec = new Speech();
-        rec.lang = 'es-AR';
-        container.classList.add('dominguito-escuchando');
-        
-        rec.start();
-        rec.onresult = (e) => {
-            const transcript = e.results[0][0].transcript;
-            console.log("Escuchado en clínica:", transcript);
-            this.procesarConIA(transcript);
-        };
-        rec.onend = () => container.classList.remove('dominguito-escuchando');
-        rec.onerror = () => container.classList.remove('dominguito-escuchando');
+        // El globo se queda 15 segundos para que de tiempo a leerlo
+        setTimeout(() => { bubble.style.display = 'none'; }, 15000);
     },
 
     procesarConIA: async function(mensaje) {
-        if(!mensaje) return;
+        const bubble = document.getElementById('dominguito-bubble');
+        const textDiv = document.getElementById('dominguito-texto-respuesta');
+        
+        // Feedback visual de "pensando"
+        if(bubble && textDiv) {
+            bubble.style.display = 'block';
+            textDiv.innerText = "Pensando, Cristian...";
+        }
+
         try {
             const res = await fetch(this.serverUrl, {
                 method: "POST",
@@ -963,90 +917,32 @@ window.Dominguito = {
                 this.hablarYMostrar(data.respuesta);
             }
         } catch (e) {
-            this.hablarYMostrar("Cristian, tuve un problema de conexión con el servidor de Esencial.");
+            this.hablarYMostrar("Se me cortó el sistema de la clínica, avisame si el servidor está caído.");
         }
+    },
+
+    escuchar: function() {
+        const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!Speech) return;
+        const rec = new Speech();
+        rec.lang = 'es-AR';
+        document.getElementById('dominguito-container').classList.add('dominguito-escuchando');
+        rec.start();
+        rec.onresult = (e) => this.procesarConIA(e.results[0][0].transcript);
+        rec.onend = () => document.getElementById('dominguito-container').classList.remove('dominguito-escuchando');
     }
 };
 
-// Carga de voces
-if ('speechSynthesis' in window) { window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices(); }
-
-// --- LÓGICA DE ARRASTRE (DRAG & DROP) ---
-const el = document.getElementById('dominguito-container');
-const handle = document.getElementById('dominguito-handle');
-let isDragging = false;
-let startX, startY, initialX, initialY;
-
-handle.addEventListener('mousedown', (e) => {
-    isDragging = true;
-    initialX = el.offsetLeft;
-    initialY = el.offsetTop;
-    startX = e.clientX - initialX;
-    startY = e.clientY - initialY;
-    
-    el.style.cursor = 'grabbing';
-    el.style.bottom = 'auto'; // Desactivar la posición fija de la esquina
-    el.style.right = 'auto';
-    el.style.transition = 'none'; // Quitar animaciones al arrastrar
-});
-
-document.addEventListener('mousemove', (e) => {
-    if (!isDragging) return;
-    e.preventDefault();
-    
-    // Calcular nueva posición
-    const newX = e.clientX - startX;
-    const newY = e.clientY - startY;
-    
-    // Aplicar la nueva posición
-    el.style.left = newX + 'px';
-    el.style.top = newY + 'px';
-});
-
-document.addEventListener('mouseup', () => {
-    if (!isDragging) return;
-    isDragging = false;
-    el.style.cursor = 'grab';
-    el.style.transition = 'transform 0.3s'; // Volver a activar la animación suave
-});
-
-// Soporte para Táctil (Móviles)
-handle.addEventListener('touchstart', (e) => {
-    isDragging = true;
-    const touch = e.touches[0];
-    initialX = el.offsetLeft;
-    initialY = el.offsetTop;
-    startX = touch.clientX - initialX;
-    startY = touch.clientY - initialY;
-    
-    el.style.bottom = 'auto';
-    el.style.right = 'auto';
-    el.style.transition = 'none';
-}, {passive: true});
-
-document.addEventListener('touchmove', (e) => {
-    if (!isDragging) return;
-    const touch = e.touches[0];
-    
-    const newX = touch.clientX - startX;
-    const newY = touch.clientY - startY;
-    
-    el.style.left = newX + 'px';
-    el.style.top = newY + 'px';
-});
-
-document.addEventListener('touchend', () => { isDragging = false; });
-
-// --- GESTIÓN DEL TECLADO (Enter para enviar) ---
+// Evento para enviar con Enter
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('dominguito-texto');
     if(input) {
-        input.addEventListener('keydown', (e) => {
+        input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                const mensaje = input.value.trim();
-                if(mensaje !== "") {
-                    window.Dominguito.procesarConIA(mensaje);
+                const m = input.value.trim();
+                if(m) {
+                    window.Dominguito.procesarConIA(m);
                     input.value = "";
                     document.getElementById('dominguito-input-box').style.display = 'none';
                 }
@@ -1054,8 +950,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-</script>    
+</script>         
 </body>
 </html>
 
