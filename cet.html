@@ -830,6 +830,7 @@ window.Dominguito = {
         box.style.display = (box.style.display === 'none') ? 'block' : 'none';
         if(box.style.display === 'block') {
             input.focus();
+            console.log("Caja de texto abierta");
         }
     },
 
@@ -839,7 +840,7 @@ window.Dominguito = {
         const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!Speech) return alert("Navegador no compatible.");
 
-        // Desbloqueo preventivo de audio
+        // Parche 1: Desbloqueo silencioso para que el navegador nos deje hablar luego
         this.hablar(""); 
 
         const rec = new Speech();
@@ -863,7 +864,7 @@ window.Dominguito = {
         if(!mensaje) return;
         console.log("Enviando a San Juan:", mensaje);
         
-        // Mantenemos el canal de audio "caliente"
+        // Parche 2: Mantenemos el canal "caliente" mientras esperamos a Vercel
         this.hablar(""); 
         
         try {
@@ -884,7 +885,6 @@ window.Dominguito = {
                 this.hablar("No recibí una respuesta clara del servidor.");
             }
             
-            // Integración con Firebase (Módulos de la clínica)
             if (data.accion && data.ruta && this.db) {
                 const ref = this.db.ref(data.ruta);
                 data.metodo === 'set' ? await ref.set(data.payload) : await ref.push(data.payload);
@@ -896,30 +896,30 @@ window.Dominguito = {
     },
 
     hablar: function(texto) {
-        // Cancelamos cualquier locución pendiente
         window.speechSynthesis.cancel();
         
-        if (!texto) return; // Si es solo para desbloquear audio, salimos aquí
+        if (!texto || texto.trim() === "") return;
 
         const s = new SpeechSynthesisUtterance(texto);
         s.lang = 'es-AR';
         s.rate = 1.0; 
         s.pitch = 1.0;
 
-        // Intentar seleccionar una voz en español si está cargada
+        // Intentar seleccionar la mejor voz disponible
         const voces = window.speechSynthesis.getVoices();
         if (voces.length > 0) {
-            s.voice = voces.find(v => v.lang.includes('es')) || voces[0];
+            s.voice = voces.find(v => v.lang.includes('es-AR')) || 
+                      voces.find(v => v.lang.includes('es')) || 
+                      voces[0];
         }
 
         window.speechSynthesis.speak(s);
     }
 };
 
-// Cargar voces preventivamente para algunos navegadores
+// Asegura que las voces estén listas apenas carga la página
 window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 
-// --- CONFIGURACIÓN DE EVENTOS ---
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('dominguito-texto');
     const visual = document.getElementById("dominguito-visual");
@@ -943,7 +943,6 @@ document.addEventListener('DOMContentLoaded', () => {
         visual.onclick = () => window.Dominguito.toggleInput();
         visual.ondblclick = () => window.Dominguito.escuchar();
         
-        // Soporte táctil para el celular
         let timer;
         visual.addEventListener("touchstart", () => {
             timer = setTimeout(() => window.Dominguito.escuchar(), 700);
