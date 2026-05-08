@@ -802,7 +802,7 @@ auth.onAuthStateChanged((user) => {
 });
 </script>
 <script src="dominguito-core.js"></script>
-<div id="dominguito-container" 
+ <div id="dominguito-container" 
      style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; user-select: none;">
     
     <div id="dominguito-bubble" onclick="this.style.display='none'" 
@@ -818,17 +818,16 @@ auth.onAuthStateChanged((user) => {
 
     <div style="display: flex; align-items: center; gap: 10px;">
         <div style="display: flex; flex-direction: column; gap: 8px;">
-            <button onclick="window.Dominguito.toggleInput()" style="background: #1a2a6c; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 18px;">⌨️</button>
-            <button onclick="window.Dominguito.escuchar()" style="background: #b21f1f; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 18px;">🎤</button>
+            <button onclick="window.Dominguito.toggleInput()" title="Escribir" style="background: #1a2a6c; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px; display: flex; justify-content: center; align-items: center;">⌨️</button>
+            <button onclick="window.Dominguito.escuchar()" title="Hablar" style="background: #b21f1f; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px; display: flex; justify-content: center; align-items: center;">🎤</button>
         </div>
 
         <div id="dominguito-handle" style="text-align: center; cursor: grab;">
-            <div class="burbuja-dominguito" 
-                 style="width: 85px; height: 85px; border: 4px solid #1a2a6c; box-shadow: 0 8px 20px rgba(0,0,0,0.3); background: white; overflow: hidden; border-radius: 50%; display: flex; justify-content: center; align-items: center;">
+            <div id="status-borde" style="width: 90px; height: 90px; border: 4px solid #1a2a6c; box-shadow: 0 8px 20px rgba(0,0,0,0.3); background: white; overflow: hidden; border-radius: 50%; display: flex; justify-content: center; align-items: center; transition: all 0.3s;">
                  <img src="https://res.cloudinary.com/duscmxxws/image/upload/v1778185388/mzejyrmeje5lcpcs8h2b.png" 
                       style="width: 100%; height: 100%; object-fit: cover;" />
             </div>
-            <div style="background: #1a2a6c; color: #f1c40f; font-size: 9px; font-weight: bold; padding: 3px 8px; border-radius: 10px; margin-top: 5px; white-space: nowrap;">
+            <div style="background: #1a2a6c; color: #f1c40f; font-size: 9px; font-weight: bold; padding: 4px 10px; border-radius: 10px; margin-top: 5px; white-space: nowrap; border: 1px solid #f1c40f;">
                 ESENCIAL DIRECTOR
             </div>
         </div>
@@ -838,11 +837,11 @@ auth.onAuthStateChanged((user) => {
 <script>
 const container = document.getElementById('dominguito-container');
 const handle = document.getElementById('dominguito-handle');
+const statusBorde = document.getElementById('status-borde');
 const txtInput = document.getElementById('dominguito-texto');
 let isDragging = false, startX, startY;
 
 window.Dominguito = {
-    // FUNCIÓN PARA FORZAR VOZ MASCULINA
     hablar: function(texto) {
         const bubble = document.getElementById('dominguito-bubble');
         document.getElementById('dominguito-texto-respuesta').innerText = texto;
@@ -852,19 +851,18 @@ window.Dominguito = {
             window.speechSynthesis.cancel();
             const u = new SpeechSynthesisUtterance(texto);
             u.lang = 'es-AR';
-            u.rate = 0.8; // Más lento para que suene serio
-            u.pitch = 0.6; // MÁS GRAVE para voz de hombre
-            
+            u.rate = 0.85; 
+            u.pitch = 0.5; // MUCHO MÁS GRAVE
+
             const voces = window.speechSynthesis.getVoices();
-            // Buscamos voces masculinas comunes en Android/iOS/Windows
+            // Buscamos específicamente voces masculinas
             const vozHombre = voces.find(v => 
-                (v.name.includes('Male') || v.name.includes('Paco') || v.name.includes('Google español')) && v.lang.includes('es')
+                (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('pablo') || v.name.toLowerCase().includes('helena') === false) && v.lang.includes('es')
             );
             if (vozHombre) u.voice = vozHombre;
-
             window.speechSynthesis.speak(u);
         }
-        setTimeout(() => { bubble.style.display = 'none'; }, 25000);
+        setTimeout(() => { bubble.style.display = 'none'; }, 20000);
     },
 
     toggleInput: function() {
@@ -875,17 +873,38 @@ window.Dominguito = {
 
     escuchar: function() {
         const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Recognition) return alert("Microfóno no compatible en este navegador.");
+        if (!Recognition) return alert("Tu navegador o celular no permite usar el micrófono.");
+        
         const rec = new Recognition();
         rec.lang = 'es-AR';
-        rec.onstart = () => { handle.style.borderColor = '#2ecc71'; };
-        rec.onend = () => { handle.style.borderColor = '#1a2a6c'; };
+        rec.continuous = false;
+        rec.interimResults = false;
+
+        rec.onstart = () => { 
+            statusBorde.style.borderColor = '#2ecc71';
+            statusBorde.style.boxShadow = '0 0 20px #2ecc71';
+        };
+        
+        rec.onresult = (e) => {
+            const m = e.results[0][0].transcript;
+            this.preguntarIA(m);
+        };
+
+        rec.onerror = (e) => {
+            console.error(e);
+            statusBorde.style.borderColor = '#b21f1f';
+        };
+
+        rec.onend = () => { 
+            statusBorde.style.borderColor = '#1a2a6c';
+            statusBorde.style.boxShadow = '0 8px 20px rgba(0,0,0,0.3)';
+        };
+
         rec.start();
-        rec.onresult = (e) => this.preguntarIA(e.results[0][0].transcript);
     },
 
     preguntarIA: async function(m) {
-        this.hablar("Un momento Cristian, estoy revisando...");
+        this.hablar("Un momento Cristian, estoy procesando...");
         try {
             const r = await fetch("https://dominguito-san-juan.vercel.app/api/chat", {
                 method: "POST", headers: {"Content-Type":"application/json"},
@@ -893,11 +912,11 @@ window.Dominguito = {
             });
             const d = await r.json();
             this.hablar(d.respuesta);
-        } catch(e) { this.hablar("Error de conexión con el servidor."); }
+        } catch(e) { this.hablar("Problema de conexión con la administración."); }
     }
 };
 
-// --- ARRASTRE MEJORADO (Sin saltos) ---
+// --- ARRASTRE SIN SALTOS ---
 handle.addEventListener('pointerdown', (e) => {
     isDragging = true;
     startX = e.clientX - container.offsetLeft;
@@ -924,9 +943,6 @@ txtInput.addEventListener('keypress', (e) => {
         document.getElementById('dominguito-input-box').style.display = 'none';
     }
 });
-
-// Cargar voces al inicio
-window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
 </script>         
 </body>
 </html>
