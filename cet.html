@@ -850,25 +850,22 @@ window.Dominguito = {
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
             const u = new SpeechSynthesisUtterance(texto);
-            u.lang = 'es-AR';
-            u.rate = 0.85; 
-            u.pitch = 0.5; // MUCHO MÁS GRAVE
+            u.lang = 'es-AR'; // Español de acá
+            u.rate = 0.9;     // Un poquito más lento, con calma
+            u.pitch = 0.85;   // Apenas un poco más grave, pero que no suene a monstruo
 
             const voces = window.speechSynthesis.getVoices();
-            // Buscamos específicamente voces masculinas
-            const vozHombre = voces.find(v => 
-                (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('pablo') || v.name.toLowerCase().includes('helena') === false) && v.lang.includes('es')
-            );
-            if (vozHombre) u.voice = vozHombre;
+            
+            // Buscamos la voz de "Google español" o "Microsoft Pablo" que son masculinas
+            let vozElegida = voces.find(v => v.name.includes('Google español') || v.name.includes('Microsoft Pablo') || v.name.includes('Male'));
+            
+            if (vozElegida) {
+                u.voice = vozElegida;
+            }
+
             window.speechSynthesis.speak(u);
         }
         setTimeout(() => { bubble.style.display = 'none'; }, 20000);
-    },
-
-    toggleInput: function() {
-        const box = document.getElementById('dominguito-input-box');
-        box.style.display = box.style.display === 'none' ? 'block' : 'none';
-        if(box.style.display === 'block') txtInput.focus();
     },
 
     escuchar: function() {
