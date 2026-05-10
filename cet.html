@@ -802,30 +802,34 @@ auth.onAuthStateChanged((user) => {
 });
 </script>
 <script src="dominguito-core.js"></script>
- <div id="dominguito-container" 
-     style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; user-select: none;">
+<script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
+
+<div id="dominguito-container" style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; user-select: none;">
     
-    <div id="dominguito-bubble" onclick="this.style.display='none'" 
-         style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 12px; margin-bottom: 10px; max-width: 250px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 14px; color: #333; position: relative; cursor: pointer;">
+    <div id="dominguito-bubble" onclick="this.style.display='none'" style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 12px; margin-bottom: 10px; max-width: 250px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 14px; color: #333; position: relative; cursor: pointer;">
         <div id="dominguito-texto-respuesta"></div>
         <div style="position: absolute; bottom: -10px; right: 20px; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 10px solid #1a2a6c;"></div>
     </div>
 
     <div id="dominguito-input-box" style="margin-bottom: 10px; display: none;">
-        <textarea id="dominguito-texto" placeholder="Escribile al Director..." 
-               style="padding: 10px; border-radius: 10px; border: 2px solid #1a2a6c; width: 220px; height: 70px; font-family: sans-serif; resize: none;"></textarea>
+        <textarea id="dominguito-texto" placeholder="Escribile al Director..." style="padding: 10px; border-radius: 10px; border: 2px solid #1a2a6c; width: 220px; height: 70px; font-family: sans-serif; resize: none;"></textarea>
     </div>
 
     <div style="display: flex; align-items: center; gap: 10px;">
         <div style="display: flex; flex-direction: column; gap: 8px;">
             <button onclick="window.Dominguito.toggleInput()" title="Escribir" style="background: #1a2a6c; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px; display: flex; justify-content: center; align-items: center;">⌨️</button>
+            
+            <label title="Adjuntar Foto/PDF" style="background: #f1c40f; color: #1a2a6c; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px; display: flex; justify-content: center; align-items: center; margin:0;">
+                📎
+                <input type="file" id="dominguito-file" hidden accept="image/*,application/pdf" onchange="window.Dominguito.procesarArchivo(this)">
+            </label>
+
             <button onclick="window.Dominguito.escuchar()" title="Hablar" style="background: #b21f1f; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px; display: flex; justify-content: center; align-items: center;">🎤</button>
         </div>
 
         <div id="dominguito-handle" style="text-align: center; cursor: grab;">
             <div id="status-borde" style="width: 90px; height: 90px; border: 4px solid #1a2a6c; box-shadow: 0 8px 20px rgba(0,0,0,0.3); background: white; overflow: hidden; border-radius: 50%; display: flex; justify-content: center; align-items: center; transition: all 0.3s;">
-                 <img src="https://res.cloudinary.com/duscmxxws/image/upload/v1778185388/mzejyrmeje5lcpcs8h2b.png" 
-                      style="width: 100%; height: 100%; object-fit: cover;" />
+                 <img src="https://res.cloudinary.com/duscmxxws/image/upload/v1778185388/mzejyrmeje5lcpcs8h2b.png" style="width: 100%; height: 100%; object-fit: cover;" />
             </div>
             <div style="background: #1a2a6c; color: #f1c40f; font-size: 9px; font-weight: bold; padding: 4px 10px; border-radius: 10px; margin-top: 5px; white-space: nowrap; border: 1px solid #f1c40f;">
                 ESENCIAL DIRECTOR
@@ -835,13 +839,13 @@ auth.onAuthStateChanged((user) => {
 </div>
 
 <script>
-const container = document.getElementById('dominguito-container');
-const handle = document.getElementById('dominguito-handle');
-const statusBorde = document.getElementById('status-borde');
-const txtInput = document.getElementById('dominguito-texto');
-let isDragging = false, startX, startY;
-
 window.Dominguito = {
+    toggleInput: function() {
+        const box = document.getElementById('dominguito-input-box');
+        box.style.display = box.style.display === 'none' ? 'block' : 'none';
+        if(box.style.display === 'block') document.getElementById('dominguito-texto').focus();
+    },
+
     hablar: function(texto) {
         const bubble = document.getElementById('dominguito-bubble');
         document.getElementById('dominguito-texto-respuesta').innerText = texto;
@@ -850,93 +854,62 @@ window.Dominguito = {
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
             const u = new SpeechSynthesisUtterance(texto);
-            u.lang = 'es-AR'; // Español de acá
-            u.rate = 0.9;     // Un poquito más lento, con calma
-            u.pitch = 0.85;   // Apenas un poco más grave, pero que no suene a monstruo
-
-            const voces = window.speechSynthesis.getVoices();
-            
-            // Buscamos la voz de "Google español" o "Microsoft Pablo" que son masculinas
-            let vozElegida = voces.find(v => v.name.includes('Google español') || v.name.includes('Microsoft Pablo') || v.name.includes('Male'));
-            
-            if (vozElegida) {
-                u.voice = vozElegida;
-            }
-
+            u.lang = 'es-AR';
+            u.rate = 0.9; 
+            u.pitch = 0.8; // Voz masculina y seria
             window.speechSynthesis.speak(u);
         }
-        setTimeout(() => { bubble.style.display = 'none'; }, 20000);
+        // Nota: No hay setTimeout. Se cierra tocando la burbuja.
     },
 
     escuchar: function() {
         const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Recognition) return alert("Tu navegador o celular no permite usar el micrófono.");
-        
+        if (!Recognition) return alert("Navegador no compatible.");
         const rec = new Recognition();
         rec.lang = 'es-AR';
-        rec.continuous = false;
-        rec.interimResults = false;
-
-        rec.onstart = () => { 
-            statusBorde.style.borderColor = '#2ecc71';
-            statusBorde.style.boxShadow = '0 0 20px #2ecc71';
-        };
-        
-        rec.onresult = (e) => {
-            const m = e.results[0][0].transcript;
-            this.preguntarIA(m);
-        };
-
-        rec.onerror = (e) => {
-            console.error(e);
-            statusBorde.style.borderColor = '#b21f1f';
-        };
-
-        rec.onend = () => { 
-            statusBorde.style.borderColor = '#1a2a6c';
-            statusBorde.style.boxShadow = '0 8px 20px rgba(0,0,0,0.3)';
-        };
-
+        rec.onstart = () => { document.getElementById('status-borde').style.borderColor = '#2ecc71'; };
+        rec.onresult = (e) => { this.preguntarIA(e.results[0][0].transcript); };
+        rec.onend = () => { document.getElementById('status-borde').style.borderColor = '#1a2a6c'; };
         rec.start();
     },
 
+    procesarArchivo: function(input) {
+        const file = input.files[0];
+        if (!file) return;
+        this.hablar("Analizando documento, Cristian...");
+        
+        if (file.type.startsWith('image/')) {
+            Tesseract.recognize(file, 'spa').then(({ data: { text } }) => {
+                this.preguntarIA("Analizá este texto que saqué de una foto: " + text);
+            });
+        } else {
+            this.hablar("Por ahora leo fotos, los PDFs de muchas páginas los estoy estudiando.");
+        }
+    },
+
     preguntarIA: async function(m) {
-        this.hablar("Un momento Cristian, estoy procesando...");
+        this.hablar("Un momento, estoy procesando...");
         try {
-            const r = await fetch("https://dominguito-san-juan.vercel.app/api/chat", {
-                method: "POST", headers: {"Content-Type":"application/json"},
-                body: JSON.stringify({ prompt: m })
+            const r = await fetch("https://dominguito-san-juan.vercel.app/chat", {
+                method: "POST", 
+                headers: {"Content-Type":"application/json"},
+                body: JSON.stringify({ 
+                    mensaje: m,
+                    session_id: "cristian_director" 
+                })
             });
             const d = await r.json();
             this.hablar(d.respuesta);
-        } catch(e) { this.hablar("Problema de conexión con la administración."); }
+        } catch(e) { this.hablar("Error de conexión con la administración."); }
     }
 };
 
-// --- ARRASTRE SIN SALTOS ---
-handle.addEventListener('pointerdown', (e) => {
-    isDragging = true;
-    startX = e.clientX - container.offsetLeft;
-    startY = e.clientY - container.offsetTop;
-    container.style.bottom = 'auto'; container.style.right = 'auto';
-    handle.setPointerCapture(e.pointerId);
-});
-
-handle.addEventListener('pointermove', (e) => {
-    if (!isDragging) return;
-    container.style.left = (e.clientX - startX) + 'px';
-    container.style.top = (e.clientY - startY) + 'px';
-});
-
-handle.addEventListener('pointerup', (e) => {
-    isDragging = false;
-    handle.releasePointerCapture(e.pointerId);
-});
-
-txtInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        window.Dominguito.preguntarIA(txtInput.value);
-        txtInput.value = "";
+// --- Manejo del Teclado ---
+document.getElementById('dominguito-texto').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        window.Dominguito.preguntarIA(e.target.value);
+        e.target.value = "";
         document.getElementById('dominguito-input-box').style.display = 'none';
     }
 });
