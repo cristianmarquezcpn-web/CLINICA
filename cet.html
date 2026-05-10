@@ -821,7 +821,9 @@ auth.onAuthStateChanged((user) => {
             
             <label title="Adjuntar Foto/PDF" style="background: #f1c40f; color: #1a2a6c; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px; display: flex; justify-content: center; align-items: center; margin:0;">
                 📎
-                <input type="file" id="dominguito-file" hidden accept="image/*,application/pdf" onchange="window.Dominguito.procesarArchivo(this)">
+            <input type="file" id="dominguito-file" hidden 
+       accept="image/*, .doc, .docx, .xls, .xlsx, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
+       onchange="window.Dominguito.procesarArchivo(this)">    
             </label>
 
             <button onclick="window.Dominguito.escuchar()" title="Hablar" style="background: #b21f1f; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px; display: flex; justify-content: center; align-items: center;">🎤</button>
