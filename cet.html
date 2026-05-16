@@ -886,7 +886,7 @@ window.Dominguito = {
             lector.readAsDataURL(file);
             
             lector.onload = async () => {
-                // Se extrae el Base64 puro removiendo el encabezado de metadatos
+                // Sacamos el encabezado para dejar solo la cadena de texto Base64
                 const base64Puro = lector.result.split(',')[1];
                 const idTareaUnico = 'tarea_' + Date.now();
 
@@ -897,16 +897,17 @@ window.Dominguito = {
                 };
 
                 try {
-                    // Inyecta el archivo convertido directo al nodo que vigila tu CMD
-                    const databaseRef = window.firebaseDatabase; 
-                    if (databaseRef) {
-                        await databaseRef.ref('cola_imagenes/' + idTareaUnico).set(paqueteImagen);
+                    // CONEXIÓN CORREGIDA: Usamos tu constante 'database' de tu script
+                    // .root nos permite salir de '/cet' e ir directo a la raíz de tu Firebase
+                    if (typeof database !== 'undefined') {
+                        await database.root.ref('cola_imagenes/' + idTareaUnico).set(paqueteImagen);
                         this.hablar("Foto enviada a la cola logística con éxito.");
                     } else {
-                        // Respaldo alternativo mandando al chat de Vercel si Firebase no está inicializado en el Front
-                        await this.preguntarIA("Analizá esta imagen que te adjunto en base64: " + base64Puro);
+                        // Fallback de auxilio por si la variable no cargó a tiempo
+                        await this.preguntarIA("Analizá esta imagen en base64: " + base64Puro);
                     }
                 } catch(err) {
+                    console.error("Error al subir a Firebase:", err);
                     this.hablar("Error al subir el archivo físico a la cola.");
                 }
             };
