@@ -878,14 +878,40 @@ window.Dominguito = {
     procesarArchivo: function(input) {
         const file = input.files[0];
         if (!file) return;
-        this.hablar("Analizando documento, Cristian...");
         
+        this.hablar("Transmitiendo documento al motor de la clínica, Cristian...");
+
         if (file.type.startsWith('image/')) {
-            Tesseract.recognize(file, 'spa').then(({ data: { text } }) => {
-                this.preguntarIA("Analizá este texto que saqué de una foto: " + text);
-            });
+            const lector = new FileReader();
+            lector.readAsDataURL(file);
+            
+            lector.onload = async () => {
+                // Se extrae el Base64 puro removiendo el encabezado de metadatos
+                const base64Puro = lector.result.split(',')[1];
+                const idTareaUnico = 'tarea_' + Date.now();
+
+                const paqueteImagen = {
+                    id_paciente: "PACIENTE_DOMINGUITO",
+                    imagenBase64: base64Puro,
+                    fecha_ingreso: new Date().toISOString()
+                };
+
+                try {
+                    // Inyecta el archivo convertido directo al nodo que vigila tu CMD
+                    const databaseRef = window.firebaseDatabase; 
+                    if (databaseRef) {
+                        await databaseRef.ref('cola_imagenes/' + idTareaUnico).set(paqueteImagen);
+                        this.hablar("Foto enviada a la cola logística con éxito.");
+                    } else {
+                        // Respaldo alternativo mandando al chat de Vercel si Firebase no está inicializado en el Front
+                        await this.preguntarIA("Analizá esta imagen que te adjunto en base64: " + base64Puro);
+                    }
+                } catch(err) {
+                    this.hablar("Error al subir el archivo físico a la cola.");
+                }
+            };
         } else {
-            this.hablar("Por ahora leo fotos, los PDFs de muchas páginas los estoy estudiando.");
+            this.hablar("Por ahora el sistema solo procesa archivos de imagen directa.");
         }
     },
 
