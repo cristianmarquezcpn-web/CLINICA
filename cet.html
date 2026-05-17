@@ -897,17 +897,15 @@ window.Dominguito = {
                 };
 
                 try {
-                    // CONEXIÓN CORREGIDA: Usamos tu constante 'database' de tu script
-                    // .root nos permite salir de '/cet' e ir directo a la raíz de tu Firebase
-                    if (typeof database !== 'undefined') {
-                        await database.root.ref('cola_imagenes/' + idTareaUnico).set(paqueteImagen);
-                        this.hablar("Foto enviada a la cola logística con éxito.");
-                    } else {
-                        // Fallback de auxilio por si la variable no cargó a tiempo
-                        await this.preguntarIA("Analizá esta imagen en base64: " + base64Puro);
-                    }
+                    // CONEXIÓN DIRECTA Y AISLADA: No depende de ninguna variable externa
+                    // Usa el objeto global directo de la librería que ya tenés cargada en tu cabecera
+                    const databaseDirecta = firebase.database();
+                    
+                    await databaseDirecta.ref('cola_imagenes/' + idTareaUnico).set(paqueteImagen);
+                    this.hablar("Foto enviada a la cola logística con éxito.");
+                    
                 } catch(err) {
-                    console.error("Error al subir a Firebase:", err);
+                    console.error("Error crítico de inyección en Firebase:", err);
                     this.hablar("Error al subir el archivo físico a la cola.");
                 }
             };
@@ -915,7 +913,6 @@ window.Dominguito = {
             this.hablar("Por ahora el sistema solo procesa archivos de imagen directa.");
         }
     },
-
     preguntarIA: async function(m) {
         this.hablar("Un momento, estoy procesando...");
         try {
