@@ -886,10 +886,22 @@ window.Dominguito = {
             lector.readAsDataURL(file);
             
             lector.onload = async () => {
-                // Sacamos el encabezado para dejar solo la cadena de texto Base64
-                const base64Puro = lector.result.split(',')[1];
+                // Separamos de forma estricta el encabezado del Base64 puro
+                const partes = lector.result.split(',');
+                const base64Puro = partes[1];
+
+                // CONTROL CRÍTICO: Imprime en la consola web el tamaño del paquete
+                console.log("📊 [Dominguito] Tamaño de la cadena Base64 generada:", base64Puro ? base64Puro.length : 0);
+
+                if (!base64Puro || base64Puro.length < 100) {
+                    console.error("❌ Error: La conversión de la foto falló o el archivo está vacío.");
+                    this.hablar("El archivo de la foto está corrupto en el navegador.");
+                    return;
+                }
+
                 const idTareaUnico = 'tarea_' + Date.now();
 
+                // Armamos el paquete asegurando que la clave coincida exactamente con tu motor
                 const paqueteImagen = {
                     id_paciente: "PACIENTE_DOMINGUITO",
                     imagenBase64: base64Puro,
@@ -897,15 +909,15 @@ window.Dominguito = {
                 };
 
                 try {
-                    // CONEXIÓN DIRECTA Y AISLADA: No depende de ninguna variable externa
-                    // Usa el objeto global directo de la librería que ya tenés cargada en tu cabecera
                     const databaseDirecta = firebase.database();
                     
+                    // Inyección forzada en la raíz de tu Firebase
                     await databaseDirecta.ref('cola_imagenes/' + idTareaUnico).set(paqueteImagen);
+                    console.log("🚀 [Dominguito] Paquete subido con éxito a cola_imagenes con ID:", idTareaUnico);
                     this.hablar("Foto enviada a la cola logística con éxito.");
                     
                 } catch(err) {
-                    console.error("Error crítico de inyección en Firebase:", err);
+                    console.error("❌ Error crítico de inyección en Firebase:", err);
                     this.hablar("Error al subir el archivo físico a la cola.");
                 }
             };
