@@ -237,264 +237,293 @@ if (!firebase.apps.length) {
     // Unimos ambos universos en una sola lista para el auditor
     const facturas = { ...dataGral, ...dataSaei };
     
-        // Parámetros DOM
-        const pIIBB = parseFloat(document.getElementById('pIIBB').value || 0) / 100;
-        const pGS = parseFloat(document.getElementById('pGS').value || 0) / 100;
-        const pMin = parseFloat(document.getElementById('pMinimo').value || 0);
-        const txtBuscar = document.getElementById('buscador').value.toLowerCase();
-        const mesFiltro = document.getElementById('filtroMes').value; // Formato YYYY-MM
+    // Parámetros DOM
+    const pIIBB = parseFloat(document.getElementById('pIIBB').value || 0) / 100;
+    const pGS = parseFloat(document.getElementById('pGS').value || 0) / 100;
+    const pMin = parseFloat(document.getElementById('pMinimo').value || 0);
+    const txtBuscar = document.getElementById('buscador').value.toLowerCase();
+    const mesFiltro = document.getElementById('filtroMes').value; // Formato YYYY-MM
 
-        const tbodyM = document.getElementById('cuerpoMaestro');
-        const tbodyF = document.getElementById('cuerpoFlujo');
-        const divModulos = document.getElementById('incidenciaMod');
-        
-        tbodyM.innerHTML = ''; tbodyF.innerHTML = ''; divModulos.innerHTML = '';
+    const tbodyM = document.getElementById('cuerpoMaestro');
+    const tbodyF = document.getElementById('cuerpoFlujo');
+    const divModulos = document.getElementById('incidenciaMod');
+    
+    tbodyM.innerHTML = ''; tbodyF.innerHTML = ''; divModulos.innerHTML = '';
 
-        let agrupadoOS = {};
-        let modulosNeto = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
-        let statsJineteo = {};
-        let globalPendiente = 0;
+    let agrupadoOS = {};
+    let modulosNeto = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
+    let statsJineteo = {};
+    let globalPendiente = 0;
 
-        // A. Análisis de Jineteo (Histórico)
-Object.keys(cobros).forEach(id => {
-    // Solo analizamos si existe la factura y NO es una Nota de Crédito
-    if(facturas[id] && !String(facturas[id].nro_comp).includes('NC')) {
-        
-        const fEmi = parseFecha(facturas[id].fecha_emision);
-        
-        // PRIORIDAD: 1. fecha_pago (la manual) | 2. fecha (la automática antigua)
-        const fechaCobroRaw = cobros[id].fecha_pago || cobros[id].fecha;
-        const fCob = parseFecha(fechaCobroRaw);
-        
-        // Calculamos la diferencia real en días
-        const dias = Math.floor((fCob - fEmi) / 86400000);
-        
-        // Si el resultado es lógico (mayor a 0), lo sumamos a las estadísticas
-        if (dias >= 0) {
-            const os = facturas[id].receptor_nombre || "SIN O.S.";
-            if(!statsJineteo[os]) statsJineteo[os] = { suma: 0, cant: 0 };
-            statsJineteo[os].suma += dias;
-            statsJineteo[os].cant++;
+    // FUNCIÓN INTERNA AUXILIAR: Estandariza la fecha visual a DD/MM/AAAA sin importar cómo venga de Firebase
+    function formatearFechaEmision(fechaRaw) {
+        if (!fechaRaw) return 'S/D';
+        // Si viene con guiones (YYYY-MM-DD)
+        if (fechaRaw.includes('-')) {
+            const partes = fechaRaw.split('-');
+            if (partes[0].length === 4) { // Asegura que el año está primero
+                return `${partes[2].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[0]}`;
+            }
         }
+        // Si ya viene con barras, nos aseguramos de que tenga los ceros correspondientes
+        if (fechaRaw.includes('/')) {
+            const partes = fechaRaw.split('/');
+            return `${partes[0].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[2]}`;
+        }
+        return fechaRaw;
     }
-});
 
-        // B. Procesamiento de Facturas
-        Object.keys(facturas).forEach(id => {
-            const f = facturas[id];
-            // --- FILTROS DE BÚSQUEDA INTELIGENTE ---
-            let cumpleFiltro = true;
-
-            // Preparamos el número tal cual se ve en la tabla para que el buscador lo encuentre
-            const pvBusca = f.punto_venta ? f.punto_venta.toString().padStart(5, '0') : '00000';
-            const ncBusca = f.nro_comp ? f.nro_comp.toString().padStart(8, '0') : '00000000';
-            const compCompletoBusca = `${pvBusca}-${ncBusca}`;
-
-            if (txtBuscar) {
-                const term = txtBuscar.toLowerCase();
-
-                // 1. PRIMERO definimos la variable
-                let moduloNormalizado = (f.modulo || f.mod || "CD").toString().toUpperCase().trim();
-
-                // 2. DESPUÉS la usamos en la coincidencia
-                const coincidencia = 
-                    (f.receptor_nombre || "").toLowerCase().includes(term) || 
-                    (f.id_paciente || "").toLowerCase().includes(term) || 
-                    (f.receptor_cuit || "").toLowerCase().includes(term) || 
-                    compCompletoBusca.includes(term) || 
-                    String(f.nro_comp).includes(term) ||
-                    moduloNormalizado.toLowerCase().includes(term); // <--- Ahora sí funciona
-                
-                if (!coincidencia) cumpleFiltro = false;
+    // A. Análisis de Jineteo (Histórico)
+    Object.keys(cobros).forEach(id => {
+        if(facturas[id] && !String(facturas[id].nro_comp).includes('NC')) {
+            const fEmi = parseFecha(facturas[id].fecha_emision);
+            const fechaCobroRaw = cobros[id].fecha_pago || cobros[id].fecha;
+            const fCob = parseFecha(fechaCobroRaw);
+            const dias = Math.floor((fCob - fEmi) / 86400000);
+            
+            if (dias >= 0) {
+                const os = facturas[id].receptor_nombre || "SIN O.S.";
+                if(!statsJineteo[os]) statsJineteo[os] = { suma: 0, cant: 0 };
+                statsJineteo[os].suma += dias;
+                statsJineteo[os].cant++;
             }
+        }
+    });
 
-            // Filtro por Mes
-            if (mesFiltro && cumpleFiltro) {
-                const p = f.fecha_emision.split('/');
-                if (p.length === 3) {
-                    const mesAnioDoc = `${p[2]}-${p[1].padStart(2, '0')}`;
-                    if (mesAnioDoc !== mesFiltro) cumpleFiltro = false;
-                }
+    // --- ORDENAMIENTO CRONOLÓGICO SEGURO ---
+    // Pasamos las llaves a un array y las ordenamos por su Timestamp real antes de renderizar
+    const facturasOrdenadasIds = Object.keys(facturas).sort((a, b) => {
+        const fechaA = parseFecha(facturas[a].fecha_emision || "01/01/2000");
+        const fechaB = parseFecha(facturas[b].fecha_emision || "01/01/2000");
+        return fechaB - fechaA; // De más NUEVA a más VIEJA. Si querés al revés, poné: fechaA - fechaB
+    });
+
+    // B. Procesamiento de Facturas (Ahora usando el listado ordenado)
+    facturasOrdenadasIds.forEach(id => {
+        const f = facturas[id];
+        let cumpleFiltro = true;
+
+        const pvBusca = f.punto_venta ? f.punto_venta.toString().padStart(5, '0') : '00000';
+        const ncBusca = f.nro_comp ? f.nro_comp.toString().padStart(8, '0') : '00000000';
+        const compCompletoBusca = `${pvBusca}-${ncBusca}`;
+
+        if (txtBuscar) {
+            const term = txtBuscar.toLowerCase();
+            let moduloNormalizado = (f.modulo || f.mod || "CD").toString().toUpperCase().trim();
+
+            const coincidencia = 
+                (f.receptor_nombre || "").toLowerCase().includes(term) || 
+                (f.id_paciente || "").toLowerCase().includes(term) || 
+                (f.receptor_cuit || "").toLowerCase().includes(term) || 
+                compCompletoBusca.includes(term) || 
+                String(f.nro_comp).includes(term) ||
+                moduloNormalizado.toLowerCase().includes(term);
+            
+            if (!coincidencia) cumpleFiltro = false;
+        }
+
+        // Filtro por Mes
+        if (mesFiltro && cumpleFiltro) {
+            // Normalizamos la fecha primero para que el split funcione siempre con barras
+            const fechaNormalizada = formatearFechaEmision(f.fecha_emision);
+            const p = fechaNormalizada.split('/');
+            if (p.length === 3) {
+                const mesAnioDoc = `${p[2]}-${p[1].padStart(2, '0')}`;
+                if (mesAnioDoc !== mesFiltro) cumpleFiltro = false;
             }
+        }
 
-            if (!cumpleFiltro) return; 
-            // --- CÁLCULOS FINANCIEROS ---
-            f.netoCalc = calcularNetoFila(f, pIIBB, pGS, pMin);
-            const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
-            
-            const cobro = cobros[id] || null;
-            const pagado = cobro ? parseFloat(cobro.monto_cobrado || 0) : 0;
-            const debito = cobro ? parseFloat(cobro.monto_debito || 0) : 0; 
-            const saldo = esNC ? 0 : Math.max(0, f.netoCalc - pagado - debito); 
-            
-            const os = f.receptor_nombre || "SIN O.S.";
-            if (!agrupadoOS[os]) agrupadoOS[os] = { filas: [], totalPendienteOS: 0, moraMax: 0, fechaMasVieja: new Date(2100,0,1) };
+        if (!cumpleFiltro) return; 
 
-            const fEmi = parseFecha(f.fecha_emision);
-            const mora = Math.floor((hoy - fEmi) / 86400000);
-            const estaPagada = esNC || saldo <= 0.5;
-
-            // Filtro de "Solo Pendientes"
-            const verSoloPendientes = document.getElementById('filtroSoloPendientes').checked;
-            if (verSoloPendientes && estaPagada) return;
-
-            // --- LÓGICA DE ICONOS Y BOTÓN (REPARADA) ---
-            let iconoEstado = '⏳'; 
-            let mostrarBotonCobro = !esNC; 
-
-            if (!esNC) {
-                if (pagado > 0.5 || debito > 0.5) {
-                    if (saldo <= 0.5) {
-                        iconoEstado = '✅'; 
-                        mostrarBotonCobro = false; 
-                    } else {
-                        iconoEstado = '🟡'; // Pelotita Amarilla: hay cobro parcial
-                        mostrarBotonCobro = true; // La bolsa sigue habilitada
-                    }
-                }
-                if (mora >= 75 && saldo > 0.5) {
-                    iconoEstado = '🚨';
-                }
-            } else {
-                iconoEstado = '🔙'; 
-                mostrarBotonCobro = false; 
-            }
-			// --- FORMATEO DE NÚMEROS (Punto de Venta y Nro Comp) ---
-            const pv = f.punto_venta ? String(f.punto_venta).padStart(5, '0') : '00005';
-            const nc = f.nro_comp ? String(f.nro_comp).padStart(8, '0') : '00000000';
-            const comprobanteFormateado = `${pv}-${nc}`;
-
-            const tr = document.createElement('tr');
-			if (esNC) tr.className = "nc-row";
-            else if (!estaPagada && mora >= 75) tr.className = "alerta-mora";
-// --- 2. Armado de la fila ---
-tr.innerHTML = `
-    <td style="font-size:11px; font-weight:500;">${f.fecha_emision || ''}</td>
-    <td style="font-weight:bold; white-space:nowrap;">${esNC ? '🔙 NC' : (comprobanteFormateado || '')}</td>
-    <td style="font-weight:bold; color:${(mora || 0) >= 75 && (saldo || 0) > 0.5 ? '#c0392b' : '#333'}">${esNC ? '-' : (mora || 0) + ' d.'}</td>
-    <td style="text-align:left; font-size:11px"><b>${f.id_paciente || '---'}</b><br><span style="color:#7f8c8d">${f.receptor_cuit || ''}</span></td>
-    <td><span class="tag-mod">${f.modulo || 'CD'}</span></td>
-    
-    <td style="font-weight:bold; color:#2980b9">
-        $${(Number(f.netoCalc) || 0).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}
-    </td>    
-
-    <td>
-        <input type="number" step="0.01" 
-            value="${(f.retIIBB_manual !== undefined ? f.retIIBB_manual : (esNC ? 0 : ((Number(f.total) || 0) * (Number(pIIBB) || 0)))).toFixed(2)}" 
-            onchange="actualizarRetManual('${id}','retIIBB_manual',this.value)" class="input-ret">
-    </td>
-    
-    <td>
-        <input type="number" step="0.01" 
-            value="${(f.retGS_manual !== undefined ? f.retGS_manual : (esNC || (Number(f.total) || 0) < (Number(pMin) || 0) ? 0 : (Number(f.total) || 0) * (Number(pGS) || 0))).toFixed(2)}" 
-            onchange="actualizarRetManual('${id}','retGS_manual',this.value)" class="input-ret">
-    </td>
-
-    <td style="font-size:16px">${iconoEstado || ''}</td> 
-
-    <td>
-    <button onclick="eliminarFactura('${id}')" style="background:none;border:none;cursor:pointer;font-size:14px" title="Borrar">🗑️</button>
-    ${mostrarBotonCobro ? `<button onclick="registrarCobroFull('${id}', ${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Cobrar">💰</button>` : ''}
-   </td>
-    
-    <td style="font-weight:bold; color:#c0392b">${(saldo || 0) <= 0.5 ? '-' : '$' + (saldo || 0).toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
-    <td style="font-size:10px; color:#95a5a6">${cobro?.transferencia || '-'}</td>
-    <td style="font-weight:bold; color:#27ae60">
-        ${(pagado || 0) > 0 ? '$' + (pagado || 0).toLocaleString('es-AR') : '-'}
-        ${(debito || 0) > 0 ? `<br><small style="color:#e74c3c">(-$${(debito || 0).toLocaleString('es-AR')} DÉBITO)</small>` : ''}
-    </td>
-    <td style="font-size:10px; color:#e67e22; font-style:italic;">${cobro?.motivo_debito || '-'}</td> 
-`;
-   agrupadoOS[os].filas.push(tr);
-            
-            // --- DETECTOR ULTRA-LIMPIADOR (PARA EXCEL/IMPORTADOS) ---
-            
-            // 1. Limpiamos el saldo de CUALQUIER símbolo raro ($ , .) 
-            // para que sea un número real que JS pueda sumar.
-            let saldoLimpio = 0;
-            if (typeof saldo === 'number') {
-                saldoLimpio = saldo;
-            } else {
-                // Si viene como "$397.627,28", le sacamos todo y lo volvemos número
-                let s = String(saldo || "0").replace(/[^0-9,-]/g, '').replace(',', '.');
-                saldoLimpio = parseFloat(s) || 0;
-            }
-
-            
-            // --- ACUMULADORES ---
-           
-
-		// 2. Determinamos el Neto (para NC)
-			const netoLimpio = (typeof f.netoCalc === 'number') ? f.netoCalc : 0;
-            // Ranking OS
-            agrupadoOS[os].totalPendienteOS += (esNC ? netoLimpio : saldoLimpio);
-            
-            // Dashboard (Módulos y Cash Flow)
-            if (saldoLimpio > 0.5 || esNC) {
-                
-                const importeAReportar = esNC ? netoLimpio : saldoLimpio;
-                globalPendiente += importeAReportar;
-                
-                // --- Lógica de Módulos (Buscamos el texto CD, CET, etc) ---
-                let m = "CD"; // Por defecto
-                let infoFila = JSON.stringify(f).toUpperCase();
-
-                if (infoFila.includes("CET")) m = "CET";
-                else if (infoFila.includes("REHAB")) m = "REHAB";
-                else if (infoFila.includes("SAEI")) m = "SAEI";
-                // Si no es ninguno de esos, se queda como CD
-
-                if (!modulosNeto[m]) modulosNeto[m] = 0;
-                modulosNeto[m] += importeAReportar;
-                
-                if (!esNC) {
-                    if (mora > agrupadoOS[os].moraMax) agrupadoOS[os].moraMax = mora;
-                    if (fEmi < agrupadoOS[os].fechaMasVieja) agrupadoOS[os].fechaMasVieja = fEmi;
-                }
-            } 
-        }); 
-        // D. Renderizar Tabla Maestra
-        Object.keys(agrupadoOS).sort().forEach(os => {
-            if(agrupadoOS[os].filas.length === 0) return;
-            const trH = document.createElement('tr');
-            trH.innerHTML = `<td colspan="15" style="background:#ecf0f1; font-weight:bold; text-align:left; padding:8px 15px; border-left:4px solid var(--primary); font-size:13px;">
-                🏢 ${os} <span style="float:right; color:#c0392b">Pendiente OS: $${agrupadoOS[os].totalPendienteOS.toLocaleString('es-AR', {minimumFractionDigits:2})}</span></td>`;
-            tbodyM.appendChild(trH);
-            agrupadoOS[os].filas.forEach(fila => tbodyM.appendChild(fila));
-        });
-
+        // --- CÁLCULOS FINANCIEROS ---
+        f.netoCalc = calcularNetoFila(f, pIIBB, pGS, pMin);
+        const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
         
-        // E. Renderizar Flujo de Fondos (Ranking)
-	const ranking = Object.keys(agrupadoOS).filter(os => agrupadoOS[os].totalPendienteOS > 0.5)
+        const cobro = cobros[id] || null;
+        const pagado = cobro ? parseFloat(cobro.monto_cobrado || 0) : 0;
+        const debito = cobro ? parseFloat(cobro.monto_debito || 0) : 0; 
+        const saldo = esNC ? 0 : Math.max(0, f.netoCalc - pagado - debito); 
+        
+        const os = f.receptor_nombre || "SIN O.S.";
+        if (!agrupadoOS[os]) agrupadoOS[os] = { filas: [], totalPendienteOS: 0, moraMax: 0, fechaMasVieja: new Date(2100,0,1) };
+
+        const fEmi = parseFecha(f.fecha_emision);
+        const mora = Math.floor((hoy - fEmi) / 86400000);
+        const estaPagada = esNC || saldo <= 0.5;
+
+        // Filtro de "Solo Pendientes"
+        const verSoloPendientes = document.getElementById('filtroSoloPendientes').checked;
+        if (verSoloPendientes && estaPagada) return;
+
+        // --- LÓGICA DE ICONOS Y BOTÓN ---
+        let iconoEstado = '⏳'; 
+        let mostrarBotonCobro = !esNC; 
+
+        if (!esNC) {
+            if (pagado > 0.5 || debito > 0.5) {
+                if (saldo <= 0.5) {
+                    iconoEstado = '✅'; 
+                    mostrarBotonCobro = false; 
+                } else {
+                    iconoEstado = '🟡'; 
+                    mostrarBotonCobro = true; 
+                }
+            }
+            if (mora >= 75 && saldo > 0.5) {
+                iconoEstado = '🚨';
+            }
+        } else {
+            iconoEstado = '🔙'; 
+            mostrarBotonCobro = false; 
+        }
+
+        // --- FORMATEO DE COMPROBANTE Y DE LAS NUEVAS FECHAS ---
+        const pv = f.punto_venta ? String(f.punto_venta).padStart(5, '0') : '00005';
+        const nc = f.nro_comp ? String(f.nro_comp).padStart(8, '0') : '00000000';
+        const comprobanteFormateado = `${pv}-${nc}`;
+
+        // Damos vuelta las fechas del período que confirmamos que tenés en Firebase
+        let periodoTexto = 'Período S/D';
+        if (f.periodo_desde && f.periodo_hasta) {
+            const [aDesde, mDesde, dDesde] = f.periodo_desde.split('-');
+            const [aHasta, mHasta, dHasta] = f.periodo_hasta.split('-');
+            periodoTexto = `${dDesde}/${mDesde}/${aDesde} al ${dHasta}/${mHasta}/${aHasta}`;
+        }
+
+        // Armamos las variables de control para los comentarios
+        const tieneComentario = f.comentario && f.comentario.trim() !== "";
+        const colorComentario = tieneComentario ? "#27ae60" : "#95a5a6";
+        const iconoComentario = tieneComentario ? "💬" : "➕";
+        const tituloComentario = tieneComentario ? f.comentario : "Agregar comentario";
+
+        const tr = document.createElement('tr');
+        if (esNC) tr.className = "nc-row";
+        else if (!estaPagada && mora >= 75) tr.className = "alerta-mora";
+
+        // --- ARMADO DE LA FILA HTML CON LOS NUEVOS ELEMENTOS ---
+        tr.innerHTML = `
+            <td style="font-size:11px; font-weight:500;">${formatearFechaEmision(f.fecha_emision)}</td>
+            <td style="white-space:nowrap;">
+                <span style="font-weight:bold;">${esNC ? '🔙 NC' : comprobanteFormateado}</span>
+                <br>
+                <small style="color:#7f8c8d; font-size:10px;">${periodoTexto}</small>
+            </td>
+            <td style="font-weight:bold; color:${mora >= 75 && saldo > 0.5 ? '#c0392b' : '#333'}">${esNC ? '-' : mora + ' d.'}</td>
+            <td style="text-align:left; font-size:11px"><b>${f.id_paciente || '---'}</b><br><span style="color:#7f8c8d">${f.receptor_cuit || ''}</span></td>
+            <td><span class="tag-mod">${f.modulo || 'CD'}</span></td>
+            
+            <td style="font-weight:bold; color:#2980b9">
+                $${(Number(f.netoCalc) || 0).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}
+            </td>     
+
+            <td>
+                <input type="number" step="0.01" 
+                    value="${(f.retIIBB_manual !== undefined ? f.retIIBB_manual : (esNC ? 0 : ((Number(f.total) || 0) * (Number(pIIBB) || 0)))).toFixed(2)}" 
+                    onchange="actualizarRetManual('${id}','retIIBB_manual',this.value)" class="input-ret">
+            </td>
+            
+            <td>
+                <input type="number" step="0.01" 
+                    value="${(f.retGS_manual !== undefined ? f.retGS_manual : (esNC || (Number(f.total) || 0) < (Number(pMin) || 0) ? 0 : (Number(f.total) || 0) * (Number(pGS) || 0))).toFixed(2)}" 
+                    onchange="actualizarRetManual('${id}','retGS_manual',this.value)" class="input-ret">
+            </td>
+
+            <td style="font-size:16px">${iconoEstado || ''}</td> 
+
+            <td>
+                <button onclick="eliminarFactura('${id}')" style="background:none;border:none;cursor:pointer;font-size:14px" title="Borrar">🗑️</button>
+                ${mostrarBotonCobro ? `<button onclick="registrarCobroFull('${id}', ${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Cobrar">💰</button>` : ''}
+                
+                <!-- Botón de gestión de comentarios dinámico -->
+                <button onclick="gestionarComentario('${id}', '${tieneComentario ? f.comentario.replace(/'/g, "\\'") : ''}')" 
+                        style="background:none; border:none; cursor:pointer; font-size:14px; color:${colorComentario}" 
+                        title="${tituloComentario}">
+                    ${iconoComentario}
+                </button>
+            </td>
+            
+            <td style="font-weight:bold; color:#c0392b">${saldo <= 0.5 ? '-' : '$' + saldo.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+            <td style="font-size:10px; color:#95a5a6">${cobro?.transferencia || '-'}</td>
+            <td style="font-weight:bold; color:#27ae60">
+                ${pagado > 0 ? '$' + pagado.toLocaleString('es-AR') : '-'}
+                ${debito > 0 ? `<br><small style="color:#e74c3c">(-$${debito.toLocaleString('es-AR')} DÉBITO)</small>` : ''}
+            </td>
+            <td style="font-size:10px; color:#e67e22; font-style:italic;">${cobro?.motivo_debito || '-'}</td> 
+        `;
+        
+        agrupadoOS[os].filas.push(tr);
+        
+        let saldoLimpio = 0;
+        if (typeof saldo === 'number') {
+            saldoLimpio = saldo;
+        } else {
+            let s = String(saldo || "0").replace(/[^0-9,-]/g, '').replace(',', '.');
+            saldoLimpio = parseFloat(s) || 0;
+        }
+
+        const netoLimpio = (typeof f.netoCalc === 'number') ? f.netoCalc : 0;
+        agrupadoOS[os].totalPendienteOS += (esNC ? netoLimpio : saldoLimpio);
+        
+        if (saldoLimpio > 0.5 || esNC) {
+            const importeAReportar = esNC ? netoLimpio : saldoLimpio;
+            globalPendiente += importeAReportar;
+            
+            let m = "CD"; 
+            let infoFila = JSON.stringify(f).toUpperCase();
+
+            if (infoFila.includes("CET")) m = "CET";
+            else if (infoFila.includes("REHAB")) m = "REHAB";
+            else if (infoFila.includes("SAEI")) m = "SAEI";
+
+            if (!modulosNeto[m]) modulosNeto[m] = 0;
+            modulosNeto[m] += importeAReportar;
+            
+            if (!esNC) {
+                if (mora > agrupadoOS[os].moraMax) agrupadoOS[os].moraMax = mora;
+                if (fEmi < agrupadoOS[os].fechaMasVieja) agrupadoOS[os].fechaMasVieja = fEmi;
+            }
+        } 
+    }); 
+
+    // D. Renderizar Tabla Maestra
+    Object.keys(agrupadoOS).sort().forEach(os => {
+        if(agrupadoOS[os].filas.length === 0) return;
+        const trH = document.createElement('tr');
+        trH.innerHTML = `<td colspan="15" style="background:#ecf0f1; font-weight:bold; text-align:left; padding:8px 15px; border-left:4px solid var(--primary); font-size:13px;">
+            🏢 ${os} <span style="float:right; color:#c0392b">Pendiente OS: $${agrupadoOS[os].totalPendienteOS.toLocaleString('es-AR', {minimumFractionDigits:2})}</span></td>`;
+        tbodyM.appendChild(trH);
+        agrupadoOS[os].filas.forEach(fila => tbodyM.appendChild(fila));
+    });
+
+    // E. Renderizar Flujo de Fondos (Ranking)
+    const ranking = Object.keys(agrupadoOS).filter(os => agrupadoOS[os].totalPendienteOS > 0.5)
         .sort((a,b) => (statsJineteo[a]?.suma/statsJineteo[a]?.cant || 60) - (statsJineteo[b]?.suma/statsJineteo[b]?.cant || 60));
 
-	ranking.forEach((os, i) => {
-    	const prom = Math.round(statsJineteo[os]?.suma / statsJineteo[os]?.cant) || 60;
-    	const fEst = new Date(agrupadoOS[os].fechaMasVieja);
-    	fEst.setDate(fEst.getDate() + prom);
+    ranking.forEach((os, i) => {
+        const prom = Math.round(statsJineteo[os]?.suma / statsJineteo[os]?.cant) || 60;
+        const fEst = new Date(agrupadoOS[os].fechaMasVieja);
+        fEst.setDate(fEst.getDate() + prom);
     
-    	// Traemos la mora mas alta de esa Obra Social
-    	const moraMaxima = agrupadoOS[os].moraMax || 0; 
+        const moraMaxima = agrupadoOS[os].moraMax || 0; 
 
-    	const trF = document.createElement('tr');
-    	trF.innerHTML = `
+        const trF = document.createElement('tr');
+        trF.innerHTML = `
         <td style="text-align:left; font-size:11px;"><b>${i+1}. ${os}</b><br><small style="color:#7f8c8d">Demora prom: ${prom} d.</small></td>
         <td style="font-weight:bold; color:#2980b9">$${agrupadoOS[os].totalPendienteOS.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
         <td style="font-weight:bold; font-size:11px; background:#f9ebea;">📅 ${fEst.toLocaleDateString('es-AR')}</td>
         <td style="font-size:16px;">${moraMaxima >= 75 ? '🚨' : '🟢'}</td> `;
-    tbodyF.appendChild(trF);
-});
-         // F. Renderizar Módulos y Totales
-        let hMod = "";
-        for(let m in modulosNeto) {
-            hMod += `<div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:4px;">
-                <span class="tag-mod">${m}</span> <strong style="color:#333">$${modulosNeto[m].toLocaleString('es-AR')}</strong></div>`;
-        }
-        divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
-        document.getElementById('cashFlowNeto').innerText = `$ ${globalPendiente.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
-    }
+        tbodyF.appendChild(trF);
+    });
 
+    // F. Renderizar Módulos y Totales
+    let hMod = "";
+    for(let m in modulosNeto) {
+        hMod += `<div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:4px;">
+            <span class="tag-mod">${m}</span> <strong style="color:#333">$${modulosNeto[m].toLocaleString('es-AR')}</strong></div>`;
+    }
+    divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
+    document.getElementById('cashFlowNeto').innerText = `$ ${globalPendiente.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+}
     // --- 4. ACCIONES (COBROS, EDICIÓN, CARGA) ---
     async function registrarCobroFull(id, saldoActual) {
     const snap = await db.ref(`cobranzas/${id}`).once('value');
