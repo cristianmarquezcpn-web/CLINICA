@@ -849,7 +849,33 @@ auth.onAuthStateChanged((user) => {
         window.location.href = "index.html";
     }
 });    
+async function gestionarComentario(id, comentarioActual) {
+    let msg = comentarioActual 
+        ? `Comentario actual:\n"${comentarioActual}"\n\nModifique el texto o deje en blanco para eliminarlo:` 
+        : "Ingrese un comentario para esta factura:";
+        
+    let nuevoComentario = prompt(msg, comentarioActual || "");
+    if (nuevoComentario === null) return; // Cancelar
+    
+    nuevoComentario = nuevoComentario.trim();
 
+    // Actualizamos en cascada por si la factura está en el nodo general o en saei
+    const refGral = db.ref(`facturas_emitidas/${id}`);
+    const refSaei = db.ref(`facturas_emitidas_saei/${id}`);
+
+    const [snapGral, snapSaei] = await Promise.all([
+        refGral.once('value'),
+        refSaei.once('value')
+    ]);
+
+    // Si nuevoComentario está vacío, Firebase elimina el nodo automáticamente al pasarle null
+    const datosActualizar = { comentario: nuevoComentario || null };
+
+    if (snapGral.exists()) await refGral.update(datosActualizar);
+    if (snapSaei.exists()) await refSaei.update(datosActualizar);
+
+    renderizarTodo(); // Recarga la pantalla con el nuevo estado del ícono
+}
 </script>
 </body>
 </html>
