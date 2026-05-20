@@ -627,10 +627,35 @@ function cargarManual() {
     const cuitOS = prompt("🆔 CUIT de la Obra Social:", "");
     if (cuitOS === null) return; 
 
-    // 3. Fecha (Si cancelás, salís)
-    const fechaDefecto = new Date().toLocaleDateString('es-AR');
-    const fechaEmi = prompt("📅 Fecha de Emisión (DD/MM/AAAA):", fechaDefecto);
+    // Auxiliar para pasar DD/MM/AAAA a YYYY-MM-DD para Firebase
+    const formatearAISO = (textoFecha) => {
+        if (!textoFecha) return null;
+        const partes = textoFecha.trim().split('/');
+        if (partes.length === 3) {
+            const dia = partes[0].padStart(2, '0');
+            const mes = partes[1].padStart(2, '0');
+            const anio = partes[2];
+            return `${anio}-${mes}-${dia}`;
+        }
+        return textoFecha; // Retorna lo mismo si ya venía en formato correcto
+    };
+
+    const fechaHoy = new Date().toLocaleDateString('es-AR');
+
+    // 3. Fecha Emisión
+    const fechaEmi = prompt("📅 Fecha de Emisión (DD/MM/AAAA):", fechaHoy);
     if (!fechaEmi) return;
+    const fEmiISO = formatearAISO(fechaEmi);
+
+    // 3b. NUEVO: Período Desde
+    const pDesde = prompt("🗓️ Período de Prestación - DESDE (DD/MM/AAAA):", "01" + fechaHoy.slice(2));
+    if (pDesde === null) return;
+    const fDesdeISO = formatearAISO(pDesde);
+
+    // 3c. NUEVO: Período Hasta
+    const pHasta = prompt("🗓️ Período de Prestación - HASTA (DD/MM/AAAA):", fechaHoy);
+    if (pHasta === null) return;
+    const fHastaISO = formatearAISO(pHasta);
 
     // 4. Punto de Venta
     const ptoVta = prompt("📍 Punto de Venta (ej: 5):", "5");
@@ -644,29 +669,31 @@ function cargarManual() {
     const paciente = prompt("👤 Nombre del Paciente:", "");
     if (paciente === null) return;
 
-    // 7. Monto
+    // 7. Monto (Reemplaza coma por punto por si las dudas)
     const totalInput = prompt("💵 Monto Bruto Facturado (Total):", "0");
     if (totalInput === null) return;
-    const totalVal = parseFloat(totalInput);
+    const totalVal = parseFloat(totalInput.replace(',', '.')) || 0;
     
     // 8. Módulo
     const modElegido = prompt("📦 Módulo (CD / CET / REHAB / SAEI):", "CD");
     if (modElegido === null) return;
     const moduloFinal = modElegido.toUpperCase() || "CD";
 
-    // Grabación final
+    // Grabación final en Firebase
     db.ref('facturas_emitidas').push({
         receptor_nombre: os.toUpperCase(),
         receptor_cuit: cuitOS,
-        punto_venta: parseInt(ptoVta),
-        nro_comp: parseInt(nroFactura),
+        punto_venta: parseInt(ptoVta) || 5,
+        nro_comp: parseInt(nroFactura) || 0,
         id_paciente: paciente.toUpperCase(),
-        fecha_emision: fechaEmi,
+        fecha_emision: fEmiISO,
+        periodo_desde: fDesdeISO, // <-- GUARDADO
+        periodo_hasta: fHastaISO, // <-- GUARDADO
         total: totalVal,
         modulo: moduloFinal,
         tipo_comp: 11 
     }).then(() => {
-        alert("✅ Factura guardada correctamente");
+        alert("✅ Factura manual guardada con sus períodos.");
         renderizarTodo();
     });
 }
@@ -790,6 +817,10 @@ async function importarExcelMasivo(event) {
 
             const fEmiISO = formatearFecha(fila.FECHA_EMI) || "2025-01-01";
             const fCobroISO = formatearFecha(fila.FECHA_COBRO); 
+            
+            // Procesamos las nuevas columnas del período de prestación
+            const fDesdeISO = formatearFecha(fila.PERIODO_DESDE);
+            const fHastaISO = formatearFecha(fila.PERIODO_HASTA);
 
             // Usamos limpiarNum en lugar de parseFloat directo
             const total = limpiarNum(fila.TOTAL);
@@ -803,6 +834,8 @@ async function importarExcelMasivo(event) {
                 receptor_nombre: String(fila.OS || "S/D").toUpperCase(),
                 receptor_cuit: String(fila.CUIT || ""),
                 fecha_emision: fEmiISO,
+                periodo_desde: fDesdeISO, // <-- NUEVO
+                periodo_hasta: fHastaISO, // <-- NUEVO
                 punto_venta: parseInt(fila.PV) || 5,
                 nro_comp: parseInt(fila.NUMERO) || 0,
                 id_paciente: String(fila.PACIENTE || "S/D").toUpperCase(),
@@ -830,7 +863,7 @@ async function importarExcelMasivo(event) {
             }
         }
 
-        alert("✅ Importación limpia. Las comas se transformaron en puntos automáticamente.");
+        alert("✅ Importación limpia. Períodos cargados y comas corregidas.");
         location.reload(); 
     };
     reader.readAsArrayBuffer(file);
