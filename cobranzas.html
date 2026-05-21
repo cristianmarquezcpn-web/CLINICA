@@ -846,7 +846,6 @@ async function importarExcelMasivo(event) {
                 retGS_manual: rGS
             });
 		// --- 2. Grabar Cobranza ---
-
 // Escudo 1: No cobramos Notas de Crédito
 if (!esNC) {
     // Escudo 2: Verificamos si hay fecha de cobro y si es del 2025
@@ -864,9 +863,9 @@ if (!esNC) {
         });
     }
 }
-                    alert("✅ Importación limpia. Períodos cargados y comas corregidas.");
-        location.reload(); 
-    };
+alert("✅ Importación limpia. Períodos cargados y comas corregidas.");
+location.reload(); 
+};
     reader.readAsArrayBuffer(file);
 }
 auth.onAuthStateChanged((user) => {
@@ -883,6 +882,7 @@ auth.onAuthStateChanged((user) => {
         window.location.href = "index.html";
     }
 });    
+
 async function gestionarComentario(id, comentarioActual) {
     let msg = comentarioActual 
         ? `Comentario actual:\n"${comentarioActual}"\n\nModifique el texto o deje en blanco para eliminarlo:` 
@@ -910,9 +910,8 @@ async function gestionarComentario(id, comentarioActual) {
 
     renderizarTodo(); // Recarga la pantalla con el nuevo estado del ícono
 }
-// --- FUNCIÓN DE CORRECCIÓN AUTOMÁTICA DE IMPORTADOS ---
-// Esta función revisa todas las facturas y arregla las de 2025 con deuda.
 
+// --- FUNCIÓN DE CORRECCIÓN AUTOMÁTICA DE IMPORTADOS ---
 async function correccionAutomaticaImportados2025() {
     if (!confirm("⚠️ ¿Ejecutar corrección automática para facturas de 2025 con deuda? Esto arreglará la mora y el Cash Flow.")) return;
 
@@ -948,17 +947,14 @@ async function correccionAutomaticaImportados2025() {
             const neto = calcularNetoFila(f, pIIBB, pGS, pMin);
             const saldo = Math.max(0, neto - pagado - debito); 
             
-            // ¿Tiene deuda? (Usamos un margen para evitar errores de coma flotante)
+            // ¿Tiene deuda? 
             if (saldo > 0.5) {
-                // PROCEDEMOS A CORREGIR GRABANDO EL COBRO AUTOMÁTICO
                 contadorCorrecciones++;
                 
-                // El monto cobrado es el neto para que el saldo sea 0
                 const cobradoReal = neto;
 
-                // Grabamos en Firebase, indicando que el saldo es 0
                 await db.ref(`cobranzas/${id}`).set({
-                    fecha_pago: f.fecha_emision, // Usamos la misma fecha de emisión para el cobro
+                    fecha_pago: f.fecha_emision,
                     mes_cobro_index: f.fecha_emision.slice(0, 7),
                     monto_cobrado: cobradoReal,
                     monto_debito: 0,
@@ -969,7 +965,8 @@ async function correccionAutomaticaImportados2025() {
     }
 
     alert(`✅ Corrección terminada. Se arreglaron ${contadorCorrecciones} facturas con deuda. Mora y Cash Flow actualizados.`);
-    location.reload(); // Recargamos para que el usuario vea los cambios
+    location.reload(); 
+} // <--- Esta llave cerraba la función que faltaba
 </script>
 </body>
 </html>
