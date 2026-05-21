@@ -348,7 +348,7 @@ if (!firebase.apps.length) {
         if (!agrupadoOS[os]) agrupadoOS[os] = { filas: [], totalPendienteOS: 0, moraMax: 0, fechaMasVieja: new Date(2100,0,1) };
 
         const fEmi = parseFecha(f.fecha_emision);
-        const mora = Math.floor((hoy - fEmi) / 86400000);
+        const mora = (esNC || saldo <= 0.5) ? 0 : Math.floor((hoy - fEmi) / 86400000);
         const estaPagada = esNC || saldo <= 0.5;
 
         // Filtro de "Solo Pendientes"
@@ -408,7 +408,7 @@ if (!firebase.apps.length) {
                 <br>
                 <small style="color:#7f8c8d; font-size:10px;">${periodoTexto}</small>
             </td>
-            <td style="font-weight:bold; color:${mora >= 75 && saldo > 0.5 ? '#c0392b' : '#333'}">${esNC ? '-' : mora + ' d.'}</td>
+            <td style="font-weight:bold; color:${mora >= 75 && saldo > 0.5 ? '#c0392b' : '#333'}">${estaPagada ? '-' : mora + ' d.'}</td>
             <td style="text-align:left; font-size:11px"><b>${f.id_paciente || '---'}</b><br><span style="color:#7f8c8d">${f.receptor_cuit || ''}</span></td>
             <td><span class="tag-mod">${f.modulo || 'CD'}</span></td>
             
@@ -845,27 +845,27 @@ async function importarExcelMasivo(event) {
                 retIIBB_manual: rIIBB,
                 retGS_manual: rGS
             });
-		// --- 2. Grabar Cobranza ---
-// Escudo 1: No cobramos Notas de Crédito
-if (!esNC) {
-    // Escudo 2: Verificamos si hay fecha de cobro y si es del 2025
-    if (fCobroISO && fCobroISO.startsWith('2025')) {
-        // En la importación, el saldo ya es 0, así que el monto cobrado es el neto.
-        const cobradoReal = total - rIIBB - rGS;
 
-        // Grabamos en Firebase, indicando que el saldo es 0
-        await db.ref(`cobranzas/${id}`).set({
-            fecha_pago: fCobroISO,
-            mes_cobro_index: fCobroISO.slice(0, 7),
-            monto_cobrado: cobradoReal,
-            monto_debito: 0, // En la importación no registramos débitos
-            transferencia: String(fila.TRANSFERENCIA || "IMPORTACIÓN MASIVA")
-        });
-    }
-}
-alert("✅ Importación limpia. Períodos cargados y comas corregidas.");
-location.reload(); 
-};
+            // 2. Grabar Cobranza
+            if (!esNC && fCobroISO) {
+                // Aquí también limpiamos el monto del banco
+                const montoBanco = limpiarNum(fila.MONTO_RECIBIDO_BANCO);
+                const cobradoReal = montoBanco > 0 ? montoBanco : (total - rIIBB - rGS - debito);
+                
+                await db.ref(`cobranzas/${id}`).set({
+                    fecha_pago: fCobroISO,
+                    mes_cobro_index: fCobroISO.slice(0, 7),
+                    monto_cobrado: cobradoReal,
+                    monto_debito: debito,
+                    motivo_debito: String(fila.MOTIVO_DEBITO || ""),
+                    transferencia: String(fila.TRANSFERENCIA || "IMPORTACIÓN MASIVA")
+                });
+            }
+        }
+
+        alert("✅ Importación limpia. Períodos cargados y comas corregidas.");
+        location.reload(); 
+    };
     reader.readAsArrayBuffer(file);
 }
 auth.onAuthStateChanged((user) => {
@@ -882,7 +882,6 @@ auth.onAuthStateChanged((user) => {
         window.location.href = "index.html";
     }
 });    
-
 async function gestionarComentario(id, comentarioActual) {
     let msg = comentarioActual 
         ? `Comentario actual:\n"${comentarioActual}"\n\nModifique el texto o deje en blanco para eliminarlo:` 
@@ -910,8 +909,6 @@ async function gestionarComentario(id, comentarioActual) {
 
     renderizarTodo(); // Recarga la pantalla con el nuevo estado del ícono
 }
-
-// --- FUNCIÓN DE CORRECCIÓN AUTOMÁTICA DE IMPORTADOS ---
 async function correccionAutomaticaImportados2025() {
     if (!confirm("⚠️ ¿Ejecutar corrección automática para facturas de 2025 con deuda? Esto arreglará la mora y el Cash Flow.")) return;
 
@@ -966,7 +963,7 @@ async function correccionAutomaticaImportados2025() {
 
     alert(`✅ Corrección terminada. Se arreglaron ${contadorCorrecciones} facturas con deuda. Mora y Cash Flow actualizados.`);
     location.reload(); 
-} // <--- Esta llave cerraba la función que faltaba
+}
 </script>
 </body>
-</html>
+</html>      
