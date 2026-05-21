@@ -845,25 +845,26 @@ async function importarExcelMasivo(event) {
                 retIIBB_manual: rIIBB,
                 retGS_manual: rGS
             });
+		// --- 2. Grabar Cobranza ---
 
-            // 2. Grabar Cobranza
-            if (!esNC && fCobroISO) {
-                // Aquí también limpiamos el monto del banco
-                const montoBanco = limpiarNum(fila.MONTO_RECIBIDO_BANCO);
-                const cobradoReal = montoBanco > 0 ? montoBanco : (total - rIIBB - rGS - debito);
-                
-                await db.ref(`cobranzas/${id}`).set({
-                    fecha_pago: fCobroISO,
-                    mes_cobro_index: fCobroISO.slice(0, 7),
-                    monto_cobrado: cobradoReal,
-                    monto_debito: debito,
-                    motivo_debito: String(fila.MOTIVO_DEBITO || ""),
-                    transferencia: String(fila.TRANSFERENCIA || "IMPORTACIÓN MASIVA")
-                });
-            }
-        }
+// Escudo 1: No cobramos Notas de Crédito
+if (!esNC) {
+    // Escudo 2: Verificamos si hay fecha de cobro y si es del 2025
+    if (fCobroISO && fCobroISO.startsWith('2025')) {
+        // En la importación, el saldo ya es 0, así que el monto cobrado es el neto.
+        const cobradoReal = total - rIIBB - rGS;
 
-        alert("✅ Importación limpia. Períodos cargados y comas corregidas.");
+        // Grabamos en Firebase, indicando que el saldo es 0
+        await db.ref(`cobranzas/${id}`).set({
+            fecha_pago: fCobroISO,
+            mes_cobro_index: fCobroISO.slice(0, 7),
+            monto_cobrado: cobradoReal,
+            monto_debito: 0, // En la importación no registramos débitos
+            transferencia: String(fila.TRANSFERENCIA || "IMPORTACIÓN MASIVA")
+        });
+    }
+}
+                    alert("✅ Importación limpia. Períodos cargados y comas corregidas.");
         location.reload(); 
     };
     reader.readAsArrayBuffer(file);
@@ -909,6 +910,67 @@ async function gestionarComentario(id, comentarioActual) {
 
     renderizarTodo(); // Recarga la pantalla con el nuevo estado del ícono
 }
+// --- FUNCIÓN DE CORRECCIÓN AUTOMÁTICA DE IMPORTADOS ---
+// Esta función revisa todas las facturas y arregla las de 2025 con deuda.
+
+async function correccionAutomaticaImportados2025() {
+    if (!confirm("⚠️ ¿Ejecutar corrección automática para facturas de 2025 con deuda? Esto arreglará la mora y el Cash Flow.")) return;
+
+    // 1. Cargamos parámetros financieros actuales
+    const pIIBB = parseFloat(document.getElementById('pIIBB').value || 0) / 100;
+    const pGS = parseFloat(document.getElementById('pGS').value || 0) / 100;
+    const pMin = parseFloat(document.getElementById('pMinimo').value || 0);
+
+    // 2. Cargamos facturas y cobranzas
+    const [snapGral, snapSaei, snapCobros] = await Promise.all([
+        db.ref('facturas_emitidas').once('value'),
+        db.ref('facturas_emitidas_saei').once('value'),
+        db.ref('cobranzas').once('value')
+    ]);
+
+    const facturas = { ... (snapGral.val() || {}), ... (snapSaei.val() || {}) };
+    const cobros = snapCobros.val() || {};
+
+    let contadorCorrecciones = 0;
+
+    // 3. Revisamos una por una
+    for (const id in facturas) {
+        const f = facturas[id];
+        const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
+        
+        // FILTRO CLAVE: ¿Es de 2025 y NO es Nota de Crédito?
+        if (f.fecha_emision && f.fecha_emision.startsWith('2025') && !esNC) {
+            const cobro = cobros[id] || null;
+            const pagado = cobro ? parseFloat(cobro.monto_cobrado || 0) : 0;
+            const debito = cobro ? parseFloat(cobro.monto_debito || 0) : 0; 
+            
+            // Calculamos saldo real
+            const neto = calcularNetoFila(f, pIIBB, pGS, pMin);
+            const saldo = Math.max(0, neto - pagado - debito); 
+            
+            // ¿Tiene deuda? (Usamos un margen para evitar errores de coma flotante)
+            if (saldo > 0.5) {
+                // PROCEDEMOS A CORREGIR GRABANDO EL COBRO AUTOMÁTICO
+                contadorCorrecciones++;
+                
+                // El monto cobrado es el neto para que el saldo sea 0
+                const cobradoReal = neto;
+
+                // Grabamos en Firebase, indicando que el saldo es 0
+                await db.ref(`cobranzas/${id}`).set({
+                    fecha_pago: f.fecha_emision, // Usamos la misma fecha de emisión para el cobro
+                    mes_cobro_index: f.fecha_emision.slice(0, 7),
+                    monto_cobrado: cobradoReal,
+                    monto_debito: 0,
+                    transferencia: "CORRECCIÓN AUTOMÁTICA SISTEMA"
+                });
+            }
+        }
+    }
+
+    alert(`✅ Corrección terminada. Se arreglaron ${contadorCorrecciones} facturas con deuda. Mora y Cash Flow actualizados.`);
+    location.reload(); // Recargamos para que el usuario vea los cambios
+}	
 </script>
 </body>
 </html>
