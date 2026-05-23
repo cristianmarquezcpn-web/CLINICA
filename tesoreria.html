@@ -122,6 +122,18 @@
     };
 
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    // Agregá esto justo después de firebase.initializeApp
+    firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    
+    // En lugar de llamar a conectarMes() directamente al final, usá el listener de auth
+firebase.auth().onAuthStateChanged((user) => {
+    if (user) {
+        console.log("Sesión detectada:", user.email);
+        conectarMes(); // Ahora sí, llamás a la función solo cuando el usuario existe
+    } else {
+        console.log("Esperando autenticación...");
+    }
+});
     const db = firebase.database();
     
     let refMes = null; 
