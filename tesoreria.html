@@ -239,10 +239,22 @@ async function proyectarTodo() {
 
     let acumuladorIngresos = { 1: {}, 2: {}, 3: {}, 4: {} };
 
-    Object.keys(todasLasFacturas).forEach(id => {
-        const f = todasLasFacturas[id];
-        const cobro = cobranzas[id];
-        if (!f || (cobro && cobro.estado === 'COBRADO')) return;
+    // Dentro de tu forEach en proyectarTodo:
+Object.keys(todasLasFacturas).forEach(id => {
+    const f = todasLasFacturas[id];
+    const cobro = cobranzas[id];
+    
+    const totalFactura = parseFloat(f.total || f.monto || 0);
+    
+    // Conciliación aritmética: sumamos todo lo que reduce la deuda
+    const cobrado = cobro ? parseFloat(cobro.monto_cobrado || 0) : 0;
+    const debito = cobro ? parseFloat(cobro.monto_debito || 0) : 0;
+    
+    // El saldo real es el total menos los pagos y los ajustes/débitos
+    const saldoPendiente = totalFactura - (cobrado + debito);
+
+    // Si el saldo es menor o igual a 0, significa que la factura está saldada o ajustada
+    if (saldoPendiente <= 0) return; 
 
         const inteligencia = motorGlobal.inteligencia_cuit || [];
         const estudio = inteligencia.find(i => i.cuit === f.receptor_cuit);
