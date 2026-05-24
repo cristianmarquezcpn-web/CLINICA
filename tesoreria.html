@@ -7,6 +7,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         :root { 
@@ -65,8 +66,9 @@
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <input type="month" id="mesFiltro" onchange="conectarMes()" style="width:auto; margin:0;">
         <button class="btn" onclick="dispararMotorTitanium()" style="background:var(--oro); color:black; width:auto; padding:0 20px;">⚡ SINCRO</button>
-        <button class="btn" onclick="window.location.href='reporte.html'" style="background:var(--p); color:white; width:auto; padding:0 20px;">📄 INFORME</button>
+        <button class="btn" onclick="generarInformeJunta()" style="background:var(--p); color:white; width:auto; padding:0 20px;">📄 INFORME</button>
         <button class="btn" onclick="window.location.reload()" style="background:#475569; color:white; width:auto; padding:0 20px;">🔄 RECONECTAR</button>
+        <button onclick="window.location.href='index.html'" style="background: transparent; border: 1px solid #374151; color: #94a3b8; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 11px;">← VOLVER</button>
     </div>
 </div>
 
@@ -76,6 +78,12 @@
             <h3>🏦 Saldo Inicial</h3>
             <input type="number" id="bancoGalicia" placeholder="Caja Galicia" onchange="guardarBancos()">
             <input type="number" id="bancoSantander" placeholder="Caja Santander" onchange="guardarBancos()">
+        </div>
+        <div class="card">
+            <h3>💸 Gastos Operativos</h3>
+            <div id="contGastos"></div>
+            <button class="btn" style="background:#1f2937" onclick="nuevaCategoria()">+ RUBRO</button>
+        </div>
         </div>
         <div class="card">
             <h3>📊 Resumen de Salud</h3>
@@ -155,7 +163,24 @@ function guardarBancos() {
     const mes = document.getElementById('mesFiltro').value;
     if(mes) db.ref('tesoreria/meses/' + mes + '/bancos').set({ galicia: gal, santander: san });
 }
-
+function calcularDelayPromedio(data) {
+    if (!data || !data.inteligencia_cuit) return 0;
+    
+    let totalDelay = 0;
+    let totalDeuda = 0;
+    
+    Object.keys(data.inteligencia_cuit).forEach(cuit => {
+        const d = data.inteligencia_cuit[cuit];
+        // Asumiendo que cada objeto tiene 'delay' y 'deuda_viva'
+        const delay = d.delay || 0;
+        const deuda = d.deuda_viva || 0;
+        
+        totalDelay += (delay * deuda);
+        totalDeuda += deuda;
+    });
+    
+    return totalDeuda > 0 ? Math.round(totalDelay / totalDeuda) : 0;
+}
 async function simularImpacto() {
     const montoSimulado = parseFloat(document.getElementById('simMonto').value) || 0;
     const mesesSimulados = parseInt(document.getElementById('simMeses').value) || 1;
@@ -203,11 +228,14 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
     const salud = document.getElementById('saludNegocio');
     if (salud) {
         salud.innerHTML = `
-            <div style="padding:10px; background:#000; border-radius:8px; border:1px solid #374151; font-size:12px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Ratio Liquidez:</span> <b>${(diag.ratio_liquidez || 0).toLocaleString()}</b></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Riesgo Concent.:</span> <b>${(diag.riesgo_concentracion || 0).toFixed(0)}</b></div>
-                <div style="display:flex; justify-content:space-between;"><span>Precisión IA:</span> <b style="color:var(--p)">${((diag.accuracy_history || 0) * 100).toFixed(0)}%</b></div>
-            </div>`;
+           `<div style="padding:10px; background:#000; border-radius:8px; border:1px solid #374151; font-size:12px;">
+    <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Ratio Liquidez:</span> <b>${(diag.ratio_liquidez || 0).toLocaleString()}</b></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Riesgo Concent.:</span> <b>${(diag.riesgo_concentracion || 0).toFixed(0)}</b></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Precisión IA:</span> <b style="color:var(--p)">${((diag.accuracy_history || 0) * 100).toFixed(0)}%</b></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Calle:</span> <b>$${(rep.calle || 0).toLocaleString()}</b></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Esperado:</span> <b>$${(rep.esperado || 0).toLocaleString()}</b></div>
+    <div style="display:flex; justify-content:space-between;"><span>Delay Hist.:</span> <b style="color:var(--ac)">${calcularDelayPromedio(window.motorGlobal)} días</b></div>
+    </div>`
     }
 
     const econ = document.getElementById('dataEconomica');
@@ -236,6 +264,7 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
     if (typeof renderizarDashboardTopeDeGama === 'function') renderizarDashboardTopeDeGama();
 });
 
+// 1. AJUSTE DE TARJETA (Nombres visibles y prioritarios)
 function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
     if (!motorGlobal.inteligencia_cuit) {
@@ -243,62 +272,96 @@ function renderizarDashboardTopeDeGama() {
         return;
     }
 
-    const cuits = Object.keys(motorGlobal.inteligencia_cuit).sort((a, b) => 
-        (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0)
-    );
+    const cuits = Object.keys(motorGlobal.inteligencia_cuit);
+    
+    // 1. CALCULAMOS EL PROMEDIO REAL DE LA CARTERA PARA USARLO DE UMBRAL
+    const totalDelay = cuits.reduce((acc, cuit) => acc + (motorGlobal.inteligencia_cuit[cuit].delay_estimado || 0), 0);
+    const promedioCartera = totalDelay / cuits.length;
 
-    let html = '';
+    // 2. ORDENAMOS POR DEUDA VIVA
+    cuits.sort((a, b) => (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0));
+
+    let html = `<style>.tarjeta-resumen:hover { background: #1e293b !important; }</style>`;
+
     cuits.forEach(cuit => {
         const d = motorGlobal.inteligencia_cuit[cuit];
-        const colorBorde = d.delay_estimado > 60 ? 'var(--a)' : 'var(--p)';
+        
+        // 3. USAMOS EL PROMEDIO DINÁMICO EN LUGAR DEL "60" FIJO
+        const colorBorde = d.delay_estimado > promedioCartera ? 'var(--rojo)' : 'var(--verde)';
         
         html += `
-        <div style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:4px; border-radius:0 4px 4px 0; display:flex; justify-content:space-between; align-items:center;">
-            <input type="checkbox" class="selector-cliente" data-deuda="${d.deuda_viva || 0}" style="width:15px; margin:0 10px 0 0;">
-            <span onclick="abrirModalDetalle('${cuit}')" style="cursor:pointer; font-size:11px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">${d.nombre_fantasia || cuit}</span>
-            <b style="font-size:11px; color:var(--p);">$${(d.deuda_viva / 1000).toFixed(0)}k</b>
+        <div class="tarjeta-resumen" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:4px; border-radius:0 4px 4px 0; cursor:pointer; display:flex; justify-content:space-between; align-items:center; min-height:40px;" 
+             onclick="abrirModalDetalle('${cuit}')">
+            <span style="font-size:11px; color:#fff; flex:1; margin-right:10px; line-height:1.2;">${d.nombre_fantasia || cuit}</span>
+            <b style="font-size:11px; color:var(--verde); flex-shrink:0;">$${(d.deuda_viva / 1000).toFixed(0)}k</b>
         </div>`;
     });
     contenedor.innerHTML = html;
 }
-
+// 2. MODAL CON LÓGICA DE COLOR DINÁMICO
 function abrirModalDetalle(cuit) {
     const d = motorGlobal.inteligencia_cuit[cuit];
     const modal = document.getElementById('modalDetalle');
-    const proxCobro = (d.facturas_pendientes && d.facturas_pendientes.length > 0) ? d.facturas_pendientes[0].proximo_cobro_estimado : "N/A";
+    
+    // Cálculo para alerta visual de vencimiento
+    const facturas = d.facturas_pendientes || [];
+    const fechaProxima = facturas.length > 0 ? facturas[0].proximo_cobro_estimado : "N/A";
+    const estaVencido = fechaProxima !== "N/A" && new Date(fechaProxima) < new Date();
+    
+    // Asignación de colores según estado
+    const colorScore = d.score < 50 ? 'var(--rojo)' : 'var(--verde)';
+    const colorFecha = estaVencido ? 'var(--rojo)' : 'var(--verde)';
 
     modal.innerHTML = `
     <div class="modal-contenido">
         <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-            <h3 style="margin:0; color:var(--ac);">${d.nombre_fantasia}</h3>
+            <h3 style="margin:0; color:var(--acento); word-break:break-word;">${d.nombre_fantasia}</h3>
             <button onclick="document.getElementById('modalDetalle').style.display='none'" style="background:none; border:none; color:white; cursor:pointer;">❌ CERRAR</button>
         </div>
-        
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; border-bottom:1px solid #334155; padding-bottom:15px;">
-            <div><small style="color:#666;">DEUDA VIVA</small><div>$${d.deuda_viva.toLocaleString()}</div></div>
-            <div><small style="color:#666;">PRÓXIMO COBRO</small><div style="color:var(--p);">${proxCobro}</div></div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; border-bottom:1px solid #334155; padding-bottom:15px; margin-bottom:15px;">
+            <div title="Dinero total pendiente de cobro">
+                <small style="color:#666; font-size:10px;">DEUDA VIVA</small>
+                <div style="font-size:18px;">$${d.deuda_viva.toLocaleString(undefined, {maximumFractionDigits:0})}</div>
+            </div>
+            <div title="Próxima fecha estimada de ingreso">
+                <small style="color:#666; font-size:10px;">PRÓXIMO COBRO</small>
+                <div style="color:${colorFecha}; font-weight:bold; font-size:18px;">${fechaProxima} ${estaVencido ? '⚠️' : ''}</div>
+            </div>
         </div>
 
-        <div style="margin-top:20px; display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">
-            <div style="background:#1e293b; padding:10px; border-radius:4px;">
-                <small style="font-size:9px; color:#94a3b8;">OFFSET (Días)</small>
-                <div style="font-size:16px;">${d.alerta_analitica.dias_de_offset}</div>
+        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-bottom:20px;">
+            <div style="background:#1e293b; padding:10px; border-radius:4px;" title="Días promedio de demora en los pagos de este cliente">
+                <small style="font-size:9px; color:#94a3b8;">DELAY EST.</small>
+                <div style="font-size:14px; color: ${d.delay_estimado > 60 ? 'var(--rojo)' : 'var(--verde)'}">${d.delay_estimado} días</div>
             </div>
-            <div style="background:#1e293b; padding:10px; border-radius:4px;">
+            <div style="background:#1e293b; padding:10px; border-radius:4px;" title="Puntuación de confiabilidad de la IA (0-100)">
                 <small style="font-size:9px; color:#94a3b8;">SCORE IA</small>
-                <div style="font-size:16px; color:${d.score < 50 ? 'var(--a)' : 'var(--p)'}">${d.score}</div>
+                <div style="font-size:14px; color:${colorScore}">${d.score}</div>
             </div>
-            <div style="background:#1e293b; padding:10px; border-radius:4px;">
+            <div style="background:#1e293b; padding:10px; border-radius:4px;" title="Dirección de la conducta de pago reciente">
                 <small style="font-size:9px; color:#94a3b8;">TENDENCIA</small>
-                <div style="font-size:16px;">${d.tendencia_admin}</div>
+                <div style="font-size:14px;">${d.tendencia_admin}</div>
             </div>
         </div>
-        <p style="font-size:11px; color:#666; margin-top:15px;">Nota: ${d.alerta_analitica.nota}</p>
+
+        <div style="background:#0f172a; padding:10px; border-radius:4px; font-size:11px; border:1px solid #334155;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                <span>Efectividad histórica:</span> <b>${(d.efectividad * 100).toFixed(0)}%</b>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                <span>Patrón de conducta:</span> <b>${d.patron}</b>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+                <span>Offset aplicado:</span> <b>${d.alerta_analitica.dias_de_offset} días</b>
+            </div>
+            <p style="color:#666; margin-top:10px; font-style:italic;">Nota: ${d.alerta_analitica.nota}</p>
+        </div>
     </div>`;
+    
     modal.style.display = 'block';
 }
-
-async function ejecutarStressTest() {
+    async function ejecutarStressTest() {
     const seleccionados = document.querySelectorAll('.selector-cliente:checked');
     let impactoTotal = 0;
     seleccionados.forEach(chk => impactoTotal += parseFloat(chk.dataset.deuda || 0));
@@ -363,28 +426,42 @@ async function conectarMes() {
     });
 }
 
+// 1. FUNCIÓN PARA PROYECTAR Y RENDERIZAR SEMANAS
 async function proyectarTodo() {
     try {
         const mesSeleccionado = document.getElementById('mesFiltro').value;
         if (!mesSeleccionado || !motorGlobal.inteligencia_cuit) return;
 
-        let saldoAcumulado = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
+        const hoy = new Date();
+        const mesActualStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+        const diaActual = hoy.getDate();
+        const semanaActual = Math.ceil(diaActual / 7);
+
+        let saldoAcumulado = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + 
+                             (parseFloat(document.getElementById('bancoSantander').value) || 0);
+        
         let ingS = { 1: 0, 2: 0, 3: 0, 4: 0 };
         let gasS = { 1: 0, 2: 0, 3: 0, 4: 0 };
         let detG = { 1: [], 2: [], 3: [], 4: [] };
         let acumuladorIngresos = { 1: {}, 2: {}, 3: {}, 4: {} };
 
-        Object.keys(motorGlobal.inteligencia_cuit).forEach(cuit => {
-            const cliente = motorGlobal.inteligencia_cuit[cuit];
+        // Procesar Ingresos
+        const inteligencia = motorGlobal.inteligencia_cuit;
+        Object.keys(inteligencia).forEach(cuit => {
+            const cliente = inteligencia[cuit];
             if (!cliente.facturas_pendientes) return;
+
             cliente.facturas_pendientes.forEach(f => {
                 const fechaCobro = f.proximo_cobro_estimado;
                 if (!fechaCobro) return;
+
                 const [y, m, d] = fechaCobro.split('-').map(Number);
                 const mesC = `${y}-${String(m).padStart(2, '0')}`;
+                
                 if (mesC === mesSeleccionado) {
                     const s = Math.min(Math.ceil(d / 7), 4);
                     const nombre = cliente.nombre_fantasia || "CLIENTE";
+                    
                     if (!acumuladorIngresos[s][nombre]) acumuladorIngresos[s][nombre] = { monto: 0 };
                     acumuladorIngresos[s][nombre].monto += (f.monto || 0);
                     ingS[s] += (f.monto || 0);
@@ -392,40 +469,70 @@ async function proyectarTodo() {
             });
         });
 
+        // Procesar Gastos
         const snapGastos = await db.ref('configuracion/gastos_recurrentes').once('value');
         const gastosMaestros = snapGastos.val() || {};
-        
+
         Object.keys(gastosMaestros).forEach(cat => {
             const rubro = gastosMaestros[cat];
             const itemsGasto = rubro.items ? Object.values(rubro.items) : [];
+            
             itemsGasto.forEach(g => {
                 if (g.desde && mesSeleccionado < g.desde) return; 
                 if (g.hasta && mesSeleccionado > g.hasta) return;
                 if (!g.monto || parseFloat(g.monto) <= 0) return;
+                
                 let sG = g.dia_pago ? Math.min(Math.ceil(g.dia_pago / 7), 4) : 1;
                 const monto = parseFloat(g.monto);
                 gasS[sG] += monto;
-                detG[sG].push(`<div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5;"><span>📉 ${rubro.nombre ? rubro.nombre.substring(0,8) : 'Gasto'}</span><span>$${Math.round(monto/1000)}k</span></div>`);
+                
+                detG[sG].push(`
+                    <div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5; margin-bottom:2px;">
+                        <span>📉 ${rubro.nombre ? rubro.nombre.substring(0,8) : 'Gasto'}</span>
+                        <span>$${Math.round(monto/1000)}k</span>
+                    </div>
+                `);
             });
         });
 
         window.ingresosSemanales = acumuladorIngresos;
         window.detallesSemanales = detG;
+
+        // Renderizado
         const grid = document.getElementById('gridSemanas');
         if (grid) {
             grid.innerHTML = "";
             for (let i = 1; i <= 4; i++) {
                 saldoAcumulado += (ingS[i] - gasS[i]);
+                const esPasado = (mesSeleccionado < mesActualStr) || (mesSeleccionado === mesActualStr && i < semanaActual);
+                const estiloFondo = esPasado ? "background: #0b0e14; opacity: 0.7; border-top: 3px solid #374151;" : `border-top: 3px solid ${saldoAcumulado < 0 ? 'var(--rojo)':'var(--verde)'};`;
+
+                let htmlIngresos = Object.keys(acumuladorIngresos[i]).map(nombre => {
+                    const pct = ingS[i] > 0 ? ((acumuladorIngresos[i][nombre].monto / ingS[i]) * 100).toFixed(0) : 0;
+                    return `
+                        <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:2px; align-items:center;">
+                            <span title="${nombre}" style="${esPasado ? 'color:#4b5563' : 'color:var(--acento)'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60px;">${nombre}</span>
+                            <span style="opacity:0.5; font-size:8px;">${pct}%</span>
+                            <span style="font-weight:bold;">$${Math.round(acumuladorIngresos[i][nombre].monto/1000)}k</span>
+                        </div>`;
+                }).join('');
+
                 grid.innerHTML += `
-                <div class="sem-card" style="border-top: 3px solid ${saldoAcumulado < 0 ? 'var(--a)':'var(--p)'}; background:var(--panel); padding:10px; border-radius:8px;" onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)})">
-                    <div style="font-size:10px; color:var(--ac);">Semana ${i}</div>
-                    <div style="font-size:14px; font-weight:bold; color:${saldoAcumulado < 0 ? 'var(--a)' : 'var(--p)'}">$${Math.round(saldoAcumulado).toLocaleString()}</div>
+                <div class="sem-card" style="${estiloFondo} background:#111827; padding:10px; border-radius:4px; cursor:pointer;" onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)})">
+                    <div class="etiqueta-sem" style="font-size:10px; color:#94a3b8;">Semana ${i} ${esPasado ? '• CERRADA' : '• ACTIVA'}</div>
+                    <div class="monto-semanal" style="font-size:16px; font-weight:bold; ${esPasado ? 'color:#4b5563' : (saldoAcumulado < 0 ? 'color:var(--rojo)' : 'color:var(--verde)')}">
+                        $${Math.round(saldoAcumulado).toLocaleString()}
+                    </div>
+                    <div style="margin-top:10px; border-top: 1px solid #1f2937; padding-top: 10px;">
+                        <div style="max-height:80px; overflow-y:auto;">${htmlIngresos}${detG[i].join('')}</div>
+                    </div>
                 </div>`;
             }
         }
-    } catch (e) { console.error(e); }
+    } catch (error) { console.error("Error:", error); }
 }
 
+// 2. MODAL DETALLE SEMANAL
 window.abrirDetalleSemana = function(numSemana, saldoSem) {
     const modal = document.getElementById('modalSemana');
     const contenido = document.getElementById('contenidoModal');
@@ -434,13 +541,31 @@ window.abrirDetalleSemana = function(numSemana, saldoSem) {
     
     contenido.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:end; margin-bottom:20px;">
-            <div><h3 style="margin-bottom:5px; color:var(--ac);">Detalle Ejecutivo</h3><h2 style="margin:0; font-size:32px;">Semana ${numSemana}</h2></div>
-            <div style="text-align:right;"><span style="font-size:12px; color:#6b7280;">Saldo Final Estimado</span><div style="font-size:24px; font-weight:700; color:var(--p);">$${saldoSem.toLocaleString()}</div></div>
+            <div>
+                <h3 style="margin-bottom:5px; color:var(--acento);">Detalle Ejecutivo</h3>
+                <h2 style="margin:0; font-size:32px;">Semana ${numSemana}</h2>
+            </div>
+            <div style="text-align:right;">
+                <span style="font-size:12px; color:#6b7280;">Saldo Final Estimado</span>
+                <div style="font-size:24px; font-weight:700; color:var(--verde);">$${saldoSem.toLocaleString()}</div>
+            </div>
         </div>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
-            <div style="background:#05070a; padding:15px; border-radius:10px;"><h4 style="color:#60a5fa; font-size:11px; margin-bottom:10px;">INGRESOS</h4>${Object.entries(ingresosObj).map(([n, d]) => `<div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span>${n.substring(0,15)}</span><b>$${Math.round(d.monto).toLocaleString()}</b></div>`).join('')}</div>
-            <div style="background:#05070a; padding:15px; border-radius:10px;"><h4 style="color:#fca5a5; font-size:11px; margin-bottom:10px;">GASTOS</h4>${gastosArr.join('')}</div>
+            <div style="background:#05070a; padding:15px; border-radius:10px;">
+                <h4 style="color:#60a5fa; font-size:11px; margin-bottom:10px;">INGRESOS POR OS</h4>
+                ${Object.entries(ingresosObj).map(([nombre, data]) => `
+                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #1f2937; padding-bottom:4px;">
+                        <span style="font-size:11px; line-height:1.2; word-break:break-word; max-width:70%;">${nombre}</span>
+                        <b style="font-size:12px;">$${Math.round(data.monto).toLocaleString()}</b>
+                    </div>
+                `).join('')}
+            </div>
+            <div style="background:#05070a; padding:15px; border-radius:10px;">
+                <h4 style="color:#fca5a5; font-size:11px; margin-bottom:10px;">DESGLOSE GASTOS</h4>
+                <div style="font-size:12px;">${gastosArr.join('')}</div>
+            </div>
         </div>
+        <button onclick="document.getElementById('modalSemana').style.display='none'" style="margin-top:20px; width:100%; padding:10px; background:var(--acento); border:none; color:white; cursor:pointer; border-radius:4px;">CERRAR</button>
     `;
     modal.style.display = 'flex';
 };
@@ -468,71 +593,91 @@ window.abrirDetalleSemana = function(numSemana, saldoSem) {
     }
 
     // --- GENERADOR DE INFORMES ---
-    async function generarInformeJunta() {
-        if (!window.motorGlobal || !window.motorGlobal.inteligencia_cuit) {
-            alert("⚠️ Motor no sincronizado. Ejecuta la Sincronización primero.");
-            return;
-        }
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        const data = window.motorGlobal;
-        
-        const factorInflacion = 0.05; 
-
-        doc.setFontSize(22);
-        doc.text("Reporte Ejecutivo de Tesorería", 20, 20);
-        doc.setFontSize(10);
-        doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 20, 30);
-        doc.line(20, 35, 190, 35);
-        
-        doc.setFontSize(12);
-        doc.text(`Burn Rate Estructural: $${data.reporte?.esperado?.toLocaleString() || 0}`, 20, 45);
-        doc.text(`Runway Estimado: ${data.reporte?.supervivencia || 0} días`, 20, 55);
-        
-        const saldoNominal = data.reporte?.saldo_total || 0;
-        const impactoInflacion = Math.round(saldoNominal * factorInflacion);
-        doc.setTextColor(200, 50, 50); 
-        doc.text(`Impacto Estimado por Inflación (Ajuste): -$${impactoInflacion.toLocaleString()}`, 20, 65);
-        doc.setTextColor(0, 0, 0); 
-        
-        doc.setFontSize(14);
-        doc.text("Top 3 Obras Sociales con mayor deuda:", 20, 85);
-        
-        const top3 = Object.keys(data.inteligencia_cuit)
-            .sort((a, b) => data.inteligencia_cuit[b].deuda_viva - data.inteligencia_cuit[a].deuda_viva)
-            .slice(0, 3);
-            
-        let y = 95;
-        top3.forEach((cuit, index) => {
-            const d = data.inteligencia_cuit[cuit];
-            doc.setFontSize(10);
-            doc.text(`${index + 1}. ${d.nombre_fantasia || cuit}: $${(d.deuda_viva || 0).toLocaleString()}`, 20, y);
-            y += 10;
-        });
-
-        doc.setFontSize(14);
-        doc.text("⚠️ Alertas Críticas (Pagos Masivos):", 20, y + 10);
-        
-        let yAlertas = y + 20;
-        let hayAlertas = false;
-
-        Object.keys(data.inteligencia_cuit).forEach(cuit => {
-            const d = data.inteligencia_cuit[cuit];
-            if (d.alerta_analitica && d.alerta_analitica.tiene_pagos_masivos) {
-                doc.setFontSize(10);
-                doc.text(`• ${d.nombre_fantasia || cuit} presenta patrones de pagos masivos.`, 20, yAlertas);
-                yAlertas += 7;
-                hayAlertas = true;
-            }
-        });
-
-        if (!hayAlertas) {
-            doc.text("No se detectaron alertas críticas de pagos masivos.", 20, yAlertas);
-        }
-
-        doc.save(`Informe_Junta_Completo_${new Date().getTime()}.pdf`);
+   async function generarInformeJunta() {
+    // 1. Validación de seguridad
+    if (!window.motorGlobal || !window.motorGlobal.inteligencia_cuit) {
+        alert("⚠️ Motor no sincronizado. Ejecuta la Sincronización primero.");
+        return;
     }
 
+    // 2. Verificar si jsPDF existe
+    if (typeof window.jspdf === 'undefined' && typeof jsPDF === 'undefined') {
+        alert("❌ La librería jsPDF no está cargada. Verifica tu conexión a internet.");
+        return;
+    }
+
+    const { jsPDF } = window.jspdf || window;
+    const doc = new jsPDF();
+    const data = window.motorGlobal;
+    
+    // Configuración estética
+    const colorPrimario = [0, 0, 0];
+    const colorAlerta = [200, 50, 50];
+
+    // Título
+    doc.setFontSize(22);
+    doc.text("Reporte Ejecutivo de Tesorería", 20, 20);
+    doc.setFontSize(10);
+    doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 20, 30);
+    doc.line(20, 35, 190, 35);
+    
+    // Cuerpo
+    doc.setFontSize(12);
+    doc.text(`Burn Rate Estructural: $${(data.reporte?.esperado || 0).toLocaleString()}`, 20, 45);
+    doc.text(`Runway Estimado: ${data.reporte?.supervivencia || 0} días`, 20, 55);
+    
+    // Ajuste Inflación
+    const factorInflacion = 0.05;
+    const saldoNominal = data.reporte?.saldo_total || 0;
+    const impactoInflacion = Math.round(saldoNominal * factorInflacion);
+    
+    doc.setTextColor(...colorAlerta);
+    doc.text(`Impacto Estimado por Inflación (5%): -$${impactoInflacion.toLocaleString()}`, 20, 65);
+    doc.setTextColor(...colorPrimario);
+    
+    // Top 3
+    doc.setFontSize(14);
+    doc.text("Top 3 Obras Sociales con mayor deuda:", 20, 85);
+    
+    const top3 = Object.keys(data.inteligencia_cuit)
+        .sort((a, b) => (data.inteligencia_cuit[b].deuda_viva || 0) - (data.inteligencia_cuit[a].deuda_viva || 0))
+        .slice(0, 3);
+        
+    let y = 95;
+    top3.forEach((cuit, index) => {
+        const d = data.inteligencia_cuit[cuit];
+        doc.setFontSize(10);
+        // Usamos substring para evitar que nombres ultra largos rompan el PDF
+        const nombre = (d.nombre_fantasia || cuit).substring(0, 60);
+        doc.text(`${index + 1}. ${nombre}: $${(d.deuda_viva || 0).toLocaleString()}`, 20, y);
+        y += 10;
+    });
+
+    // Alertas
+    doc.setFontSize(14);
+    doc.text("⚠️ Alertas Críticas (Pagos Masivos):", 20, y + 10);
+    
+    let yAlertas = y + 20;
+    let hayAlertas = false;
+
+    Object.keys(data.inteligencia_cuit).forEach(cuit => {
+        const d = data.inteligencia_cuit[cuit];
+        if (d.alerta_analitica?.tiene_pagos_masivos) {
+            doc.setFontSize(10);
+            doc.text(`• ${d.nombre_fantasia || cuit}`, 20, yAlertas);
+            yAlertas += 7;
+            hayAlertas = true;
+        }
+    });
+
+    if (!hayAlertas) {
+        doc.setFontSize(10);
+        doc.text("No se detectaron alertas críticas de pagos masivos.", 20, yAlertas);
+    }
+
+    // Descarga
+    doc.save(`Informe_Junta_${new Date().getTime()}.pdf`);
+}
     // --- GESTIÓN DE GASTOS Y BANCOS ---
     function nuevaCategoria() {
         const nombre = prompt("Nombre del rubro/gasto:");
