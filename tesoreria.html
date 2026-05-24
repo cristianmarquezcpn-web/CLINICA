@@ -224,20 +224,17 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
     const colorRiesgo = m.riesgo > 1300 ? 'var(--a)' : 'var(--oro)';
     const colorEstado = rep.estado === "CRÍTICO" ? 'var(--a)' : 'var(--p)';
     const colorInflacion = (m.rem || 0) > 4 ? 'var(--a)' : 'var(--p)';
-    
     const salud = document.getElementById('saludNegocio');
     if (salud) {
-        salud.innerHTML = `
-           `<div style="padding:10px; background:#000; border-radius:8px; border:1px solid #374151; font-size:12px;">
+        salud.innerHTML = `<div style="padding:10px; background:#000; border-radius:8px; border:1px solid #374151; font-size:12px;">
     <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Ratio Liquidez:</span> <b>${(diag.ratio_liquidez || 0).toLocaleString()}</b></div>
     <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Riesgo Concent.:</span> <b>${(diag.riesgo_concentracion || 0).toFixed(0)}</b></div>
     <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Precisión IA:</span> <b style="color:var(--p)">${((diag.accuracy_history || 0) * 100).toFixed(0)}%</b></div>
     <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Calle:</span> <b>$${(rep.calle || 0).toLocaleString()}</b></div>
     <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Esperado:</span> <b>$${(rep.esperado || 0).toLocaleString()}</b></div>
     <div style="display:flex; justify-content:space-between;"><span>Delay Hist.:</span> <b style="color:var(--ac)">${calcularDelayPromedio(window.motorGlobal)} días</b></div>
-    </div>`
+    </div>`;
     }
-
     const econ = document.getElementById('dataEconomica');
     if (econ) {
         econ.innerHTML = `
