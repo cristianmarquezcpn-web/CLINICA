@@ -184,32 +184,45 @@ function calcularDelayPromedio(data) {
     return totalDeuda > 0 ? Math.round(totalDelay / totalDeuda) : 0;
 }
 async function simularImpacto() {
-    const montoSimulado = parseFloat(document.getElementById('simMonto').value) || 0;
-    const mesesSimulados = parseInt(document.getElementById('simMeses').value) || 1;
+    const montoSimulado = parseFloat(document.getElementById('simMonto')?.value) || 0;
+    const mesesSimulados = parseInt(document.getElementById('simMeses')?.value) || 1;
     const res = document.getElementById('resImpacto');
     if (!res) return;
 
     const motorData = window.motorGlobal || {};
-    let saldoPesimista = motorData.var_pesimista || 0;
-    const saldoActual = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
     
-    let tempSaldo = saldoActual + saldoPesimista;
+    // 1. Saldo inicial: Caja real + VaR (Seguridad ante imprevistos)
+    const saldoGalicia = parseFloat(document.getElementById('bancoGalicia')?.value) || 0;
+    const saldoSantander = parseFloat(document.getElementById('bancoSantander')?.value) || 0;
+    const saldoPesimista = motorData.reporte?.var_pesimista || 0; 
+    let tempSaldo = saldoGalicia + saldoSantander + saldoPesimista;
+    
+    // 2. Flujos (Gastos vs Ingresos)
     const burnRate = motorData.burn_rate || 0;
     const gastoMensualPesimista = montoSimulado + burnRate;
     
+    // AQUÍ ESTABA EL ERROR: Necesitamos sumar lo que estimamos cobrar (P50)
+    const ingresoEsperadoMensual = motorData.reporte?.esperado || 0; 
+    
     let quiebraEn = 0;
+    
+    // 3. Simulación de caja
     for (let i = 1; i <= mesesSimulados; i++) {
-        tempSaldo -= gastoMensualPesimista;
-        if (tempSaldo < 0 && quiebraEn === 0) { quiebraEn = i; }
+        // Saldo = Saldo Anterior - Gastos + Ingresos Proyectados
+        tempSaldo = tempSaldo - gastoMensualPesimista + ingresoEsperadoMensual;
+        
+        if (tempSaldo < 0 && quiebraEn === 0) { 
+            quiebraEn = i; 
+        }
     }
 
     const esViable = quiebraEn === 0;
     res.style.color = esViable ? "var(--p)" : "var(--a)";
     
     if (esViable) {
-        res.innerText = `✅ ESCENARIO PESIMISTA: Titanium confirma soporte por ${mesesSimulados} meses. Saldo final: $${Math.round(tempSaldo).toLocaleString()}`;
+        res.innerText = `✅ ESCENARIO PESIMISTA: Titanium confirma soporte. Saldo final proyectado: $${Math.round(tempSaldo).toLocaleString()}`;
     } else {
-        res.innerText = `🚨 ALERTA: Bajo condiciones pesimistas (Montecarlo), quiebra técnica en el mes ${quiebraEn}.`;
+        res.innerText = `🚨 ALERTA: Bajo condiciones pesimistas y con el flujo actual, quiebra técnica proyectada en el mes ${quiebraEn}.`;
     }
 }
 db.ref('tesoreria/motor_ia').on('value', snap => {
@@ -255,6 +268,8 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
                 <div style="display:flex; justify-content:space-between;"><span>Tasa Real PF:</span> <b style="color:var(--p)">${(diag.tasa_real_pf || 0).toFixed(1)}%</b></div>
                 <div style="display:flex; justify-content:space-between;"><span>Inflación (REM):</span> <b style="color:${(m.rem || 0) > 4 ? 'var(--a)' : 'var(--p)'}">${m.rem || 0}%</b></div>
                 <div style="display:flex; justify-content:space-between;"><span>Dólar MEP:</span> <b style="color:var(--ac)">$${m.mep || '-'}</b></div>
+                <div style="display:flex; justify-content:space-between;"><span>Tasa PF:</span> <b>${(m.pf || 0).toFixed(1)}%</b></div>
+                <div style="display:flex; justify-content:space-between;"><span>FCI:</span> <b style="color:var(--p)">${(m.fci || 0).toFixed(1)}%</b></div>
                 <div style="display:flex; justify-content:space-between;"><span>Riesgo País:</span> <b style="color:${colorRiesgo}">${m.riesgo || 0} pts</b></div>
                 
                 <div style="margin-top:12px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid ${colorSemaforo};">
