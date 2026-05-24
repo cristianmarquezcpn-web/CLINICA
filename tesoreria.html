@@ -293,63 +293,99 @@ function renderizarDashboardTopeDeGama() {
     contenedor.innerHTML = html;
 }
 // 2. MODAL CON LÓGICA DE COLOR DINÁMICO
+    // 1. FUNCIÓN RENDERIZAR DASHBOARD
+function renderizarDashboardTopeDeGama() {
+    const contenedor = document.getElementById('dashboardCompleto');
+    if (!contenedor || !motorGlobal.inteligencia_cuit) return;
+
+    const cuits = Object.keys(motorGlobal.inteligencia_cuit);
+    const totalDelay = cuits.reduce((acc, cuit) => acc + (motorGlobal.inteligencia_cuit[cuit].delay_estimado || 0), 0);
+    const promedioCartera = totalDelay / cuits.length;
+
+    cuits.sort((a, b) => (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0));
+
+    let html = `<style>.card-c:hover { background: #1e293b !important; border-color: #475569 !important; }</style>`;
+
+    cuits.forEach(cuit => {
+        const d = motorGlobal.inteligencia_cuit[cuit];
+        // Colores fijos: Rojo (#ef4444) si el delay es alto, Verde (#10b981) si es bajo
+        const colorBorde = d.delay_estimado > promedioCartera ? '#ef4444' : '#10b981';
+        
+        html += `
+        <div class="card-c" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:6px; border-radius:4px; display:flex; align-items:center; gap:12px; transition:0.2s; border:1px solid #1e293b;">
+            <input type="checkbox" class="selector-cliente" data-deuda="${d.deuda_viva || 0}" style="cursor:pointer; width:16px; height:16px;">
+            <div style="flex:1; cursor:pointer;" onclick="abrirModalDetalle('${cuit}')">
+                <div style="font-size:12px; font-weight:500; color:#f8fafc;">${d.nombre_fantasia || cuit}</div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:12px; font-weight:700; color:#10b981;">$${(d.deuda_viva / 1000).toFixed(0)}k</div>
+            </div>
+        </div>`;
+    });
+    
+    contenedor.innerHTML = html;
+}
+
+// 2. MODAL CON LÓGICA DE FECHA CORREGIDA
 function abrirModalDetalle(cuit) {
     const d = motorGlobal.inteligencia_cuit[cuit];
     const modal = document.getElementById('modalDetalle');
     
-    // Cálculo para alerta visual de vencimiento
+    // Lógica robusta de fecha: convertimos YYYY-MM-DD a timestamp para comparar
     const facturas = d.facturas_pendientes || [];
-    const fechaProxima = facturas.length > 0 ? facturas[0].proximo_cobro_estimado : "N/A";
-    const estaVencido = fechaProxima !== "N/A" && new Date(fechaProxima) < new Date();
+    const fechaProxima = facturas.length > 0 ? facturas[0].proximo_cobro_estimado : null;
     
-    // Asignación de colores según estado
-    const colorScore = d.score < 50 ? 'var(--rojo)' : 'var(--verde)';
-    const colorFecha = estaVencido ? 'var(--rojo)' : 'var(--verde)';
+    let estaVencido = false;
+    if (fechaProxima) {
+        const [y, m, d_f] = fechaProxima.split('-').map(Number);
+        const fechaCobro = new Date(y, m - 1, d_f);
+        const hoy = new Date();
+        hoy.setHours(0,0,0,0);
+        estaVencido = fechaCobro < hoy;
+    }
+
+    const colorScore = d.score < 50 ? '#ef4444' : '#22c55e';
+    const colorFecha = estaVencido ? '#ef4444' : '#22c55e';
+    const alerta = d.alerta_analitica || { dias_de_offset: 0, nota: "Sin notas." };
 
     modal.innerHTML = `
-    <div class="modal-contenido">
+    <div class="modal-contenido" style="background:#0b0e14; padding:20px; border-radius:8px; border:1px solid #374151; color:white; max-width:500px; margin:auto;">
         <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-            <h3 style="margin:0; color:var(--acento); word-break:break-word;">${d.nombre_fantasia}</h3>
+            <h3 style="margin:0; color:#3b82f6; word-break:break-word;">${d.nombre_fantasia}</h3>
             <button onclick="document.getElementById('modalDetalle').style.display='none'" style="background:none; border:none; color:white; cursor:pointer;">❌ CERRAR</button>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; border-bottom:1px solid #334155; padding-bottom:15px; margin-bottom:15px;">
-            <div title="Dinero total pendiente de cobro">
+            <div>
                 <small style="color:#666; font-size:10px;">DEUDA VIVA</small>
-                <div style="font-size:18px;">$${d.deuda_viva.toLocaleString(undefined, {maximumFractionDigits:0})}</div>
+                <div style="font-size:18px;">$${d.deuda_viva.toLocaleString()}</div>
             </div>
-            <div title="Próxima fecha estimada de ingreso">
+            <div>
                 <small style="color:#666; font-size:10px;">PRÓXIMO COBRO</small>
-                <div style="color:${colorFecha}; font-weight:bold; font-size:18px;">${fechaProxima} ${estaVencido ? '⚠️' : ''}</div>
+                <div style="color:${colorFecha}; font-weight:bold; font-size:18px;">${fechaProxima || 'N/A'} ${estaVencido ? '⚠️' : ''}</div>
             </div>
         </div>
 
         <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-bottom:20px;">
-            <div style="background:#1e293b; padding:10px; border-radius:4px;" title="Días promedio de demora en los pagos de este cliente">
+            <div style="background:#1e293b; padding:10px; border-radius:4px;">
                 <small style="font-size:9px; color:#94a3b8;">DELAY EST.</small>
-                <div style="font-size:14px; color: ${d.delay_estimado > 60 ? 'var(--rojo)' : 'var(--verde)'}">${d.delay_estimado} días</div>
+                <div style="font-size:14px; color: ${d.delay_estimado > 60 ? '#ef4444' : '#22c55e'}">${d.delay_estimado} días</div>
             </div>
-            <div style="background:#1e293b; padding:10px; border-radius:4px;" title="Puntuación de confiabilidad de la IA (0-100)">
+            <div style="background:#1e293b; padding:10px; border-radius:4px;">
                 <small style="font-size:9px; color:#94a3b8;">SCORE IA</small>
                 <div style="font-size:14px; color:${colorScore}">${d.score}</div>
             </div>
-            <div style="background:#1e293b; padding:10px; border-radius:4px;" title="Dirección de la conducta de pago reciente">
+            <div style="background:#1e293b; padding:10px; border-radius:4px;">
                 <small style="font-size:9px; color:#94a3b8;">TENDENCIA</small>
                 <div style="font-size:14px;">${d.tendencia_admin}</div>
             </div>
         </div>
 
         <div style="background:#0f172a; padding:10px; border-radius:4px; font-size:11px; border:1px solid #334155;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                <span>Efectividad histórica:</span> <b>${(d.efectividad * 100).toFixed(0)}%</b>
-            </div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                <span>Patrón de conducta:</span> <b>${d.patron}</b>
-            </div>
-            <div style="display:flex; justify-content:space-between;">
-                <span>Offset aplicado:</span> <b>${d.alerta_analitica.dias_de_offset} días</b>
-            </div>
-            <p style="color:#666; margin-top:10px; font-style:italic;">Nota: ${d.alerta_analitica.nota}</p>
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Efectividad:</span> <b>${(d.efectividad * 100).toFixed(0)}%</b></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Patrón:</span> <b>${d.patron}</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>Offset:</span> <b>${alerta.dias_de_offset} días</b></div>
+            <p style="color:#666; margin-top:10px; font-style:italic;">Nota: ${alerta.nota}</p>
         </div>
     </div>`;
     
