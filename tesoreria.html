@@ -8,16 +8,42 @@
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
+        /* ARREGLO DEL SCROLL HORIZONTAL: box-sizing asegura que los paddings no sumen ancho extra */
+        * { box-sizing: border-box; }
         :root { --bg: #05070a; --panel: #111827; --acento: #3b82f6; --verde: #10b981; --rojo: #ef4444; --oro: #f59e0b; --texto: #f8fafc; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--texto); margin: 0; padding: 25px; }
-        .grid-master { display: grid; grid-template-columns: 340px 1fr 340px; gap: 20px; }
-        .card { background: var(--panel); padding: 20px; border-radius: 16px; border: 1px solid #1f2937; margin-bottom: 20px; }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: var(--bg); 
+            color: var(--texto); 
+            margin: 0; 
+            padding: 25px; 
+            width: 100vw; 
+            overflow-x: hidden; /* Corta de cuajo el scroll horizontal */
+        }
+        
+        /* Ajuste de la grilla para que se adapte y no desborde */
+        .grid-master { 
+            display: grid; 
+            grid-template-columns: minmax(280px, 1fr) minmax(400px, 2fr) minmax(280px, 1fr); 
+            gap: 20px; 
+            width: 100%; 
+        }
+        
+        .card { background: var(--panel); padding: 20px; border-radius: 16px; border: 1px solid #1f2937; margin-bottom: 20px; width: 100%; }
         h3 { font-size: 10px; text-transform: uppercase; color: var(--acento); letter-spacing: 2px; margin: 0 0 15px 0; }
-        input { background: #000 !important; border: 1px solid #374151 !important; color: white !important; padding: 10px !important; border-radius: 8px !important; width: 100%; margin-bottom: 10px; box-sizing: border-box; }
-        .btn { background: var(--acento); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
+        input { background: #000 !important; border: 1px solid #374151 !important; color: white !important; padding: 10px !important; border-radius: 8px !important; width: 100%; margin-bottom: 10px; }
+        .btn { background: var(--acento); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; transition: opacity 0.2s; }
+        .btn:hover { opacity: 0.8; }
+        
         /* Modal General */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; overflow-y: auto; }
         .modal-contenido { background: #0f172a; margin: 5% auto; padding: 30px; width: 90%; max-width: 600px; border-radius: 12px; border: 1px solid var(--acento); }
+        
+        /* Adaptabilidad para pantallas más chicas */
+        @media (max-width: 1200px) {
+            .grid-master { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -30,11 +56,13 @@
 </div>
 <div id="modalDetalle" class="modal" onclick="this.style.display='none'"></div>
 
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:25px;">
-    <h2>🧠 CFO <span style="color:var(--acento)">TITANIUM v8.5</span></h2>
-    <div style="display:flex; gap:10px;">
-        <input type="month" id="mesFiltro" onchange="conectarMes()" style="width:180px; margin:0;">
-        <button class="btn" onclick="dispararMotorTitanium()" style="background:var(--oro); color:black; width:auto;">⚡ SINCRO</button>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:25px; flex-wrap:wrap; gap:15px;">
+    <h2 style="margin:0;">🧠 CFO <span style="color:var(--acento)">TITANIUM v8.5</span></h2>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <input type="month" id="mesFiltro" onchange="conectarMes()" style="width:auto; margin:0;">
+        <button class="btn" onclick="dispararMotorTitanium()" style="background:var(--oro); color:black; width:auto; padding:0 20px;">⚡ SINCRO</button>
+        <button class="btn" onclick="window.location.href='reporte.html'" style="background:var(--verde); color:white; width:auto; padding:0 20px;">📄 INFORME</button>
+        <button class="btn" onclick="window.location.reload()" style="background:#475569; color:white; width:auto; padding:0 20px;">🔄 RECONECTAR</button>
     </div>
 </div>
 
@@ -52,9 +80,9 @@
     </div>
 
     <div>
-        <div class="card">
+        <div class="card" style="overflow-x: auto;">
             <h3>📈 Flujo Semanal</h3>
-            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;" id="gridSemanas"></div>
+            <div style="display:grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap:10px;" id="gridSemanas"></div>
         </div>
         <div class="card">
             <h3>📋 Inteligencia por Cliente</h3>
@@ -68,6 +96,15 @@
             <div id="statusIA" style="color:var(--acento); margin-bottom:10px;">Escaneando...</div>
             <div id="dataEconomica" style="font-size:12px;"></div>
         </div>
+        
+        <div class="card" style="border:1px solid var(--acento);">
+            <h3>⚡ SIMULADOR DE IMPACTO</h3>
+            <input type="number" id="simMonto" placeholder="Monto a inyectar/retirar ($)">
+            <input type="number" id="simMeses" placeholder="Cantidad de meses">
+            <button class="btn" onclick="simularImpacto()" style="margin-top:10px;">CALCULAR IMPACTO</button>
+            <div id="resImpacto" style="margin-top:10px; font-weight:bold; color:var(--acento);"></div>
+        </div>
+
         <div class="card" style="background:var(--rojo); color:white; border:none;">
             <h3>☢️ SIMULADOR DE COLAPSO</h3>
             <button class="btn" style="background:white; color:var(--rojo);" onclick="ejecutarStressTest()">EJECUTAR STRESS TEST</button>
@@ -77,7 +114,7 @@
 </div>
 
 <script>
-// --- CONFIGURACIÓN E INICIALIZACIÓN ---
+// --- 1. CONFIGURACIÓN E INICIALIZACIÓN FIREBASE ---
 const firebaseConfig = { 
     apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8", 
     authDomain: "clinicaintegral-5c488.firebaseapp.com", 
@@ -93,9 +130,76 @@ firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 firebase.auth().onAuthStateChanged((user) => { if (user) conectarMes(); });
 
 const db = firebase.database();
-let motorGlobal = {};
 
-// --- MOTOR PRINCIPAL (ÚNICO LISTENER) ---
+// --- 2. VARIABLES GLOBALES CRÍTICAS ---
+let refMes = null; 
+let datosMes = {};
+let motorGlobal = {};
+window.totalGastosProyectados = 500000; 
+
+// --- 3. FUNCIONES PRINCIPALES Y SIMULADORES ---
+function dispararMotorTitanium() {
+    db.ref('comandos/ejecutar_motor').set({ status: 'request', timestamp: Date.now() });
+    if(document.getElementById('statusIA')) document.getElementById('statusIA').innerText = "Sincronizando con IA...";
+}
+
+function conectarMes() {
+    const mesFiltro = document.getElementById('mesFiltro');
+    if (!mesFiltro || !mesFiltro.value) return;
+    
+    refMes = db.ref('tesoreria/meses/' + mesFiltro.value);
+    refMes.on('value', snap => {
+        datosMes = snap.val() || {};
+        if (typeof renderizarDashboardTopeDeGama === 'function') renderizarDashboardTopeDeGama();
+        if (typeof proyectarTodo === 'function') proyectarTodo();
+    });
+}
+async function simularImpacto() {
+    const montoSimulado = parseFloat(document.getElementById('simMonto').value) || 0;
+    const mesesSimulados = parseInt(document.getElementById('simMeses').value) || 1;
+    const res = document.getElementById('resSim');
+    if (!res) return;
+
+    // Obtenemos datos del motor "encendido"
+    const motorData = window.motorGlobal || {};
+    
+    // Si el motor ya hizo Montecarlo, usamos el "var_pesimista" como punto de partida 
+    // real del peor escenario detectado por la IA.
+    let saldoPesimista = motorData.var_pesimista || 0;
+    
+    // Sumamos bancos reales por si el VaR es solo proyección de flujos
+    const saldoActual = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + 
+                        (parseFloat(document.getElementById('bancoSantander').value) || 0);
+    
+    let tempSaldo = saldoActual + saldoPesimista;
+    const burnRate = motorData.burn_rate || 0;
+    
+    // En el peor escenario, el gasto mensual es la suma del burn actual 
+    // + el impacto del nuevo proyecto/gasto que estás simulando.
+    const gastoMensualPesimista = montoSimulado + burnRate;
+    
+    let mesesResistidos = 0;
+    let quiebraEn = 0;
+
+    for (let i = 1; i <= mesesSimulados; i++) {
+        tempSaldo -= gastoMensualPesimista;
+        if (tempSaldo < 0 && quiebraEn === 0) {
+            quiebraEn = i;
+        }
+    }
+
+    const esViable = quiebraEn === 0;
+    res.style.color = esViable ? "#10b981" : "#ef4444";
+    
+    if (esViable) {
+        res.innerText = `✅ ESCENARIO PESIMISTA: Titanium confirma soporte por ${mesesSimulados} meses. Saldo final: $${Math.round(tempSaldo).toLocaleString()}`;
+    } else {
+        res.innerText = `🚨 ALERTA: Bajo condiciones pesimistas (Montecarlo), quiebra técnica en el mes ${quiebraEn}.`;
+    }
+}
+
+
+// --- 4. MOTOR PRINCIPAL IA (UNIFICADO) ---
 db.ref('tesoreria/motor_ia').on('value', snap => {
     const val = snap.val();
     if (!val) return;
@@ -106,12 +210,12 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
     const diag = val.diagnostico_matematico || {};
     const consejos = val.bot_financiero || [];
     
-    // Cálculos de colores
+    // Colores dinámicos
     const colorRiesgo = m.riesgo > 1300 ? 'var(--rojo)' : 'var(--oro)';
     const colorEstado = rep.estado === "CRÍTICO" ? 'var(--rojo)' : 'var(--verde)';
     const colorInflacion = (m.rem || 0) > 4 ? 'var(--rojo)' : 'var(--verde)';
-
-    // 1. Panel de Salud
+    
+    // Panel de Salud
     const salud = document.getElementById('saludNegocio');
     if (salud) {
         salud.innerHTML = `
@@ -122,14 +226,14 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
             </div>`;
     }
 
-    // 2. MotorVars y Datos Económicos (Unificado)
-    const motorVars = document.getElementById('motorVars') || document.getElementById('dataEconomica');
-    if (motorVars) {
-        motorVars.innerHTML = `
+    // Panel Económico y Status
+    const econ = document.getElementById('dataEconomica');
+    if (econ) {
+        econ.innerHTML = `
             <div style="font-size:11px; line-height:1.6;">
                 <div style="display:flex; justify-content:space-between;"><span>Efectividad:</span> <b style="color:${colorEstado}">${((rep.esperado/rep.calle || 0) * 100).toFixed(1)}%</b></div>
                 <div style="display:flex; justify-content:space-between;"><span>Delay Hist.:</span> <b style="color:var(--acento)">${rep.delay_historico || 60} días</b></div>
-                <div style="display:flex; justify-content:space-between;"><span>Supervivencia:</span> <b>${rep.supervivencia || 0} días</b></div>
+                <div style="display:flex; justify-content:space-between;"><span>Supervivencia:</span> <b style="color:var(--rojo)">${rep.supervivencia || 0} días</b></div>
                 <hr style="border:0; border-top:1px solid #1f2937; margin:8px 0">
                 <div style="display:flex; justify-content:space-between;"><span>Inflación (REM):</span> <b style="color:${colorInflacion}">${m.rem || 0}%</b></div>
                 <div style="display:flex; justify-content:space-between;"><span>Dólar MEP:</span> <b style="color:var(--acento)">$${m.mep || '-'}</b></div>
@@ -143,19 +247,13 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
             </div>`;
     }
 
-    // 3. Status Motor
     const status = document.getElementById('statusIA');
     if (status) status.innerText = `Motor ${val.estado_api || ''} | Sincro: ${val.ultima_sincro || 'Pendiente'}`;
     
-    // 4. Renderizado Final
+    // Renderizados
     if (typeof renderizarDashboardTopeDeGama === 'function') renderizarDashboardTopeDeGama();
-    if (document.getElementById('mesFiltro')?.value) proyectarTodo();
 });
-
-function dispararMotorTitanium() {
-    db.ref('comandos/ejecutar_motor').set({ status: 'request', timestamp: Date.now() });
-}
-    // 1. LISTADO MAESTRO COMPACTO
+// 1. LISTADO MAESTRO COMPACTO
 function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
     if (!motorGlobal.inteligencia_cuit) {
@@ -629,49 +727,7 @@ function eliminarGastoRecurrente(cat, key) {
             });
         }
     }
-async function simularImpacto() {
-    const montoSimulado = parseFloat(document.getElementById('simMonto').value) || 0;
-    const mesesSimulados = parseInt(document.getElementById('simMeses').value) || 1;
-    const res = document.getElementById('resSim');
-    if (!res) return;
 
-    // Obtenemos datos del motor "encendido"
-    const motorData = window.motorGlobal || {};
-    
-    // Si el motor ya hizo Montecarlo, usamos el "var_pesimista" como punto de partida 
-    // real del peor escenario detectado por la IA.
-    let saldoPesimista = motorData.var_pesimista || 0;
-    
-    // Sumamos bancos reales por si el VaR es solo proyección de flujos
-    const saldoActual = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + 
-                        (parseFloat(document.getElementById('bancoSantander').value) || 0);
-    
-    let tempSaldo = saldoActual + saldoPesimista;
-    const burnRate = motorData.burn_rate || 0;
-    
-    // En el peor escenario, el gasto mensual es la suma del burn actual 
-    // + el impacto del nuevo proyecto/gasto que estás simulando.
-    const gastoMensualPesimista = montoSimulado + burnRate;
-    
-    let mesesResistidos = 0;
-    let quiebraEn = 0;
-
-    for (let i = 1; i <= mesesSimulados; i++) {
-        tempSaldo -= gastoMensualPesimista;
-        if (tempSaldo < 0 && quiebraEn === 0) {
-            quiebraEn = i;
-        }
-    }
-
-    const esViable = quiebraEn === 0;
-    res.style.color = esViable ? "#10b981" : "#ef4444";
-    
-    if (esViable) {
-        res.innerText = `✅ ESCENARIO PESIMISTA: Titanium confirma soporte por ${mesesSimulados} meses. Saldo final: $${Math.round(tempSaldo).toLocaleString()}`;
-    } else {
-        res.innerText = `🚨 ALERTA: Bajo condiciones pesimistas (Montecarlo), quiebra técnica en el mes ${quiebraEn}.`;
-    }
-}
 // --- INICIALIZACIÓN "VIVA" ---
 // --- INICIALIZACIÓN "VIVA" ---
 window.onload = async () => {
