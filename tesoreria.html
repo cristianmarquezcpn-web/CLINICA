@@ -3,75 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <title>CFO TITANIUM v8.5 - INTELIGENCIA FULL</title>
-    <link rel="manifest" href="manifest.json">
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { 
-            --bg: #05070a; --panel: #111827; --acento: #3b82f6; 
-            --verde: #10b981; --rojo: #ef4444; --oro: #f59e0b; 
-            --texto: #f8fafc; --glow: rgba(59, 130, 246, 0.2); 
-        }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--texto); margin: 0; padding: 25px; font-size: 13px; }
-        
+        :root { --bg: #05070a; --panel: #111827; --acento: #3b82f6; --verde: #10b981; --rojo: #ef4444; --oro: #f59e0b; --texto: #f8fafc; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--texto); margin: 0; padding: 25px; }
         .grid-master { display: grid; grid-template-columns: 340px 1fr 340px; gap: 20px; }
-        
-        .card { 
-            background: var(--panel); padding: 20px; border-radius: 16px; 
-            border: 1px solid #1f2937; margin-bottom: 20px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .card:hover { border-color: var(--acento); box-shadow: 0 0 20px var(--glow); }
-        
-        h3 { margin: 0 0 15px 0; font-size: 10px; text-transform: uppercase; color: var(--acento); letter-spacing: 2px; font-weight: 800; }
-        
-        input { background: #000 !important; border: 1px solid #374151 !important; color: white !important; padding: 12px !important; border-radius: 8px !important; width: 100%; margin-bottom: 10px; font-weight: 600; box-sizing: border-box; }
-        
-        .btn { 
-            background: var(--acento); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold;
-            transition: transform 0.2s, filter 0.2s;
-        }
-        .btn:hover { transform: scale(1.02); filter: brightness(1.2); }
-
-        /* Tarjeta Semanal Estilo Fintech */
-        .sem-card { 
-            background: #111827; padding: 16px; border-radius: 14px; 
-            border: 1px solid #1f2937; text-align: left;
-            transition: all 0.3s ease; display: flex; flex-direction: column; 
-            justify-content: space-between; cursor: pointer;
-        }
-        .sem-card:hover { border-color: var(--acento); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15); transform: translateY(-2px); }
-        .monto-semanal { font-size: 18px; font-weight: 700; margin: 8px 0; font-family: 'Inter', sans-serif; }
-        .etiqueta-sem { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; font-weight: 700; }
-
-        /* Modal de Comando */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,7,10,0.85); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
-        .modal-content { background: var(--panel); padding: 40px; border-radius: 20px; width: 60%; border: 1px solid var(--acento); box-shadow: 0 0 50px var(--acento); }
-        
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: var(--acento); border-radius: 10px; }
+        .card { background: var(--panel); padding: 20px; border-radius: 16px; border: 1px solid #1f2937; margin-bottom: 20px; }
+        h3 { font-size: 10px; text-transform: uppercase; color: var(--acento); letter-spacing: 2px; margin: 0 0 15px 0; }
+        input { background: #000 !important; border: 1px solid #374151 !important; color: white !important; padding: 10px !important; border-radius: 8px !important; width: 100%; margin-bottom: 10px; box-sizing: border-box; }
+        .btn { background: var(--acento); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
+        /* Modal General */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; overflow-y: auto; }
+        .modal-contenido { background: #0f172a; margin: 5% auto; padding: 30px; width: 90%; max-width: 600px; border-radius: 12px; border: 1px solid var(--acento); }
     </style>
 </head>
 <body>
 
 <div id="modalSemana" class="modal" onclick="this.style.display='none'">
-    <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal-contenido" onclick="event.stopPropagation()">
         <h3>Panel de Análisis de Semana</h3>
-        <div id="contenidoModal" style="color:white; font-size:16px;">Esperando datos de la semana seleccionada...</div>
+        <div id="contenidoModal"></div>
     </div>
 </div>
+<div id="modalDetalle" class="modal" onclick="this.style.display='none'"></div>
 
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:25px;">
-    <h2 style="margin:0; letter-spacing: -1px;">🧠 CFO <span style="color:var(--acento)">TITANIUM v8.5</span></h2>
+    <h2>🧠 CFO <span style="color:var(--acento)">TITANIUM v8.5</span></h2>
     <div style="display:flex; gap:10px;">
-        <input type="month" id="mesFiltro" onchange="conectarMes()" style="margin:0; width:180px;">
-        <button class="btn" onclick="dispararMotorTitanium()" style="background:var(--oro); color:black; width:auto; padding: 0 15px;">⚡ SINCRO</button>
-        <button class="btn" onclick="generarInformeJunta()" style="background:var(--verde); width:auto; padding: 0 15px;">📄 INFORME</button>
-        <button class="btn" onclick="conectarMes()" style="background:#374151; width:auto; padding: 0 15px;">🔄 RECONECTAR</button>
+        <input type="month" id="mesFiltro" onchange="conectarMes()" style="width:180px; margin:0;">
+        <button class="btn" onclick="dispararMotorTitanium()" style="background:var(--oro); color:black; width:auto;">⚡ SINCRO</button>
     </div>
 </div>
 
@@ -83,196 +46,185 @@
             <input type="number" id="bancoSantander" placeholder="Caja Santander" onchange="guardarBancos()">
         </div>
         <div class="card">
-            <h3>💸 Gastos Operativos</h3>
-            <div id="contGastos"></div>
-            <button class="btn" style="background:#1f2937" onclick="nuevaCategoria()">+ RUBRO</button>
+            <h3>📊 Resumen de Salud</h3>
+            <div id="saludNegocio"></div>
         </div>
     </div>
 
     <div>
         <div class="card">
             <h3>📈 Flujo Semanal</h3>
-            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:15px;" id="gridSemanas"></div>
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;" id="gridSemanas"></div>
         </div>
-        <div class="card" style="background:var(--rojo); color:white; border:none;">
-            <h3 style="color:white;">☢️ SIMULADOR DE COLAPSO</h3>
-            <button class="btn" style="background:white; color:var(--rojo);" onclick="ejecutarStressTest()">EJECUTAR STRESS TEST</button>
-            <div id="resStress" style="margin-top:10px;"></div>
-            <div id="panelAjuste" style="display:none; margin-top:15px; padding:10px; background:rgba(0,0,0,0.3); border-radius:8px;">
-            <div id="listaRecortes"></div>
-            <div id="oxigenoCalculado" style="margin-top:10px;"></div>
-         </div>
-  </div>
-      <div>
         <div class="card">
-            <h3>🧪 Simulador de Impacto</h3>
-            <input type="number" id="simMonto" placeholder="$ Gasto Mensual">
-            <input type="number" id="simMeses" placeholder="Meses">
-            <button class="btn" onclick="simularImpacto()">ANALIZAR</button>
-        </div>
-        </div>
-            <div class="card">
             <h3>📋 Inteligencia por Cliente</h3>
             <div id="dashboardCompleto"></div> 
-        </div>    
-  
-        <div class="card">
-            <h3>📊 Resumen de Salud</h3>
-            <div id="saludNegocio"></div>
-        </div>
-        <div class="card">
-            <h3>🧬 Status Motor</h3>
-            <div id="statusIA" style="color:var(--acento);">Conectado y Escaneando...</div>
         </div>
     </div>
 
+    <div>
+        <div class="card">
+            <h3>🧬 Status Motor</h3>
+            <div id="statusIA" style="color:var(--acento); margin-bottom:10px;">Escaneando...</div>
+            <div id="dataEconomica" style="font-size:12px;"></div>
+        </div>
+        <div class="card" style="background:var(--rojo); color:white; border:none;">
+            <h3>☢️ SIMULADOR DE COLAPSO</h3>
+            <button class="btn" style="background:white; color:var(--rojo);" onclick="ejecutarStressTest()">EJECUTAR STRESS TEST</button>
+            <div id="resStress" style="margin-top:10px;"></div>
+        </div>
+    </div>
+</div>
+
 <script>
-    const firebaseConfig = { 
-        apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8", 
-        authDomain: "clinicaintegral-5c488.firebaseapp.com", 
-        databaseURL: "https://clinicaintegral-5c488-default-rtdb.firebaseio.com", 
-        projectId: "clinicaintegral-5c488", 
-        storageBucket: "clinicaintegral-5c488.firebasestorage.app", 
-        messagingSenderId: "184090967634", 
-        appId: "1:184090967634:web:09715937b33ea48288698b" 
-    };
+// --- CONFIGURACIÓN E INICIALIZACIÓN ---
+const firebaseConfig = { 
+    apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8", 
+    authDomain: "clinicaintegral-5c488.firebaseapp.com", 
+    databaseURL: "https://clinicaintegral-5c488-default-rtdb.firebaseio.com", 
+    projectId: "clinicaintegral-5c488", 
+    storageBucket: "clinicaintegral-5c488.firebasestorage.app", 
+    messagingSenderId: "184090967634", 
+    appId: "1:184090967634:web:09715937b33ea48288698b" 
+};
 
-    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-    firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+firebase.auth().onAuthStateChanged((user) => { if (user) conectarMes(); });
+
+const db = firebase.database();
+let motorGlobal = {};
+
+// --- MOTOR PRINCIPAL (ÚNICO LISTENER) ---
+db.ref('tesoreria/motor_ia').on('value', snap => {
+    const val = snap.val();
+    if (!val) return;
+    motorGlobal = val;
+
+    const m = val.mercado || {};
+    const rep = val.reporte || {};
+    const diag = val.diagnostico_matematico || {};
+    const consejos = val.bot_financiero || [];
     
-    function abrirDetalleSemana(numSemana, saldoSem) { 
-        // Implementación más abajo
+    // Cálculos de colores
+    const colorRiesgo = m.riesgo > 1300 ? 'var(--rojo)' : 'var(--oro)';
+    const colorEstado = rep.estado === "CRÍTICO" ? 'var(--rojo)' : 'var(--verde)';
+    const colorInflacion = (m.rem || 0) > 4 ? 'var(--rojo)' : 'var(--verde)';
+
+    // 1. Panel de Salud
+    const salud = document.getElementById('saludNegocio');
+    if (salud) {
+        salud.innerHTML = `
+            <div style="padding:10px; background:#000; border-radius:8px; border:1px solid #374151; font-size:12px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Ratio Liquidez:</span> <b>${(diag.ratio_liquidez || 0).toLocaleString()}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Riesgo Concent.:</span> <b>${(diag.riesgo_concentracion || 0).toFixed(0)}</b></div>
+                <div style="display:flex; justify-content:space-between;"><span>Precisión IA:</span> <b style="color:var(--verde)">${((diag.accuracy_history || 0) * 100).toFixed(0)}%</b></div>
+            </div>`;
     }
 
-    firebase.auth().onAuthStateChanged((user) => {
-        if (user) conectarMes();
-    });
-    
-    const db = firebase.database();
-    
-    let refMes = null; 
-    let datosMes = {};
-    let motorGlobal = {};
-    window.totalGastosProyectados = 500000; 
-
-    // INICIO: FUNCIONES DEL MOTOR Y DASHBOARD TOPE DE GAMA
-    function dispararMotorTitanium() {
-        const motorRef = db.ref('comandos/ejecutar_motor');
-        motorRef.set({ status: 'request', timestamp: Date.now() }).then(() => {
-            if(document.getElementById('statusIA')) document.getElementById('statusIA').innerText = "Sincronizando con IA...";
-        }).catch(err => console.error("Error motor:", err));
-    }
-
-    db.ref('tesoreria/motor_ia').on('value', snap => {
-        try {
-            const val = snap.val() || {};
-            motorGlobal = val; 
-            const m = val.mercado || {};
-            const rep = val.reporte || {}; 
-            const consejos = val.bot_financiero || []; 
-            const diag = val.diagnostico_matematico || {}; 
-            const salud = document.getElementById('saludNegocio');
-
-            // Cálculo de indicadores
-            const eficienciaReal = rep.calle > 0 ? (rep.esperado / rep.calle) : 0.85;
-            const colorRiesgo = m.riesgo > 1300 ? 'var(--rojo)' : 'var(--oro)';
-            const colorEstado = rep.estado === "CRÍTICO" ? 'var(--rojo)' : 'var(--verde)';
-            const colorInflacion = (m.rem || 0) > 4 ? 'var(--rojo)' : 'var(--verde)';
-
-            // 1. Actualizar el panel de Salud
-            if (salud) {
-                salud.innerHTML = `
-                    <div style="padding:10px; background:#000; border-radius:8px; border:1px solid #374151;">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                            <span>Ratio Liquidez:</span> <b>${(diag.ratio_liquidez || 0).toFixed(2)}</b>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                            <span>Riesgo Concent.:</span> <b>${(diag.riesgo_concentracion || 0).toFixed(2)}</b>
-                        </div>
-                        <div style="display:flex; justify-content:space-between;">
-                            <span>Precisión IA:</span> <b style="color:var(--verde)">${((diag.accuracy_history || 0) * 100).toFixed(0)}%</b>
-                        </div>
-                    </div>
-                `;
-            }
-
-            // 2. Actualizar el motorVars (si existe en el HTML, lo mantenemos por compatibilidad)
-            const motorVars = document.getElementById('motorVars');
-            if (motorVars) {
-                motorVars.innerHTML = `
-                    <div style="display:flex; justify-content:space-between;"><span>Efectividad:</span> <b style="color:${colorEstado}">${(eficienciaReal * 100).toFixed(1)}%</b></div>
-                    <div style="display:flex; justify-content:space-between;"><span>Delay:</span> <b style="color:var(--acento)">${rep.delay_historico || 60} días</b></div>
-                    <div style="display:flex; justify-content:space-between;"><span>Supervivencia:</span> <b>${rep.supervivencia || 0} días</b></div>
-                    <hr style="border:0; border-top:1px solid #1f2937; margin:8px 0">
-                    <div style="display:flex; justify-content:space-between;"><span>Inflación (REM):</span> <b style="color:${colorInflacion}">${m.rem || 0}%</b></div>
-                    <div style="display:flex; justify-content:space-between;"><span>Dólar MEP:</span> <b style="color:var(--acento)">$${m.mep || '-'}</b></div>
-                    <div style="display:flex; justify-content:space-between;"><span>Riesgo País:</span> <b style="color:${colorRiesgo}">${m.riesgo || 0} pts</b></div>
-                    <hr style="border:0; border-top:1px solid #1f2937; margin:8px 0">
-                    <div style="display:flex; justify-content:space-between;"><span>Tasa PF:</span> <b>${(m.pf || 0).toFixed(1)}%</b></div>
-                    <div style="display:flex; justify-content:space-between;"><span>FCI:</span> <b style="color:var(--verde)">${(m.fci || 0).toFixed(1)}%</b></div>
-                    <div style="margin-top:12px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid var(--oro);">
-                        📢 <b>AI BOT:</b> ${consejos[0] || 'Analizando mercado...'}
-                    </div>
-                `;
-            }
-            
-            if (document.getElementById('statusIA')) {
-                document.getElementById('statusIA').innerText = `Motor ${val.estado_api || ''} | Sincro: ${val.ultima_sincro || 'Pendiente'}`;
-            }
-            
-            renderizarDashboardTopeDeGama();
-            
-            const selectMes = document.getElementById('mesFiltro');
-            if (selectMes && selectMes.value) {
-                // ELIMINADA la llamada a actualizarBannerDinamico() que daba ReferenceError
-                proyectarTodo();
-            }
-        } catch (error) {
-            console.error("Error procesando motor_ia:", error);
-        }
-    });
-
-    function renderizarDashboardTopeDeGama() {
-        const contenedor = document.getElementById('dashboardCompleto');
-        if (!motorGlobal.inteligencia_cuit) {
-            contenedor.innerHTML = `<div style="color:#666; text-align:center; padding:20px;">Esperando datos de Inteligencia...</div>`;
-            return;
-        }
-
-        const cuits = Object.keys(motorGlobal.inteligencia_cuit).sort((a, b) => 
-            (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0)
-        );
-
-        let html = '';
-        cuits.forEach(cuit => {
-            const d = motorGlobal.inteligencia_cuit[cuit];
-            const nombre = d.nombre_fantasia || cuit; 
-            const tieneMasivos = d.alerta_analitica && d.alerta_analitica.tiene_pagos_masivos;
-            const colorBorde = tieneMasivos ? 'var(--oro)' : (d.delay_estimado > 60 ? 'var(--rojo)' : 'var(--verde)');
-            
-            html += `
-            <div class="tarjeta-cliente" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:10px; border-radius:0 8px 8px 0;">
-                <input type="checkbox" class="selector-cliente checkbox-riesgo" value="${cuit}" data-deuda="${d.deuda_viva || 0}">
-                <div style="padding-left: 25px; margin-top:-20px;">
-                    <h4 style="color:var(--acento); margin:0 0 2px 0; font-size:13px;">${nombre}</h4>
-                    <div style="font-size:10px; color:#666; margin-bottom:5px;">CUIT: ${cuit}</div>
-                    <span style="font-size:9px; padding:2px 6px; background:#000; border-radius:3px; color:var(--oro);">${d.patron || 'Sin patrón'}</span>
-                </div>
-                <div style="font-size: 11px; margin-top:10px; border-top: 1px solid #1f2937; padding-top: 8px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;">
-                        <span style="color:#94a3b8">Deuda Viva:</span>
-                        <b style="font-size:12px">$${(d.deuda_viva || 0).toLocaleString()}</b>
-                    </div>
-                    <div style="display:flex; justify-content:space-between;">
-                        <span style="color:#94a3b8">Delay Est:</span>
-                        <b style="color:${d.delay_estimado > 60 ? 'var(--rojo)' : 'var(--texto)'}">${d.delay_estimado || 0} días</b>
-                    </div>
-                    ${tieneMasivos ? `<div style="margin-top:8px; padding:4px; background:rgba(245, 158, 11, 0.1); border-left:2px solid var(--oro); font-size:9px; color:var(--oro);">⚠️ Pago masivo detectado</div>` : ''}
+    // 2. MotorVars y Datos Económicos (Unificado)
+    const motorVars = document.getElementById('motorVars') || document.getElementById('dataEconomica');
+    if (motorVars) {
+        motorVars.innerHTML = `
+            <div style="font-size:11px; line-height:1.6;">
+                <div style="display:flex; justify-content:space-between;"><span>Efectividad:</span> <b style="color:${colorEstado}">${((rep.esperado/rep.calle || 0) * 100).toFixed(1)}%</b></div>
+                <div style="display:flex; justify-content:space-between;"><span>Delay Hist.:</span> <b style="color:var(--acento)">${rep.delay_historico || 60} días</b></div>
+                <div style="display:flex; justify-content:space-between;"><span>Supervivencia:</span> <b>${rep.supervivencia || 0} días</b></div>
+                <hr style="border:0; border-top:1px solid #1f2937; margin:8px 0">
+                <div style="display:flex; justify-content:space-between;"><span>Inflación (REM):</span> <b style="color:${colorInflacion}">${m.rem || 0}%</b></div>
+                <div style="display:flex; justify-content:space-between;"><span>Dólar MEP:</span> <b style="color:var(--acento)">$${m.mep || '-'}</b></div>
+                <div style="display:flex; justify-content:space-between;"><span>Riesgo País:</span> <b style="color:${colorRiesgo}">${m.riesgo || 0} pts</b></div>
+                <hr style="border:0; border-top:1px solid #1f2937; margin:8px 0">
+                <div style="display:flex; justify-content:space-between;"><span>Tasa PF:</span> <b>${(m.pf || 0).toFixed(1)}%</b></div>
+                <div style="display:flex; justify-content:space-between;"><span>FCI:</span> <b style="color:var(--verde)">${(m.fci || 0).toFixed(1)}%</b></div>
+                <div style="margin-top:12px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid var(--oro);">
+                    📢 <b>AI BOT:</b> ${consejos[0] || 'Analizando mercado...'}
                 </div>
             </div>`;
-        });
-        contenedor.innerHTML = html;
     }
+
+    // 3. Status Motor
+    const status = document.getElementById('statusIA');
+    if (status) status.innerText = `Motor ${val.estado_api || ''} | Sincro: ${val.ultima_sincro || 'Pendiente'}`;
+    
+    // 4. Renderizado Final
+    if (typeof renderizarDashboardTopeDeGama === 'function') renderizarDashboardTopeDeGama();
+    if (document.getElementById('mesFiltro')?.value) proyectarTodo();
+});
+
+function dispararMotorTitanium() {
+    db.ref('comandos/ejecutar_motor').set({ status: 'request', timestamp: Date.now() });
+}
+    // 1. LISTADO MAESTRO COMPACTO
+function renderizarDashboardTopeDeGama() {
+    const contenedor = document.getElementById('dashboardCompleto');
+    if (!motorGlobal.inteligencia_cuit) {
+        contenedor.innerHTML = `<div style="color:#666; text-align:center; padding:20px;">Esperando datos...</div>`;
+        return;
+    }
+
+    const cuits = Object.keys(motorGlobal.inteligencia_cuit).sort((a, b) => 
+        (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0)
+    );
+
+    let html = `
+    <style>
+        .tarjeta-resumen:hover { background: #1e293b !important; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; overflow-y: auto; }
+        .modal-contenido { background: #0f172a; margin: 5% auto; padding: 20px; width: 90%; max-width: 600px; border: 1px solid #334155; border-radius: 8px; color: white; }
+    </style>`;
+
+    cuits.forEach(cuit => {
+        const d = motorGlobal.inteligencia_cuit[cuit];
+        const colorBorde = d.delay_estimado > 60 ? 'var(--rojo)' : 'var(--verde)';
+        
+        html += `
+        <div class="tarjeta-resumen" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:4px; border-radius:0 4px 4px 0; cursor:pointer; display:flex; justify-content:space-between; align-items:center;" 
+             onclick="abrirModalDetalle('${cuit}')">
+            <span style="font-size:11px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">${d.nombre_fantasia || cuit}</span>
+            <b style="font-size:11px; color:var(--verde);">$${(d.deuda_viva / 1000).toFixed(0)}k</b>
+        </div>`;
+    });
+    contenedor.innerHTML = html;
+}
+
+// 2. VENTANA DETALLE (LA VENTANA "CINE")
+function abrirModalDetalle(cuit) {
+    const d = motorGlobal.inteligencia_cuit[cuit];
+    const modal = document.getElementById('modalDetalle');
+    const proxCobro = (d.facturas_pendientes && d.facturas_pendientes.length > 0) ? d.facturas_pendientes[0].proximo_cobro_estimado : "N/A";
+
+    modal.innerHTML = `
+    <div class="modal-contenido">
+        <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
+            <h3 style="margin:0; color:var(--acento);">${d.nombre_fantasia}</h3>
+            <button onclick="document.getElementById('modalDetalle').style.display='none'" style="background:none; border:none; color:white; cursor:pointer;">❌ CERRAR</button>
+        </div>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; border-bottom:1px solid #334155; padding-bottom:15px;">
+            <div><small style="color:#666;">DEUDA VIVA</small><div>$${d.deuda_viva.toLocaleString()}</div></div>
+            <div><small style="color:#666;">PRÓXIMO COBRO</small><div style="color:var(--verde);">${proxCobro}</div></div>
+        </div>
+
+        <div style="margin-top:20px; display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">
+            <div style="background:#1e293b; padding:10px; border-radius:4px;" title="Días extra que la IA suma al vencimiento real">
+                <small style="font-size:9px; color:#94a3b8;">OFFSET (Días)</small>
+                <div style="font-size:16px;">${d.alerta_analitica.dias_de_offset}</div>
+            </div>
+            <div style="background:#1e293b; padding:10px; border-radius:4px;" title="Fiabilidad histórica de pago (0-100)">
+                <small style="font-size:9px; color:#94a3b8;">SCORE IA</small>
+                <div style="font-size:16px; color:${d.score < 50 ? 'var(--rojo)' : 'var(--verde)'}">${d.score}</div>
+            </div>
+            <div style="background:#1e293b; padding:10px; border-radius:4px;" title="Evolución reciente">
+                <small style="font-size:9px; color:#94a3b8;">TENDENCIA</small>
+                <div style="font-size:16px;">${d.tendencia_admin}</div>
+            </div>
+        </div>
+        <p style="font-size:11px; color:#666; margin-top:15px;">Nota: ${d.alerta_analitica.nota}</p>
+    </div>`;
+    
+    modal.style.display = 'block';
+}
 
     async function ejecutarStressTest() {
         const seleccionados = document.querySelectorAll('.selector-cliente:checked');
