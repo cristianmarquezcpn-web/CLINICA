@@ -10,45 +10,77 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #05070a; --panel: #111827; --acento: #3b82f6; --verde: #10b981; --rojo: #ef4444; --oro: #f59e0b; --texto: #f8fafc; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--texto); margin: 0; padding: 20px; font-size: 13px; }
-        .grid-master { display: grid; grid-template-columns: 340px 1fr 340px; gap: 15px; }
-        .card { background: var(--panel); padding: 15px; border-radius: 12px; border: 1px solid #1f2937; margin-bottom: 15px; }
-        h3 { margin: 0 0 10px 0; font-size: 10px; text-transform: uppercase; color: var(--acento); letter-spacing: 1px; }
-        input[type="number"], input[type="month"], input[type="text"] { background: #05070a; border: 1px solid #374151; color: white; padding: 10px; border-radius: 8px; width: 100%; margin-bottom: 8px; box-sizing: border-box; font-weight: 600; }
-        .btn { background: var(--acento); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
-        .sem-card { background: #1f2937; padding: 15px; border-radius: 10px; text-align: center; border-bottom: 4px solid var(--acento); }
-        .tarjeta-cliente { background: #05070a; padding: 12px; border-radius: 8px; transition: transform 0.2s; position: relative; }
-        .tarjeta-cliente:hover { transform: translateY(-2px); }
-        .checkbox-riesgo { position: absolute; top: 10px; right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: var(--rojo); }
+        :root { 
+            --bg: #05070a; --panel: #111827; --acento: #3b82f6; 
+            --verde: #10b981; --rojo: #ef4444; --oro: #f59e0b; 
+            --texto: #f8fafc; --glow: rgba(59, 130, 246, 0.2); 
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--texto); margin: 0; padding: 25px; font-size: 13px; }
+        
+        .grid-master { display: grid; grid-template-columns: 340px 1fr 340px; gap: 20px; }
+        
+        .card { 
+            background: var(--panel); padding: 20px; border-radius: 16px; 
+            border: 1px solid #1f2937; margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card:hover { border-color: var(--acento); box-shadow: 0 0 20px var(--glow); }
+        
+        h3 { margin: 0 0 15px 0; font-size: 10px; text-transform: uppercase; color: var(--acento); letter-spacing: 2px; font-weight: 800; }
+        
+        input { background: #000 !important; border: 1px solid #374151 !important; color: white !important; padding: 12px !important; border-radius: 8px !important; width: 100%; margin-bottom: 10px; font-weight: 600; }
+        
+        .btn { 
+            background: var(--acento); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold;
+            transition: transform 0.2s, filter 0.2s;
+        }
+        .btn:hover { transform: scale(1.02); filter: brightness(1.2); }
+
+        /* Tarjeta Semanal Estilo Fintech */
+        .sem-card { 
+            background: #111827; padding: 16px; border-radius: 14px; 
+            border: 1px solid #1f2937; text-align: left;
+            transition: all 0.3s ease; display: flex; flex-direction: column; 
+            justify-content: space-between; cursor: pointer;
+        }
+        .sem-card:hover { border-color: var(--acento); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15); transform: translateY(-2px); }
+        .monto-semanal { font-size: 18px; font-weight: 700; margin: 8px 0; font-family: 'Inter', sans-serif; }
+        .etiqueta-sem { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; font-weight: 700; }
+
+        /* Modal de Comando */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,7,10,0.85); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
+        .modal-content { background: var(--panel); padding: 40px; border-radius: 20px; width: 60%; border: 1px solid var(--acento); box-shadow: 0 0 50px var(--acento); }
+        
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: var(--bg); }
-        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: var(--acento); border-radius: 10px; }
     </style>
 </head>
 <body>
 
-<div id="iaBanner"></div>
+<div id="modalSemana" class="modal" onclick="this.style.display='none'">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <h3>Panel de Análisis de Semana</h3>
+        <div id="contenidoModal" style="color:white; font-size:16px;">Esperando datos de la semana seleccionada...</div>
+    </div>
+</div>
 
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-    <h2 style="margin:0">🧠 CFO <span style="color:var(--acento)">TITANIUM v8.5</span></h2>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:25px;">
+    <h2 style="margin:0; letter-spacing: -1px;">🧠 CFO <span style="color:var(--acento)">TITANIUM v8.5</span></h2>
     <div style="display:flex; gap:10px;">
         <input type="month" id="mesFiltro" onchange="conectarMes()" style="margin:0; width:180px;">
-        <button class="btn" onclick="dispararMotorTitanium()" style="background:var(--oro); color:black; width:auto; padding: 0 15px;">⚡ SINCRO TOTAL</button>
+        <button class="btn" onclick="dispararMotorTitanium()" style="background:var(--oro); color:black; width:auto; padding: 0 15px;">⚡ SINCRO</button>
+        <button class="btn" onclick="generarInforme()" style="background:var(--verde); width:auto; padding: 0 15px;">📄 INFORME</button>
         <button class="btn" onclick="conectarMes()" style="background:#374151; width:auto; padding: 0 15px;">🔄 RECONECTAR</button>
-        <button onclick="window.location.href='index.html'" style="background: transparent; border: 1px solid #374151; color: #94a3b8; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 11px;">← VOLVER</button>
     </div>
 </div>
 
 <div class="grid-master">
     <div>
         <div class="card">
-            <h3>🏦 Saldo Inicial (Arrastre)</h3>
-            <div id="infoArrastre" style="font-size:10px; color:var(--oro); margin-bottom:10px; font-weight:bold;"></div>
-            <label style="font-size:9px">CAJA GALICIA</label>
-            <input type="number" id="bancoGalicia" onchange="guardarBancos()">
-            <label style="font-size:9px">CAJA SANTANDER</label>
-            <input type="number" id="bancoSantander" onchange="guardarBancos()">
+            <h3>🏦 Saldo Inicial</h3>
+            <input type="number" id="bancoGalicia" placeholder="Caja Galicia" onchange="guardarBancos()">
+            <input type="number" id="bancoSantander" placeholder="Caja Santander" onchange="guardarBancos()">
         </div>
         <div class="card">
             <h3>💸 Gastos Operativos</h3>
@@ -59,58 +91,63 @@
 
     <div>
         <div class="card">
-            <h3>📈 Flujo Semanal (Proyectado desde Cobranzas)</h3>
-            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;" id="gridSemanas"></div>
-            <div id="resumenMensual"></div>
+            <h3>📈 Flujo Semanal</h3>
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:15px;" id="gridSemanas"></div>
         </div>
-
         <div class="card" style="background:var(--rojo); color:white; border:none;">
-            <h3 style="color:white;">☢️ SIMULADOR DE COLAPSO MASIVO</h3>
-            <p style="margin-top:0; font-size:11px;">Seleccioná clientes en el panel inferior y proyectá el impacto de impago en tu caja:</p>
+            <h3 style="color:white;">☢️ SIMULADOR DE COLAPSO</h3>
             <button class="btn" style="background:white; color:var(--rojo);" onclick="ejecutarStressTest()">EJECUTAR STRESS TEST</button>
-            <div id="resStress" style="margin-top:10px; font-size:14px;"></div>
-            
-            <div id="panelAjuste" style="margin-top:15px; padding:15px; background:#05070a; border-radius:8px; border:1px solid rgba(255,255,255,0.2); display:none;">
-                <h4 style="color:var(--oro); margin-top:0;">⚡ PLAN DE CONTINGENCIA AUTOMÁTICO</h4>
-                <div id="listaRecortes" style="font-size:11px; margin-bottom:10px;"></div>
-                <div id="oxigenoCalculado" style="padding:10px; background:#111827; border-radius:6px; font-size:12px; border:1px solid var(--verde);"></div>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>🧬 Dashboard de Inteligencia (Top Deudores)</h3>
-            <div id="dashboardCompleto" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; max-height: 500px; overflow-y: auto; padding-right:5px;">
-                <div style="color:#666; font-size:11px; text-align:center; padding:20px; grid-column: 1 / -1;">
-                    Esperando sincronización del Motor Titanium...
-                </div>
-            </div>
+            <div id="resStress" style="margin-top:10px;"></div>
         </div>
     </div>
 
     <div>
         <div class="card">
             <h3>🧪 Simulador de Impacto</h3>
-            <div style="display:flex; gap:10px; margin-bottom:10px;">
-                <input type="number" id="simMonto" placeholder="$ Gasto Mensual">
-                <input type="number" id="simMeses" placeholder="Meses" style="width:100px">
-            </div>
-            <button class="btn" style="background:var(--oro); color:black" onclick="simularImpacto()">ANALIZAR SOLVENCIA</button>
-            <div id="resSim" style="margin-top:10px; font-weight:bold;"></div>
+            <input type="number" id="simMonto" placeholder="$ Gasto Mensual">
+            <input type="number" id="simMeses" placeholder="Meses">
+            <button class="btn" onclick="simularImpacto()">ANALIZAR</button>
         </div>
         <div class="card">
             <h3>📊 Resumen de Salud</h3>
-            <div id="saludNegocio" style="font-size:13px; line-height:2.5"></div>
+            <div id="saludNegocio"></div>
         </div>
         <div class="card">
-            <h3>🧬 Variables del Motor</h3>
-            <div id="motorVars" style="font-size:11px; line-height:2.5"></div>
-            <div id="statusIA" style="font-size:9px; color:var(--acento); margin-top:10px;"></div>
+            <h3>🧬 Status Motor</h3>
+            <div id="statusIA" style="color:var(--acento);">Conectado y Escaneando...</div>
         </div>
     </div>
 </div>
 
 <script>
-    // 1. CONFIGURACIÓN FIREBASE
+    function abrirDetalleSemana(numSemana, saldoSem, ingresos, gastos) {
+        const modal = document.getElementById('modalSemana');
+        const contenido = document.getElementById('contenidoModal');
+        const ingObj = typeof ingresos === 'string' ? JSON.parse(ingresos.replace(/'/g, '"')) : ingresos;
+        
+        contenido.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:end; margin-bottom:20px;">
+                <div><h2 style="margin:0; font-size:32px;">Semana ${numSemana}</h2></div>
+                <div style="text-align:right;">
+                    <span style="font-size:12px; color:#6b7280;">Saldo Final</span>
+                    <div style="font-size:24px; font-weight:700; color:var(--verde);">$${saldoSem.toLocaleString()}</div>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                <div style="background:#05070a; padding:15px; border-radius:10px;">
+                    <h4 style="color:#60a5fa; font-size:11px;">INGRESOS POR OS</h4>
+                    ${Object.entries(ingObj).map(([n, d]) => `<div style="display:flex; justify-content:space-between;"><span>${n}</span><b>$${Math.round(d.monto).toLocaleString()}</b></div>`).join('')}
+                </div>
+                <div style="background:#05070a; padding:15px; border-radius:10px;">
+                    <h4 style="color:#fca5a5; font-size:11px;">GASTOS</h4>
+                    <div style="font-size:12px;">${gastos.join('')}</div>
+                </div>
+            </div>
+        `;
+        modal.style.display = 'flex';
+    }
+
+<script>
     const firebaseConfig = { 
         apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8", 
         authDomain: "clinicaintegral-5c488.firebaseapp.com", 
@@ -122,24 +159,20 @@
     };
 
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-    // Agregá esto justo después de firebase.initializeApp
     firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     
-    // En lugar de llamar a conectarMes() directamente al final, usá el listener de auth
-firebase.auth().onAuthStateChanged((user) => {
-    if (user) {
-        console.log("Sesión detectada:", user.email);
-        conectarMes(); // Ahora sí, llamás a la función solo cuando el usuario existe
-    } else {
-        console.log("Esperando autenticación...");
-    }
-});
-    const db = firebase.database();
+    function abrirDetalleSemana() { document.getElementById('modalSemana').style.display = 'flex'; }
+    function generarInforme() { alert("Generando reporte de flujo..."); }
+
+    firebase.auth().onAuthStateChanged((user) => {
+        if (user) conectarMes();
+    });
+const db = firebase.database();
     
     let refMes = null; 
     let datosMes = {};
     let motorGlobal = {};
-    window.totalGastosProyectados = 500000; // Variable global para conectar proyectarTodo con el Stress Test
+    window.totalGastosProyectados = 500000; 
 
     // INICIO: FUNCIONES DEL MOTOR Y DASHBOARD TOPE DE GAMA
     function dispararMotorTitanium() {
@@ -149,94 +182,112 @@ firebase.auth().onAuthStateChanged((user) => {
         }).catch(err => console.error("Error motor:", err));
     }
 
-    db.ref('tesoreria/motor_ia').on('value', snap => {
-        const val = snap.val() || {};
-        motorGlobal = val; 
-        const m = val.mercado || {};
-        const rep = val.reporte || {}; 
-        const consejos = val.bot_financiero || []; 
+db.ref('tesoreria/motor_ia').on('value', snap => {
+    const val = snap.val() || {};
+    motorGlobal = val; 
+    const m = val.mercado || {};
+    const rep = val.reporte || {}; 
+    const consejos = val.bot_financiero || []; 
+    const diag = val.diagnostico_matematico || {}; // Nuevo: Datos diagnósticos
+    const salud = document.getElementById('saludNegocio');
 
-        const eficienciaReal = rep.calle > 0 ? (rep.esperado / rep.calle) : 0.85;
-        const colorRiesgo = m.riesgo > 1300 ? 'var(--rojo)' : 'var(--oro)';
-        const colorEstado = rep.estado === "CRÍTICO" ? 'var(--rojo)' : 'var(--verde)';
+    // Cálculo de indicadores
+    const eficienciaReal = rep.calle > 0 ? (rep.esperado / rep.calle) : 0.85;
+    const colorRiesgo = m.riesgo > 1300 ? 'var(--rojo)' : 'var(--oro)';
+    const colorEstado = rep.estado === "CRÍTICO" ? 'var(--rojo)' : 'var(--verde)';
+    const colorInflacion = (m.rem || 0) > 4 ? 'var(--rojo)' : 'var(--verde)';
 
-        const motorVars = document.getElementById('motorVars');
-        if (motorVars) {
-            motorVars.innerHTML = `
-                Efectividad Stress: <b style="color:${colorEstado}">${(eficienciaReal * 100).toFixed(1)}%</b><br>
-                Delay Entrenado: <b style="color:var(--acento)">${rep.delay_historico || 60} días</b><br>
-                Supervivencia: <b>${rep.supervivencia || 0} días</b>
-                <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
-                Dólar MEP: <b style="color:var(--acento)">$${m.mep || '-'}</b><br>
-                Riesgo País: <b style="color:${colorRiesgo}">${m.riesgo || 0} pts</b><br>
-                <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
-                🏦 Tasa PF: <b>${(m.pf || 0).toFixed(1)}%</b><br>
-                📱 Billeteras (FCI): <b style="color:var(--verde)">${(m.fci || 0).toFixed(1)}%</b><br>
-                <hr style="border:0; border-top:1px solid #1f2937; margin:5px 0">
-                📢 <span style="font-size:11px; color:var(--oro)"><b>AI BOT:</b> ${consejos[0] || 'Analizando...'}</span>
-            `;
-        }
-        
-        if (document.getElementById('statusIA')) {
-            document.getElementById('statusIA').innerText = `Sincro Motor: ${val.ultima_sincro || 'Pendiente'}`;
-        }
-        
-        renderizarDashboardTopeDeGama();
-        
-        const selectMes = document.getElementById('mesFiltro');
-        if (selectMes && selectMes.value) {
-            actualizarBannerDinamico(selectMes.value);
-            proyectarTodo();
-        }
-    });
-
-    function renderizarDashboardTopeDeGama() {
-        const contenedor = document.getElementById('dashboardCompleto');
-        if (!motorGlobal.inteligencia_cuit) return;
-
-        const cuits = Object.keys(motorGlobal.inteligencia_cuit).sort((a, b) => 
-            (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0)
-        );
-
-        let html = '';
-        cuits.forEach(cuit => {
-            const d = motorGlobal.inteligencia_cuit[cuit];
-            const tieneMasivos = d.alerta_analitica && d.alerta_analitica.tiene_pagos_masivos;
-            const colorBorde = tieneMasivos ? 'var(--oro)' : (d.delay_estimado > 60 ? 'var(--rojo)' : 'var(--verde)');
-            
-            html += `
-            <div class="tarjeta-cliente" style="border-left: 4px solid ${colorBorde};">
-                <input type="checkbox" class="selector-cliente checkbox-riesgo" value="${cuit}" data-deuda="${d.deuda_viva || 0}">
-                <div style="padding-right: 25px;">
-                    <h4 style="color:var(--acento); margin:0 0 5px 0; font-size:12px; word-break: break-all;">${cuit}</h4>
-                    <span style="font-size:9px; padding:2px 4px; background:#1f2937; border-radius:3px;">${d.patron || 'N/A'}</span>
+    // 1. Actualizar el panel de Salud (Diagnóstico Matemático)
+    if (salud) {
+        salud.innerHTML = `
+            <div style="padding:10px; background:#000; border-radius:8px; border:1px solid #374151;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <span>Ratio Liquidez:</span> <b>${(diag.ratio_liquidez || 0).toFixed(2)}</b>
                 </div>
-                <div style="font-size: 11px; margin-top:10px; border-top: 1px solid #1f2937; padding-top: 8px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;">
-                        <span style="color:#94a3b8">Deuda Viva:</span>
-                        <b style="font-size:12px">$${(d.deuda_viva || 0).toLocaleString()}</b>
-                    </div>
-                    <div style="display:flex; justify-content:space-between;">
-                        <span style="color:#94a3b8">Delay Est:</span>
-                        <b style="color:${d.delay_estimado > 60 ? 'var(--rojo)' : 'var(--texto)'}">${d.delay_estimado || 0} días</b>
-                    </div>
-                    <div style="margin-top:8px; background:#05070a; padding:6px; border-radius:4px; border:1px solid #1f2937;">
-                        <small style="color:#666; display:block; margin-bottom:4px;">PRÓXIMOS COBROS:</small>
-                        ${(d.facturas_pendientes || []).slice(0,2).map(f => `
-                            <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:2px;">
-                                <span style="color:#94a3b8">${f.proximo_cobro_estimado}</span>
-                                <span>$${(f.monto || 0).toLocaleString()}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                    ${tieneMasivos ? `<div style="margin-top:8px; padding:6px; background:rgba(245, 158, 11, 0.1); border-left:2px solid var(--oro); font-size:9px; color:var(--oro);">⚠️ Afectado por pagos masivos.</div>` : ''}
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <span>Riesgo Concent.:</span> <b>${(diag.riesgo_concentracion || 0).toFixed(2)}</b>
                 </div>
-            </div>`;
-        });
-        contenedor.innerHTML = html;
+                <div style="display:flex; justify-content:space-between;">
+                    <span>Precisión IA:</span> <b style="color:var(--verde)">${((diag.accuracy_history || 0) * 100).toFixed(0)}%</b>
+                </div>
+            </div>
+        `;
     }
 
-    function ejecutarStressTest() {
+    // 2. Actualizar el motorVars
+    const motorVars = document.getElementById('motorVars');
+    if (motorVars) {
+        motorVars.innerHTML = `
+            <div style="display:flex; justify-content:space-between;"><span>Efectividad:</span> <b style="color:${colorEstado}">${(eficienciaReal * 100).toFixed(1)}%</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>Delay:</span> <b style="color:var(--acento)">${rep.delay_historico || 60} días</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>Supervivencia:</span> <b>${rep.supervivencia || 0} días</b></div>
+            <hr style="border:0; border-top:1px solid #1f2937; margin:8px 0">
+            <div style="display:flex; justify-content:space-between;"><span>Inflación (REM):</span> <b style="color:${colorInflacion}">${m.rem || 0}%</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>Dólar MEP:</span> <b style="color:var(--acento)">$${m.mep || '-'}</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>Riesgo País:</span> <b style="color:${colorRiesgo}">${m.riesgo || 0} pts</b></div>
+            <hr style="border:0; border-top:1px solid #1f2937; margin:8px 0">
+            <div style="display:flex; justify-content:space-between;"><span>Tasa PF:</span> <b>${(m.pf || 0).toFixed(1)}%</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>FCI:</span> <b style="color:var(--verde)">${(m.fci || 0).toFixed(1)}%</b></div>
+            <div style="margin-top:12px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid var(--oro);">
+                📢 <b>AI BOT:</b> ${consejos[0] || 'Analizando mercado...'}
+            </div>
+        `;
+    }
+    
+    if (document.getElementById('statusIA')) {
+        document.getElementById('statusIA').innerText = `Motor ${val.estado_api || ''} | Sincro: ${val.ultima_sincro || 'Pendiente'}`;
+    }
+    
+    renderizarDashboardTopeDeGama();
+    
+    const selectMes = document.getElementById('mesFiltro');
+    if (selectMes && selectMes.value) {
+        actualizarBannerDinamico(selectMes.value);
+        proyectarTodo();
+    }
+});
+function renderizarDashboardTopeDeGama() {
+    const contenedor = document.getElementById('dashboardCompleto');
+    if (!motorGlobal.inteligencia_cuit) {
+        contenedor.innerHTML = `<div style="color:#666; text-align:center; padding:20px;">Esperando datos de Inteligencia...</div>`;
+        return;
+    }
+
+    const cuits = Object.keys(motorGlobal.inteligencia_cuit).sort((a, b) => 
+        (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0)
+    );
+
+    let html = '';
+    cuits.forEach(cuit => {
+        const d = motorGlobal.inteligencia_cuit[cuit];
+        const nombre = d.nombre_fantasia || cuit; // Usa el nombre si existe, sino el CUIT
+        const tieneMasivos = d.alerta_analitica && d.alerta_analitica.tiene_pagos_masivos;
+        const colorBorde = tieneMasivos ? 'var(--oro)' : (d.delay_estimado > 60 ? 'var(--rojo)' : 'var(--verde)');
+        
+        html += `
+        <div class="tarjeta-cliente" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:10px; border-radius:0 8px 8px 0;">
+            <input type="checkbox" class="selector-cliente checkbox-riesgo" value="${cuit}" data-deuda="${d.deuda_viva || 0}">
+            <div style="padding-left: 25px; margin-top:-20px;">
+                <h4 style="color:var(--acento); margin:0 0 2px 0; font-size:13px;">${nombre}</h4>
+                <div style="font-size:10px; color:#666; margin-bottom:5px;">CUIT: ${cuit}</div>
+                <span style="font-size:9px; padding:2px 6px; background:#000; border-radius:3px; color:var(--oro);">${d.patron || 'Sin patrón'}</span>
+            </div>
+            <div style="font-size: 11px; margin-top:10px; border-top: 1px solid #1f2937; padding-top: 8px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom: 4px;">
+                    <span style="color:#94a3b8">Deuda Viva:</span>
+                    <b style="font-size:12px">$${(d.deuda_viva || 0).toLocaleString()}</b>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span style="color:#94a3b8">Delay Est:</span>
+                    <b style="color:${d.delay_estimado > 60 ? 'var(--rojo)' : 'var(--texto)'}">${d.delay_estimado || 0} días</b>
+                </div>
+                ${tieneMasivos ? `<div style="margin-top:8px; padding:4px; background:rgba(245, 158, 11, 0.1); border-left:2px solid var(--oro); font-size:9px; color:var(--oro);">⚠️ Pago masivo detectado</div>` : ''}
+            </div>
+        </div>`;
+    });
+    contenedor.innerHTML = html;
+}
+async function ejecutarStressTest() {
         const seleccionados = document.querySelectorAll('.selector-cliente:checked');
         let impactoTotal = 0;
         seleccionados.forEach(chk => impactoTotal += parseFloat(chk.dataset.deuda || 0));
@@ -246,8 +297,11 @@ firebase.auth().onAuthStateChanged((user) => {
             return;
         }
 
-        const saldoActual = motorGlobal.reporte ? (motorGlobal.reporte.esperado || 0) : 0;
+        // Usamos el reporte real del motor o fallback a 0
+        const saldoActual = motorGlobal.reporte?.esperado || 0;
         const nuevoSaldo = saldoActual - impactoTotal;
+        
+        // Mantenemos la variable global, pero garantizamos que sea un número válido
         const gastosM = window.totalGastosProyectados > 0 ? window.totalGastosProyectados : 500000; 
         
         const resStress = document.getElementById('resStress');
@@ -256,7 +310,7 @@ firebase.auth().onAuthStateChanged((user) => {
         resStress.innerHTML = `
             <div>Pérdida de flujo proyectado: <b style="color:var(--oro)">-$${impactoTotal.toLocaleString()}</b></div>
             <div style="margin-top:5px; padding-top:5px; border-top:1px solid rgba(255,255,255,0.2);">
-                Nuevo estado de caja: <b style="color:${nuevoSaldo < 0 ? 'white' : 'var(--verde)'};">$${nuevoSaldo.toLocaleString()}</b>
+                Nuevo estado de caja: <b style="color:${nuevoSaldo < 0 ? 'var(--rojo)' : 'var(--verde)'};">$${nuevoSaldo.toLocaleString()}</b>
             </div>
         `;
 
@@ -264,12 +318,13 @@ firebase.auth().onAuthStateChanged((user) => {
             panelAjuste.style.display = 'block';
             const bache = Math.abs(nuevoSaldo);
             const ahorroPotencial = gastosM * 0.3; 
-            let mesesExtra = (gastosM - ahorroPotencial) > 0 ? (bache / (gastosM - ahorroPotencial)) : 0;
+            const gastosDepurados = gastosM - ahorroPotencial;
+            const mesesExtra = gastosDepurados > 0 ? (bache / gastosDepurados) : 0;
 
             document.getElementById('listaRecortes').innerHTML = `
                 Para cubrir el rojo de <b>$${bache.toLocaleString()}</b> sugerimos:<br><br>
-                <span style="color:white;">• 🔴 Ajuste Operativo (30% de Gastos Proyectados):</span> Ahorro de $${ahorroPotencial.toLocaleString()}/mes.<br>
-                <span style="color:white;">• 🔴 Freno a Inversiones:</span> Bloquear $${(ahorroPotencial * 0.5).toLocaleString()} de partidas no críticas.
+                • 🔴 <b>Ajuste Operativo (30%):</b> Ahorro de $${ahorroPotencial.toLocaleString()}/mes.<br>
+                • 🔴 <b>Freno a Inversiones:</b> Bloquear $${(ahorroPotencial * 0.5).toLocaleString()} de partidas no críticas.
             `;
             document.getElementById('oxigenoCalculado').innerHTML = `✅ <b>EFECTO:</b> Aplicando este recorte, extendés tu supervivencia <b>${mesesExtra.toFixed(1)} meses</b>.`;
         } else {
@@ -277,12 +332,12 @@ firebase.auth().onAuthStateChanged((user) => {
         }
     }
 
-    // INICIO: TUS FUNCIONES EXACTAS 
     async function conectarMes() {
         const mes = document.getElementById('mesFiltro').value;
         if (!mes) return;
         if (refMes) refMes.off();
 
+        // 1. Cálculo de Arrastre (Mes Anterior)
         const [y, m] = mes.split('-').map(Number);
         const mAnt = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
         
@@ -294,25 +349,29 @@ firebase.auth().onAuthStateChanged((user) => {
             infoArrastre.innerText = `⚠ Arrastre de ${mAnt}: $${Math.round(arrastre).toLocaleString()}`;
         }
 
+        // 2. Conexión a Mes Actual con Protección de Datos
         refMes = db.ref(`tesoreria/meses/${mes}`);
         refMes.on('value', snap => {
             const data = snap.val();
-            if (data) {
-                datosMes = data;
-                document.getElementById('bancoGalicia').value = data.bancos?.galicia || 0;
-                document.getElementById('bancoSantander').value = data.bancos?.santander || 0;
-            } else {
-                document.getElementById('bancoGalicia').value = arrastre;
-                document.getElementById('bancoSantander').value = 0;
-                datosMes = { bancos: { galicia: arrastre, santander: 0 }, gastos: {}, metadata: { creado: new Date().toISOString() } };
-            }
+            datosMes = data || { bancos: { galicia: arrastre, santander: 0 }, gastos: {}, metadata: { creado: new Date().toISOString() } };
+            
+            // Actualización de inputs con seguridad
+            document.getElementById('bancoGalicia').value = datosMes.bancos?.galicia ?? arrastre;
+            document.getElementById('bancoSantander').value = datosMes.bancos?.santander ?? 0;
+            
             if (typeof dibujarGastos === 'function') dibujarGastos(); 
-            proyectarTodo();
+            proyectarTodo(); // <-- Aquí es donde la nave recalcula todo con el nuevo valor
         });
     }
-    async function proyectarTodo() {
+async function proyectarTodo() {
     const mesSeleccionado = document.getElementById('mesFiltro').value;
     if (!mesSeleccionado || !motorGlobal.inteligencia_cuit) return;
+
+    // Obtener fecha actual para marcar semanas pasadas
+    const hoy = new Date();
+    const mesActualStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+    const diaActual = hoy.getDate();
+    const semanaActual = Math.ceil(diaActual / 7);
 
     let saldoAcumulado = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + 
                          (parseFloat(document.getElementById('bancoSantander').value) || 0);
@@ -322,14 +381,14 @@ firebase.auth().onAuthStateChanged((user) => {
     let detG = { 1: [], 2: [], 3: [], 4: [] };
     let acumuladorIngresos = { 1: {}, 2: {}, 3: {}, 4: {} };
 
-    // 1. PROCESAR INGRESOS (Solo mapeo de lo que ya calculó el motor)
+    // 1. PROCESAR INGRESOS (Usando la estructura correcta de inteligencia_cuit)
     const inteligencia = motorGlobal.inteligencia_cuit;
     Object.keys(inteligencia).forEach(cuit => {
         const cliente = inteligencia[cuit];
         if (!cliente.facturas_pendientes) return;
 
         cliente.facturas_pendientes.forEach(f => {
-            const fechaCobro = f.fecha_cobro_estimada || f.proximo_cobro_estimado; // Formato YYYY-MM-DD
+            const fechaCobro = f.proximo_cobro_estimado; // Campo exacto de tu motor
             if (!fechaCobro) return;
 
             const [y, m, d] = fechaCobro.split('-').map(Number);
@@ -337,7 +396,7 @@ firebase.auth().onAuthStateChanged((user) => {
             
             if (mesC === mesSeleccionado) {
                 const s = Math.min(Math.ceil(d / 7), 4);
-                const nombre = cliente.nombre || "CLIENTE";
+                const nombre = cliente.nombre_fantasia || "CLIENTE";
                 
                 if (!acumuladorIngresos[s][nombre]) acumuladorIngresos[s][nombre] = { monto: 0 };
                 acumuladorIngresos[s][nombre].monto += (f.monto || 0);
@@ -347,126 +406,117 @@ firebase.auth().onAuthStateChanged((user) => {
     });
 
     // 2. PROCESAR GASTOS
-    const snapGastos = await db.ref('configuracion/gastos_recurrentes').once('value');
-    const gastosMaestros = snapGastos.val() || {};
-    Object.keys(gastosMaestros).forEach(id => {
-        const g = gastosMaestros[id];
-        if (!g.monto || g.monto <= 0) return;
-        let sG = g.dia_pago ? Math.min(Math.ceil(g.dia_pago / 7), 4) : 1;
-        gasS[sG] += parseFloat(g.monto);
-        detG[sG].push(`<div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5;"><span>📉 ${g.nombre.substring(0,8)}</span><span>$${Math.round(g.monto/1000)}k</span></div>`);
-    });
+    // 2. PROCESAR GASTOS
+const snapGastos = await db.ref('configuracion/gastos_recurrentes').once('value');
+const gastosMaestros = snapGastos.val() || {};
+const mesActual = document.getElementById('mesFiltro').value;
 
-    // 3. RENDERIZADO VISUAL
+Object.keys(gastosMaestros).forEach(cat => {
+    const rubro = gastosMaestros[cat]; // accedemos a la categoría
+    
+    (rubro.items || []).forEach(g => {
+        // 1. VALIDACIÓN DE FECHAS (PLAZO)
+        if (g.desde && mesActual < g.desde) return; 
+        if (g.hasta && mesActual > g.hasta) return; // Si 'hasta' existe y ya pasó el mes, ignoramos
+        
+        // 2. VALIDACIÓN DE MONTO
+        if (!g.monto || parseFloat(g.monto) <= 0) return;
+        
+        // 3. DETERMINAR SEMANA (sG)
+        // Usamos g.dia_pago (asumiendo que viene del item)
+        let sG = g.dia_pago ? Math.min(Math.ceil(g.dia_pago / 7), 4) : 1;
+        
+        // 4. ACUMULACIÓN
+        const monto = parseFloat(g.monto);
+        gasS[sG] += monto;
+        saldoAcumulado -= monto;
+        
+        // 5. DETALLE PARA EL MODAL
+        detG[sG].push(`
+            <div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5;">
+                <span>📉 ${rubro.nombre ? rubro.nombre.substring(0,8) : 'Gasto'}</span>
+                <span>$${Math.round(monto/1000)}k</span>
+            </div>
+        `);
+    });
+});
+
+    // 3. RENDERIZADO VISUAL CON LOGICA DE SEMANAS PASADAS
     const grid = document.getElementById('gridSemanas');
     if (grid) {
         grid.innerHTML = "";
         for (let i = 1; i <= 4; i++) {
             saldoAcumulado += (ingS[i] - gasS[i]);
+            
+            // Lógica: Si el mes ya pasó O (es el mes actual y la semana ya pasó)
+            const esPasado = (mesSeleccionado < mesActualStr) || (mesSeleccionado === mesActualStr && i < semanaActual);
+            const estiloFondo = esPasado ? "background: #0b0e14; opacity: 0.7; border-top: 3px solid #374151;" : `border-top: 3px solid ${saldoAcumulado < 0 ? 'var(--rojo)':'var(--verde)'};`;
+            const estiloTexto = esPasado ? "color: #6b7280;" : "";
+
             let htmlIngresos = Object.keys(acumuladorIngresos[i]).map(nombre => `
                 <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:2px;">
-                    <span style="color:var(--acento)">${nombre.substring(0,10)}</span>
+                    <span style="${esPasado ? 'color:#4b5563' : 'color:var(--acento)'}">${nombre.substring(0,10)}</span>
                     <span>$${Math.round(acumuladorIngresos[i][nombre].monto/1000)}k</span>
                 </div>`).join('');
 
-            grid.innerHTML += `
-                <div class="sem-card" style="border-top: 3px solid ${saldoAcumulado < 0 ? 'var(--rojo)':'var(--verde)'};">
-                    <div style="font-size:10px; color:#94a3b8;">SEM ${i}</div>
-                    <b style="color:${saldoAcumulado < 0 ? 'var(--rojo)':'#4ade80'}; font-size:14px;">$${Math.round(saldoAcumulado).toLocaleString()}</b>
-                    <div style="margin:8px 0; max-height:80px; overflow-y:auto;">${htmlIngresos}${detG[i].join('')}</div>
-                </div>`;
-        }
+		grid.innerHTML += `
+    <div class="sem-card" style="${estiloFondo}" 
+         onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)}, '${JSON.stringify(acumuladorIngresos[i]).replace(/"/g, "'")}', [${detG[i].map(d => `'${d}'`)}])">
+        
+        <div class="etiqueta-sem">Semana ${i} ${esPasado ? '• CERRADA' : '• ACTIVA'}</div>
+        <div class="monto-semanal" style="${esPasado ? 'color:#4b5563' : (saldoAcumulado < 0 ? 'color:var(--rojo)' : 'color:var(--verde)')}">
+            $${Math.round(saldoAcumulado).toLocaleString()}
+        </div>
+        
+        <div style="margin-top:10px; border-top: 1px solid #1f2937; padding-top: 10px;">
+            <div style="max-height:100px; overflow-y:auto; padding-right:5px;">
+                ${htmlIngresos}
+                ${detG[i].join('')}
+            </div>
+        </div>
+    </div>`;            
+    
     }
     
-    window.totalGastosProyectados = Object.values(gasS).reduce((a,b) => a+b, 0);
-    actualizarBannerDinamico(mesSeleccionado);
-}	
-   
-    function actualizarBannerDinamico(mesSel) {
-        const banner = document.getElementById('iaBanner');
-        if (!banner) return; 
-
-        const motor = motorGlobal || {}; 
-        const m = motor.mercado || { mep: 1250, riesgo: 1200, rem: 4, pf: 60, fci: 52 };
-        const rep = motor.reporte || {}; 
-        const consejosDelBot = motor.bot_financiero || []; 
-        const intelCuit = motor.inteligencia_cuit ? Object.values(motor.inteligencia_cuit) : []; 
-
-        if (!rep.calle) {
-            banner.style.display = "none";
-            return;
-        }
-
-        const diasVida = rep.supervivencia || 0;
-        const mep = m.mep || 1;
-        const inflacionMensual = m.rem || 4;
-        const deudaCalle = rep.calle || 0;
-
-        const perdidaInflacion = deudaCalle * (inflacionMensual / 100);
-        const sangriaUSD = (deudaCalle / mep) * (inflacionMensual / 100);
-
-        const MODO_PANICO = rep.estado === "CRÍTICO" || diasVida < 20;
-        let colorBorde = MODO_PANICO ? '#ef4444' : (diasVida > 60 ? '#10b981' : '#f59e0b');
-
-        banner.style.display = "block";
-        banner.innerHTML = `
-            <div style="background:rgba(10,10,20,0.98); border:2px solid ${colorBorde}; border-left:15px solid ${colorBorde}; border-radius:15px; padding:25px; color:#fff; font-family: 'Segoe UI', sans-serif; box-shadow: 0 15px 50px rgba(0,0,0,0.7); margin-bottom:20px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:15px; margin-bottom:20px;">
-                    <div><h2 style="margin:0; font-size:24px; color:${colorBorde}; font-weight:900;">${MODO_PANICO ? '🚨 ESTADO: ' + (rep.estado || 'CRÍTICO') : '🛡️ SISTEMA TITANIUM'}</h2></div>
-                    <div style="text-align:right; background:rgba(255,255,255,0.05); padding:10px 20px; border-radius:12px;">
-                        <span style="font-size:11px; color:#888;">PÉSIMO (VaR p5) + BANCOS:</span><br>
-                        <b style="font-size:28px; color:${colorBorde};">${diasVida} DÍAS</b>
-                    </div>
-                </div>
-
-                <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-bottom:20px; background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
-                    <div style="text-align:center;"><span style="font-size:10px; color:#888;">PLAZO FIJO</span><br><b style="color:#60a5fa; font-size:18px;">${m.pf || 0}%</b></div>
-                    <div style="text-align:center; border-left:1px solid rgba(255,255,255,0.1);"><span style="font-size:10px; color:#888;">FCI / BILL.</span><br><b style="color:#10b981; font-size:18px;">${m.fci || 0}%</b></div>
-                    <div style="text-align:center; border-left:1px solid rgba(255,255,255,0.1);"><span style="font-size:10px; color:#888;">INFLACIÓN</span><br><b style="color:#ef4444; font-size:18px;">${inflacionMensual}%</b></div>
-                    <div style="text-align:center; border-left:1px solid rgba(255,255,255,0.1);"><span style="font-size:10px; color:#888;">DOLAR MEP</span><br><b style="color:#60a5fa; font-size:18px;">$${mep}</b></div>
-                </div>
-
-                <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:20px; margin-bottom:20px;">
-                    <div style="background:rgba(239,68,68,0.03); padding:20px; border-radius:12px; border:1px solid rgba(239,68,68,0.3);">
-                        <h3 style="margin:0 0 15px 0; font-size:13px; color:#ef4444; text-transform:uppercase;">🩸 Sangría en Calle</h3>
-                        <div style="background:rgba(239,68,68,0.1); padding:15px; border-radius:10px; margin-bottom:10px;">
-                            <p style="margin:0; font-size:11px; color:#ef4444;">PÉRDIDA ESTIMADA:</p>
-                            <b style="font-size:24px;">-$${Math.round(perdidaInflacion).toLocaleString()}</b>
-                        </div>
-                        <div style="font-size:13px; color:#aaa;">Equivale a: <b style="color:#eee">U$D ${Math.round(sangriaUSD)}</b></div>
-                    </div>
-                    <div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border:1px solid ${colorBorde};">
-                        <h3 style="margin:0 0 15px 0; font-size:12px; color:${colorBorde}; text-transform:uppercase;">🤖 Recomendaciones</h3>
-                        <div style="font-size:14px; color:#ddd; line-height:1.6;">
-                            ${consejosDelBot.length > 0 
-                                ? consejosDelBot.map(c => `<div style="margin-bottom:8px; padding-left:15px; border-left:2px solid ${colorBorde};">${c}</div>`).join('')
-                                : 'Analizando flujos para optimizar...'}
-                        </div>
-                    </div>
-                </div>
-
-                <div style="background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
-                    <h4 style="margin:0 0 12px 0; color:#60a5fa; font-size:11px; text-transform:uppercase;">🏆 Top Pagadores</h4>
-                    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px;">
-                        ${intelCuit.slice(0, 3).map(os => `
-                            <div style="background:rgba(0,0,0,0.2); padding:10px; border-radius:8px;">
-                                <div style="font-size:10px; color:#888;">CUIT: ${os.cuit || 'S/D'}</div>
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
-                                    <b style="color:#10b981; font-size:14px;">${((os.indice || 0.85) * 100).toFixed(0)}% Efic.</b>
-                                    <span style="font-size:12px; color:#60a5fa;">Delay: ${os.delay_historico || os.delay || 0}d</span>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                <div style="margin-top:20px; display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#555; border-top:1px solid rgba(255,255,255,0.05); padding-top:15px;">
-                    <span>RIESGO PAÍS: <b>${m.riesgo || 0} pts</b> | SINCRO: ${motor.ultima_sincro || 'OK'}</span>
-                    <span style="color:#3b82f6; font-weight:900; letter-spacing:1px;">TITANIUM INTELLIGENCE 🔥</span>
-                </div>
+}
+        window.totalGastosProyectados = Object.values(gasS).reduce((a,b) => a+b, 0);
+}
+function abrirDetalleSemana(numSemana, saldoSem, ingresos, gastos) {
+    const modal = document.getElementById('modalSemana');
+    const contenido = document.getElementById('contenidoModal');
+    
+    // Convertimos de nuevo las comillas simples que mandamos desde el HTML a JSON válido
+    const ingresosObj = typeof ingresos === 'string' ? JSON.parse(ingresos.replace(/'/g, '"')) : ingresos;
+    
+    contenido.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:end; margin-bottom:20px;">
+            <div>
+                <h3 style="margin-bottom:5px; color:var(--acento);">Detalle Ejecutivo</h3>
+                <h2 style="margin:0; font-size:32px;">Semana ${numSemana}</h2>
             </div>
-        `;
-    }
-
+            <div style="text-align:right;">
+                <span style="font-size:12px; color:#6b7280;">Saldo Final Estimado</span>
+                <div style="font-size:24px; font-weight:700; color:var(--verde);">$${saldoSem.toLocaleString()}</div>
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+            <div style="background:#05070a; padding:15px; border-radius:10px;">
+                <h4 style="color:#60a5fa; font-size:11px; margin-bottom:10px;">INGRESOS POR OS</h4>
+                ${Object.entries(ingresosObj).map(([nombre, data]) => `
+                    <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                        <span>${nombre.substring(0,15)}</span>
+                        <b>$${Math.round(data.monto).toLocaleString()}</b>
+                    </div>
+                `).join('')}
+            </div>
+            <div style="background:#05070a; padding:15px; border-radius:10px;">
+                <h4 style="color:#fca5a5; font-size:11px; margin-bottom:10px;">DESGLOSE GASTOS</h4>
+                <div style="font-size:12px;">${gastos.join('')}</div>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
+}
 // --- FUNCIONES DE APOYO DEL MOTOR IA (NO BORRAR) ---
 function parseFecha(s) { 
     if (!s) return null;
@@ -491,28 +541,75 @@ function mediaPonderada(arr) {
 
 // --- GENERADOR DE INFORMES (NUEVO) ---
 async function generarInformeJunta() {
-    if (!window.motorGlobal) {
+    if (!window.motorGlobal || !window.motorGlobal.inteligencia_cuit) {
         alert("⚠️ Motor no sincronizado. Ejecuta la Sincronización primero.");
         return;
     }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const data = window.motorGlobal;
+    
+    // Configuración de ajuste (puedes parametrizar esto según el índice mensual)
+    const factorInflacion = 0.05; // Ajuste del 5% mensual como ejemplo
 
+    // Encabezado
     doc.setFontSize(22);
     doc.text("Reporte Ejecutivo de Tesorería", 20, 20);
-    doc.setFontSize(12);
+    doc.setFontSize(10);
     doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 20, 30);
     doc.line(20, 35, 190, 35);
     
-    doc.text(`Burn Rate Estructural: $${data.burn_rate?.toLocaleString() || 0}`, 20, 45);
-    doc.text(`Saldo Pesimista (VaR): $${data.var_pesimista?.toLocaleString() || 0}`, 20, 55);
-    doc.text(`Runway Proyectado: ${data.runway || 0} meses`, 20, 65);
+    // KPIs Globales y Ajuste Real
+    doc.setFontSize(12);
+    doc.text(`Burn Rate Estructural: $${data.reporte?.esperado?.toLocaleString() || 0}`, 20, 45);
+    doc.text(`Runway Estimado: ${data.reporte?.supervivencia || 0} días`, 20, 55);
     
-    doc.save(`Informe_Junta_${new Date().getTime()}.pdf`);
-}
+    // Bloque de Pérdida por Inflación
+    const saldoNominal = data.reporte?.saldo_total || 0;
+    const impactoInflacion = Math.round(saldoNominal * factorInflacion);
+    doc.setTextColor(200, 50, 50); // Rojo para pérdida
+    doc.text(`Impacto Estimado por Inflación (Ajuste): -$${impactoInflacion.toLocaleString()}`, 20, 65);
+    doc.setTextColor(0, 0, 0); // Reset color
+    
+    // Tabla de Top 3 Deudores
+    doc.setFontSize(14);
+    doc.text("Top 3 Obras Sociales con mayor deuda:", 20, 85);
+    
+    const top3 = Object.keys(data.inteligencia_cuit)
+        .sort((a, b) => data.inteligencia_cuit[b].deuda_viva - data.inteligencia_cuit[a].deuda_viva)
+        .slice(0, 3);
+        
+    let y = 95;
+    top3.forEach((cuit, index) => {
+        const d = data.inteligencia_cuit[cuit];
+        doc.setFontSize(10);
+        doc.text(`${index + 1}. ${d.nombre_fantasia || cuit}: $${(d.deuda_viva || 0).toLocaleString()}`, 20, y);
+        y += 10;
+    });
 
-// --- PROCESO DE ENTRENAMIENTO DINÁMICO ---
+    // Seccion de Alertas
+    doc.setFontSize(14);
+    doc.text("⚠️ Alertas Críticas (Pagos Masivos):", 20, y + 10);
+    
+    let yAlertas = y + 20;
+    let hayAlertas = false;
+
+    Object.keys(data.inteligencia_cuit).forEach(cuit => {
+        const d = data.inteligencia_cuit[cuit];
+        if (d.alerta_analitica && d.alerta_analitica.tiene_pagos_masivos) {
+            doc.setFontSize(10);
+            doc.text(`• ${d.nombre_fantasia || cuit} presenta patrones de pagos masivos.`, 20, yAlertas);
+            yAlertas += 7;
+            hayAlertas = true;
+        }
+    });
+
+    if (!hayAlertas) {
+        doc.text("No se detectaron alertas críticas de pagos masivos.", 20, yAlertas);
+    }
+
+    doc.save(`Informe_Junta_Completo_${new Date().getTime()}.pdf`);
+}
 // --- PROCESO DE ENTRENAMIENTO DINÁMICO ---
 async function verificarYEntrenar() {
     const [fSnap, sSnap, gSnap] = await Promise.all([
@@ -529,7 +626,7 @@ async function verificarYEntrenar() {
 
     if (cantidadActual !== motorData.cantidad_entrenada) {
         const statusIA = document.getElementById('statusIA');
-        if (statusIA) statusIA.innerText = "🤖 IA: Analizando cobros y gastos fijos...";
+        if (statusIA) statusIA.innerText = "🤖 IA: Analizando cobros y gastos...";
         const cSnap = await db.ref('cobranzas').once('value');
         try {
             await ejecutarIA(facturas, cSnap.val() || {}, gastosMaestros);
@@ -541,7 +638,7 @@ async function verificarYEntrenar() {
             if (statusIA) statusIA.innerText = "✅ Motor Sincronizado";
             if (typeof proyectarTodo === 'function') proyectarTodo();
         } catch (error) {
-            console.error("❌ Error en entrenamiento IA:", error);
+            console.error("❌ Error IA:", error);
             if (statusIA) statusIA.innerText = "⚠️ Error en Sincronización";
         }
     } else {
@@ -551,6 +648,20 @@ async function verificarYEntrenar() {
 }
 
 // --- GESTIÓN DE GASTOS Y BANCOS ---
+function nuevaCategoria() {
+    const nombre = prompt("Nombre del rubro/gasto:");
+    if (!nombre) return;
+
+    const nuevoGasto = { 
+        monto: 0, 
+        desde: new Date().toISOString().slice(0, 7), 
+        hasta: "" 
+    };
+
+    db.ref(`configuracion/gastos_recurrentes/${nombre}/items`).push(nuevoGasto)
+      .then(() => { dibujarGastos(); if (typeof proyectarTodo === 'function') proyectarTodo(); });
+}
+
 function guardarBancos() {
     const mes = document.getElementById('mesFiltro').value;
     const galicia = parseFloat(document.getElementById('bancoGalicia').value) || 0;
@@ -572,12 +683,28 @@ function dibujarGastos() {
         const gastos = snapshot.val() || {};
         Object.keys(gastos).forEach(cat => {
             const rubro = gastos[cat];
-            const itemsHtml = (rubro.items || []).map((it, i) => {
-                if (it.desde && mesSeleccionado < it.desde) return '';
-                if (it.hasta && mesSeleccionado > it.hasta) return '';
-                return `...`; // Tu lógica de renderizado original aquí
-            }).join('');
-            cont.innerHTML += `...`; // Tu estructura original
+            let itemsHtml = "";
+            
+            (rubro.items || []).forEach((it, i) => {
+                if (it.desde && mesSeleccionado < it.desde) return;
+                if (it.hasta && mesSeleccionado > it.hasta) return;
+
+                itemsHtml += `
+                    <div style="display:flex; gap:5px; margin-bottom:8px; align-items:center;">
+                        <input type="number" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', '${i}', 'monto', this.value)" style="width:70px;">
+                        <input type="month" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${i}', 'desde', this.value)" title="Inicio">
+                        <input type="month" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${i}', 'hasta', this.value)" title="Fin (vacio=indefinido)">
+                        <button onclick="eliminarGastoRecurrente('${cat}', '${i}')" style="background:transparent; border:none; color:var(--rojo); cursor:pointer;">✕</button>
+                    </div>
+                `;
+            });
+
+            cont.innerHTML += `
+                <div style="margin-bottom:15px; border-bottom:1px solid #374151; padding-bottom:10px;">
+                    <div style="font-weight:bold; color:var(--acento); margin-bottom:5px;">${cat}</div>
+                    ${itemsHtml}
+                </div>
+            `;
         });
     });
 }
@@ -598,44 +725,76 @@ function eliminarGastoRecurrente(cat, idx) {
         items.length === 0 ? db.ref(`configuracion/gastos_recurrentes/${cat}`).remove() : ref.set(items);
     }).then(() => { dibujarGastos(); if (typeof proyectarTodo === 'function') proyectarTodo(); });
 }
-
-// --- SIMULADOR DE IMPACTO FINANCIERO (MANTENIDO) ---
-function simularImpacto() {
+async function simularImpacto() {
     const montoSimulado = parseFloat(document.getElementById('simMonto').value) || 0;
     const mesesSimulados = parseInt(document.getElementById('simMeses').value) || 1;
     const res = document.getElementById('resSim');
     if (!res) return;
 
+    // Obtenemos datos del motor "encendido"
     const motorData = window.motorGlobal || {};
-    let tempSaldo = motorData.var_pesimista || 0;
+    
+    // Si el motor ya hizo Montecarlo, usamos el "var_pesimista" como punto de partida 
+    // real del peor escenario detectado por la IA.
+    let saldoPesimista = motorData.var_pesimista || 0;
+    
+    // Sumamos bancos reales por si el VaR es solo proyección de flujos
+    const saldoActual = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + 
+                        (parseFloat(document.getElementById('bancoSantander').value) || 0);
+    
+    let tempSaldo = saldoActual + saldoPesimista;
+    const burnRate = motorData.burn_rate || 0;
+    
+    // En el peor escenario, el gasto mensual es la suma del burn actual 
+    // + el impacto del nuevo proyecto/gasto que estás simulando.
+    const gastoMensualPesimista = montoSimulado + burnRate;
+    
     let mesesResistidos = 0;
+    let quiebraEn = 0;
 
-    for (let i = 0; i < mesesSimulados; i++) {
-        tempSaldo -= (montoSimulado + (motorData.burn_rate || 0));
-        if (tempSaldo >= 0) mesesResistidos++;
+    for (let i = 1; i <= mesesSimulados; i++) {
+        tempSaldo -= gastoMensualPesimista;
+        if (tempSaldo < 0 && quiebraEn === 0) {
+            quiebraEn = i;
+        }
     }
 
-    const esViable = mesesResistidos >= mesesSimulados;
+    const esViable = quiebraEn === 0;
     res.style.color = esViable ? "#10b981" : "#ef4444";
-    res.innerText = esViable ? `✅ VIABLE: Titanium confirma soporte por ${mesesSimulados} meses.` : `🚨 ALERTA: Quiebra técnica en el mes ${mesesResistidos + 1}.`;
+    
+    if (esViable) {
+        res.innerText = `✅ ESCENARIO PESIMISTA: Titanium confirma soporte por ${mesesSimulados} meses. Saldo final: $${Math.round(tempSaldo).toLocaleString()}`;
+    } else {
+        res.innerText = `🚨 ALERTA: Bajo condiciones pesimistas (Montecarlo), quiebra técnica en el mes ${quiebraEn}.`;
+    }
 }
-
-// --- INICIALIZACIÓN ---
+// --- INICIALIZACIÓN "VIVA" ---
 window.onload = async () => {
+    // Sincronización automática de fecha
     const hoy = new Date();
     const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
     const filtroMes = document.getElementById('mesFiltro');
     if (filtroMes) filtroMes.value = mesActual;
+
+    // Conexión y entrenamiento inicial
     if (typeof conectarMes === 'function') await conectarMes();
-    if (typeof verificarYEntrenar === 'function') verificarYEntrenar();
+    if (typeof verificarYEntrenar === 'function') await verificarYEntrenar();
+
+    // Watchdog: Verifica la salud del motor cada 60 segundos
+    setInterval(async () => {
+        if (typeof verificarYEntrenar === 'function') await verificarYEntrenar();
+    }, 60000);
 };
 
+// --- SINCRONIZACIÓN TOTAL ---
 async function sincronizacionTotal(event) {
     const btn = event?.target;
     if (!btn) return;
+    
     const originalText = btn.innerText;
     btn.innerText = "⏳ PROCESANDO IA...";
     btn.disabled = true;
+    
     try {
         const [fS, sS, cS, gS] = await Promise.all([
             db.ref('facturas_emitidas').once('value'),
@@ -643,8 +802,13 @@ async function sincronizacionTotal(event) {
             db.ref('cobranzas').once('value'),
             db.ref('configuracion/gastos_recurrentes').once('value')
         ]);
-        if (typeof ejecutarIA === 'function') await ejecutarIA({ ...(fS.val() || {}), ...(sS.val() || {}) }, cS.val() || {}, gS.val() || {});
+        
+        if (typeof ejecutarIA === 'function') {
+            await ejecutarIA({ ...(fS.val() || {}), ...(sS.val() || {}) }, cS.val() || {}, gS.val() || {});
+        }
+        
         if (typeof proyectarTodo === 'function') await proyectarTodo();
+        
         btn.innerText = "✅ ¡LISTO!";
         btn.style.backgroundColor = "#10b981";
         setTimeout(() => { btn.innerText = originalText; btn.disabled = false; btn.style.backgroundColor = ""; }, 2500);
