@@ -118,35 +118,6 @@
         </div>
     </div>
 </div>
-
-<script>
-    function abrirDetalleSemana(numSemana, saldoSem, ingresos, gastos) {
-        const modal = document.getElementById('modalSemana');
-        const contenido = document.getElementById('contenidoModal');
-        const ingObj = typeof ingresos === 'string' ? JSON.parse(ingresos.replace(/'/g, '"')) : ingresos;
-        
-        contenido.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:end; margin-bottom:20px;">
-                <div><h2 style="margin:0; font-size:32px;">Semana ${numSemana}</h2></div>
-                <div style="text-align:right;">
-                    <span style="font-size:12px; color:#6b7280;">Saldo Final</span>
-                    <div style="font-size:24px; font-weight:700; color:var(--verde);">$${saldoSem.toLocaleString()}</div>
-                </div>
-            </div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
-                <div style="background:#05070a; padding:15px; border-radius:10px;">
-                    <h4 style="color:#60a5fa; font-size:11px;">INGRESOS POR OS</h4>
-                    ${Object.entries(ingObj).map(([n, d]) => `<div style="display:flex; justify-content:space-between;"><span>${n}</span><b>$${Math.round(d.monto).toLocaleString()}</b></div>`).join('')}
-                </div>
-                <div style="background:#05070a; padding:15px; border-radius:10px;">
-                    <h4 style="color:#fca5a5; font-size:11px;">GASTOS</h4>
-                    <div style="font-size:12px;">${gastos.join('')}</div>
-                </div>
-            </div>
-        `;
-        modal.style.display = 'flex';
-    }
-
 <script>
     const firebaseConfig = { 
         apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8", 
