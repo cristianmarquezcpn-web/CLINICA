@@ -419,68 +419,74 @@ async function conectarMes() {
         proyectarTodo();
     });
 }
+// 1. FUNCIÓN PARA PROYECTAR Y RENDERIZAR SEMANAS
 async function proyectarTodo() {
-    const grid = document.getElementById('gridSemanas');
-    if (!grid) {
-        console.error("No se encontró el contenedor #gridSemanas");
-        return;
-    }
-
     try {
-        const mesSeleccionado = document.getElementById('mesFiltro')?.value;
-        if (!mesSeleccionado || !window.motorGlobal?.inteligencia_cuit) {
-            console.warn("Faltan datos de filtro o motorGlobal");
-            return;
-        }
+        const mesSeleccionado = document.getElementById('mesFiltro').value;
+        if (!mesSeleccionado || !motorGlobal.inteligencia_cuit) return;
 
         const hoy = new Date();
         const mesActualStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
         const diaActual = hoy.getDate();
         const semanaActual = Math.ceil(diaActual / 7);
 
-        let saldoAcumulado = (parseFloat(document.getElementById('bancoGalicia')?.value) || 0) + (parseFloat(document.getElementById('bancoSantander')?.value) || 0);
+        let saldoAcumulado = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + 
+                             (parseFloat(document.getElementById('bancoSantander').value) || 0);
+        
         let ingS = { 1: 0, 2: 0, 3: 0, 4: 0 };
         let gasS = { 1: 0, 2: 0, 3: 0, 4: 0 };
         let detG = { 1: [], 2: [], 3: [], 4: [] };
         let acumuladorIngresos = { 1: {}, 2: {}, 3: {}, 4: {} };
 
-        // 1. PROCESAR INGRESOS
+        // Procesar Ingresos
         const inteligencia = motorGlobal.inteligencia_cuit;
         Object.keys(inteligencia).forEach(cuit => {
             const cliente = inteligencia[cuit];
-            if (cliente.facturas_pendientes) {
-                cliente.facturas_pendientes.forEach(f => {
-                    const [y, m, d] = (f.proximo_cobro_estimado || "").split('-').map(Number);
-                    if (`${y}-${String(m).padStart(2, '0')}` === mesSeleccionado) {
-                        const s = Math.min(Math.ceil(d / 7), 4);
-                        const nombre = cliente.nombre_fantasia || "CLIENTE";
-                        if (!acumuladorIngresos[s][nombre]) acumuladorIngresos[s][nombre] = { monto: 0 };
-                        acumuladorIngresos[s][nombre].monto += (f.monto || 0);
-                        ingS[s] += (f.monto || 0);
-                    }
-                });
-            }
+            if (!cliente.facturas_pendientes) return;
+
+            cliente.facturas_pendientes.forEach(f => {
+                const fechaCobro = f.proximo_cobro_estimado;
+                if (!fechaCobro) return;
+
+                const [y, m, d] = fechaCobro.split('-').map(Number);
+                const mesC = `${y}-${String(m).padStart(2, '0')}`;
+                
+                if (mesC === mesSeleccionado) {
+                    const s = Math.min(Math.ceil(d / 7), 4);
+                    const nombre = cliente.nombre_fantasia || "CLIENTE";
+                    
+                    if (!acumuladorIngresos[s][nombre]) acumuladorIngresos[s][nombre] = { monto: 0 };
+                    acumuladorIngresos[s][nombre].monto += (f.monto || 0);
+                    ingS[s] += (f.monto || 0);
+                }
+            });
         });
 
-        // 2. PROCESAR GASTOS
+        // Procesar Gastos
         const snapGastos = await db.ref('configuracion/gastos_recurrentes').once('value');
         const gastosMaestros = snapGastos.val() || {};
 
         Object.keys(gastosMaestros).forEach(cat => {
-            const items = gastosMaestros[cat].items || {};
-            Object.values(items).forEach(g => {
-                if ((g.desde && mesSeleccionado < g.desde) || (g.hasta && mesSeleccionado > g.hasta) || !g.monto) return;
+            const rubro = gastosMaestros[cat];
+            const itemsGasto = rubro.items ? Object.values(rubro.items) : [];
+            
+            itemsGasto.forEach(g => {
+                if (g.desde && mesSeleccionado < g.desde) return; 
+                if (g.hasta && mesSeleccionado > g.hasta) return;
+                if (!g.monto || parseFloat(g.monto) <= 0) return;
                 
                 let sG = g.dia_pago ? Math.min(Math.ceil(parseInt(g.dia_pago) / 7), 4) : 1;
-                let monto = parseFloat(g.monto);
+                const monto = parseFloat(g.monto);
                 gasS[sG] += monto;
                 
-                let nombreV = (g.nombre_gasto && g.nombre_gasto.trim() !== "") ? g.nombre_gasto : cat;
+                // CORRECCIÓN APLICADA AQUÍ: Usa nombre_gasto, si no existe usa la categoría
+                const nombreMostrar = (g.nombre_gasto && g.nombre_gasto.trim() !== "") ? g.nombre_gasto : cat;
+
                 detG[sG].push(`
-                    <div style="background:#1e293b; padding:4px; margin-bottom:2px; font-size:10px; display:flex; justify-content:space-between; color:#fff;">
-                        <span>${nombreV.substring(0,8)}</span>
-                        <span>$${Math.round(monto/1000)}k</span>
-                    </div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5; margin-bottom:2px;">
+                <span>📉 ${nombreMostrar.substring(0,8)}</span>
+                <span>$${Math.round(monto/1000)}k</span>
+                </div>
                 `);
             });
         });
@@ -488,32 +494,40 @@ async function proyectarTodo() {
         window.ingresosSemanales = acumuladorIngresos;
         window.detallesSemanales = detG;
 
-        // 3. RENDERIZADO VISIBLE
-        grid.style.display = "grid";
-        grid.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
-        grid.style.gap = "10px";
-        grid.innerHTML = "";
+        // Renderizado
+        const grid = document.getElementById('gridSemanas');
+        if (grid) {
+            grid.innerHTML = "";
+            for (let i = 1; i <= 4; i++) {
+                saldoAcumulado += (ingS[i] - gasS[i]);
+                const esPasado = (mesSeleccionado < mesActualStr) || (mesSeleccionado === mesActualStr && i < semanaActual);
+                const estiloFondo = esPasado ? "background: #0b0e14; opacity: 0.7; border-top: 3px solid #374151;" : `border-top: 3px solid ${saldoAcumulado < 0 ? 'var(--rojo)':'var(--verde)'};`;
 
-        for (let i = 1; i <= 4; i++) {
-            saldoAcumulado += (ingS[i] - gasS[i]);
-            const esPasado = (mesSeleccionado < mesActualStr) || (mesSeleccionado === mesActualStr && i < semanaActual);
-            const colorSaldo = esPasado ? '#6b7280' : (saldoAcumulado < 0 ? '#ef4444' : '#22c55e');
+                let htmlIngresos = Object.keys(acumuladorIngresos[i]).map(nombre => {
+                    const pct = ingS[i] > 0 ? ((acumuladorIngresos[i][nombre].monto / ingS[i]) * 100).toFixed(0) : 0;
+                    return `
+                        <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:2px; align-items:center;">
+                            <span title="${nombre}" style="${esPasado ? 'color:#4b5563' : 'color:var(--acento)'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60px;">${nombre}</span>
+                            <span style="opacity:0.5; font-size:8px;">${pct}%</span>
+                            <span style="font-weight:bold;">$${Math.round(acumuladorIngresos[i][nombre].monto/1000)}k</span>
+                        </div>`;
+                }).join('');
 
-            grid.innerHTML += `
-            <div style="background:#111827; border:1px solid #374151; padding:10px; border-radius:8px; cursor:pointer;" onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)})">
-                <div style="font-size:9px; color:#94a3b8; text-transform:uppercase;">Semana ${i}</div>
-                <div style="font-size:16px; font-weight:800; color:${colorSaldo}; margin:5px 0;">
-                    $${Math.round(saldoAcumulado).toLocaleString()}
-                </div>
-                <div style="border-top:1px solid #1f2937; padding-top:5px;">
-                    ${detG[i].length > 0 ? detG[i].join('') : '<div style="color:#333; font-size:9px;">Sin gastos</div>'}
-                </div>
-            </div>`;
+                grid.innerHTML += `
+                <div class="sem-card" style="${estiloFondo} background:#111827; padding:10px; border-radius:4px; cursor:pointer;" onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)})">
+                    <div class="etiqueta-sem" style="font-size:10px; color:#94a3b8;">Semana ${i} ${esPasado ? '• CERRADA' : '• ACTIVA'}</div>
+                    <div class="monto-semanal" style="font-size:16px; font-weight:bold; ${esPasado ? 'color:#4b5563' : (saldoAcumulado < 0 ? 'color:var(--rojo)' : 'color:var(--verde)')}">
+                        $${Math.round(saldoAcumulado).toLocaleString()}
+                    </div>
+                    <div style="margin-top:10px; border-top: 1px solid #1f2937; padding-top: 10px;">
+                        <div style="max-height:80px; overflow-y:auto;">${htmlIngresos}${detG[i].join('')}</div>
+                    </div>
+                </div>`;
+            }
         }
-    } catch (e) {
-        console.error("Error en proyectarTodo:", e);
-    }
-}
+    } catch (error) { console.error("Error:", error); }
+}            
+        
 // 2. MODAL DETALLE SEMANAL (CORREGIDO)
 window.abrirDetalleSemana = function(numSemana, saldoSem) {
     const modal = document.getElementById('modalSemana');
