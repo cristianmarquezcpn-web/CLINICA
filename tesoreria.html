@@ -303,37 +303,42 @@ async function ejecutarStressTest() {
         }
     }
 
-    async function conectarMes() {
-        const mes = document.getElementById('mesFiltro').value;
-        if (!mes) return;
-        if (refMes) refMes.off();
+    // Definimos estos objetos globales fuera de la función para que el modal pueda acceder a ellos
+window.detallesSemanales = {};
+window.ingresosSemanales = {};
 
-        // 1. Cálculo de Arrastre (Mes Anterior)
-        const [y, m] = mes.split('-').map(Number);
-        const mAnt = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
-        
-        const snapAnt = await db.ref(`tesoreria/meses/${mAnt}/cierre`).once('value');
-        const arrastre = snapAnt.val() || 0;
-        
-        const infoArrastre = document.getElementById('infoArrastre');
-        if (infoArrastre) {
-            infoArrastre.innerText = `⚠ Arrastre de ${mAnt}: $${Math.round(arrastre).toLocaleString()}`;
-        }
+async function conectarMes() {
+    const mes = document.getElementById('mesFiltro').value;
+    if (!mes) return;
+    if (refMes) refMes.off();
 
-        // 2. Conexión a Mes Actual con Protección de Datos
-        refMes = db.ref(`tesoreria/meses/${mes}`);
-        refMes.on('value', snap => {
-            const data = snap.val();
-            datosMes = data || { bancos: { galicia: arrastre, santander: 0 }, gastos: {}, metadata: { creado: new Date().toISOString() } };
-            
-            // Actualización de inputs con seguridad
-            document.getElementById('bancoGalicia').value = datosMes.bancos?.galicia ?? arrastre;
-            document.getElementById('bancoSantander').value = datosMes.bancos?.santander ?? 0;
-            
-            if (typeof dibujarGastos === 'function') dibujarGastos(); 
-            proyectarTodo(); // <-- Aquí es donde la nave recalcula todo con el nuevo valor
-        });
+    // 1. Cálculo de Arrastre (Mes Anterior)
+    const [y, m] = mes.split('-').map(Number);
+    const mAnt = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+    
+    const snapAnt = await db.ref(`tesoreria/meses/${mAnt}/cierre`).once('value');
+    const arrastre = snapAnt.val() || 0;
+    
+    const infoArrastre = document.getElementById('infoArrastre');
+    if (infoArrastre) {
+        infoArrastre.innerText = `⚠ Arrastre de ${mAnt}: $${Math.round(arrastre).toLocaleString()}`;
     }
+
+    // 2. Conexión a Mes Actual con Protección de Datos
+    refMes = db.ref(`tesoreria/meses/${mes}`);
+    refMes.on('value', snap => {
+        const data = snap.val();
+        datosMes = data || { bancos: { galicia: arrastre, santander: 0 }, gastos: {}, metadata: { creado: new Date().toISOString() } };
+        
+        // Actualización de inputs con seguridad
+        document.getElementById('bancoGalicia').value = datosMes.bancos?.galicia ?? arrastre;
+        document.getElementById('bancoSantander').value = datosMes.bancos?.santander ?? 0;
+        
+        if (typeof dibujarGastos === 'function') dibujarGastos(); 
+        proyectarTodo();
+    });
+}
+
 async function proyectarTodo() {
     const mesSeleccionado = document.getElementById('mesFiltro').value;
     if (!mesSeleccionado || !motorGlobal.inteligencia_cuit) return;
@@ -352,14 +357,14 @@ async function proyectarTodo() {
     let detG = { 1: [], 2: [], 3: [], 4: [] };
     let acumuladorIngresos = { 1: {}, 2: {}, 3: {}, 4: {} };
 
-    // 1. PROCESAR INGRESOS (Usando la estructura correcta de inteligencia_cuit)
+    // 1. PROCESAR INGRESOS
     const inteligencia = motorGlobal.inteligencia_cuit;
     Object.keys(inteligencia).forEach(cuit => {
         const cliente = inteligencia[cuit];
         if (!cliente.facturas_pendientes) return;
 
         cliente.facturas_pendientes.forEach(f => {
-            const fechaCobro = f.proximo_cobro_estimado; // Campo exacto de tu motor
+            const fechaCobro = f.proximo_cobro_estimado;
             if (!fechaCobro) return;
 
             const [y, m, d] = fechaCobro.split('-').map(Number);
@@ -377,52 +382,47 @@ async function proyectarTodo() {
     });
 
     // 2. PROCESAR GASTOS
-    // 2. PROCESAR GASTOS
-const snapGastos = await db.ref('configuracion/gastos_recurrentes').once('value');
-const gastosMaestros = snapGastos.val() || {};
-const mesActual = document.getElementById('mesFiltro').value;
+    const snapGastos = await db.ref('configuracion/gastos_recurrentes').once('value');
+    const gastosMaestros = snapGastos.val() || {};
+    const mesActual = document.getElementById('mesFiltro').value;
 
-Object.keys(gastosMaestros).forEach(cat => {
-    const rubro = gastosMaestros[cat]; // accedemos a la categoría
-    
-    (rubro.items || []).forEach(g => {
-        // 1. VALIDACIÓN DE FECHAS (PLAZO)
-        if (g.desde && mesActual < g.desde) return; 
-        if (g.hasta && mesActual > g.hasta) return; // Si 'hasta' existe y ya pasó el mes, ignoramos
+    Object.keys(gastosMaestros).forEach(cat => {
+        const rubro = gastosMaestros[cat];
         
-        // 2. VALIDACIÓN DE MONTO
-        if (!g.monto || parseFloat(g.monto) <= 0) return;
-        
-        // 3. DETERMINAR SEMANA (sG)
-        // Usamos g.dia_pago (asumiendo que viene del item)
-        let sG = g.dia_pago ? Math.min(Math.ceil(g.dia_pago / 7), 4) : 1;
-        
-        // 4. ACUMULACIÓN
-        const monto = parseFloat(g.monto);
-        gasS[sG] += monto;
-        saldoAcumulado -= monto;
-        
-        // 5. DETALLE PARA EL MODAL
-        detG[sG].push(`
-            <div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5;">
-                <span>📉 ${rubro.nombre ? rubro.nombre.substring(0,8) : 'Gasto'}</span>
-                <span>$${Math.round(monto/1000)}k</span>
-            </div>
-        `);
+        (rubro.items || []).forEach(g => {
+            if (g.desde && mesActual < g.desde) return; 
+            if (g.hasta && mesActual > g.hasta) return;
+            
+            if (!g.monto || parseFloat(g.monto) <= 0) return;
+            
+            let sG = g.dia_pago ? Math.min(Math.ceil(g.dia_pago / 7), 4) : 1;
+            
+            const monto = parseFloat(g.monto);
+            gasS[sG] += monto;
+            saldoAcumulado -= monto;
+            
+            detG[sG].push(`
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5;">
+                    <span>📉 ${rubro.nombre ? rubro.nombre.substring(0,8) : 'Gasto'}</span>
+                    <span>$${Math.round(monto/1000)}k</span>
+                </div>
+            `);
+        });
     });
-});
 
-    // 3. RENDERIZADO VISUAL CON LOGICA DE SEMANAS PASADAS
+    // Guardamos en globales para el modal
+    window.ingresosSemanales = acumuladorIngresos;
+    window.detallesSemanales = detG;
+
+    // 3. RENDERIZADO VISUAL
     const grid = document.getElementById('gridSemanas');
     if (grid) {
         grid.innerHTML = "";
         for (let i = 1; i <= 4; i++) {
             saldoAcumulado += (ingS[i] - gasS[i]);
             
-            // Lógica: Si el mes ya pasó O (es el mes actual y la semana ya pasó)
             const esPasado = (mesSeleccionado < mesActualStr) || (mesSeleccionado === mesActualStr && i < semanaActual);
             const estiloFondo = esPasado ? "background: #0b0e14; opacity: 0.7; border-top: 3px solid #374151;" : `border-top: 3px solid ${saldoAcumulado < 0 ? 'var(--rojo)':'var(--verde)'};`;
-            const estiloTexto = esPasado ? "color: #6b7280;" : "";
 
             let htmlIngresos = Object.keys(acumuladorIngresos[i]).map(nombre => `
                 <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:2px;">
@@ -430,34 +430,33 @@ Object.keys(gastosMaestros).forEach(cat => {
                     <span>$${Math.round(acumuladorIngresos[i][nombre].monto/1000)}k</span>
                 </div>`).join('');
 
-		grid.innerHTML += `
-    <div class="sem-card" style="${estiloFondo}" 
-         onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)}, '${JSON.stringify(acumuladorIngresos[i]).replace(/"/g, "'")}', [${detG[i].map(d => `'${d}'`)}])">
-        
-        <div class="etiqueta-sem">Semana ${i} ${esPasado ? '• CERRADA' : '• ACTIVA'}</div>
-        <div class="monto-semanal" style="${esPasado ? 'color:#4b5563' : (saldoAcumulado < 0 ? 'color:var(--rojo)' : 'color:var(--verde)')}">
-            $${Math.round(saldoAcumulado).toLocaleString()}
-        </div>
-        
-        <div style="margin-top:10px; border-top: 1px solid #1f2937; padding-top: 10px;">
-            <div style="max-height:100px; overflow-y:auto; padding-right:5px;">
-                ${htmlIngresos}
-                ${detG[i].join('')}
-            </div>
-        </div>
-    </div>`;            
-    
+            grid.innerHTML += `
+            <div class="sem-card" style="${estiloFondo}" 
+                 onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)})">
+                
+                <div class="etiqueta-sem">Semana ${i} ${esPasado ? '• CERRADA' : '• ACTIVA'}</div>
+                <div class="monto-semanal" style="${esPasado ? 'color:#4b5563' : (saldoAcumulado < 0 ? 'color:var(--rojo)' : 'color:var(--verde)')}">
+                    $${Math.round(saldoAcumulado).toLocaleString()}
+                </div>
+                
+                <div style="margin-top:10px; border-top: 1px solid #1f2937; padding-top: 10px;">
+                    <div style="max-height:100px; overflow-y:auto; padding-right:5px;">
+                        ${htmlIngresos}
+                        ${detG[i].join('')}
+                    </div>
+                </div>
+            </div>`;
+        }
     }
-    
+    window.totalGastosProyectados = Object.values(gasS).reduce((a,b) => a+b, 0);
 }
-        window.totalGastosProyectados = Object.values(gasS).reduce((a,b) => a+b, 0);
-}
-function abrirDetalleSemana(numSemana, saldoSem, ingresos, gastos) {
+function abrirDetalleSemana(numSemana, saldoSem) {
     const modal = document.getElementById('modalSemana');
     const contenido = document.getElementById('contenidoModal');
     
-    // Convertimos de nuevo las comillas simples que mandamos desde el HTML a JSON válido
-    const ingresosObj = typeof ingresos === 'string' ? JSON.parse(ingresos.replace(/'/g, '"')) : ingresos;
+    // Recuperamos los datos de los objetos globales que definimos en proyectarTodo
+    const ingresosObj = window.ingresosSemanales[numSemana] || {};
+    const gastosArr = window.detallesSemanales[numSemana] || [];
     
     contenido.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:end; margin-bottom:20px;">
@@ -482,13 +481,13 @@ function abrirDetalleSemana(numSemana, saldoSem, ingresos, gastos) {
             </div>
             <div style="background:#05070a; padding:15px; border-radius:10px;">
                 <h4 style="color:#fca5a5; font-size:11px; margin-bottom:10px;">DESGLOSE GASTOS</h4>
-                <div style="font-size:12px;">${gastos.join('')}</div>
+                <div style="font-size:12px;">${gastosArr.join('')}</div>
             </div>
         </div>
     `;
     modal.style.display = 'flex';
 }
-// --- FUNCIONES DE APOYO DEL MOTOR IA (NO BORRAR) ---
+	// --- FUNCIONES DE APOYO DEL MOTOR IA (NO BORRAR) ---
 function parseFecha(s) { 
     if (!s) return null;
     if (s instanceof Date) return s;
@@ -580,42 +579,6 @@ async function generarInformeJunta() {
     }
 
     doc.save(`Informe_Junta_Completo_${new Date().getTime()}.pdf`);
-}
-// --- PROCESO DE ENTRENAMIENTO DINÁMICO ---
-async function verificarYEntrenar() {
-    const [fSnap, sSnap, gSnap] = await Promise.all([
-        db.ref('facturas_emitidas').once('value'),
-        db.ref('facturas_emitidas_saei').once('value'),
-        db.ref('configuracion/gastos_recurrentes').once('value')
-    ]);
-    
-    const facturas = { ...(fSnap.val() || {}), ...(sSnap.val() || {}) };
-    const gastosMaestros = gSnap.val() || {};
-    const cantidadActual = Object.keys(facturas).length;
-    const motorSnap = await db.ref('tesoreria/motor_ia').once('value');
-    const motorData = motorSnap.val() || { cantidad_entrenada: 0 };
-
-    if (cantidadActual !== motorData.cantidad_entrenada) {
-        const statusIA = document.getElementById('statusIA');
-        if (statusIA) statusIA.innerText = "🤖 IA: Analizando cobros y gastos...";
-        const cSnap = await db.ref('cobranzas').once('value');
-        try {
-            await ejecutarIA(facturas, cSnap.val() || {}, gastosMaestros);
-            await db.ref('tesoreria/motor_ia').update({ 
-                cantidad_entrenada: cantidadActual, 
-                ultima_sincro: new Date().toLocaleString("es-AR"),
-                estado: "optimizado"
-            });
-            if (statusIA) statusIA.innerText = "✅ Motor Sincronizado";
-            if (typeof proyectarTodo === 'function') proyectarTodo();
-        } catch (error) {
-            console.error("❌ Error IA:", error);
-            if (statusIA) statusIA.innerText = "⚠️ Error en Sincronización";
-        }
-    } else {
-        const statusIA = document.getElementById('statusIA');
-        if (statusIA) statusIA.innerText = "✅ Motor al día";
-    }
 }
 
 // --- GESTIÓN DE GASTOS Y BANCOS ---
@@ -740,6 +703,7 @@ async function simularImpacto() {
     }
 }
 // --- INICIALIZACIÓN "VIVA" ---
+// --- INICIALIZACIÓN "VIVA" ---
 window.onload = async () => {
     // Sincronización automática de fecha
     const hoy = new Date();
@@ -747,17 +711,12 @@ window.onload = async () => {
     const filtroMes = document.getElementById('mesFiltro');
     if (filtroMes) filtroMes.value = mesActual;
 
-    // Conexión y entrenamiento inicial
+    // Conexión inicial: solo conectamos al mes
     if (typeof conectarMes === 'function') await conectarMes();
-    if (typeof verificarYEntrenar === 'function') await verificarYEntrenar();
-
-    // Watchdog: Verifica la salud del motor cada 60 segundos
-    setInterval(async () => {
-        if (typeof verificarYEntrenar === 'function') await verificarYEntrenar();
-    }, 60000);
 };
 
 // --- SINCRONIZACIÓN TOTAL ---
+// Esta función ahora es tu "botón de pánico" o disparo manual de sincronización
 async function sincronizacionTotal(event) {
     const btn = event?.target;
     if (!btn) return;
@@ -767,6 +726,7 @@ async function sincronizacionTotal(event) {
     btn.disabled = true;
     
     try {
+        // Obtenemos los datos necesarios
         const [fS, sS, cS, gS] = await Promise.all([
             db.ref('facturas_emitidas').once('value'),
             db.ref('facturas_emitidas_saei').once('value'),
@@ -774,16 +734,19 @@ async function sincronizacionTotal(event) {
             db.ref('configuracion/gastos_recurrentes').once('value')
         ]);
         
+        // Disparamos la ejecución del motor
         if (typeof ejecutarIA === 'function') {
             await ejecutarIA({ ...(fS.val() || {}), ...(sS.val() || {}) }, cS.val() || {}, gS.val() || {});
         }
         
+        // Al terminar, redibujamos el dashboard con los datos frescos
         if (typeof proyectarTodo === 'function') await proyectarTodo();
         
         btn.innerText = "✅ ¡LISTO!";
         btn.style.backgroundColor = "#10b981";
         setTimeout(() => { btn.innerText = originalText; btn.disabled = false; btn.style.backgroundColor = ""; }, 2500);
     } catch (e) {
+        console.error("Error en sincronización:", e);
         btn.innerText = "❌ ERROR DE MOTOR";
         btn.disabled = false;
         setTimeout(() => { btn.innerText = originalText; }, 3000);
