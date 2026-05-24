@@ -94,14 +94,16 @@
             <h3>📈 Flujo Semanal</h3>
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:15px;" id="gridSemanas"></div>
         </div>
-        <div class="card" style="background:var(--rojo); color:white; border:none;">
-            <h3 style="color:white;">☢️ SIMULADOR DE COLAPSO</h3>
-            <button class="btn" style="background:white; color:var(--rojo);" onclick="ejecutarStressTest()">EJECUTAR STRESS TEST</button>
-            <div id="resStress" style="margin-top:10px;"></div>
-        </div>
-    </div>
-
-    <div>
+        	<div class="card" style="background:var(--rojo); color:white; border:none;">
+    		<h3 style="color:white;">☢️ SIMULADOR DE COLAPSO</h3>
+    		<button class="btn" style="background:white; color:var(--rojo);" onclick="ejecutarStressTest()">EJECUTAR STRESS TEST</button>
+    		<div id="resStress" style="margin-top:10px;"></div>
+			<div id="panelAjuste" style="display:none; margin-top:15px; padding:10px; background:rgba(0,0,0,0.3); border-radius:8px;">
+        	<div id="listaRecortes"></div>
+        	<div id="oxigenoCalculado" style="margin-top:10px;"></div>
+   	 </div>
+  </div>
+      <div>
         <div class="card">
             <h3>🧪 Simulador de Impacto</h3>
             <input type="number" id="simMonto" placeholder="$ Gasto Mensual">
@@ -117,6 +119,10 @@
             <div id="statusIA" style="color:var(--acento);">Conectado y Escaneando...</div>
         </div>
     </div>
+</div>
+	<div class="card">
+    <h3>📋 Inteligencia por Cliente</h3>
+    <div id="dashboardCompleto"></div> 
 </div>
 <script>
     const firebaseConfig = { 
@@ -606,11 +612,12 @@ function guardarBancos() {
         if (typeof proyectarTodo === 'function') proyectarTodo();
     });
 }
-
 function dibujarGastos() {
     const cont = document.getElementById('contGastos');
     if (!cont) return;
-    cont.innerHTML = "";
+    
+    // Limpiamos antes de dibujar para evitar duplicados "pisados"
+    cont.innerHTML = ""; 
     const mesSeleccionado = document.getElementById('mesFiltro').value;
 
     db.ref('configuracion/gastos_recurrentes').once('value', snapshot => {
@@ -620,15 +627,15 @@ function dibujarGastos() {
             let itemsHtml = "";
             
             (rubro.items || []).forEach((it, i) => {
+                // Validación de fechas
                 if (it.desde && mesSeleccionado < it.desde) return;
                 if (it.hasta && mesSeleccionado > it.hasta) return;
 
                 itemsHtml += `
                     <div style="display:flex; gap:5px; margin-bottom:8px; align-items:center;">
-                        <input type="number" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', '${i}', 'monto', this.value)" style="width:70px;">
-                        <input type="month" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${i}', 'desde', this.value)" title="Inicio">
-                        <input type="month" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${i}', 'hasta', this.value)" title="Fin (vacio=indefinido)">
-                        <button onclick="eliminarGastoRecurrente('${cat}', '${i}')" style="background:transparent; border:none; color:var(--rojo); cursor:pointer;">✕</button>
+                        <input type="number" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', ${i}, 'monto', this.value)" style="width:70px;">
+                        <input type="month" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', ${i}, 'desde', this.value)">
+                        <button onclick="eliminarGastoRecurrente('${cat}', ${i})" style="background:transparent; border:none; color:var(--rojo); cursor:pointer;">✕</button>
                     </div>
                 `;
             });
