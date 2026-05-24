@@ -479,15 +479,17 @@ async function proyectarTodo() {
                 if (g.hasta && mesSeleccionado > g.hasta) return;
                 if (!g.monto || parseFloat(g.monto) <= 0) return;
                 
-                let sG = g.dia_pago ? Math.min(Math.ceil(g.dia_pago / 7), 4) : 1;
+                let sG = g.dia_pago ? Math.min(Math.ceil(parseInt(g.dia_pago) / 7), 4) : 1;
                 const monto = parseFloat(g.monto);
                 gasS[sG] += monto;
                 
+                // Busca esta parte dentro de tu función proyectarTodo y reemplázala:
+
                 detG[sG].push(`
-                    <div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5; margin-bottom:2px;">
-                        <span>📉 ${rubro.nombre ? rubro.nombre.substring(0,8) : 'Gasto'}</span>
-                        <span>$${Math.round(monto/1000)}k</span>
-                    </div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5; margin-bottom:2px;">
+                <span>📉 ${g.nombre_gasto ? g.nombre_gasto.substring(0,8) : (rubro.nombre ? rubro.nombre.substring(0,8) : 'Gasto')}</span>
+                <span>$${Math.round(monto/1000)}k</span>
+                </div>
                 `);
             });
         });
@@ -689,7 +691,17 @@ window.abrirDetalleSemana = function(numSemana, saldoSem) {
         db.ref(`configuracion/gastos_recurrentes/${nombre}/items`).push(nuevoGasto)
           .then(() => { dibujarGastos(); if (typeof proyectarTodo === 'function') proyectarTodo(); });
     }
-
+    // Agregamos un botón para "Agregar Item" dentro de una categoría existente
+function agregarGastoAItem(cat) {
+    const nuevoGasto = { 
+        monto: 0, 
+        desde: new Date().toISOString().slice(0, 7), 
+        hasta: "", // Vacío significa "Sin fin"
+        dia_pago: 1 // Para el impacto semanal
+    };
+    db.ref(`configuracion/gastos_recurrentes/${cat}/items`).push(nuevoGasto)
+      .then(() => dibujarGastos());
+}
     function guardarBancos() {
         const mes = document.getElementById('mesFiltro').value;
         const galicia = parseFloat(document.getElementById('bancoGalicia').value) || 0;
@@ -701,51 +713,49 @@ window.abrirDetalleSemana = function(numSemana, saldoSem) {
         });
     }
 
-    function dibujarGastos() {
-        try {
-            const cont = document.getElementById('contGastos');
-            if (!cont) return;
-            
-            cont.innerHTML = ""; 
-            const mesSeleccionado = document.getElementById('mesFiltro').value;
+   function dibujarGastos() {
+    const cont = document.getElementById('contGastos');
+    if (!cont) return;
+    cont.innerHTML = "";
+    
+    db.ref('configuracion/gastos_recurrentes').once('value', snapshot => {
+        const gastos = snapshot.val() || {};
+        Object.keys(gastos).forEach(cat => {
+            const rubro = gastos[cat];
+            let itemsHtml = "";
+            const itemsObj = rubro.items || {};
 
-            db.ref('configuracion/gastos_recurrentes').once('value', snapshot => {
-                const gastos = snapshot.val() || {};
-                Object.keys(gastos).forEach(cat => {
-                    const rubro = gastos[cat];
-                    let itemsHtml = "";
-                    
-                    // CORRECCIÓN CLAVE: Iteramos usando las Keys de Firebase
-                    const itemsObj = rubro.items || {};
-                    const keys = Object.keys(itemsObj);
-
-                    keys.forEach(key => {
-                        const it = itemsObj[key];
-                        if (it.desde && mesSeleccionado < it.desde) return;
-                        if (it.hasta && mesSeleccionado > it.hasta) return;
-
-                        itemsHtml += `
-                            <div style="display:flex; gap:5px; margin-bottom:8px; align-items:center;">
-                                <input type="number" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', '${key}', 'monto', this.value)" style="width:70px;">
-                                <input type="month" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)">
-                                <button onclick="eliminarGastoRecurrente('${cat}', '${key}')" style="background:transparent; border:none; color:var(--rojo); cursor:pointer;">✕</button>
-                            </div>
-                        `;
-                    });
-
-                    cont.innerHTML += `
-                        <div style="margin-bottom:15px; border-bottom:1px solid #374151; padding-bottom:10px;">
-                            <div style="font-weight:bold; color:var(--acento); margin-bottom:5px;">${cat}</div>
-                            ${itemsHtml}
-                        </div>
-                    `;
-                });
+            Object.keys(itemsObj).forEach(key => {
+                const it = itemsObj[key];
+                itemsHtml += `
+                <div style="background:#1e293b; padding:10px; margin-bottom:10px; border-radius:4px; font-size:11px;">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:5px;">
+                        // Dentro del bucle de items en dibujarGastos, agrega este input:
+                        <input type="text" placeholder="Nombre gasto" value="${it.nombre_gasto || ''}" 
+                        onchange="updateGasto('${cat}', '${key}', 'nombre_gasto', this.value)" 
+                        style="width:100%; margin-bottom:5px;">
+                        <input type="number" placeholder="Monto" value="${it.monto || 0}" onchange="updateGasto('${cat}', '${key}', 'monto', this.value)">
+                        <input type="number" placeholder="Día (1-30)" value="${it.dia_pago || 1}" onchange="updateGasto('${cat}', '${key}', 'dia_pago', this.value)">
+                        <button onclick="eliminarGasto('${cat}', '${key}')" style="color:var(--rojo);">✕</button>
+                    </div>
+                    <div style="display:flex; gap:5px; margin-top:5px;">
+                        <input type="month" value="${it.desde || ''}" onchange="updateGasto('${cat}', '${key}', 'desde', this.value)">
+                        <input type="month" placeholder="Hasta (Vacío=Infinito)" value="${it.hasta || ''}" onchange="updateGasto('${cat}', '${key}', 'hasta', this.value)">
+                    </div>
+                </div>`;
             });
-        } catch (error) {
-            console.error("Error en dibujarGastos:", error);
-        }
-    }
 
+            cont.innerHTML += `
+            <div style="margin-bottom:20px;">
+                <div style="display:flex; justify-content:space-between; color:var(--acento); margin-bottom:5px;">
+                    <b>${cat}</b>
+                    <button onclick="agregarGastoAItem('${cat}')" style="background:var(--p); border:none; color:white; border-radius:4px; padding:2px 8px;">+ Agregar</button>
+                </div>
+                ${itemsHtml}
+            </div>`;
+        });
+    });
+}
     // Actualizada para recibir la 'key' real de Firebase
     function updateGastoRecurrente(cat, key, campo, valor) {
         if (campo === 'monto') valor = parseFloat(valor) || 0;
