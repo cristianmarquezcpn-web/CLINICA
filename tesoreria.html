@@ -421,16 +421,17 @@ async function conectarMes() {
 }
 async function proyectarTodo() {
     const grid = document.getElementById('gridSemanas');
-    if (!grid) return;
-
-    // 1. ESTILO DE SEGURIDAD PARA FORZAR VISIBILIDAD
-    grid.style.display = "grid";
-    grid.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
-    grid.style.gap = "15px";
+    if (!grid) {
+        console.error("No se encontró el contenedor #gridSemanas");
+        return;
+    }
 
     try {
         const mesSeleccionado = document.getElementById('mesFiltro')?.value;
-        if (!mesSeleccionado || !window.motorGlobal?.inteligencia_cuit) return;
+        if (!mesSeleccionado || !window.motorGlobal?.inteligencia_cuit) {
+            console.warn("Faltan datos de filtro o motorGlobal");
+            return;
+        }
 
         const hoy = new Date();
         const mesActualStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
@@ -443,59 +444,74 @@ async function proyectarTodo() {
         let detG = { 1: [], 2: [], 3: [], 4: [] };
         let acumuladorIngresos = { 1: {}, 2: {}, 3: {}, 4: {} };
 
-        // Procesar Ingresos
+        // 1. PROCESAR INGRESOS
         const inteligencia = motorGlobal.inteligencia_cuit;
         Object.keys(inteligencia).forEach(cuit => {
             const cliente = inteligencia[cuit];
-            if (!cliente.facturas_pendientes) return;
-            cliente.facturas_pendientes.forEach(f => {
-                const [y, m, d] = (f.proximo_cobro_estimado || "").split('-').map(Number);
-                if (`${y}-${String(m).padStart(2, '0')}` === mesSeleccionado) {
-                    const s = Math.min(Math.ceil(d / 7), 4);
-                    const nombre = cliente.nombre_fantasia || "CLIENTE";
-                    if (!acumuladorIngresos[s][nombre]) acumuladorIngresos[s][nombre] = { monto: 0 };
-                    acumuladorIngresos[s][nombre].monto += (f.monto || 0);
-                    ingS[s] += (f.monto || 0);
-                }
-            });
+            if (cliente.facturas_pendientes) {
+                cliente.facturas_pendientes.forEach(f => {
+                    const [y, m, d] = (f.proximo_cobro_estimado || "").split('-').map(Number);
+                    if (`${y}-${String(m).padStart(2, '0')}` === mesSeleccionado) {
+                        const s = Math.min(Math.ceil(d / 7), 4);
+                        const nombre = cliente.nombre_fantasia || "CLIENTE";
+                        if (!acumuladorIngresos[s][nombre]) acumuladorIngresos[s][nombre] = { monto: 0 };
+                        acumuladorIngresos[s][nombre].monto += (f.monto || 0);
+                        ingS[s] += (f.monto || 0);
+                    }
+                });
+            }
         });
 
-        // Procesar Gastos
+        // 2. PROCESAR GASTOS
         const snapGastos = await db.ref('configuracion/gastos_recurrentes').once('value');
         const gastosMaestros = snapGastos.val() || {};
 
         Object.keys(gastosMaestros).forEach(cat => {
-            const itemsGasto = gastosMaestros[cat].items ? Object.values(gastosMaestros[cat].items) : [];
-            itemsGasto.forEach(g => {
+            const items = gastosMaestros[cat].items || {};
+            Object.values(items).forEach(g => {
                 if ((g.desde && mesSeleccionado < g.desde) || (g.hasta && mesSeleccionado > g.hasta) || !g.monto) return;
+                
                 let sG = g.dia_pago ? Math.min(Math.ceil(parseInt(g.dia_pago) / 7), 4) : 1;
-                const monto = parseFloat(g.monto);
+                let monto = parseFloat(g.monto);
                 gasS[sG] += monto;
-                const nombreVisual = (g.nombre_gasto && g.nombre_gasto.trim() !== "") ? g.nombre_gasto : cat;
-                detG[sG].push(`<div style="background:#1e293b; border:1px solid #374151; padding:4px; margin-bottom:3px; border-radius:3px; display:flex; justify-content:space-between; color:#fff; font-size:10px;"><span>${nombreVisual.substring(0,10)}</span> <span>$${Math.round(monto/1000)}k</span></div>`);
+                
+                let nombreV = (g.nombre_gasto && g.nombre_gasto.trim() !== "") ? g.nombre_gasto : cat;
+                detG[sG].push(`
+                    <div style="background:#1e293b; padding:4px; margin-bottom:2px; font-size:10px; display:flex; justify-content:space-between; color:#fff;">
+                        <span>${nombreV.substring(0,8)}</span>
+                        <span>$${Math.round(monto/1000)}k</span>
+                    </div>
+                `);
             });
         });
 
         window.ingresosSemanales = acumuladorIngresos;
         window.detallesSemanales = detG;
 
-        // Renderizado con seguridad
+        // 3. RENDERIZADO VISIBLE
+        grid.style.display = "grid";
+        grid.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
+        grid.style.gap = "10px";
         grid.innerHTML = "";
+
         for (let i = 1; i <= 4; i++) {
             saldoAcumulado += (ingS[i] - gasS[i]);
             const esPasado = (mesSeleccionado < mesActualStr) || (mesSeleccionado === mesActualStr && i < semanaActual);
-            const colorSaldo = esPasado ? '#4b5563' : (saldoAcumulado < 0 ? '#ef4444' : '#22c55e');
-            
+            const colorSaldo = esPasado ? '#6b7280' : (saldoAcumulado < 0 ? '#ef4444' : '#22c55e');
+
             grid.innerHTML += `
-            <div style="background:#111827; padding:15px; border-radius:8px; border:1px solid #374151; min-height:150px; cursor:pointer;" onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)})">
-                <div style="font-size:10px; color:#94a3b8; margin-bottom:5px;">SEMANA ${i}</div>
-                <div style="font-size:18px; font-weight:800; margin-bottom:10px; color:${colorSaldo}">$${Math.round(saldoAcumulado).toLocaleString()}</div>
-                <div style="border-top:1px solid #1f2937; padding-top:8px;">${detG[i].join('') || '<div style="color:#333; font-size:10px;">Sin gastos</div>'}</div>
+            <div style="background:#111827; border:1px solid #374151; padding:10px; border-radius:8px; cursor:pointer;" onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)})">
+                <div style="font-size:9px; color:#94a3b8; text-transform:uppercase;">Semana ${i}</div>
+                <div style="font-size:16px; font-weight:800; color:${colorSaldo}; margin:5px 0;">
+                    $${Math.round(saldoAcumulado).toLocaleString()}
+                </div>
+                <div style="border-top:1px solid #1f2937; padding-top:5px;">
+                    ${detG[i].length > 0 ? detG[i].join('') : '<div style="color:#333; font-size:9px;">Sin gastos</div>'}
+                </div>
             </div>`;
         }
     } catch (e) {
-        console.error("Error crítico en proyectarTodo:", e);
-        grid.innerHTML = `<div style="padding:20px; color:red;">Error al cargar datos: ${e.message}</div>`;
+        console.error("Error en proyectarTodo:", e);
     }
 }
 // 2. MODAL DETALLE SEMANAL (CORREGIDO)
