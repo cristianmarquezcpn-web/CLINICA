@@ -79,10 +79,13 @@
             <input type="number" id="bancoGalicia" placeholder="Caja Galicia" onchange="guardarBancos()">
             <input type="number" id="bancoSantander" placeholder="Caja Santander" onchange="guardarBancos()">
         </div>
-        <div class="card">
-            <h3>💸 Gastos Operativos</h3>
-            <div id="contGastos"></div>
-            <button class="btn" style="background:#1f2937" onclick="nuevaCategoria()">+ RUBRO</button>
+        <div class="card" style="width:100%; box-sizing:border-box;">
+        <h3>💸 Gastos Operativos</h3>
+        <div id="contGastos" style="max-height: 500px; overflow-y: auto; padding-right: 5px;"></div>
+    
+        <button class="btn" style="background:#1f2937; width:100%; margin-top:10px;" onclick="nuevaCategoria()">
+        + NUEVO RUBRO
+        </button>
         </div>
         </div>
         <div class="card">
@@ -260,13 +263,9 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
     
     if (typeof renderizarDashboardTopeDeGama === 'function') renderizarDashboardTopeDeGama();
 });
-
 function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
-    if (!motorGlobal.inteligencia_cuit) {
-        contenedor.innerHTML = `<div style="color:#666; text-align:center; padding:20px;">Esperando datos...</div>`;
-        return;
-    }
+    if (!motorGlobal.inteligencia_cuit) return;
 
     const cuits = Object.keys(motorGlobal.inteligencia_cuit);
     const totalDelay = cuits.reduce((acc, cuit) => acc + (motorGlobal.inteligencia_cuit[cuit].delay_estimado || 0), 0);
@@ -274,19 +273,21 @@ function renderizarDashboardTopeDeGama() {
 
     cuits.sort((a, b) => (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0));
 
-    let html = `<style>.tarjeta-resumen:hover { background: #1e293b !important; }</style>`;
+    let html = `<style>.card-c:hover { background: #1e293b !important; border-color: #475569 !important; }</style>`;
 
     cuits.forEach(cuit => {
         const d = motorGlobal.inteligencia_cuit[cuit];
-        const colorBorde = d.delay_estimado > promedioCartera ? 'var(--rojo)' : 'var(--verde)';
+        const colorBorde = d.delay_estimado > promedioCartera ? 'var(--AC)' : 'var(--P)'; // Corregido a variables estándar
         
         html += `
-        <div class="tarjeta-resumen" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:8px; margin-bottom:4px; border-radius:0 4px 4px 0; display:flex; align-items:center; gap:10px;">
-            <input type="checkbox" class="selector-stress" value="${cuit}" style="cursor:pointer;">
+        <div class="card-c" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:6px; border-radius:4px; display:flex; align-items:center; gap:12px; transition:0.2s; border:1px solid #1e293b;">
+            <input type="checkbox" class="selector-cliente" data-deuda="${d.deuda_viva || 0}" style="cursor:pointer; width:16px; height:16px;">
             <div style="flex:1; cursor:pointer;" onclick="abrirModalDetalle('${cuit}')">
-                <div style="font-size:11px; color:#fff; line-height:1.2;">${d.nombre_fantasia || cuit}</div>
+                <div style="font-size:12px; font-weight:500; color:#f8fafc;">${d.nombre_fantasia || cuit}</div>
             </div>
-            <b style="font-size:11px; color:var(--verde); flex-shrink:0;">$${(d.deuda_viva / 1000).toFixed(0)}k</b>
+            <div style="text-align:right;">
+                <div style="font-size:12px; font-weight:700; color:var(--P);">$${(d.deuda_viva / 1000).toFixed(0)}k</div>
+            </div>
         </div>`;
     });
     
@@ -419,10 +420,17 @@ async function conectarMes() {
         proyectarTodo();
     });
 }
-
 async function proyectarTodo() {
+    const grid = document.getElementById('gridSemanas');
+    if (!grid) return;
+
+    // 1. ESTILO DE SEGURIDAD PARA FORZAR VISIBILIDAD
+    grid.style.display = "grid";
+    grid.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
+    grid.style.gap = "15px";
+
     try {
-        const mesSeleccionado = document.getElementById('mesFiltro').value;
+        const mesSeleccionado = document.getElementById('mesFiltro')?.value;
         if (!mesSeleccionado || !window.motorGlobal?.inteligencia_cuit) return;
 
         const hoy = new Date();
@@ -430,7 +438,7 @@ async function proyectarTodo() {
         const diaActual = hoy.getDate();
         const semanaActual = Math.ceil(diaActual / 7);
 
-        let saldoAcumulado = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
+        let saldoAcumulado = (parseFloat(document.getElementById('bancoGalicia')?.value) || 0) + (parseFloat(document.getElementById('bancoSantander')?.value) || 0);
         let ingS = { 1: 0, 2: 0, 3: 0, 4: 0 };
         let gasS = { 1: 0, 2: 0, 3: 0, 4: 0 };
         let detG = { 1: [], 2: [], 3: [], 4: [] };
@@ -458,50 +466,38 @@ async function proyectarTodo() {
         const gastosMaestros = snapGastos.val() || {};
 
         Object.keys(gastosMaestros).forEach(cat => {
-            const rubro = gastosMaestros[cat];
-            const itemsGasto = rubro.items ? Object.values(rubro.items) : [];
+            const itemsGasto = gastosMaestros[cat].items ? Object.values(gastosMaestros[cat].items) : [];
             itemsGasto.forEach(g => {
                 if ((g.desde && mesSeleccionado < g.desde) || (g.hasta && mesSeleccionado > g.hasta) || !g.monto) return;
-                
                 let sG = g.dia_pago ? Math.min(Math.ceil(parseInt(g.dia_pago) / 7), 4) : 1;
                 const monto = parseFloat(g.monto);
                 gasS[sG] += monto;
-                
-                // Corrección: Leer nombre_gasto y envolver en un recuadro limpio
                 const nombreVisual = (g.nombre_gasto && g.nombre_gasto.trim() !== "") ? g.nombre_gasto : cat;
-                detG[sG].push(`
-                    <div style="background:#1e293b; border:1px solid #374151; padding:4px 6px; border-radius:4px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:10px; color:#e2e8f0; font-weight:600;">${nombreVisual.substring(0, 12)}</span>
-                        <span style="font-size:10px; color:#fca5a5;">$${Math.round(monto/1000)}k</span>
-                    </div>
-                `);
+                detG[sG].push(`<div style="background:#1e293b; border:1px solid #374151; padding:4px; margin-bottom:3px; border-radius:3px; display:flex; justify-content:space-between; color:#fff; font-size:10px;"><span>${nombreVisual.substring(0,10)}</span> <span>$${Math.round(monto/1000)}k</span></div>`);
             });
         });
 
         window.ingresosSemanales = acumuladorIngresos;
         window.detallesSemanales = detG;
 
-        const grid = document.getElementById('gridSemanas');
-        if (grid) {
-            grid.innerHTML = "";
-            for (let i = 1; i <= 4; i++) {
-                saldoAcumulado += (ingS[i] - gasS[i]);
-                const esPasado = (mesSeleccionado < mesActualStr) || (mesSeleccionado === mesActualStr && i < semanaActual);
-                const colorSaldo = esPasado ? '#4b5563' : (saldoAcumulado < 0 ? 'var(--rojo)' : 'var(--verde)');
-                
-                grid.innerHTML += `
-                <div style="background:#111827; padding:12px; border-radius:8px; border:1px solid #374151; display:flex; flex-direction:column;" onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)})">
-                    <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; margin-bottom:5px;">Semana ${i}</div>
-                    <div style="font-size:18px; font-weight:800; margin-bottom:10px; color:${colorSaldo}">
-                        $${Math.round(saldoAcumulado).toLocaleString()}
-                    </div>
-                    <div style="flex-grow:1; border-top: 1px solid #1f2937; padding-top: 10px;">
-                        <div style="max-height:120px; overflow-y:auto;">${detG[i].join('')}</div>
-                    </div>
-                </div>`;
-            }
+        // Renderizado con seguridad
+        grid.innerHTML = "";
+        for (let i = 1; i <= 4; i++) {
+            saldoAcumulado += (ingS[i] - gasS[i]);
+            const esPasado = (mesSeleccionado < mesActualStr) || (mesSeleccionado === mesActualStr && i < semanaActual);
+            const colorSaldo = esPasado ? '#4b5563' : (saldoAcumulado < 0 ? '#ef4444' : '#22c55e');
+            
+            grid.innerHTML += `
+            <div style="background:#111827; padding:15px; border-radius:8px; border:1px solid #374151; min-height:150px; cursor:pointer;" onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)})">
+                <div style="font-size:10px; color:#94a3b8; margin-bottom:5px;">SEMANA ${i}</div>
+                <div style="font-size:18px; font-weight:800; margin-bottom:10px; color:${colorSaldo}">$${Math.round(saldoAcumulado).toLocaleString()}</div>
+                <div style="border-top:1px solid #1f2937; padding-top:8px;">${detG[i].join('') || '<div style="color:#333; font-size:10px;">Sin gastos</div>'}</div>
+            </div>`;
         }
-    } catch (e) { console.error("Error proyectar:", e); }
+    } catch (e) {
+        console.error("Error crítico en proyectarTodo:", e);
+        grid.innerHTML = `<div style="padding:20px; color:red;">Error al cargar datos: ${e.message}</div>`;
+    }
 }
 // 2. MODAL DETALLE SEMANAL (CORREGIDO)
 window.abrirDetalleSemana = function(numSemana, saldoSem) {
@@ -692,7 +688,6 @@ function agregarGastoAItem(cat) {
         });
     }
     // --- CORRECCIÓN DE FUNCIONES ---
-
 function dibujarGastos() {
     const cont = document.getElementById('contGastos');
     if (!cont) return;
@@ -709,33 +704,32 @@ function dibujarGastos() {
             Object.keys(itemsObj).forEach(key => {
                 const it = itemsObj[key];
                 itemsHtml += `
-                <div style="background:#111827; padding:12px; margin-bottom:8px; border-radius:6px; border:1px solid #374151;">
-                    <div style="display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:8px; margin-bottom:8px;">
-                        <input type="text" placeholder="Nombre" value="${it.nombre_gasto || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'nombre_gasto', this.value)" style="background:#000; color:white; border:1px solid #444; padding:4px;">
-                        <input type="number" placeholder="$" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', '${key}', 'monto', this.value)" style="background:#000; color:white; border:1px solid #444; padding:4px;">
-                        <input type="number" placeholder="Día" value="${it.dia_pago || 1}" onchange="updateGastoRecurrente('${cat}', '${key}', 'dia_pago', this.value)" style="background:#000; color:white; border:1px solid #444; padding:4px;">
-                        <button onclick="eliminarGastoRecurrente('${cat}', '${key}')" style="background:transparent; border:none; color:#ef4444; cursor:pointer;">✕</button>
+                <div style="background:#0f172a; padding:8px; margin-bottom:6px; border-radius:4px; border:1px solid #334155; box-sizing:border-box;">
+                    <div style="display:grid; grid-template-columns: 2fr 1fr 40px 30px; gap:4px; align-items:center;">
+                        <input type="text" placeholder="Nombre" value="${it.nombre_gasto || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'nombre_gasto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
+                        <input type="number" placeholder="$" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', '${key}', 'monto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
+                        <input type="number" placeholder="Día" value="${it.dia_pago || 1}" onchange="updateGastoRecurrente('${cat}', '${key}', 'dia_pago', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
+                        <button onclick="eliminarGastoRecurrente('${cat}', '${key}')" style="background:transparent; border:none; color:#ef4444; cursor:pointer; font-weight:bold;">✕</button>
                     </div>
-                    <div style="display:flex; gap:8px;">
-                        <input type="month" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)" style="background:#000; color:white; border:1px solid #444; font-size:10px;">
-                        <input type="month" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'hasta', this.value)" style="background:#000; color:white; border:1px solid #444; font-size:10px;">
+                    <div style="display:flex; gap:4px; margin-top:5px;">
+                        <input type="month" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)" style="flex:1; background:#000; color:#fff; border:1px solid #444; padding:2px; font-size:10px;">
+                        <input type="month" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'hasta', this.value)" style="flex:1; background:#000; color:#fff; border:1px solid #444; padding:2px; font-size:10px;">
                     </div>
                 </div>`;
             });
 
             cont.innerHTML += `
-            <div style="margin-bottom:20px; border-left:3px solid var(--p); padding-left:10px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                    <b style="color:var(--p)">${cat}</b>
-                    <button onclick="agregarGastoAItem('${cat}')" style="background:var(--p); border:none; color:white; border-radius:4px; padding:2px 10px; cursor:pointer;">+ Agregar</button>
+            <div style="margin-bottom:15px; border-left:3px solid var(--p); padding-left:10px; box-sizing:border-box;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <b style="color:var(--p); font-size:12px;">${cat}</b>
+                    <button onclick="agregarGastoAItem('${cat}')" style="background:#3b82f6; border:none; color:white; border-radius:3px; padding:2px 8px; cursor:pointer; font-size:10px;">+ Item</button>
                 </div>
                 ${itemsHtml}
             </div>`;
         });
     });
 }
-   
-    // Actualizada para recibir la 'key' real de Firebase
+   // Actualizada para recibir la 'key' real de Firebase
     function updateGastoRecurrente(cat, key, campo, valor) {
         if (campo === 'monto') valor = parseFloat(valor) || 0;
         db.ref(`configuracion/gastos_recurrentes/${cat}/items/${key}`).update({ [campo]: valor }).then(() => {
