@@ -261,7 +261,6 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
     if (typeof renderizarDashboardTopeDeGama === 'function') renderizarDashboardTopeDeGama();
 });
 
-// 1. AJUSTE DE TARJETA (Nombres visibles y prioritarios)
 function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
     if (!motorGlobal.inteligencia_cuit) {
@@ -270,29 +269,27 @@ function renderizarDashboardTopeDeGama() {
     }
 
     const cuits = Object.keys(motorGlobal.inteligencia_cuit);
-    
-    // 1. CALCULAMOS EL PROMEDIO REAL DE LA CARTERA PARA USARLO DE UMBRAL
     const totalDelay = cuits.reduce((acc, cuit) => acc + (motorGlobal.inteligencia_cuit[cuit].delay_estimado || 0), 0);
     const promedioCartera = totalDelay / cuits.length;
 
-    // 2. ORDENAMOS POR DEUDA VIVA
     cuits.sort((a, b) => (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0));
 
     let html = `<style>.tarjeta-resumen:hover { background: #1e293b !important; }</style>`;
 
     cuits.forEach(cuit => {
         const d = motorGlobal.inteligencia_cuit[cuit];
-        
-        // 3. USAMOS EL PROMEDIO DINÁMICO EN LUGAR DEL "60" FIJO
         const colorBorde = d.delay_estimado > promedioCartera ? 'var(--rojo)' : 'var(--verde)';
         
         html += `
-        <div class="tarjeta-resumen" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:4px; border-radius:0 4px 4px 0; cursor:pointer; display:flex; justify-content:space-between; align-items:center; min-height:40px;" 
-             onclick="abrirModalDetalle('${cuit}')">
-            <span style="font-size:11px; color:#fff; flex:1; margin-right:10px; line-height:1.2;">${d.nombre_fantasia || cuit}</span>
+        <div class="tarjeta-resumen" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:8px; margin-bottom:4px; border-radius:0 4px 4px 0; display:flex; align-items:center; gap:10px;">
+            <input type="checkbox" class="selector-stress" value="${cuit}" style="cursor:pointer;">
+            <div style="flex:1; cursor:pointer;" onclick="abrirModalDetalle('${cuit}')">
+                <div style="font-size:11px; color:#fff; line-height:1.2;">${d.nombre_fantasia || cuit}</div>
+            </div>
             <b style="font-size:11px; color:var(--verde); flex-shrink:0;">$${(d.deuda_viva / 1000).toFixed(0)}k</b>
         </div>`;
     });
+    
     contenedor.innerHTML = html;
 }
 // 2. MODAL CON LÓGICA DE COLOR DINÁMICO
@@ -423,20 +420,17 @@ async function conectarMes() {
     });
 }
 
-// 1. FUNCIÓN PARA PROYECTAR Y RENDERIZAR SEMANAS
 async function proyectarTodo() {
     try {
         const mesSeleccionado = document.getElementById('mesFiltro').value;
-        if (!mesSeleccionado || !motorGlobal.inteligencia_cuit) return;
+        if (!mesSeleccionado || !window.motorGlobal?.inteligencia_cuit) return;
 
         const hoy = new Date();
         const mesActualStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
         const diaActual = hoy.getDate();
         const semanaActual = Math.ceil(diaActual / 7);
 
-        let saldoAcumulado = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + 
-                             (parseFloat(document.getElementById('bancoSantander').value) || 0);
-        
+        let saldoAcumulado = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
         let ingS = { 1: 0, 2: 0, 3: 0, 4: 0 };
         let gasS = { 1: 0, 2: 0, 3: 0, 4: 0 };
         let detG = { 1: [], 2: [], 3: [], 4: [] };
@@ -447,18 +441,11 @@ async function proyectarTodo() {
         Object.keys(inteligencia).forEach(cuit => {
             const cliente = inteligencia[cuit];
             if (!cliente.facturas_pendientes) return;
-
             cliente.facturas_pendientes.forEach(f => {
-                const fechaCobro = f.proximo_cobro_estimado;
-                if (!fechaCobro) return;
-
-                const [y, m, d] = fechaCobro.split('-').map(Number);
-                const mesC = `${y}-${String(m).padStart(2, '0')}`;
-                
-                if (mesC === mesSeleccionado) {
+                const [y, m, d] = (f.proximo_cobro_estimado || "").split('-').map(Number);
+                if (`${y}-${String(m).padStart(2, '0')}` === mesSeleccionado) {
                     const s = Math.min(Math.ceil(d / 7), 4);
                     const nombre = cliente.nombre_fantasia || "CLIENTE";
-                    
                     if (!acumuladorIngresos[s][nombre]) acumuladorIngresos[s][nombre] = { monto: 0 };
                     acumuladorIngresos[s][nombre].monto += (f.monto || 0);
                     ingS[s] += (f.monto || 0);
@@ -473,23 +460,20 @@ async function proyectarTodo() {
         Object.keys(gastosMaestros).forEach(cat => {
             const rubro = gastosMaestros[cat];
             const itemsGasto = rubro.items ? Object.values(rubro.items) : [];
-            
             itemsGasto.forEach(g => {
-                if (g.desde && mesSeleccionado < g.desde) return; 
-                if (g.hasta && mesSeleccionado > g.hasta) return;
-                if (!g.monto || parseFloat(g.monto) <= 0) return;
+                if ((g.desde && mesSeleccionado < g.desde) || (g.hasta && mesSeleccionado > g.hasta) || !g.monto) return;
                 
                 let sG = g.dia_pago ? Math.min(Math.ceil(parseInt(g.dia_pago) / 7), 4) : 1;
                 const monto = parseFloat(g.monto);
                 gasS[sG] += monto;
                 
-                // Busca esta parte dentro de tu función proyectarTodo y reemplázala:
-
+                // Corrección: Leer nombre_gasto y envolver en un recuadro limpio
+                const nombreVisual = (g.nombre_gasto && g.nombre_gasto.trim() !== "") ? g.nombre_gasto : cat;
                 detG[sG].push(`
-                <div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5; margin-bottom:2px;">
-                <span>📉 ${g.nombre_gasto ? g.nombre_gasto.substring(0,8) : (rubro.nombre ? rubro.nombre.substring(0,8) : 'Gasto')}</span>
-                <span>$${Math.round(monto/1000)}k</span>
-                </div>
+                    <div style="background:#1e293b; border:1px solid #374151; padding:4px 6px; border-radius:4px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:10px; color:#e2e8f0; font-weight:600;">${nombreVisual.substring(0, 12)}</span>
+                        <span style="font-size:10px; color:#fca5a5;">$${Math.round(monto/1000)}k</span>
+                    </div>
                 `);
             });
         });
@@ -497,41 +481,29 @@ async function proyectarTodo() {
         window.ingresosSemanales = acumuladorIngresos;
         window.detallesSemanales = detG;
 
-        // Renderizado
         const grid = document.getElementById('gridSemanas');
         if (grid) {
             grid.innerHTML = "";
             for (let i = 1; i <= 4; i++) {
                 saldoAcumulado += (ingS[i] - gasS[i]);
                 const esPasado = (mesSeleccionado < mesActualStr) || (mesSeleccionado === mesActualStr && i < semanaActual);
-                const estiloFondo = esPasado ? "background: #0b0e14; opacity: 0.7; border-top: 3px solid #374151;" : `border-top: 3px solid ${saldoAcumulado < 0 ? 'var(--rojo)':'var(--verde)'};`;
-
-                let htmlIngresos = Object.keys(acumuladorIngresos[i]).map(nombre => {
-                    const pct = ingS[i] > 0 ? ((acumuladorIngresos[i][nombre].monto / ingS[i]) * 100).toFixed(0) : 0;
-                    return `
-                        <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:2px; align-items:center;">
-                            <span title="${nombre}" style="${esPasado ? 'color:#4b5563' : 'color:var(--acento)'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60px;">${nombre}</span>
-                            <span style="opacity:0.5; font-size:8px;">${pct}%</span>
-                            <span style="font-weight:bold;">$${Math.round(acumuladorIngresos[i][nombre].monto/1000)}k</span>
-                        </div>`;
-                }).join('');
-
+                const colorSaldo = esPasado ? '#4b5563' : (saldoAcumulado < 0 ? 'var(--rojo)' : 'var(--verde)');
+                
                 grid.innerHTML += `
-                <div class="sem-card" style="${estiloFondo} background:#111827; padding:10px; border-radius:4px; cursor:pointer;" onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)})">
-                    <div class="etiqueta-sem" style="font-size:10px; color:#94a3b8;">Semana ${i} ${esPasado ? '• CERRADA' : '• ACTIVA'}</div>
-                    <div class="monto-semanal" style="font-size:16px; font-weight:bold; ${esPasado ? 'color:#4b5563' : (saldoAcumulado < 0 ? 'color:var(--rojo)' : 'color:var(--verde)')}">
+                <div style="background:#111827; padding:12px; border-radius:8px; border:1px solid #374151; display:flex; flex-direction:column;" onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)})">
+                    <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; margin-bottom:5px;">Semana ${i}</div>
+                    <div style="font-size:18px; font-weight:800; margin-bottom:10px; color:${colorSaldo}">
                         $${Math.round(saldoAcumulado).toLocaleString()}
                     </div>
-                    <div style="margin-top:10px; border-top: 1px solid #1f2937; padding-top: 10px;">
-                        <div style="max-height:80px; overflow-y:auto;">${htmlIngresos}${detG[i].join('')}</div>
+                    <div style="flex-grow:1; border-top: 1px solid #1f2937; padding-top: 10px;">
+                        <div style="max-height:120px; overflow-y:auto;">${detG[i].join('')}</div>
                     </div>
                 </div>`;
             }
         }
-    } catch (error) { console.error("Error:", error); }
+    } catch (e) { console.error("Error proyectar:", e); }
 }
-
-// 2. MODAL DETALLE SEMANAL
+// 2. MODAL DETALLE SEMANAL (CORREGIDO)
 window.abrirDetalleSemana = function(numSemana, saldoSem) {
     const modal = document.getElementById('modalSemana');
     const contenido = document.getElementById('contenidoModal');
@@ -549,26 +521,33 @@ window.abrirDetalleSemana = function(numSemana, saldoSem) {
                 <div style="font-size:24px; font-weight:700; color:var(--verde);">$${saldoSem.toLocaleString()}</div>
             </div>
         </div>
+        
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
-            <div style="background:#05070a; padding:15px; border-radius:10px;">
-                <h4 style="color:#60a5fa; font-size:11px; margin-bottom:10px;">INGRESOS POR OS</h4>
+            <div style="background:#05070a; padding:15px; border-radius:10px; border:1px solid #1f2937;">
+                <h4 style="color:#60a5fa; font-size:11px; margin-bottom:10px; letter-spacing:1px;">INGRESOS POR OS</h4>
                 ${Object.entries(ingresosObj).map(([nombre, data]) => `
                     <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #1f2937; padding-bottom:4px;">
-                        <span style="font-size:11px; line-height:1.2; word-break:break-word; max-width:70%;">${nombre}</span>
-                        <b style="font-size:12px;">$${Math.round(data.monto).toLocaleString()}</b>
+                        <span style="font-size:11px; line-height:1.2; word-break:break-word; max-width:70%; color:#d1d5db;">${nombre}</span>
+                        <b style="font-size:12px; color:#fff;">$${Math.round(data.monto).toLocaleString()}</b>
                     </div>
                 `).join('')}
             </div>
-            <div style="background:#05070a; padding:15px; border-radius:10px;">
-                <h4 style="color:#fca5a5; font-size:11px; margin-bottom:10px;">DESGLOSE GASTOS</h4>
-                <div style="font-size:12px;">${gastosArr.join('')}</div>
+
+            <div style="background:#05070a; padding:15px; border-radius:10px; border:1px solid #1f2937;">
+                <h4 style="color:#fca5a5; font-size:11px; margin-bottom:10px; letter-spacing:1px;">DESGLOSE GASTOS</h4>
+                <div style="font-size:12px;">
+                    ${gastosArr.length > 0 ? gastosArr.join('') : '<div style="color:#4b5563;">Sin gastos registrados.</div>'}
+                </div>
             </div>
         </div>
-        <button onclick="document.getElementById('modalSemana').style.display='none'" style="margin-top:20px; width:100%; padding:10px; background:var(--acento); border:none; color:white; cursor:pointer; border-radius:4px;">CERRAR</button>
+
+        <button onclick="document.getElementById('modalSemana').style.display='none'" 
+            style="margin-top:20px; width:100%; padding:12px; background:#374151; border:none; color:white; cursor:pointer; border-radius:6px; font-weight:bold;">
+            CERRAR DETALLE
+        </button>
     `;
     modal.style.display = 'flex';
 };
-
     // --- FUNCIONES DE APOYO DEL MOTOR IA ---
     function parseFecha(s) { 
         if (!s) return null;
@@ -712,50 +691,50 @@ function agregarGastoAItem(cat) {
             if (typeof proyectarTodo === 'function') proyectarTodo();
         });
     }
+    // --- CORRECCIÓN DE FUNCIONES ---
 
-   function dibujarGastos() {
+function dibujarGastos() {
     const cont = document.getElementById('contGastos');
     if (!cont) return;
     cont.innerHTML = "";
     
     db.ref('configuracion/gastos_recurrentes').once('value', snapshot => {
         const gastos = snapshot.val() || {};
+        
         Object.keys(gastos).forEach(cat => {
             const rubro = gastos[cat];
-            let itemsHtml = "";
             const itemsObj = rubro.items || {};
+            let itemsHtml = "";
 
             Object.keys(itemsObj).forEach(key => {
                 const it = itemsObj[key];
                 itemsHtml += `
-                <div style="background:#1e293b; padding:10px; margin-bottom:10px; border-radius:4px; font-size:11px;">
-                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:5px;">
-                        // Dentro del bucle de items en dibujarGastos, agrega este input:
-                        <input type="text" placeholder="Nombre gasto" value="${it.nombre_gasto || ''}" 
-                        onchange="updateGasto('${cat}', '${key}', 'nombre_gasto', this.value)" 
-                        style="width:100%; margin-bottom:5px;">
-                        <input type="number" placeholder="Monto" value="${it.monto || 0}" onchange="updateGasto('${cat}', '${key}', 'monto', this.value)">
-                        <input type="number" placeholder="Día (1-30)" value="${it.dia_pago || 1}" onchange="updateGasto('${cat}', '${key}', 'dia_pago', this.value)">
-                        <button onclick="eliminarGasto('${cat}', '${key}')" style="color:var(--rojo);">✕</button>
+                <div style="background:#111827; padding:12px; margin-bottom:8px; border-radius:6px; border:1px solid #374151;">
+                    <div style="display:grid; grid-template-columns: 2fr 1fr 1fr auto; gap:8px; margin-bottom:8px;">
+                        <input type="text" placeholder="Nombre" value="${it.nombre_gasto || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'nombre_gasto', this.value)" style="background:#000; color:white; border:1px solid #444; padding:4px;">
+                        <input type="number" placeholder="$" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', '${key}', 'monto', this.value)" style="background:#000; color:white; border:1px solid #444; padding:4px;">
+                        <input type="number" placeholder="Día" value="${it.dia_pago || 1}" onchange="updateGastoRecurrente('${cat}', '${key}', 'dia_pago', this.value)" style="background:#000; color:white; border:1px solid #444; padding:4px;">
+                        <button onclick="eliminarGastoRecurrente('${cat}', '${key}')" style="background:transparent; border:none; color:#ef4444; cursor:pointer;">✕</button>
                     </div>
-                    <div style="display:flex; gap:5px; margin-top:5px;">
-                        <input type="month" value="${it.desde || ''}" onchange="updateGasto('${cat}', '${key}', 'desde', this.value)">
-                        <input type="month" placeholder="Hasta (Vacío=Infinito)" value="${it.hasta || ''}" onchange="updateGasto('${cat}', '${key}', 'hasta', this.value)">
+                    <div style="display:flex; gap:8px;">
+                        <input type="month" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)" style="background:#000; color:white; border:1px solid #444; font-size:10px;">
+                        <input type="month" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'hasta', this.value)" style="background:#000; color:white; border:1px solid #444; font-size:10px;">
                     </div>
                 </div>`;
             });
 
             cont.innerHTML += `
-            <div style="margin-bottom:20px;">
-                <div style="display:flex; justify-content:space-between; color:var(--acento); margin-bottom:5px;">
-                    <b>${cat}</b>
-                    <button onclick="agregarGastoAItem('${cat}')" style="background:var(--p); border:none; color:white; border-radius:4px; padding:2px 8px;">+ Agregar</button>
+            <div style="margin-bottom:20px; border-left:3px solid var(--p); padding-left:10px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                    <b style="color:var(--p)">${cat}</b>
+                    <button onclick="agregarGastoAItem('${cat}')" style="background:var(--p); border:none; color:white; border-radius:4px; padding:2px 10px; cursor:pointer;">+ Agregar</button>
                 </div>
                 ${itemsHtml}
             </div>`;
         });
     });
 }
+   
     // Actualizada para recibir la 'key' real de Firebase
     function updateGastoRecurrente(cat, key, campo, valor) {
         if (campo === 'monto') valor = parseFloat(valor) || 0;
