@@ -987,80 +987,56 @@ window.addEventListener('DOMContentLoaded', () => {
 <script src="dominguito-core.js"></script>
 <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
 <script>
-    window.Dominguito = {
-        toggleInput: () => {
-            const box = document.getElementById('dominguito-input-box');
-            box.style.display = box.style.display === 'none' ? 'block' : 'none';
-        },
-        hablar: (texto) => {
-            const bubble = document.getElementById('dominguito-bubble');
-            document.getElementById('dominguito-texto-respuesta').innerText = texto;
-            bubble.style.display = 'block';
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                const u = new SpeechSynthesisUtterance(texto);
-                u.lang = 'es-AR'; u.rate = 0.9; u.pitch = 0.8;
-                window.speechSynthesis.speak(u);
-            }
-        },
-        escuchar: () => {
-            const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!Rec) return alert("Navegador no compatible.");
-            const rec = new Rec();
-            rec.lang = 'es-AR';
-            rec.onstart = () => document.getElementById('status-borde').style.borderColor = '#2ecc71';
-            rec.onresult = (e) => window.Dominguito.preguntarIA(e.results[0][0].transcript);
-            rec.onend = () => document.getElementById('status-borde').style.borderColor = '#1a2a6c';
-            rec.start();
-        },
-        preguntarIA: async (m) => {
-    if (!m || !m.trim()) return;
-    window.Dominguito.hablar("Analizando...");
-    
-    try {
-        const r = await fetch("https://dominguito-san-juan.vercel.app/api/cfo", {
-            method: "POST",
-            mode: "cors", // Obligatorio para peticiones cruzadas
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            },
-            body: JSON.stringify({ prompt: m, session_id: "cristian_director" })
-        });
-
-        // Esto nos dirá si el servidor rechazó la petición por seguridad
-        if (!r.ok) {
-            const errorText = await r.text();
-            console.error("Respuesta fallida del servidor:", errorText);
-            window.Dominguito.hablar("Error " + r.status + ": Servidor denegado.");
-            return;
+window.Dominguito = {
+    toggleInput: function() {
+        const box = document.getElementById('dominguito-input-box');
+        box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    },
+    hablar: function(texto) {
+        const bubble = document.getElementById('dominguito-bubble');
+        const target = document.getElementById('dominguito-texto-respuesta');
+        if (target) target.innerText = texto;
+        bubble.style.display = 'block';
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(texto);
+            u.lang = 'es-AR';
+            window.speechSynthesis.speak(u);
         }
-
-        const d = await r.json();
-        window.Dominguito.hablar(d.respuesta);
-    } catch(e) { 
-        console.error("Error de red total:", e);
-        window.Dominguito.hablar("Error de conexión. Revisa la consola F12."); 
-    }
-}
-        init: function() {
-            // Escuchador robusto para el ENTER
-            const inputField = document.getElementById('dominguito-texto');
-            inputField.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    window.Dominguito.preguntarIA(inputField.value);
-                    inputField.value = "";
-                    document.getElementById('dominguito-input-box').style.display = 'none';
-                }
+    },
+    preguntarIA: async function(m) {
+        if (!m || !m.trim()) return;
+        window.Dominguito.hablar("Analizando...");
+        try {
+            const r = await fetch("https://dominguito-san-juan.vercel.app/api/cfo", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ prompt: m, session_id: "cristian_director" })
             });
+            const d = await r.json();
+            window.Dominguito.hablar(d.respuesta);
+        } catch(e) { 
+            console.error(e);
+            window.Dominguito.hablar("Error de conexión."); 
         }
-    };
+    }
+};
 
-    // Inicializamos al cargar la página
-    window.addEventListener('DOMContentLoaded', () => {
-        window.Dominguito.init();
-    });
+// Escucha del Enter separada para no romper la estructura del objeto
+document.addEventListener('DOMContentLoaded', () => {
+    const inputField = document.getElementById('dominguito-texto');
+    if (inputField) {
+        inputField.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                window.Dominguito.preguntarIA(this.value);
+                this.value = "";
+                document.getElementById('dominguito-input-box').style.display = 'none';
+            }
+        });
+    }
+});
+
 </script>
 </body>
 </html>
