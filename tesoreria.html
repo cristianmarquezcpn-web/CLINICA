@@ -189,32 +189,54 @@ function calcularDelayPromedio(data) {
     return totalDeuda > 0 ? Math.round(totalDelay / totalDeuda) : 0;
 }
 async function simularImpacto() {
+    // 1. Inputs del usuario y datos del motor
     const montoSimulado = parseFloat(document.getElementById('simMonto').value) || 0;
     const mesesSimulados = parseInt(document.getElementById('simMeses').value) || 1;
     const res = document.getElementById('resImpacto');
     if (!res) return;
 
     const motorData = window.motorGlobal || {};
-    let saldoPesimista = motorData.var_pesimista || 0;
-    const saldoActual = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
+    const saldoActual = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + 
+                        (parseFloat(document.getElementById('bancoSantander').value) || 0);
     
-    let tempSaldo = saldoActual + saldoPesimista;
-    const burnRate = motorData.burn_rate || 0;
-    const gastoMensualPesimista = montoSimulado + burnRate;
+    // 2. Variables de IA
+    // var_pesimista (P5) es tu colchón de cobranza garantizada
+    const ingresoPesimista = motorData.var_pesimista || 0;
+    const burnRate = motorData.burn_rate || 500000; // Default de seguridad
     
+    // 3. Modelo Matemático: Trayectoria de Caja
+    // Saldo Inicial = Liquidez + Inyección simulada.
+    // El ingreso pesimista se considera un flujo que llega al final del periodo de estrés.
+    let caja = saldoActual + montoSimulado;
     let quiebraEn = 0;
+    let deficitAcumulado = 0;
+
     for (let i = 1; i <= mesesSimulados; i++) {
-        tempSaldo -= gastoMensualPesimista;
-        if (tempSaldo < 0 && quiebraEn === 0) { quiebraEn = i; }
+        caja -= burnRate;
+        
+        // Si al final del mes la caja es negativa y aún no sumamos el VaR
+        if (caja < 0) {
+            // Evaluamos si el ingreso pesimista (P5) rescata la operación
+            // Asumimos que el ingreso pesimista es la capacidad de cobro acumulada
+            const rescate = (i === mesesSimulados) ? ingresoPesimista : 0;
+            
+            if ((caja + rescate) < 0) {
+                quiebraEn = i;
+                deficitAcumulado = Math.abs(caja + rescate);
+                break;
+            }
+        }
     }
 
+    // 4. Salida del Análisis
     const esViable = quiebraEn === 0;
     res.style.color = esViable ? "var(--p)" : "var(--a)";
     
     if (esViable) {
-        res.innerText = `✅ ESCENARIO PESIMISTA: Titanium confirma soporte por ${mesesSimulados} meses. Saldo final: $${Math.round(tempSaldo).toLocaleString()}`;
+        const saldoFinal = caja + ingresoPesimista;
+        res.innerText = `✅ ESCENARIO PESIMISTA: Sobrevivís ${mesesSimulados} meses. Saldo final proyectado: $${Math.round(saldoFinal).toLocaleString()}.`;
     } else {
-        res.innerText = `🚨 ALERTA: Bajo condiciones pesimistas (Montecarlo), quiebra técnica en el mes ${quiebraEn}.`;
+        res.innerText = `🚨 ALERTA: Quiebra técnica en el mes ${quiebraEn}. Déficit proyectado: $${Math.round(deficitAcumulado).toLocaleString()}. Necesitás reducir gastos o inyectar capital.`;
     }
 }
 let motorEncendido = false;
@@ -257,15 +279,20 @@ function encenderMotorIA() {
                     <div style="margin-bottom:10px; padding:5px; border-radius:4px; background:${colorSemaforo}22; border:1px solid ${colorSemaforo}; text-align:center;">
                         <b style="color:${colorSemaforo}">ESTADO: ${indic.semaforo || 'NORMAL'}</b>
                     </div>
-                    <div style="display:flex; justify-content:space-between;"><span>Efectividad:</span> <b style="color:${colorEstado}">${((rep.esperado/(rep.calle || 1)) * 100).toFixed(1)}%</b></div>
-                    <div style="display:flex; justify-content:space-between;"><span>Supervivencia:</span> <b style="color:var(--a)">${rep.supervivencia_dias || 0} días</b></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>Efectividad:</span> <b style="color:${colorEstado}">${((rep.esperado/(rep.calle || 1)) * 100).toFixed(1)}%</b></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>Supervivencia:</span> <b style="color:var(--a)">${rep.supervivencia_dias || 0} días</b></div>
                     <hr style="border:0; border-top:1px solid #1f2937; margin:8px 0">
-                    <div style="display:flex; justify-content:space-between;"><span>Tasa Real PF:</span> <b style="color:var(--p)">${(diag.tasa_real_pf || 0).toFixed(1)}%</b></div>
-                    <div style="display:flex; justify-content:space-between;"><span>Inflación (REM):</span> <b style="color:${(m.rem || 0) > 4 ? 'var(--a)' : 'var(--p)'}">${m.rem || 0}%</b></div>
-                    <div style="display:flex; justify-content:space-between;"><span>Dólar MEP:</span> <b style="color:var(--ac)">$${m.mep || '-'}</b></div>
-                    <div style="display:flex; justify-content:space-between;"><span>Riesgo País:</span> <b style="color:${colorRiesgo}">${m.riesgo || 0} pts</b></div>
+
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>Tasa Real PF:</span> <b style="color:var(--p)">${(diag.tasa_real_pf || 0).toFixed(1)}%</b></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>Plazo Fijo:</span> <b>${(m.pf || 0).toFixed(1)}%</b></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>FCI:</span> <b style="color:var(--p)">${(m.fci || 0).toFixed(1)}%</b></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>UVA:</span> <b style="color:var(--ac)">${(m.uva || 0).toLocaleString()}</b></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>Inflación (REM):</span> <b style="color:${(m.rem || 0) > 4 ? 'var(--a)' : 'var(--p)'}">${m.rem || 0}%</b></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>Dólar MEP:</span> <b style="color:var(--ac)">$${m.mep || '-'}</b></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px;"><span>Riesgo País:</span> <b style="color:${colorRiesgo}">${m.riesgo || 0} pts</b></div>
+
                     <div style="margin-top:12px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid ${colorSemaforo};">
-                        📢 <b>DIAGNÓSTICO:</b> ${indic.mensaje_racional || 'Analizando...'}
+                    📢 <b>DIAGNÓSTICO:</b> ${indic.mensaje_racional || 'Analizando...'}
                     </div>
                     <div style="margin-top:5px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid var(--oro);">
                         🤖 <b>AI BOT:</b> ${consejos[0] || 'Analizando mercado...'}
@@ -313,12 +340,10 @@ function renderizarDashboardTopeDeGama() {
     
     contenedor.innerHTML = html;
 }
-// 2. MODAL CON LÓGICA DE FECHA CORREGIDA
 function abrirModalDetalle(cuit) {
     const d = motorGlobal.inteligencia_cuit[cuit];
     const modal = document.getElementById('modalDetalle');
     
-    // Lógica robusta de fecha: convertimos YYYY-MM-DD a timestamp para comparar
     const facturas = d.facturas_pendientes || [];
     const fechaProxima = facturas.length > 0 ? facturas[0].proximo_cobro_estimado : null;
     
@@ -338,7 +363,7 @@ function abrirModalDetalle(cuit) {
     modal.innerHTML = `
     <div class="modal-contenido" style="background:#0b0e14; padding:20px; border-radius:8px; border:1px solid #374151; color:white; max-width:500px; margin:auto;">
         <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-            <h3 style="margin:0; color:#3b82f6; word-break:break-word;">${d.nombre_fantasia}</h3>
+            <h3 style="margin:0; color:#3b82f6;">${d.nombre_fantasia}</h3>
             <button onclick="document.getElementById('modalDetalle').style.display='none'" style="background:none; border:none; color:white; cursor:pointer;">❌ CERRAR</button>
         </div>
 
@@ -356,7 +381,7 @@ function abrirModalDetalle(cuit) {
         <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-bottom:20px;">
             <div style="background:#1e293b; padding:10px; border-radius:4px;">
                 <small style="font-size:9px; color:#94a3b8;">DELAY EST.</small>
-                <div style="font-size:14px; color: ${d.delay_estimado > 60 ? '#ef4444' : '#22c55e'}">${d.delay_estimado} días</div>
+                <div style="font-size:14px; color: ${d.delay_estimado > 60 ? '#ef4444' : '#22c55e'}">${Math.round(d.delay_estimado)} d</div>
             </div>
             <div style="background:#1e293b; padding:10px; border-radius:4px;">
                 <small style="font-size:9px; color:#94a3b8;">SCORE IA</small>
@@ -364,15 +389,25 @@ function abrirModalDetalle(cuit) {
             </div>
             <div style="background:#1e293b; padding:10px; border-radius:4px;">
                 <small style="font-size:9px; color:#94a3b8;">TENDENCIA</small>
-                <div style="font-size:14px;">${d.tendencia_admin}</div>
+                <div style="font-size:14px;">${d.tendencia_admin > 0 ? '+' : ''}${d.tendencia_admin}</div>
             </div>
         </div>
 
         <div style="background:#0f172a; padding:10px; border-radius:4px; font-size:11px; border:1px solid #334155;">
             <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Efectividad:</span> <b>${(d.efectividad * 100).toFixed(0)}%</b></div>
             <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Patrón:</span> <b>${d.patron}</b></div>
-            <div style="display:flex; justify-content:space-between;"><span>Offset:</span> <b>${alerta.dias_de_offset} días</b></div>
-            <p style="color:#666; margin-top:10px; font-style:italic;">Nota: ${alerta.nota}</p>
+            <div style="display:flex; justify-content:space-between;"><span>Offset (Ajuste):</span> <b>${alerta.dias_de_offset} días</b></div>
+            <p style="color:#666; margin-top:10px; font-style:italic;">"${alerta.nota}"</p>
+        </div>
+
+        <div style="margin-top:20px; font-size:10px; color:#94a3b8; border-top:1px solid #334155; padding-top:10px;">
+            <p style="color:#3b82f6; font-weight:bold;">📘 GUÍA DE INTERPRETACIÓN:</p>
+            <ul style="padding-left:15px; line-height:1.5;">
+                <li><b>Delay Est.:</b> Tu tiempo de espera real. Más de 60 días impacta negativamente tu flujo de caja.</li>
+                <li><b>Score IA:</b> Calificación de confianza del cliente. Arriba de 50 es seguro; debajo, extrema precaución.</li>
+                <li><b>Tendencia:</b> Muestra si el cliente está empeorando (+ valor) o mejorando (- valor) sus tiempos de pago.</li>
+                <li><b>Offset:</b> Días extra que la IA suma a la factura porque sabe, por historial, que el cliente siempre se demora.</li>
+            </ul>
         </div>
     </div>`;
     
@@ -558,6 +593,9 @@ window.abrirDetalleSemana = function(numSemana, saldoSem) {
     const ingresosObj = window.ingresosSemanales[numSemana] || {};
     const gastosArr = window.detallesSemanales[numSemana] || [];
     
+    // Estilo común para contenedores scrollables
+    const scrollStyle = "max-height: 300px; overflow-y: auto; padding-right: 5px;";
+    
     contenido.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:end; margin-bottom:20px;">
             <div>
@@ -573,17 +611,19 @@ window.abrirDetalleSemana = function(numSemana, saldoSem) {
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
             <div style="background:#05070a; padding:15px; border-radius:10px; border:1px solid #1f2937;">
                 <h4 style="color:#60a5fa; font-size:11px; margin-bottom:10px; letter-spacing:1px;">INGRESOS POR OS</h4>
-                ${Object.entries(ingresosObj).map(([nombre, data]) => `
-                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #1f2937; padding-bottom:4px;">
-                        <span style="font-size:11px; line-height:1.2; word-break:break-word; max-width:70%; color:#d1d5db;">${nombre}</span>
-                        <b style="font-size:12px; color:#fff;">$${Math.round(data.monto).toLocaleString()}</b>
-                    </div>
-                `).join('')}
+                <div style="${scrollStyle}">
+                    ${Object.entries(ingresosObj).map(([nombre, data]) => `
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #1f2937; padding-bottom:4px;">
+                            <span style="font-size:11px; line-height:1.2; word-break:break-word; max-width:70%; color:#d1d5db;">${nombre}</span>
+                            <b style="font-size:12px; color:#fff;">$${Math.round(data.monto).toLocaleString()}</b>
+                        </div>
+                    `).join('')}
+                </div>
             </div>
 
             <div style="background:#05070a; padding:15px; border-radius:10px; border:1px solid #1f2937;">
                 <h4 style="color:#fca5a5; font-size:11px; margin-bottom:10px; letter-spacing:1px;">DESGLOSE GASTOS</h4>
-                <div style="font-size:12px;">
+                <div style="font-size:12px; ${scrollStyle}">
                     ${gastosArr.length > 0 ? gastosArr.join('') : '<div style="color:#4b5563;">Sin gastos registrados.</div>'}
                 </div>
             </div>
