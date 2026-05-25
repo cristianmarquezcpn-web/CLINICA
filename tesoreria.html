@@ -276,29 +276,28 @@ function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
     if (!contenedor) return;
 
-    // Usamos el objeto global que se carga desde Firebase
-    const data = window.motorGlobal || {};
-    const inteligencia = data.inteligencia_cuit;
-
-    if (!inteligencia) {
-        console.warn("Esperando datos de inteligencia_cuit...");
-        return;
+    // Si los datos no están cargados, no imprimimos error, simplemente salimos 
+    // sin hacer nada para no ensuciar la consola.
+    if (!window.motorGlobal || !window.motorGlobal.inteligencia_cuit) {
+        return; 
     }
 
-    const cuits = Object.keys(inteligencia);
-    const totalDelay = cuits.reduce((acc, cuit) => acc + (inteligencia[cuit].delay_estimado || 0), 0);
+    const data = window.motorGlobal.inteligencia_cuit;
+    const cuits = Object.keys(data);
+    
+    // Cálculos
+    const totalDelay = cuits.reduce((acc, cuit) => acc + (data[cuit].delay_estimado || 0), 0);
     const promedioCartera = totalDelay / cuits.length;
-
-    cuits.sort((a, b) => (inteligencia[b].deuda_viva || 0) - (inteligencia[cuit].deuda_viva || 0));
+    cuits.sort((a, b) => (data[b].deuda_viva || 0) - (data[a].deuda_viva || 0));
 
     let html = `<style>.card-c:hover { background: #1e293b !important; border-color: #475569 !important; }</style>`;
 
     cuits.forEach(cuit => {
-        const d = inteligencia[cuit];
+        const d = data[cuit];
         const colorBorde = d.delay_estimado > promedioCartera ? '#ef4444' : '#10b981';
         
         html += `
-        <div class="card-c" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:6px; border-radius:4px; display:flex; align-items:center; gap:12px; transition:0.2s; border:1px solid #1f2937;">
+        <div class="card-c" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:6px; border-radius:4px; display:flex; align-items:center; gap:12px; transition:0.2s; border:1px solid #1e293b;">
             <input type="checkbox" class="selector-cliente" data-deuda="${d.deuda_viva || 0}" style="cursor:pointer; width:16px; height:16px;">
             <div style="flex:1; cursor:pointer;" onclick="abrirModalDetalle('${cuit}')">
                 <div style="font-size:12px; font-weight:500; color:#f8fafc;">${d.nombre_fantasia || cuit}</div>
@@ -310,7 +309,7 @@ function renderizarDashboardTopeDeGama() {
     });
     
     contenedor.innerHTML = html;
-}   
+}
 // 2. MODAL CON LÓGICA DE FECHA CORREGIDA
 function abrirModalDetalle(cuit) {
     const d = motorGlobal.inteligencia_cuit[cuit];
@@ -546,6 +545,7 @@ async function proyectarTodo() {
                 </div>`;
             }
         }
+        renderizarDashboardTopeDeGama();
     } catch (error) { console.error("Error:", error); }
 }            
         
