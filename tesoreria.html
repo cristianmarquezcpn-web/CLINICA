@@ -986,9 +986,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 <script src="dominguito-core.js"></script>
 <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
-
 <script>
-    
     window.Dominguito = {
         toggleInput: () => {
             const box = document.getElementById('dominguito-input-box');
@@ -1016,6 +1014,7 @@ window.addEventListener('DOMContentLoaded', () => {
             rec.start();
         },
         preguntarIA: async (m) => {
+            if (!m.trim()) return;
             window.Dominguito.hablar("Analizando...");
             try {
                 const r = await fetch("https://dominguito-san-juan.vercel.app/api/cfo", {
@@ -1026,9 +1025,25 @@ window.addEventListener('DOMContentLoaded', () => {
                 const d = await r.json();
                 window.Dominguito.hablar(d.respuesta);
             } catch(e) { window.Dominguito.hablar("Error en enlace de mando."); }
+        },
+        init: function() {
+            // Escuchador robusto para el ENTER
+            const inputField = document.getElementById('dominguito-texto');
+            inputField.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    window.Dominguito.preguntarIA(inputField.value);
+                    inputField.value = "";
+                    document.getElementById('dominguito-input-box').style.display = 'none';
+                }
+            });
         }
     };
-    
+
+    // Inicializamos al cargar la página
+    window.addEventListener('DOMContentLoaded', () => {
+        window.Dominguito.init();
+    });
 </script>
 </body>
 </html>
