@@ -264,13 +264,9 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
                     🤖 <b>AI BOT:</b> ${consejos[0] || 'Analizando mercado...'}
                 </div>
             </div>`;
-    }
-
-    const status = document.getElementById('statusIA');
-    if (status) status.innerText = `Motor ${val.estado_api || ''} | Sincro: ${val.ultima_sincro || 'Pendiente'}`;
-    
-    if (typeof renderizarDashboardTopeDeGama === 'function') renderizarDashboardTopeDeGama();
-});
+   });
+    contenedor.innerHTML = html;
+}
 
 function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
