@@ -271,13 +271,27 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
 });
 
     // 1. FUNCIÓN RENDERIZAR DASHBOARD
-function renderizarDashboardTopeDeGama() {
+    function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
-    // Usamos window.motorGlobal para asegurar que siempre haya datos
     const data = window.motorGlobal || {};
-    if (!contenedor || !data.inteligencia_cuit) return;
+
+    // DEBUG: Vamos a ver qué está pasando exactamente
+    console.log("DEBUG Renderizado - Contenedor encontrado:", !!contenedor);
+    console.log("DEBUG Renderizado - Datos disponibles:", !!data.inteligencia_cuit);
+
+    if (!contenedor) {
+        console.error("DEBUG: El elemento 'dashboardCompleto' NO existe en el HTML.");
+        return;
+    }
+    if (!data.inteligencia_cuit) {
+        console.error("DEBUG: 'inteligencia_cuit' está vacío o indefinido. Revisa la base de datos.");
+        return;
+    }
 
     const cuits = Object.keys(data.inteligencia_cuit);
+    console.log("DEBUG: Clientes encontrados:", cuits.length);
+
+    // Si llega aquí, significa que los datos existen. Procedemos a pintar.
     const totalDelay = cuits.reduce((acc, cuit) => acc + (data.inteligencia_cuit[cuit].delay_estimado || 0), 0);
     const promedioCartera = totalDelay / cuits.length;
 
@@ -287,7 +301,6 @@ function renderizarDashboardTopeDeGama() {
 
     cuits.forEach(cuit => {
         const d = data.inteligencia_cuit[cuit];
-        // Corrección: Usamos colores hexadecimales directos para evitar fallos de variables CSS
         const colorBorde = (d.delay_estimado > promedioCartera) ? '#ef4444' : '#10b981';
         
         html += `
@@ -303,6 +316,7 @@ function renderizarDashboardTopeDeGama() {
     });
     
     contenedor.innerHTML = html;
+    console.log("DEBUG: HTML insertado correctamente.");
 }
 
 // 2. MODAL CON LÓGICA DE FECHA CORREGIDA
