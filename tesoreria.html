@@ -264,35 +264,29 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
                     🤖 <b>AI BOT:</b> ${consejos[0] || 'Analizando mercado...'}
                 </div>
             </div>`;
-  }
+    }
+
     const status = document.getElementById('statusIA');
     if (status) status.innerText = `Motor ${val.estado_api || ''} | Sincro: ${val.ultima_sincro || 'Pendiente'}`;
-    renderizarDashboardTopeDeGama();
+    
+    if (typeof renderizarDashboardTopeDeGama === 'function') renderizarDashboardTopeDeGama();
 });
-
     // 1. FUNCIÓN RENDERIZAR DASHBOARD
 function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
-    if (!contenedor) return;
+    if (!contenedor || !motorGlobal.inteligencia_cuit) return;
 
-    // Si los datos no están cargados, no imprimimos error, simplemente salimos 
-    // sin hacer nada para no ensuciar la consola.
-    if (!window.motorGlobal || !window.motorGlobal.inteligencia_cuit) {
-        return; 
-    }
-
-    const data = window.motorGlobal.inteligencia_cuit;
-    const cuits = Object.keys(data);
-    
-    // Cálculos
-    const totalDelay = cuits.reduce((acc, cuit) => acc + (data[cuit].delay_estimado || 0), 0);
+    const cuits = Object.keys(motorGlobal.inteligencia_cuit);
+    const totalDelay = cuits.reduce((acc, cuit) => acc + (motorGlobal.inteligencia_cuit[cuit].delay_estimado || 0), 0);
     const promedioCartera = totalDelay / cuits.length;
-    cuits.sort((a, b) => (data[b].deuda_viva || 0) - (data[a].deuda_viva || 0));
+
+    cuits.sort((a, b) => (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0));
 
     let html = `<style>.card-c:hover { background: #1e293b !important; border-color: #475569 !important; }</style>`;
 
     cuits.forEach(cuit => {
-        const d = data[cuit];
+        const d = motorGlobal.inteligencia_cuit[cuit];
+        // Colores fijos: Rojo (#ef4444) si el delay es alto, Verde (#10b981) si es bajo
         const colorBorde = d.delay_estimado > promedioCartera ? '#ef4444' : '#10b981';
         
         html += `
@@ -309,6 +303,7 @@ function renderizarDashboardTopeDeGama() {
     
     contenedor.innerHTML = html;
 }
+
 // 2. MODAL CON LÓGICA DE FECHA CORREGIDA
 function abrirModalDetalle(cuit) {
     const d = motorGlobal.inteligencia_cuit[cuit];
@@ -544,7 +539,6 @@ async function proyectarTodo() {
                 </div>`;
             }
         }
-        renderizarDashboardTopeDeGama();
     } catch (error) { console.error("Error:", error); }
 }            
         
