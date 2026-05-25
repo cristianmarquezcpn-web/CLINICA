@@ -955,8 +955,8 @@ window.addEventListener('DOMContentLoaded', () => {
         if (typeof proyectarTodo === 'function') proyectarTodo();
     }, 1000); // 1 segundo de margen para que Firebase descargue los datos
 });
-<div id="dominguito-container" style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; user-select: none;">
-    
+</script>
+    <div id="dominguito-container" style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; user-select: none;">
     <div id="dominguito-bubble" onclick="this.style.display='none'" style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 12px; margin-bottom: 10px; max-width: 250px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 14px; color: #333; position: relative; cursor: pointer;">
         <div id="dominguito-texto-respuesta"></div>
         <div style="position: absolute; bottom: -10px; right: 20px; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 10px solid #1a2a6c;"></div>
@@ -970,8 +970,7 @@ window.addEventListener('DOMContentLoaded', () => {
         <div style="display: flex; flex-direction: column; gap: 8px;">
             <button onclick="window.Dominguito.toggleInput()" title="Escribir" style="background: #1a2a6c; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px;">⌨️</button>
             <label title="Adjuntar Archivo" style="background: #f1c40f; color: #1a2a6c; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px; display: flex; align-items: center; justify-content: center;">
-                📎
-                <input type="file" id="dominguito-file" hidden accept="image/*" onchange="window.Dominguito.procesarArchivo(this)">
+                📎<input type="file" id="dominguito-file" hidden accept="image/*" onchange="window.Dominguito.procesarArchivo(this)">
             </label>
             <button onclick="window.Dominguito.escuchar()" title="Hablar" style="background: #b21f1f; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px;">🎤</button>
         </div>
@@ -989,79 +988,47 @@ window.addEventListener('DOMContentLoaded', () => {
 <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
 
 <script>
-async function sincronizacionTotal(event) {
-    const btn = event?.target;
-    if (!btn) return;
-    const originalText = btn.innerText;
-    btn.innerText = "⏳ PROCESANDO...";
-    btn.disabled = true;
-    try {
-        const [fS, sS, cS, gS] = await Promise.all([
-            db.ref('facturas_emitidas').once('value'),
-            db.ref('facturas_emitidas_saei').once('value'),
-            db.ref('cobranzas').once('value'),
-            db.ref('configuracion/gastos_recurrentes').once('value')
-        ]);
-        if (typeof ejecutarIA === 'function') {
-            await ejecutarIA({ ...(fS.val() || {}), ...(sS.val() || {}) }, cS.val() || {}, gS.val() || {});
+    
+    window.Dominguito = {
+        toggleInput: () => {
+            const box = document.getElementById('dominguito-input-box');
+            box.style.display = box.style.display === 'none' ? 'block' : 'none';
+        },
+        hablar: (texto) => {
+            const bubble = document.getElementById('dominguito-bubble');
+            document.getElementById('dominguito-texto-respuesta').innerText = texto;
+            bubble.style.display = 'block';
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(texto);
+                u.lang = 'es-AR'; u.rate = 0.9; u.pitch = 0.8;
+                window.speechSynthesis.speak(u);
+            }
+        },
+        escuchar: () => {
+            const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!Rec) return alert("Navegador no compatible.");
+            const rec = new Rec();
+            rec.lang = 'es-AR';
+            rec.onstart = () => document.getElementById('status-borde').style.borderColor = '#2ecc71';
+            rec.onresult = (e) => window.Dominguito.preguntarIA(e.results[0][0].transcript);
+            rec.onend = () => document.getElementById('status-borde').style.borderColor = '#1a2a6c';
+            rec.start();
+        },
+        preguntarIA: async (m) => {
+            window.Dominguito.hablar("Analizando...");
+            try {
+                const r = await fetch("https://dominguito-san-juan.vercel.app/api/cfo", {
+                    method: "POST",
+                    headers: {"Content-Type":"application/json"},
+                    body: JSON.stringify({ prompt: m, session_id: "cristian_director" })
+                });
+                const d = await r.json();
+                window.Dominguito.hablar(d.respuesta);
+            } catch(e) { window.Dominguito.hablar("Error en enlace de mando."); }
         }
-        if (typeof proyectarTodo === 'function') await proyectarTodo();
-        btn.innerText = "✅ ¡LISTO!";
-        btn.style.backgroundColor = "#10b981";
-        setTimeout(() => { btn.innerText = originalText; btn.disabled = false; btn.style.backgroundColor = ""; }, 2500);
-    } catch (e) {
-        console.error("Error:", e);
-        btn.innerText = "❌ ERROR";
-        btn.disabled = false;
-    }
-}
-
-window.Dominguito = {
-    toggleInput: () => {
-        const box = document.getElementById('dominguito-input-box');
-        box.style.display = box.style.display === 'none' ? 'block' : 'none';
-    },
-    hablar: (texto) => {
-        const bubble = document.getElementById('dominguito-bubble');
-        document.getElementById('dominguito-texto-respuesta').innerText = texto;
-        bubble.style.display = 'block';
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const u = new SpeechSynthesisUtterance(texto);
-            u.lang = 'es-AR'; u.rate = 0.9; u.pitch = 0.8;
-            window.speechSynthesis.speak(u);
-        }
-    },
-    escuchar: () => {
-        const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!Rec) return alert("Navegador no compatible.");
-        const rec = new Rec();
-        rec.lang = 'es-AR';
-        rec.onstart = () => document.getElementById('status-borde').style.borderColor = '#2ecc71';
-        rec.onresult = (e) => window.Dominguito.preguntarIA(e.results[0][0].transcript);
-        rec.onend = () => document.getElementById('status-borde').style.borderColor = '#1a2a6c';
-        rec.start();
-    },
-    preguntarIA: async (m) => {
-        window.Dominguito.hablar("Analizando...");
-        try {
-            const r = await fetch("https://dominguito-san-juan.vercel.app/api/cfo", {
-                method: "POST",
-                headers: {"Content-Type":"application/json"},
-                body: JSON.stringify({ prompt: m, session_id: "cristian_director" })
-            });
-            const d = await r.json();
-            window.Dominguito.hablar(d.respuesta);
-        } catch(e) { window.Dominguito.hablar("Error en enlace de mando."); }
-    }
-};
-
-window.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        if (typeof dibujarGastos === 'function') dibujarGastos();
-        if (typeof proyectarTodo === 'function') proyectarTodo();
-    }, 1000);
-});
+    };
+    
 </script>
 </body>
 </html>
