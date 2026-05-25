@@ -264,9 +264,11 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
                     🤖 <b>AI BOT:</b> ${consejos[0] || 'Analizando mercado...'}
                 </div>
             </div>`;
-   });
-    contenedor.innerHTML = html;
-}
+  }
+    const status = document.getElementById('statusIA');
+    if (status) status.innerText = `Motor ${val.estado_api || ''} | Sincro: ${val.ultima_sincro || 'Pendiente'}`;
+    renderizarDashboardTopeDeGama();
+});
 
 function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
@@ -302,7 +304,7 @@ function renderizarDashboardTopeDeGama() {
     // 1. FUNCIÓN RENDERIZAR DASHBOARD
 function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
-    if (!contenedor || !motorGlobal.inteligencia_cuit) return;
+    if (!contenedor || !window.motorGlobal?.inteligencia_cuit) return;
 
     const cuits = Object.keys(motorGlobal.inteligencia_cuit);
     const totalDelay = cuits.reduce((acc, cuit) => acc + (motorGlobal.inteligencia_cuit[cuit].delay_estimado || 0), 0);
