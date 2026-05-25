@@ -55,8 +55,16 @@
     left: 0; top: 0; 
     width: 100%; height: 100%; 
     background-color: rgba(0,0,0,0.8);
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
     }
-    </style>
+    input[type=number] {
+    -moz-appearance: textfield;
+}
+    }
+</style>
 </head>
 <body>
 
@@ -838,7 +846,6 @@ function dibujarGastos() {
     });
 }
 function abrirModalEdicionGasto(cat, key) {
-    // Si el modal no existe, lo creamos
     let modal = document.getElementById('modalEdicionGasto');
     if (!modal) {
         modal = document.createElement('div');
@@ -846,24 +853,26 @@ function abrirModalEdicionGasto(cat, key) {
         document.body.appendChild(modal);
     }
 
-    // Buscamos el objeto para obtener los valores actuales
-    const it = window.motorGlobal.configuracion.gastos_recurrentes[cat].items[key];
+    // Buscamos el dato directamente en Firebase en lugar de usar window.motorGlobal
+    db.ref(`configuracion/gastos_recurrentes/${cat}/items/${key}`).once('value', snapshot => {
+        const it = snapshot.val() || {}; // Si no encuentra nada, devuelve objeto vacío
 
-    modal.innerHTML = `
-    <div style="width:300px; background:#0b0e14; padding:20px; border-radius:8px; border:1px solid #374151; color:white; margin:100px auto;">
-        <h4 style="margin-top:0; color:#3b82f6;">Configurar Fechas</h4>
+        modal.innerHTML = `
+        <div style="width:300px; background:#0b0e14; padding:20px; border-radius:8px; border:1px solid #374151; color:white; margin:100px auto;">
+            <h4 style="margin-top:0; color:#3b82f6;">Configurar Fechas: ${it.nombre_gasto || 'Gasto'}</h4>
+            
+            <label style="font-size:10px; color:#94a3b8; display:block; margin-bottom:5px;">VIGENCIA DESDE:</label>
+            <input type="month" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)" style="width:100%; margin-bottom:15px; background:#000; border:1px solid #444; color:white; padding:8px;">
+            
+            <label style="font-size:10px; color:#94a3b8; display:block; margin-bottom:5px;">VIGENCIA HASTA:</label>
+            <input type="month" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'hasta', this.value)" style="width:100%; margin-bottom:20px; background:#000; border:1px solid #444; color:white; padding:8px;">
+            
+            <button onclick="document.getElementById('modalEdicionGasto').style.display='none'" style="width:100%; padding:10px; background:#3b82f6; border:none; color:white; cursor:pointer; border-radius:4px;">ACEPTAR</button>
+        </div>`;
         
-        <label style="font-size:10px; color:#94a3b8; display:block; margin-bottom:5px;">VIGENCIA DESDE:</label>
-        <input type="month" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)" style="width:100%; margin-bottom:15px; background:#000; border:1px solid #444; color:white; padding:8px;">
-        
-        <label style="font-size:10px; color:#94a3b8; display:block; margin-bottom:5px;">VIGENCIA HASTA:</label>
-        <input type="month" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'hasta', this.value)" style="width:100%; margin-bottom:20px; background:#000; border:1px solid #444; color:white; padding:8px;">
-        
-        <button onclick="document.getElementById('modalEdicionGasto').style.display='none'" style="width:100%; padding:10px; background:#3b82f6; border:none; color:white; cursor:pointer; border-radius:4px;">ACEPTAR</button>
-    </div>`;
-    
-    modal.style.display = 'block';
-} 
+        modal.style.display = 'block';
+    });
+}
     // Actualizada para recibir la 'key' real de Firebase
     function updateGastoRecurrente(cat, key, campo, valor) {
         if (campo === 'monto') valor = parseFloat(valor) || 0;
