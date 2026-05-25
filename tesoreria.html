@@ -1014,18 +1014,35 @@ window.addEventListener('DOMContentLoaded', () => {
             rec.start();
         },
         preguntarIA: async (m) => {
-            if (!m.trim()) return;
-            window.Dominguito.hablar("Analizando...");
-            try {
-                const r = await fetch("https://dominguito-san-juan.vercel.app/api/cfo", {
-                    method: "POST",
-                    headers: {"Content-Type":"application/json"},
-                    body: JSON.stringify({ prompt: m, session_id: "cristian_director" })
-                });
-                const d = await r.json();
-                window.Dominguito.hablar(d.respuesta);
-            } catch(e) { window.Dominguito.hablar("Error en enlace de mando."); }
-        },
+    if (!m || !m.trim()) return;
+    window.Dominguito.hablar("Analizando...");
+    
+    try {
+        const r = await fetch("https://dominguito-san-juan.vercel.app/api/cfo", {
+            method: "POST",
+            mode: "cors", // Obligatorio para peticiones cruzadas
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify({ prompt: m, session_id: "cristian_director" })
+        });
+
+        // Esto nos dirá si el servidor rechazó la petición por seguridad
+        if (!r.ok) {
+            const errorText = await r.text();
+            console.error("Respuesta fallida del servidor:", errorText);
+            window.Dominguito.hablar("Error " + r.status + ": Servidor denegado.");
+            return;
+        }
+
+        const d = await r.json();
+        window.Dominguito.hablar(d.respuesta);
+    } catch(e) { 
+        console.error("Error de red total:", e);
+        window.Dominguito.hablar("Error de conexión. Revisa la consola F12."); 
+    }
+}
         init: function() {
             // Escuchador robusto para el ENTER
             const inputField = document.getElementById('dominguito-texto');
