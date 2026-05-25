@@ -807,26 +807,27 @@ function dibujarGastos() {
 
             Object.keys(itemsObj).forEach(key => {
                 const it = itemsObj[key];
+                // Tarjeta individual para cada gasto
                 itemsHtml += `
-                <div style="display:grid; grid-template-columns: 1fr 60px 40px 30px; gap:4px; align-items:center;">
-               <input type="text" ... style="min-width:0; background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px;">
-                </div>
+                <div style="background:#0b0e14; padding:8px; border-radius:4px; margin-bottom:8px; border:1px solid #1f2937;">
+                    <div style="display:grid; grid-template-columns: 1fr 60px 40px 30px; gap:4px; align-items:center; margin-bottom:5px;">
                         <input type="text" placeholder="Nombre" value="${it.nombre_gasto || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'nombre_gasto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
                         <input type="number" placeholder="$" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', '${key}', 'monto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
                         <input type="number" placeholder="Día" value="${it.dia_pago || 1}" onchange="updateGastoRecurrente('${cat}', '${key}', 'dia_pago', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
                         <button onclick="eliminarGastoRecurrente('${cat}', '${key}')" style="background:transparent; border:none; color:#ef4444; cursor:pointer; font-weight:bold;">✕</button>
                     </div>
-                    <div style="display:flex; gap:4px; margin-top:5px;">
+                    <div style="display:flex; gap:4px;">
                         <input type="month" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)" style="flex:1; background:#000; color:#fff; border:1px solid #444; padding:2px; font-size:10px;">
                         <input type="month" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'hasta', this.value)" style="flex:1; background:#000; color:#fff; border:1px solid #444; padding:2px; font-size:10px;">
                     </div>
                 </div>`;
             });
 
+            // Contenedor principal de la categoría
             cont.innerHTML += `
             <div style="margin-bottom:15px; border-left:3px solid var(--p); padding-left:10px; box-sizing:border-box;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <b style="color:var(--p); font-size:12px;">${cat}</b>
+                    <b style="color:var(--p); font-size:12px; text-transform: uppercase;">${cat}</b>
                     <button onclick="agregarGastoAItem('${cat}')" style="background:#3b82f6; border:none; color:white; border-radius:3px; padding:2px 8px; cursor:pointer; font-size:10px;">+ Item</button>
                 </div>
                 ${itemsHtml}
