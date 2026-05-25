@@ -271,40 +271,34 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
 });
 
     // 1. FUNCIÓN RENDERIZAR DASHBOARD
-    function renderizarDashboardTopeDeGama() {
+ // --- FUNCIÓN ÚNICA Y DEFINITIVA ---
+function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
+    if (!contenedor) return;
+
+    // Usamos el objeto global que se carga desde Firebase
     const data = window.motorGlobal || {};
+    const inteligencia = data.inteligencia_cuit;
 
-    // DEBUG: Vamos a ver qué está pasando exactamente
-    console.log("DEBUG Renderizado - Contenedor encontrado:", !!contenedor);
-    console.log("DEBUG Renderizado - Datos disponibles:", !!data.inteligencia_cuit);
-
-    if (!contenedor) {
-        console.error("DEBUG: El elemento 'dashboardCompleto' NO existe en el HTML.");
-        return;
-    }
-    if (!data.inteligencia_cuit) {
-        console.error("DEBUG: 'inteligencia_cuit' está vacío o indefinido. Revisa la base de datos.");
+    if (!inteligencia) {
+        console.warn("Esperando datos de inteligencia_cuit...");
         return;
     }
 
-    const cuits = Object.keys(data.inteligencia_cuit);
-    console.log("DEBUG: Clientes encontrados:", cuits.length);
-
-    // Si llega aquí, significa que los datos existen. Procedemos a pintar.
-    const totalDelay = cuits.reduce((acc, cuit) => acc + (data.inteligencia_cuit[cuit].delay_estimado || 0), 0);
+    const cuits = Object.keys(inteligencia);
+    const totalDelay = cuits.reduce((acc, cuit) => acc + (inteligencia[cuit].delay_estimado || 0), 0);
     const promedioCartera = totalDelay / cuits.length;
 
-    cuits.sort((a, b) => (data.inteligencia_cuit[b].deuda_viva || 0) - (data.inteligencia_cuit[a].deuda_viva || 0));
+    cuits.sort((a, b) => (inteligencia[b].deuda_viva || 0) - (inteligencia[cuit].deuda_viva || 0));
 
     let html = `<style>.card-c:hover { background: #1e293b !important; border-color: #475569 !important; }</style>`;
 
     cuits.forEach(cuit => {
-        const d = data.inteligencia_cuit[cuit];
-        const colorBorde = (d.delay_estimado > promedioCartera) ? '#ef4444' : '#10b981';
+        const d = inteligencia[cuit];
+        const colorBorde = d.delay_estimado > promedioCartera ? '#ef4444' : '#10b981';
         
         html += `
-        <div class="card-c" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:6px; border-radius:4px; display:flex; align-items:center; gap:12px; transition:0.2s; border:1px solid #1e293b;">
+        <div class="card-c" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:6px; border-radius:4px; display:flex; align-items:center; gap:12px; transition:0.2s; border:1px solid #1f2937;">
             <input type="checkbox" class="selector-cliente" data-deuda="${d.deuda_viva || 0}" style="cursor:pointer; width:16px; height:16px;">
             <div style="flex:1; cursor:pointer;" onclick="abrirModalDetalle('${cuit}')">
                 <div style="font-size:12px; font-weight:500; color:#f8fafc;">${d.nombre_fantasia || cuit}</div>
@@ -316,9 +310,7 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
     });
     
     contenedor.innerHTML = html;
-    console.log("DEBUG: HTML insertado correctamente.");
-}
-
+}   
 // 2. MODAL CON LÓGICA DE FECHA CORREGIDA
 function abrirModalDetalle(cuit) {
     const d = motorGlobal.inteligencia_cuit[cuit];
