@@ -86,7 +86,6 @@
         <button onclick="window.location.href='index.html'" style="background: transparent; border: 1px solid #374151; color: #94a3b8; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 11px;">← VOLVER</button>
     </div>
 </div>
-
 <div class="grid-master">
     <div>
         <div class="card">
@@ -95,17 +94,11 @@
             <input type="number" id="bancoSantander" placeholder="Caja Santander" onchange="guardarBancos()">
         </div>
         <div class="card" style="width:100%; box-sizing:border-box;">
-        <h3>💸 Gastos Operativos</h3>
-        <div id="contGastos" style="max-height: 500px; overflow-y: auto; padding-right: 5px;"></div>
-    
-        <button class="btn" style="background:#1f2937; width:100%; margin-top:10px;" onclick="nuevaCategoria()">
-        + NUEVO RUBRO
-        </button>
-        </div>
-        </div>
-        <div class="card">
-            <h3>📊 Resumen de Salud</h3>
-            <div id="saludNegocio"></div>
+            <h3>💸 Gastos Operativos</h3>
+            <div id="contGastos" style="max-height: 500px; overflow-y: auto; padding-right: 5px;"></div>
+            <button class="btn" style="background:#1f2937; width:100%; margin-top:10px;" onclick="nuevaCategoria()">
+                + NUEVO RUBRO
+            </button>
         </div>
     </div>
 
@@ -122,11 +115,14 @@
 
     <div>
         <div class="card">
+            <h3>📊 Resumen de Salud</h3>
+            <div id="saludNegocio"></div>
+        </div>
+        <div class="card">
             <h3>🧬 Status Motor</h3>
             <div id="statusIA" style="color:var(--ac); margin-bottom:10px;">Escaneando...</div>
             <div id="dataEconomica" style="font-size:12px;"></div>
         </div>
-        
         <div class="card" style="border:1px solid var(--ac);">
             <h3>⚡ SIMULADOR DE IMPACTO</h3>
             <input type="number" id="simMonto" placeholder="Monto a inyectar/retirar ($)">
@@ -134,7 +130,6 @@
             <button class="btn" onclick="simularImpacto()" style="margin-top:10px;">CALCULAR IMPACTO</button>
             <div id="resImpacto" style="margin-top:10px; font-weight:bold; color:var(--ac);"></div>
         </div>
-
         <div class="card" style="background:var(--a); color:white; border:none;">
             <h3>☢️ SIMULADOR DE COLAPSO</h3>
             <button class="btn" style="background:white; color:var(--a);" onclick="ejecutarStressTest()">EJECUTAR STRESS TEST</button>
@@ -146,7 +141,6 @@
         </div>
     </div>
 </div>
-
 <script>
 // --- 1. CONFIGURACIÓN E INICIALIZACIÓN FIREBASE ---
 const firebaseConfig = { 
