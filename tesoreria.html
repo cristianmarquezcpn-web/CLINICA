@@ -145,13 +145,18 @@ const firebaseConfig = {
 
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-firebase.auth().onAuthStateChanged((user) => { if (user) conectarMes(); });
+firebase.auth().onAuthStateChanged((user) => { 
+    if (user) {
+        conectarMes(); 
+        encenderMotorIA(); // EL MOTOR SOLO ARRANCA SI ESTÁS LOGUEADO
+    } 
+});
 
 const db = firebase.database();
 
 let refMes = null; 
 let datosMes = {};
-let motorGlobal = {};
+window.motorGlobal = {};
 window.totalGastosProyectados = 500000; 
 
 function dispararMotorTitanium() {
@@ -212,81 +217,86 @@ async function simularImpacto() {
         res.innerText = `🚨 ALERTA: Bajo condiciones pesimistas (Montecarlo), quiebra técnica en el mes ${quiebraEn}.`;
     }
 }
-db.ref('tesoreria/motor_ia').on('value', snap => {
-    const val = snap.val();
-    if (!val) return;
-    window.motorGlobal = val;
-    // Asignación de objetos principales
-    const m = val.mercado || {};
-    const rep = val.reporte || {};
-    const diag = val.diagnostico_matematico || {};
-    const indic = val.indicadores_globales || {}; // NUEVO OBJETO
-    const consejos = val.bot_financiero || [];
-    
-    // Lógica de Colores
-    const colorRiesgo = (m.riesgo || 0) > 1300 ? 'var(--a)' : 'var(--oro)';
-    const colorEstado = rep.estado === "CRÍTICO" ? 'var(--a)' : 'var(--p)';
-    const colorSemaforo = indic.semaforo === "ROJO" ? 'var(--a)' : (indic.semaforo === "AMARILLO" ? 'var(--oro)' : 'var(--p)');
-    
-    const salud = document.getElementById('saludNegocio');
-    if (salud) {
-        salud.innerHTML = `<div style="padding:10px; background:#000; border-radius:8px; border:1px solid #374151; font-size:12px;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Ratio Liquidez:</span> <b>${(diag.ratio_liquidez || 0).toLocaleString()}</b></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Riesgo Concent.:</span> <b>${(diag.riesgo_concentracion || 0).toFixed(0)}</b></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Precisión IA:</span> <b style="color:var(--p)">${((diag.accuracy_history || 0) * 100).toFixed(0)}%</b></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Calle:</span> <b>$${(rep.calle || 0).toLocaleString()}</b></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Esperado:</span> <b>$${(rep.esperado || 0).toLocaleString()}</b></div>
-            <div style="display:flex; justify-content:space-between;"><span>Delay Global:</span> <b style="color:var(--ac)">${indic.delay_global_promedio || 0} días</b></div>
-        </div>`;
-    }
+let motorEncendido = false;
+function encenderMotorIA() {
+    if (motorEncendido) return; // Evita que se dispare dos veces
+    motorEncendido = true;
 
-    const econ = document.getElementById('dataEconomica');
-    if (econ) {
-        econ.innerHTML = `
-            <div style="font-size:11px; line-height:1.6;">
-                <div style="margin-bottom:10px; padding:5px; border-radius:4px; background:${colorSemaforo}22; border:1px solid ${colorSemaforo}; text-align:center;">
-                    <b style="color:${colorSemaforo}">ESTADO: ${indic.semaforo || 'NORMAL'}</b>
-                </div>
-
-                <div style="display:flex; justify-content:space-between;"><span>Efectividad:</span> <b style="color:${colorEstado}">${((rep.esperado/(rep.calle || 1)) * 100).toFixed(1)}%</b></div>
-                <div style="display:flex; justify-content:space-between;"><span>Supervivencia:</span> <b style="color:var(--a)">${rep.supervivencia_dias || 0} días</b></div>
-                <hr style="border:0; border-top:1px solid #1f2937; margin:8px 0">
-                
-                <div style="display:flex; justify-content:space-between;"><span>Tasa Real PF:</span> <b style="color:var(--p)">${(diag.tasa_real_pf || 0).toFixed(1)}%</b></div>
-                <div style="display:flex; justify-content:space-between;"><span>Inflación (REM):</span> <b style="color:${(m.rem || 0) > 4 ? 'var(--a)' : 'var(--p)'}">${m.rem || 0}%</b></div>
-                <div style="display:flex; justify-content:space-between;"><span>Dólar MEP:</span> <b style="color:var(--ac)">$${m.mep || '-'}</b></div>
-                <div style="display:flex; justify-content:space-between;"><span>Riesgo País:</span> <b style="color:${colorRiesgo}">${m.riesgo || 0} pts</b></div>
-                
-                <div style="margin-top:12px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid ${colorSemaforo};">
-                    📢 <b>DIAGNÓSTICO:</b> ${indic.mensaje_racional || 'Analizando...'}
-                </div>
-                <div style="margin-top:5px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid var(--oro);">
-                    🤖 <b>AI BOT:</b> ${consejos[0] || 'Analizando mercado...'}
-                </div>
+    db.ref('tesoreria/motor_ia').on('value', snap => {
+        const val = snap.val();
+        if (!val) return;
+        
+        window.motorGlobal = val; // AHORA SÍ ES GLOBAL PARA TODO
+        
+        const m = val.mercado || {};
+        const rep = val.reporte || {};
+        const diag = val.diagnostico_matematico || {};
+        const indic = val.indicadores_globales || {};
+        const consejos = val.bot_financiero || [];
+        
+        const colorRiesgo = (m.riesgo || 0) > 1300 ? 'var(--a)' : 'var(--oro)';
+        const colorEstado = rep.estado === "CRÍTICO" ? 'var(--a)' : 'var(--p)';
+        const colorSemaforo = indic.semaforo === "ROJO" ? 'var(--a)' : (indic.semaforo === "AMARILLO" ? 'var(--oro)' : 'var(--p)');
+        
+        const salud = document.getElementById('saludNegocio');
+        if (salud) {
+            salud.innerHTML = `<div style="padding:10px; background:#000; border-radius:8px; border:1px solid #374151; font-size:12px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Ratio Liquidez:</span> <b>${(diag.ratio_liquidez || 0).toLocaleString()}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Riesgo Concent.:</span> <b>${(diag.riesgo_concentracion || 0).toFixed(0)}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Precisión IA:</span> <b style="color:var(--p)">${((diag.accuracy_history || 0) * 100).toFixed(0)}%</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Calle:</span> <b>$${(rep.calle || 0).toLocaleString()}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Esperado:</span> <b>$${(rep.esperado || 0).toLocaleString()}</b></div>
+                <div style="display:flex; justify-content:space-between;"><span>Delay Global:</span> <b style="color:var(--ac)">${indic.delay_global_promedio || 0} días</b></div>
             </div>`;
-    }
+        }
 
-    const status = document.getElementById('statusIA');
-    if (status) status.innerText = `Motor ${val.estado_api || ''} | Sincro: ${val.ultima_sincro || 'Pendiente'}`;
-    
-    if (typeof renderizarDashboardTopeDeGama === 'function') renderizarDashboardTopeDeGama();
-});
+        const econ = document.getElementById('dataEconomica');
+        if (econ) {
+            econ.innerHTML = `
+                <div style="font-size:11px; line-height:1.6;">
+                    <div style="margin-bottom:10px; padding:5px; border-radius:4px; background:${colorSemaforo}22; border:1px solid ${colorSemaforo}; text-align:center;">
+                        <b style="color:${colorSemaforo}">ESTADO: ${indic.semaforo || 'NORMAL'}</b>
+                    </div>
+                    <div style="display:flex; justify-content:space-between;"><span>Efectividad:</span> <b style="color:${colorEstado}">${((rep.esperado/(rep.calle || 1)) * 100).toFixed(1)}%</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>Supervivencia:</span> <b style="color:var(--a)">${rep.supervivencia_dias || 0} días</b></div>
+                    <hr style="border:0; border-top:1px solid #1f2937; margin:8px 0">
+                    <div style="display:flex; justify-content:space-between;"><span>Tasa Real PF:</span> <b style="color:var(--p)">${(diag.tasa_real_pf || 0).toFixed(1)}%</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>Inflación (REM):</span> <b style="color:${(m.rem || 0) > 4 ? 'var(--a)' : 'var(--p)'}">${m.rem || 0}%</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>Dólar MEP:</span> <b style="color:var(--ac)">$${m.mep || '-'}</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>Riesgo País:</span> <b style="color:${colorRiesgo}">${m.riesgo || 0} pts</b></div>
+                    <div style="margin-top:12px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid ${colorSemaforo};">
+                        📢 <b>DIAGNÓSTICO:</b> ${indic.mensaje_racional || 'Analizando...'}
+                    </div>
+                    <div style="margin-top:5px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid var(--oro);">
+                        🤖 <b>AI BOT:</b> ${consejos[0] || 'Analizando mercado...'}
+                    </div>
+                </div>`;
+        }
+
+        const status = document.getElementById('statusIA');
+        if (status) status.innerText = `Motor ${val.estado_api || ''} | Sincro: ${val.ultima_sincro || 'Pendiente'}`;
+        
+        // Forzamos el redibujo de TODO ahora que la variable global está llena y la sesión autorizada
+        if (typeof renderizarDashboardTopeDeGama === 'function') renderizarDashboardTopeDeGama();
+        if (typeof proyectarTodo === 'function') proyectarTodo();
+    });
+}
     // 1. FUNCIÓN RENDERIZAR DASHBOARD
 function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
-    if (!contenedor || !motorGlobal.inteligencia_cuit) return;
+    if (!contenedor || !window.motorGlobal.inteligencia_cuit) return;
 
-    const cuits = Object.keys(motorGlobal.inteligencia_cuit);
-    const totalDelay = cuits.reduce((acc, cuit) => acc + (motorGlobal.inteligencia_cuit[cuit].delay_estimado || 0), 0);
+    const data = window.motorGlobal.inteligencia_cuit;
+    const cuits = Object.keys(data);
+    const totalDelay = cuits.reduce((acc, cuit) => acc + (data[cuit].delay_estimado || 0), 0);
     const promedioCartera = totalDelay / cuits.length;
 
-    cuits.sort((a, b) => (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0));
+    cuits.sort((a, b) => (data[b].deuda_viva || 0) - (data[a].deuda_viva || 0));
 
     let html = `<style>.card-c:hover { background: #1e293b !important; border-color: #475569 !important; }</style>`;
 
     cuits.forEach(cuit => {
-        const d = motorGlobal.inteligencia_cuit[cuit];
-        // Colores fijos: Rojo (#ef4444) si el delay es alto, Verde (#10b981) si es bajo
+        const d = data[cuit];
         const colorBorde = d.delay_estimado > promedioCartera ? '#ef4444' : '#10b981';
         
         html += `
@@ -303,7 +313,6 @@ function renderizarDashboardTopeDeGama() {
     
     contenedor.innerHTML = html;
 }
-
 // 2. MODAL CON LÓGICA DE FECHA CORREGIDA
 function abrirModalDetalle(cuit) {
     const d = motorGlobal.inteligencia_cuit[cuit];
@@ -437,7 +446,7 @@ async function conectarMes() {
 async function proyectarTodo() {
     try {
         const mesSeleccionado = document.getElementById('mesFiltro').value;
-        if (!mesSeleccionado || !motorGlobal.inteligencia_cuit) return;
+        if (!mesSeleccionado || !window.motorGlobal.inteligencia_cuit) return;
 
         const hoy = new Date();
         const mesActualStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
@@ -453,7 +462,7 @@ async function proyectarTodo() {
         let acumuladorIngresos = { 1: {}, 2: {}, 3: {}, 4: {} };
 
         // Procesar Ingresos
-        const inteligencia = motorGlobal.inteligencia_cuit;
+        const inteligencia = window.motorGlobal.inteligencia_cuit;
         Object.keys(inteligencia).forEach(cuit => {
             const cliente = inteligencia[cuit];
             if (!cliente.facturas_pendientes) return;
