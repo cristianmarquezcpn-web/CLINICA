@@ -215,7 +215,7 @@ async function simularImpacto() {
 db.ref('tesoreria/motor_ia').on('value', snap => {
     const val = snap.val();
     if (!val) return;
-    
+    window.motorGlobal = val;
     // Asignación de objetos principales
     const m = val.mercado || {};
     const rep = val.reporte || {};
@@ -273,31 +273,41 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
     // 1. FUNCIÓN RENDERIZAR DASHBOARD
 function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
-    if (!contenedor) {
-        console.error("NO ENCONTRÉ EL CONTENEDOR 'dashboardCompleto' EN EL HTML");
-        return;
+    if (!contenedor) return;
+
+    // Si los datos no están cargados, no imprimimos error, simplemente salimos 
+    // sin hacer nada para no ensuciar la consola.
+    if (!window.motorGlobal || !window.motorGlobal.inteligencia_cuit) {
+        return; 
     }
 
-    const data = window.motorGlobal?.inteligencia_cuit;
-    if (!data) {
-        console.error("LOS DATOS LLEGARON PERO 'inteligencia_cuit' ESTÁ VACÍO");
-        return;
-    }
-
+    const data = window.motorGlobal.inteligencia_cuit;
     const cuits = Object.keys(data);
-    console.log("RENDERIZANDO CLIENTES:", cuits.length);
+    
+    // Cálculos
+    const totalDelay = cuits.reduce((acc, cuit) => acc + (data[cuit].delay_estimado || 0), 0);
+    const promedioCartera = totalDelay / cuits.length;
+    cuits.sort((a, b) => (data[b].deuda_viva || 0) - (data[a].deuda_viva || 0));
 
-    let html = '';
+    let html = `<style>.card-c:hover { background: #1e293b !important; border-color: #475569 !important; }</style>`;
+
     cuits.forEach(cuit => {
         const d = data[cuit];
+        const colorBorde = d.delay_estimado > promedioCartera ? '#ef4444' : '#10b981';
+        
         html += `
-        <div style="background:#111827; padding:10px; margin-bottom:5px; border:1px solid #374151; border-radius:4px; color:white;">
-            ${d.nombre_fantasia || cuit} - $${(d.deuda_viva || 0).toLocaleString()}
+        <div class="card-c" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:6px; border-radius:4px; display:flex; align-items:center; gap:12px; transition:0.2s; border:1px solid #1e293b;">
+            <input type="checkbox" class="selector-cliente" data-deuda="${d.deuda_viva || 0}" style="cursor:pointer; width:16px; height:16px;">
+            <div style="flex:1; cursor:pointer;" onclick="abrirModalDetalle('${cuit}')">
+                <div style="font-size:12px; font-weight:500; color:#f8fafc;">${d.nombre_fantasia || cuit}</div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:12px; font-weight:700; color:#10b981;">$${(d.deuda_viva / 1000).toFixed(0)}k</div>
+            </div>
         </div>`;
     });
     
     contenedor.innerHTML = html;
-    console.log("CONTENIDO INYECTADO EN EL HTML");
 }
 // 2. MODAL CON LÓGICA DE FECHA CORREGIDA
 function abrirModalDetalle(cuit) {
