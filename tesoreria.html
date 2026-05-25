@@ -956,10 +956,9 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 1000); // 1 segundo de margen para que Firebase descargue los datos
 });
 </script>
-    <div id="dominguito-container" style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end; touch-action: none; user-select: none;">
-    <div id="dominguito-bubble" onclick="this.style.display='none'" style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 12px; margin-bottom: 10px; max-width: 250px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 14px; color: #333; position: relative; cursor: pointer;">
+<div id="dominguito-container" style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end;">
+    <div id="dominguito-bubble" style="display: none; background: white; border: 2px solid #1a2a6c; border-radius: 15px; padding: 12px; margin-bottom: 10px; max-width: 250px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 14px; color: #333;">
         <div id="dominguito-texto-respuesta"></div>
-        <div style="position: absolute; bottom: -10px; right: 20px; width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 10px solid #1a2a6c;"></div>
     </div>
 
     <div id="dominguito-input-box" style="margin-bottom: 10px; display: none;">
@@ -968,34 +967,27 @@ window.addEventListener('DOMContentLoaded', () => {
 
     <div style="display: flex; align-items: center; gap: 10px;">
         <div style="display: flex; flex-direction: column; gap: 8px;">
-            <button onclick="window.Dominguito.toggleInput()" title="Escribir" style="background: #1a2a6c; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px;">⌨️</button>
-            <label title="Adjuntar Archivo" style="background: #f1c40f; color: #1a2a6c; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px; display: flex; align-items: center; justify-content: center;">
+            <button onclick="window.Dominguito.toggleInput()" style="background: #1a2a6c; color: white; border-radius: 50%; width: 45px; height: 45px; border: none; cursor: pointer;">⌨️</button>
+            <label style="background: #f1c40f; color: #1a2a6c; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px;">
                 📎<input type="file" id="dominguito-file" hidden accept="image/*" onchange="window.Dominguito.procesarArchivo(this)">
             </label>
-            <button onclick="window.Dominguito.escuchar()" title="Hablar" style="background: #b21f1f; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2); font-size: 20px;">🎤</button>
         </div>
-
-        <div id="dominguito-handle" style="text-align: center; cursor: grab;">
-            <div id="status-borde" style="width: 90px; height: 90px; border: 4px solid #1a2a6c; box-shadow: 0 8px 20px rgba(0,0,0,0.3); background: white; overflow: hidden; border-radius: 50%; display: flex; justify-content: center; align-items: center; transition: all 0.3s;">
-                 <img src="https://res.cloudinary.com/duscmxxws/image/upload/v1778185388/mzejyrmeje5lcpcs8h2b.png" style="width: 100%; height: 100%; object-fit: cover;" />
-            </div>
-            <div style="background: #1a2a6c; color: #f1c40f; font-size: 9px; font-weight: bold; padding: 4px 10px; border-radius: 10px; margin-top: 5px; border: 1px solid #f1c40f;">ESENCIAL DIRECTOR</div>
+        <div id="status-borde" style="width: 90px; height: 90px; border: 4px solid #1a2a6c; border-radius: 50%; overflow: hidden; background: white;">
+             <img src="https://res.cloudinary.com/duscmxxws/image/upload/v1778185388/mzejyrmeje5lcpcs8h2b.png" style="width: 100%; height: 100%; object-fit: cover;" />
         </div>
     </div>
 </div>
 
-<script src="dominguito-core.js"></script>
-<script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
 <script>
 window.Dominguito = {
-    toggleInput: function() {
+    toggleInput: () => {
         const box = document.getElementById('dominguito-input-box');
         box.style.display = box.style.display === 'none' ? 'block' : 'none';
     },
-    hablar: function(texto) {
+    hablar: (texto) => {
         const bubble = document.getElementById('dominguito-bubble');
         const target = document.getElementById('dominguito-texto-respuesta');
-        if (target) target.innerText = texto;
+        target.innerText = texto;
         bubble.style.display = 'block';
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
@@ -1004,7 +996,26 @@ window.Dominguito = {
             window.speechSynthesis.speak(u);
         }
     },
-    preguntarIA: async function(m) {
+    // LÓGICA DE PROCESAMIENTO DE ARCHIVOS
+    procesarArchivo: (input) => {
+        const file = input.files[0];
+        if (!file) return;
+        window.Dominguito.hablar("Procesando imagen...");
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const base64 = e.target.result;
+            // Enviamos el base64 al mismo endpoint del CFO
+            const r = await fetch("https://dominguito-san-juan.vercel.app/api/cfo", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ prompt: "Analizá esta imagen", datos_ocr: base64, session_id: "cristian_director" })
+            });
+            const d = await r.json();
+            window.Dominguito.hablar(d.respuesta);
+        };
+        reader.readAsDataURL(file);
+    },
+    preguntarIA: async (m) => {
         if (!m || !m.trim()) return;
         window.Dominguito.hablar("Analizando...");
         try {
@@ -1014,29 +1025,22 @@ window.Dominguito = {
                 body: JSON.stringify({ prompt: m, session_id: "cristian_director" })
             });
             const d = await r.json();
-            window.Dominguito.hablar(d.respuesta);
+            window.Dominguito.hablar(d.respuesta || "Sin respuesta del sistema.");
         } catch(e) { 
+            window.Dominguito.hablar("Error de conexión.");
             console.error(e);
-            window.Dominguito.hablar("Error de conexión."); 
         }
     }
 };
 
-// Escucha del Enter separada para no romper la estructura del objeto
-document.addEventListener('DOMContentLoaded', () => {
-    const inputField = document.getElementById('dominguito-texto');
-    if (inputField) {
-        inputField.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                window.Dominguito.preguntarIA(this.value);
-                this.value = "";
-                document.getElementById('dominguito-input-box').style.display = 'none';
-            }
-        });
+document.getElementById('dominguito-texto').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        window.Dominguito.preguntarIA(e.target.value);
+        e.target.value = "";
+        document.getElementById('dominguito-input-box').style.display = 'none';
     }
 });
-
 </script>
 </body>
 </html>
