@@ -184,71 +184,50 @@ function calcularDelayPromedio(data) {
     return totalDeuda > 0 ? Math.round(totalDelay / totalDeuda) : 0;
 }
 async function simularImpacto() {
-    const montoSimulado = parseFloat(document.getElementById('simMonto')?.value) || 0;
-    const mesesSimulados = parseInt(document.getElementById('simMeses')?.value) || 1;
+    const montoSimulado = parseFloat(document.getElementById('simMonto').value) || 0;
+    const mesesSimulados = parseInt(document.getElementById('simMeses').value) || 1;
     const res = document.getElementById('resImpacto');
     if (!res) return;
 
     const motorData = window.motorGlobal || {};
+    let saldoPesimista = motorData.var_pesimista || 0;
+    const saldoActual = (parseFloat(document.getElementById('bancoGalicia').value) || 0) + (parseFloat(document.getElementById('bancoSantander').value) || 0);
     
-    // 1. Saldo inicial: Caja real + VaR (Seguridad ante imprevistos)
-    const saldoGalicia = parseFloat(document.getElementById('bancoGalicia')?.value) || 0;
-    const saldoSantander = parseFloat(document.getElementById('bancoSantander')?.value) || 0;
-    const saldoPesimista = motorData.reporte?.var_pesimista || 0; 
-    let tempSaldo = saldoGalicia + saldoSantander + saldoPesimista;
-    
-    // 2. Flujos (Gastos vs Ingresos)
+    let tempSaldo = saldoActual + saldoPesimista;
     const burnRate = motorData.burn_rate || 0;
     const gastoMensualPesimista = montoSimulado + burnRate;
     
-    // AQUÍ ESTABA EL ERROR: Necesitamos sumar lo que estimamos cobrar (P50)
-    const ingresoEsperadoMensual = motorData.reporte?.esperado || 0; 
-    
     let quiebraEn = 0;
-    
-    // 3. Simulación de caja
     for (let i = 1; i <= mesesSimulados; i++) {
-        // Saldo = Saldo Anterior - Gastos + Ingresos Proyectados
-        tempSaldo = tempSaldo - gastoMensualPesimista + ingresoEsperadoMensual;
-        
-        if (tempSaldo < 0 && quiebraEn === 0) { 
-            quiebraEn = i; 
-        }
+        tempSaldo -= gastoMensualPesimista;
+        if (tempSaldo < 0 && quiebraEn === 0) { quiebraEn = i; }
     }
 
     const esViable = quiebraEn === 0;
     res.style.color = esViable ? "var(--p)" : "var(--a)";
     
     if (esViable) {
-        res.innerText = `✅ ESCENARIO PESIMISTA: Titanium confirma soporte. Saldo final proyectado: $${Math.round(tempSaldo).toLocaleString()}`;
+        res.innerText = `✅ ESCENARIO PESIMISTA: Titanium confirma soporte por ${mesesSimulados} meses. Saldo final: $${Math.round(tempSaldo).toLocaleString()}`;
     } else {
-        res.innerText = `🚨 ALERTA: Bajo condiciones pesimistas y con el flujo actual, quiebra técnica proyectada en el mes ${quiebraEn}.`;
+        res.innerText = `🚨 ALERTA: Bajo condiciones pesimistas (Montecarlo), quiebra técnica en el mes ${quiebraEn}.`;
     }
 }
 db.ref('tesoreria/motor_ia').on('value', snap => {
     const val = snap.val();
     if (!val) return;
     
-    window.motorGlobal = val;
-
-    // Asignación de objetos
+    // Asignación de objetos principales
     const m = val.mercado || {};
     const rep = val.reporte || {};
     const diag = val.diagnostico_matematico || {};
-    const indic = val.indicadores_globales || {};
+    const indic = val.indicadores_globales || {}; // NUEVO OBJETO
     const consejos = val.bot_financiero || [];
-    
-    // Mapeo de compatibilidad
-    const supervivencia = rep.supervivencia_dias || 0;
-    const delay_historico = indic.delay_global_promedio || 60;
     
     // Lógica de Colores
     const colorRiesgo = (m.riesgo || 0) > 1300 ? 'var(--a)' : 'var(--oro)';
     const colorEstado = rep.estado === "CRÍTICO" ? 'var(--a)' : 'var(--p)';
     const colorSemaforo = indic.semaforo === "ROJO" ? 'var(--a)' : (indic.semaforo === "AMARILLO" ? 'var(--oro)' : 'var(--p)');
-    const colorInflacion = (m.rem || 0) > 4 ? 'var(--a)' : 'var(--p)';
-
-    // Render Salud
+    
     const salud = document.getElementById('saludNegocio');
     if (salud) {
         salud.innerHTML = `<div style="padding:10px; background:#000; border-radius:8px; border:1px solid #374151; font-size:12px;">
@@ -257,28 +236,32 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
             <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Precisión IA:</span> <b style="color:var(--p)">${((diag.accuracy_history || 0) * 100).toFixed(0)}%</b></div>
             <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Calle:</span> <b>$${(rep.calle || 0).toLocaleString()}</b></div>
             <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Esperado:</span> <b>$${(rep.esperado || 0).toLocaleString()}</b></div>
-            <div style="display:flex; justify-content:space-between;"><span>Delay Hist.:</span> <b style="color:var(--ac)">${delay_historico} días</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>Delay Global:</span> <b style="color:var(--ac)">${indic.delay_global_promedio || 0} días</b></div>
         </div>`;
     }
 
-    // Render Económico
     const econ = document.getElementById('dataEconomica');
     if (econ) {
         econ.innerHTML = `
             <div style="font-size:11px; line-height:1.6;">
+                <div style="margin-bottom:10px; padding:5px; border-radius:4px; background:${colorSemaforo}22; border:1px solid ${colorSemaforo}; text-align:center;">
+                    <b style="color:${colorSemaforo}">ESTADO: ${indic.semaforo || 'NORMAL'}</b>
+                </div>
+
                 <div style="display:flex; justify-content:space-between;"><span>Efectividad:</span> <b style="color:${colorEstado}">${((rep.esperado/(rep.calle || 1)) * 100).toFixed(1)}%</b></div>
-                <div style="display:flex; justify-content:space-between;"><span>Delay Hist.:</span> <b style="color:var(--ac)">${delay_historico} días</b></div>
-                <div style="display:flex; justify-content:space-between;"><span>Supervivencia:</span> <b style="color:var(--a)">${supervivencia} días</b></div>
+                <div style="display:flex; justify-content:space-between;"><span>Supervivencia:</span> <b style="color:var(--a)">${rep.supervivencia_dias || 0} días</b></div>
                 <hr style="border:0; border-top:1px solid #1f2937; margin:8px 0">
-                <div style="display:flex; justify-content:space-between;"><span>Inflación (REM):</span> <b style="color:${colorInflacion}">${m.rem || 0}%</b></div>
+                
+                <div style="display:flex; justify-content:space-between;"><span>Tasa Real PF:</span> <b style="color:var(--p)">${(diag.tasa_real_pf || 0).toFixed(1)}%</b></div>
+                <div style="display:flex; justify-content:space-between;"><span>Inflación (REM):</span> <b style="color:${(m.rem || 0) > 4 ? 'var(--a)' : 'var(--p)'}">${m.rem || 0}%</b></div>
                 <div style="display:flex; justify-content:space-between;"><span>Dólar MEP:</span> <b style="color:var(--ac)">$${m.mep || '-'}</b></div>
                 <div style="display:flex; justify-content:space-between;"><span>Riesgo País:</span> <b style="color:${colorRiesgo}">${m.riesgo || 0} pts</b></div>
-                <hr style="border:0; border-top:1px solid #1f2937; margin:8px 0">
-                <div style="display:flex; justify-content:space-between;"><span>Tasa Real PF:</span> <b style="color:var(--p)">${(diag.tasa_real_pf || 0).toFixed(1)}%</b></div>
-                <div style="display:flex; justify-content:space-between;"><span>Tasa PF:</span> <b>${(m.pf || 0).toFixed(1)}%</b></div>
-                <div style="display:flex; justify-content:space-それにbetween;"><span>FCI:</span> <b style="color:var(--p)">${(m.fci || 0).toFixed(1)}%</b></div>
-                <div style="margin-top:12px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid var(--oro);">
-                    📢 <b>AI BOT:</b> ${consejos[0] || 'Analizando mercado...'}
+                
+                <div style="margin-top:12px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid ${colorSemaforo};">
+                    📢 <b>DIAGNÓSTICO:</b> ${indic.mensaje_racional || 'Analizando...'}
+                </div>
+                <div style="margin-top:5px; padding:8px; background:#000; border-radius:6px; font-size:10px; border-left:2px solid var(--oro);">
+                    🤖 <b>AI BOT:</b> ${consejos[0] || 'Analizando mercado...'}
                 </div>
             </div>`;
     }
@@ -288,6 +271,7 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
     
     if (typeof renderizarDashboardTopeDeGama === 'function') renderizarDashboardTopeDeGama();
 });
+
 function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
     if (!motorGlobal.inteligencia_cuit) return;
