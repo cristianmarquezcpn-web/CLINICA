@@ -769,16 +769,28 @@ function agregarGastoAItem(cat) {
     db.ref(`configuracion/gastos_recurrentes/${cat}/items`).push(nuevoGasto)
       .then(() => dibujarGastos());
 }
-    function guardarBancos() {
-        const mes = document.getElementById('mesFiltro').value;
-        const galicia = parseFloat(document.getElementById('bancoGalicia').value) || 0;
-        const santander = parseFloat(document.getElementById('bancoSantander').value) || 0;
+   function guardarBancos() {
+    const mes = document.getElementById('mesFiltro').value;
+    const galicia = parseFloat(document.getElementById('bancoGalicia').value) || 0;
+    const santander = parseFloat(document.getElementById('bancoSantander').value) || 0;
 
-        db.ref(`tesoreria/meses/${mes}/bancos`).update({ galicia, santander }).then(() => {
-            if (typeof verificarYEntrenar === 'function') verificarYEntrenar();
-            if (typeof proyectarTodo === 'function') proyectarTodo();
-        });
-    }
+    // Usamos .update() que es perfecto porque solo pisa Galicia y Santander
+    // y deja intactos otros bancos si los tuvieras (ej: Macro, ICBC).
+    db.ref(`tesoreria/meses/${mes}/bancos`).update({ 
+        galicia: galicia, 
+        santander: santander 
+    }).then(() => {
+        console.log("Saldos guardados correctamente.");
+        // Si proyectarTodo es la que calcula la magia, llamémosla directamente.
+        if (typeof proyectarTodo === 'function') {
+            proyectarTodo();
+        } else {
+            console.warn("La función proyectarTodo no está definida.");
+        }
+    }).catch(err => {
+        console.error("Error al guardar en Firebase:", err);
+    });
+}
     // --- CORRECCIÓN DE FUNCIONES ---
 function dibujarGastos() {
     const cont = document.getElementById('contGastos');
