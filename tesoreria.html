@@ -270,54 +270,25 @@ db.ref('tesoreria/motor_ia').on('value', snap => {
     renderizarDashboardTopeDeGama();
 });
 
-function renderizarDashboardTopeDeGama() {
-    const contenedor = document.getElementById('dashboardCompleto');
-    if (!motorGlobal.inteligencia_cuit) return;
-
-    const cuits = Object.keys(motorGlobal.inteligencia_cuit);
-    const totalDelay = cuits.reduce((acc, cuit) => acc + (motorGlobal.inteligencia_cuit[cuit].delay_estimado || 0), 0);
-    const promedioCartera = totalDelay / cuits.length;
-
-    cuits.sort((a, b) => (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0));
-
-    let html = `<style>.card-c:hover { background: #1e293b !important; border-color: #475569 !important; }</style>`;
-
-    cuits.forEach(cuit => {
-        const d = motorGlobal.inteligencia_cuit[cuit];
-        const colorBorde = d.delay_estimado > promedioCartera ? 'var(--AC)' : 'var(--P)'; // Corregido a variables estándar
-        
-        html += `
-        <div class="card-c" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:6px; border-radius:4px; display:flex; align-items:center; gap:12px; transition:0.2s; border:1px solid #1e293b;">
-            <input type="checkbox" class="selector-cliente" data-deuda="${d.deuda_viva || 0}" style="cursor:pointer; width:16px; height:16px;">
-            <div style="flex:1; cursor:pointer;" onclick="abrirModalDetalle('${cuit}')">
-                <div style="font-size:12px; font-weight:500; color:#f8fafc;">${d.nombre_fantasia || cuit}</div>
-            </div>
-            <div style="text-align:right;">
-                <div style="font-size:12px; font-weight:700; color:var(--P);">$${(d.deuda_viva / 1000).toFixed(0)}k</div>
-            </div>
-        </div>`;
-    });
-    
-    contenedor.innerHTML = html;
-}
-// 2. MODAL CON LÓGICA DE COLOR DINÁMICO
     // 1. FUNCIÓN RENDERIZAR DASHBOARD
 function renderizarDashboardTopeDeGama() {
     const contenedor = document.getElementById('dashboardCompleto');
-    if (!contenedor || !window.motorGlobal?.inteligencia_cuit) return;
+    // Usamos window.motorGlobal para asegurar que siempre haya datos
+    const data = window.motorGlobal || {};
+    if (!contenedor || !data.inteligencia_cuit) return;
 
-    const cuits = Object.keys(motorGlobal.inteligencia_cuit);
-    const totalDelay = cuits.reduce((acc, cuit) => acc + (motorGlobal.inteligencia_cuit[cuit].delay_estimado || 0), 0);
+    const cuits = Object.keys(data.inteligencia_cuit);
+    const totalDelay = cuits.reduce((acc, cuit) => acc + (data.inteligencia_cuit[cuit].delay_estimado || 0), 0);
     const promedioCartera = totalDelay / cuits.length;
 
-    cuits.sort((a, b) => (motorGlobal.inteligencia_cuit[b].deuda_viva || 0) - (motorGlobal.inteligencia_cuit[a].deuda_viva || 0));
+    cuits.sort((a, b) => (data.inteligencia_cuit[b].deuda_viva || 0) - (data.inteligencia_cuit[a].deuda_viva || 0));
 
     let html = `<style>.card-c:hover { background: #1e293b !important; border-color: #475569 !important; }</style>`;
 
     cuits.forEach(cuit => {
-        const d = motorGlobal.inteligencia_cuit[cuit];
-        // Colores fijos: Rojo (#ef4444) si el delay es alto, Verde (#10b981) si es bajo
-        const colorBorde = d.delay_estimado > promedioCartera ? '#ef4444' : '#10b981';
+        const d = data.inteligencia_cuit[cuit];
+        // Corrección: Usamos colores hexadecimales directos para evitar fallos de variables CSS
+        const colorBorde = (d.delay_estimado > promedioCartera) ? '#ef4444' : '#10b981';
         
         html += `
         <div class="card-c" style="border-left: 4px solid ${colorBorde}; background:#111827; padding:10px; margin-bottom:6px; border-radius:4px; display:flex; align-items:center; gap:12px; transition:0.2s; border:1px solid #1e293b;">
