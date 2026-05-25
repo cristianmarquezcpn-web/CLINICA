@@ -48,6 +48,14 @@
         @media (max-width: 1200px) {
             .grid-master { grid-template-columns: 1fr; }
         }
+    #modalEdicionGasto {
+    display: none; 
+    position: fixed; 
+    z-index: 1000; 
+    left: 0; top: 0; 
+    width: 100%; height: 100%; 
+    background-color: rgba(0,0,0,0.8);
+    }
     </style>
 </head>
 <body>
@@ -807,35 +815,56 @@ function dibujarGastos() {
 
             Object.keys(itemsObj).forEach(key => {
                 const it = itemsObj[key];
-                // Tarjeta individual para cada gasto
                 itemsHtml += `
                 <div style="background:#0b0e14; padding:8px; border-radius:4px; margin-bottom:8px; border:1px solid #1f2937;">
-                    <div style="display:grid; grid-template-columns: 1fr 60px 40px 30px; gap:4px; align-items:center; margin-bottom:5px;">
-                        <input type="text" placeholder="Nombre" value="${it.nombre_gasto || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'nombre_gasto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
-                        <input type="number" placeholder="$" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', '${key}', 'monto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
-                        <input type="number" placeholder="Día" value="${it.dia_pago || 1}" onchange="updateGastoRecurrente('${cat}', '${key}', 'dia_pago', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
-                        <button onclick="eliminarGastoRecurrente('${cat}', '${key}')" style="background:transparent; border:none; color:#ef4444; cursor:pointer; font-weight:bold;">✕</button>
-                    </div>
-                    <div style="display:flex; gap:4px;">
-                        <input type="month" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)" style="flex:1; background:#000; color:#fff; border:1px solid #444; padding:2px; font-size:10px;">
-                        <input type="month" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'hasta', this.value)" style="flex:1; background:#000; color:#fff; border:1px solid #444; padding:2px; font-size:10px;">
+                    <div style="display:grid; grid-template-columns: 1fr 60px 40px 30px; gap:4px; align-items:center;">
+                        <input type="text" value="${it.nombre_gasto || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'nombre_gasto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
+                        <input type="number" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', '${key}', 'monto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
+                        <input type="number" value="${it.dia_pago || 1}" onchange="updateGastoRecurrente('${cat}', '${key}', 'dia_pago', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
+                        <button onclick="abrirModalEdicionGasto('${cat}', '${key}')" style="background:transparent; border:none; color:#3b82f6; cursor:pointer; font-size:14px;">⚙️</button>
                     </div>
                 </div>`;
             });
 
-            // Contenedor principal de la categoría
             cont.innerHTML += `
-            <div style="margin-bottom:15px; border-left:3px solid var(--p); padding-left:10px; box-sizing:border-box;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <b style="color:var(--p); font-size:12px; text-transform: uppercase;">${cat}</b>
-                    <button onclick="agregarGastoAItem('${cat}')" style="background:#3b82f6; border:none; color:white; border-radius:3px; padding:2px 8px; cursor:pointer; font-size:10px;">+ Item</button>
+            <div style="margin-bottom:15px; border-left:3px solid var(--p); padding-left:10px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                    <b style="color:var(--p); font-size:12px; text-transform:uppercase;">${cat}</b>
+                    <button onclick="agregarGastoAItem('${cat}')" style="background:#3b82f6; border:none; color:white; padding:1px 8px; cursor:pointer; font-size:12px; border-radius:3px;">+</button>
                 </div>
                 ${itemsHtml}
             </div>`;
         });
     });
 }
-   // Actualizada para recibir la 'key' real de Firebase
+function abrirModalEdicionGasto(cat, key) {
+    // Si el modal no existe, lo creamos
+    let modal = document.getElementById('modalEdicionGasto');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modalEdicionGasto';
+        document.body.appendChild(modal);
+    }
+
+    // Buscamos el objeto para obtener los valores actuales
+    const it = window.motorGlobal.configuracion.gastos_recurrentes[cat].items[key];
+
+    modal.innerHTML = `
+    <div style="width:300px; background:#0b0e14; padding:20px; border-radius:8px; border:1px solid #374151; color:white; margin:100px auto;">
+        <h4 style="margin-top:0; color:#3b82f6;">Configurar Fechas</h4>
+        
+        <label style="font-size:10px; color:#94a3b8; display:block; margin-bottom:5px;">VIGENCIA DESDE:</label>
+        <input type="month" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)" style="width:100%; margin-bottom:15px; background:#000; border:1px solid #444; color:white; padding:8px;">
+        
+        <label style="font-size:10px; color:#94a3b8; display:block; margin-bottom:5px;">VIGENCIA HASTA:</label>
+        <input type="month" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'hasta', this.value)" style="width:100%; margin-bottom:20px; background:#000; border:1px solid #444; color:white; padding:8px;">
+        
+        <button onclick="document.getElementById('modalEdicionGasto').style.display='none'" style="width:100%; padding:10px; background:#3b82f6; border:none; color:white; cursor:pointer; border-radius:4px;">ACEPTAR</button>
+    </div>`;
+    
+    modal.style.display = 'block';
+} 
+    // Actualizada para recibir la 'key' real de Firebase
     function updateGastoRecurrente(cat, key, campo, valor) {
         if (campo === 'monto') valor = parseFloat(valor) || 0;
         db.ref(`configuracion/gastos_recurrentes/${cat}/items/${key}`).update({ [campo]: valor }).then(() => {
