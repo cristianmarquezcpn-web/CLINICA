@@ -1365,7 +1365,7 @@ window.cargarArchivo = async () => {
             const valorEfectivo = esNC ? -imp : imp;
             tGral += valorEfectivo;
 
-            const mod = (f.modulo || "OTROS").toUpperCase();
+            const mod = normalizar(f.modulo || "OTROS");
             if (totalesPorModulo.hasOwnProperty(mod)) totalesPorModulo[mod] += valorEfectivo;
             else totalesPorModulo["OTROS"] += valorEfectivo;
 
