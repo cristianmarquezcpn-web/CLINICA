@@ -1684,21 +1684,25 @@ window.limpiarFiltros = function() {
     });
 };
 window.actualizarCuadrosTotales = function() {
-    // Inicializamos totales
     const totales = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
     
-    // Sumamos todo
     window.dataFull.forEach(p => {
         let mod = normalizar(p.modulo || p.mod || "");
-        let monto = parseFloat(p.ultima_factura ? p.ultima_factura.total : (p.total || 0)) || 0;
+        
+        // --- AQUÍ ESTÁ LA CORRECCIÓN ---
+        // Si hay factura, suma eso. Si no, suma el monto que debería facturarse (p.monto_fijo o p.total)
+        let monto = 0;
+        if (p.ultima_factura && p.ultima_factura.total) {
+            monto = parseFloat(p.ultima_factura.total);
+        } else {
+            monto = parseFloat(p.monto_fijo || p.total || 0);
+        }
         
         if (totales.hasOwnProperty(mod)) {
             totales[mod] += monto;
         }
     });
 
-    // Actualizamos los elementos usando los IDs de tu HTML
-    // NOTA: Asegúrate que tus b id tengan exactamente estos nombres
     const mapaIds = { "CD": "tot-cd", "CET": "tot-cet", "REHAB": "tot-rehab", "SAEI": "tot-saei" };
     
     let granTotal = 0;
@@ -1712,7 +1716,7 @@ window.actualizarCuadrosTotales = function() {
     
     const elGral = document.getElementById('tot-general');
     if (elGral) elGral.innerText = `$ ${granTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-};		
+};
 // --- ESCUCHAS DE BASE DE DATOS ---
 if (typeof db !== 'undefined') {
     db.ref('facturas_emitidas').on('value', () => {
