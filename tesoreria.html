@@ -167,7 +167,7 @@ const db = firebase.database();
 let refMes = null; 
 let datosMes = {};
 window.motorGlobal = {};
-window.totalGastosProyectados = 500000; 
+
 
 function dispararMotorTitanium() {
     db.ref('comandos/ejecutar_motor').set({ status: 'request', timestamp: Date.now() });
@@ -435,7 +435,7 @@ function abrirModalDetalle(cuit) {
 
     const saldoActual = motorGlobal.reporte?.esperado || 0;
     const nuevoSaldo = saldoActual - impactoTotal;
-    const gastosM = window.totalGastosProyectados > 0 ? window.totalGastosProyectados : 500000; 
+    const gastosM = await calcularTotalGastosMensuales();
     
     const resStress = document.getElementById('resStress');
     const panelAjuste = document.getElementById('panelAjuste');
@@ -488,6 +488,7 @@ async function conectarMes() {
     });
 }
 // 1. FUNCIÓN PARA PROYECTAR Y RENDERIZAR SEMANAS
+// 1. FUNCIÓN PARA PROYECTAR Y RENDERIZAR SEMANAS
 async function proyectarTodo() {
     try {
         const mesSeleccionado = document.getElementById('mesFiltro').value;
@@ -530,15 +531,18 @@ async function proyectarTodo() {
             });
         });
 
-        // Procesar Gastos
-        const snapGastos = await db.ref('configuracion/gastos_recurrentes').once('value');
-        const gastosMaestros = snapGastos.val() || {};
+        // PROCESAR GASTOS (Ruta actualizada a la nueva estructura mensual)
+        const snapGastos = await db.ref(`tesoreria/gastos_mensuales/${mesSeleccionado}`).once('value');
+        const gastosMensuales = snapGastos.val() || {};
 
-        Object.keys(gastosMaestros).forEach(cat => {
-            const rubro = gastosMaestros[cat];
-            const itemsGasto = rubro.items ? Object.values(rubro.items) : [];
+        Object.keys(gastosMensuales).forEach(cat => {
+            const rubro = gastosMensuales[cat];
+            const itemsObj = rubro.items || {};
             
-            itemsGasto.forEach(g => {
+            Object.keys(itemsObj).forEach(key => {
+                const g = itemsObj[key];
+                
+                // Filtros de vigencia y monto
                 if (g.desde && mesSeleccionado < g.desde) return; 
                 if (g.hasta && mesSeleccionado > g.hasta) return;
                 if (!g.monto || parseFloat(g.monto) <= 0) return;
@@ -547,7 +551,6 @@ async function proyectarTodo() {
                 const monto = parseFloat(g.monto);
                 gasS[sG] += monto;
                 
-                // CORRECCIÓN APLICADA AQUÍ: Usa nombre_gasto, si no existe usa la categoría
                 const nombreMostrar = (g.nombre_gasto && g.nombre_gasto.trim() !== "") ? g.nombre_gasto : cat;
 
                 detG[sG].push(`
@@ -562,7 +565,7 @@ async function proyectarTodo() {
         window.ingresosSemanales = acumuladorIngresos;
         window.detallesSemanales = detG;
 
-        // Renderizado
+        // Renderizado del Grid (Se mantiene igual al ser independiente de la ruta)
         const grid = document.getElementById('gridSemanas');
         if (grid) {
             grid.innerHTML = "";
@@ -593,8 +596,8 @@ async function proyectarTodo() {
                 </div>`;
             }
         }
-    } catch (error) { console.error("Error:", error); }
-}            
+    } catch (error) { console.error("Error al proyectar:", error); }
+}
         
 // 2. MODAL DETALLE SEMANAL (CORREGIDO)
 window.abrirDetalleSemana = function(numSemana, saldoSem) {
@@ -755,59 +758,71 @@ window.abrirDetalleSemana = function(numSemana, saldoSem) {
     doc.save(`Informe_Junta_${new Date().getTime()}.pdf`);
 }
     // --- GESTIÓN DE GASTOS Y BANCOS ---
-    function nuevaCategoria() {
-        const nombre = prompt("Nombre del rubro/gasto:");
-        if (!nombre) return;
+ // --- HELPER PARA OBTENER EL MES ---
+const getMes = () => document.getElementById('mesFiltro')?.value || new Date().toISOString().slice(0, 7);
 
-        const nuevoGasto = { 
-            monto: 0, 
-            desde: new Date().toISOString().slice(0, 7), 
-            hasta: "" 
-        };
+// --- FUNCIONES DE CARGA ---
 
-        db.ref(`configuracion/gastos_recurrentes/${nombre}/items`).push(nuevoGasto)
-          .then(() => { dibujarGastos(); if (typeof proyectarTodo === 'function') proyectarTodo(); });
-    }
-    // Agregamos un botón para "Agregar Item" dentro de una categoría existente
-function agregarGastoAItem(cat) {
+function nuevaCategoria() {
+    const mes = getMes();
+    const nombre = prompt("Nombre del rubro/gasto:");
+    if (!nombre) return;
+
+    // Se mantiene la estructura completa original
     const nuevoGasto = { 
+        nombre_gasto: "Nuevo item",
         monto: 0, 
-        desde: new Date().toISOString().slice(0, 7), 
-        hasta: "", // Vacío significa "Sin fin"
-        dia_pago: 1 // Para el impacto semanal
+        modulo: "CET", // Valor por defecto
+        desde: mes,
+        hasta: "",
+        dia_pago: 1
     };
-    db.ref(`configuracion/gastos_recurrentes/${cat}/items`).push(nuevoGasto)
-      .then(() => dibujarGastos());
+
+    // La ruta ahora es dinámica por mes
+    db.ref(`tesoreria/gastos_mensuales/${mes}/${nombre}/items`).push(nuevoGasto)
+      .then(() => { dibujarGastos(); if (typeof proyectarTodo === 'function') proyectarTodo(); });
 }
-   function guardarBancos() {
-    const mes = document.getElementById('mesFiltro').value;
+
+function agregarGastoAItem(cat) {
+    const mes = getMes();
+    const nuevoGasto = { 
+        nombre_gasto: "Nuevo item",
+        monto: 0, 
+        modulo: "CET", 
+        desde: mes,
+        hasta: "", 
+        dia_pago: 1 
+    };
+    db.ref(`tesoreria/gastos_mensuales/${mes}/${cat}/items`).push(nuevoGasto)
+      .then(() => {
+          calcularTotalGastos(); // Actualiza el total
+          dibujarGastos();
+      });
+}
+
+function guardarBancos() {
+    const mes = getMes();
     const galicia = parseFloat(document.getElementById('bancoGalicia').value) || 0;
     const santander = parseFloat(document.getElementById('bancoSantander').value) || 0;
 
-    // Usamos .update() que es perfecto porque solo pisa Galicia y Santander
-    // y deja intactos otros bancos si los tuvieras (ej: Macro, ICBC).
     db.ref(`tesoreria/meses/${mes}/bancos`).update({ 
         galicia: galicia, 
         santander: santander 
     }).then(() => {
-        console.log("Saldos guardados correctamente.");
-        // Si proyectarTodo es la que calcula la magia, llamémosla directamente.
-        if (typeof proyectarTodo === 'function') {
-            proyectarTodo();
-        } else {
-            console.warn("La función proyectarTodo no está definida.");
-        }
-    }).catch(err => {
-        console.error("Error al guardar en Firebase:", err);
+        console.log("Saldos guardados.");
+        if (typeof proyectarTodo === 'function') proyectarTodo();
     });
 }
-    // --- CORRECCIÓN DE FUNCIONES ---
+
+// --- DIBUJADO Y LECTURA ---
 function dibujarGastos() {
+    const mes = getMes();
     const cont = document.getElementById('contGastos');
     if (!cont) return;
     cont.innerHTML = "";
     
-    db.ref('configuracion/gastos_recurrentes').once('value', snapshot => {
+    // Leemos la ruta centralizada por mes
+    db.ref(`tesoreria/gastos_mensuales/${mes}`).once('value', snapshot => {
         const gastos = snapshot.val() || {};
         
         Object.keys(gastos).forEach(cat => {
@@ -817,7 +832,6 @@ function dibujarGastos() {
 
             Object.keys(itemsObj).forEach(key => {
                 const it = itemsObj[key];
-                // Fila simplificada: Nombre, Monto, Día y Botón de Editar
                 itemsHtml += `
                 <div style="background:#0b0e14; padding:8px; border-radius:4px; margin-bottom:8px; border:1px solid #1f2937; display:grid; grid-template-columns: 1fr 60px 40px 30px; gap:4px; align-items:center;">
                     <input type="text" value="${it.nombre_gasto || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'nombre_gasto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
@@ -838,16 +852,18 @@ function dibujarGastos() {
         });
     });
 }
+
 function abrirModalEdicionGasto(cat, key) {
+    const mes = getMes();
     let modal = document.getElementById('modalEdicionGasto');
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'modalEdicionGasto';
-        modal.className = 'modal'; // Usa tu clase CSS existente
+        modal.className = 'modal';
         document.body.appendChild(modal);
     }
 
-    db.ref(`configuracion/gastos_recurrentes/${cat}/items/${key}`).once('value', snapshot => {
+    db.ref(`tesoreria/gastos_mensuales/${mes}/${cat}/items/${key}`).once('value', snapshot => {
         const it = snapshot.val() || {};
 
         modal.innerHTML = `
@@ -857,6 +873,14 @@ function abrirModalEdicionGasto(cat, key) {
             <label>NOMBRE DEL GASTO</label>
             <input type="text" class="modal-input" value="${it.nombre_gasto || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'nombre_gasto', this.value)">
             
+            <label>MÓDULO</label>
+            <select class="modal-input" onchange="updateGastoRecurrente('${cat}', '${key}', 'modulo', this.value)">
+                <option value="CET" ${it.modulo === 'CET' ? 'selected' : ''}>CET</option>
+                <option value="REHAB" ${it.modulo === 'REHAB' ? 'selected' : ''}>REHAB</option>
+                <option value="CD" ${it.modulo === 'CD' ? 'selected' : ''}>CD</option>
+                <option value="SAEI" ${it.modulo === 'SAEI' ? 'selected' : ''}>SAEI</option>
+            </select>
+
             <label>MONTO ($)</label>
             <input type="number" class="modal-input" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', '${key}', 'monto', this.value)">
             
@@ -878,26 +902,58 @@ function abrirModalEdicionGasto(cat, key) {
                 GUARDAR CAMBIOS
             </button>
         </div>`;
-        
         modal.style.display = 'block';
     });
 }
-    // Actualizada para recibir la 'key' real de Firebase
-    function updateGastoRecurrente(cat, key, campo, valor) {
-        if (campo === 'monto') valor = parseFloat(valor) || 0;
-        db.ref(`configuracion/gastos_recurrentes/${cat}/items/${key}`).update({ [campo]: valor }).then(() => {
+
+function updateGastoRecurrente(cat, key, campo, valor) {
+    const mes = getMes();
+    if (campo === 'monto') valor = parseFloat(valor) || 0;
+    
+    db.ref(`tesoreria/gastos_mensuales/${mes}/${cat}/items/${key}`).update({ [campo]: valor }).then(() => {
+        calcularTotalGastos(); // Recalcula el total tras la edición
+        if (typeof proyectarTodo === 'function') proyectarTodo();
+    });
+}
+function eliminarGastoRecurrente(cat, key) {
+    const mes = getMes();
+    if (confirm("¿Seguro que deseas eliminar este gasto?")) {
+        db.ref(`tesoreria/gastos_mensuales/${mes}/${cat}/items/${key}`).remove().then(() => {
+            calcularTotalGastos(); // Recalcula el total tras el borrado
+            dibujarGastos();
             if (typeof proyectarTodo === 'function') proyectarTodo();
         });
     }
-function eliminarGastoRecurrente(cat, key) {
-        if (confirm("¿Seguro que deseas eliminar este gasto?")) {
-            db.ref(`configuracion/gastos_recurrentes/${cat}/items/${key}`).remove().then(() => {
-                dibujarGastos();
-                if (typeof proyectarTodo === 'function') proyectarTodo();
-            });
-        }
-    }
-
+}
+async function calcularTotalGastos() {
+    const mes = getMes();
+    const snapshot = await db.ref(`tesoreria/gastos_mensuales/${mes}`).once('value');
+    const data = snapshot.val() || {};
+    let total = 0;
+    
+    Object.keys(data).forEach(cat => {
+        const items = data[cat].items || {};
+        Object.values(items).forEach(it => {
+            total += parseFloat(it.monto || 0);
+        });
+    });
+    
+    window.totalGastosProyectados = total;
+    return total;
+}
+function cerrarMes() {
+    const mes = getMes();
+    if (!confirm(`¿Estás seguro de cerrar el mes ${mes}? Esto impedirá ediciones futuras.`)) return;
+    
+    // Marcamos el mes como cerrado en la base de datos
+    db.ref(`tesoreria/gastos_mensuales/${mes}/metadata`).update({
+        estado: "CERRADO",
+        fecha_cierre: new Date().toISOString()
+    }).then(() => {
+        alert("Mes cerrado correctamente.");
+        dibujarGastos();
+    });
+}    
 // --- INICIALIZACIÓN "VIVA" ---
 // --- INICIALIZACIÓN "VIVA" ---
 window.onload = async () => {
@@ -912,30 +968,32 @@ window.onload = async () => {
 };
 
 // --- SINCRONIZACIÓN TOTAL ---
-// Esta función ahora es tu "botón de pánico" o disparo manual de sincronización
 async function sincronizacionTotal(event) {
     const btn = event?.target;
     if (!btn) return;
     
+    // Obtenemos el mes actual del selector
+    const mes = document.getElementById('mesFiltro')?.value; 
     const originalText = btn.innerText;
     btn.innerText = "⏳ PROCESANDO IA...";
     btn.disabled = true;
     
     try {
-        // Obtenemos los datos necesarios
+        // Obtenemos los datos necesarios (incluyendo gastos mensuales dinámicos)
         const [fS, sS, cS, gS] = await Promise.all([
             db.ref('facturas_emitidas').once('value'),
             db.ref('facturas_emitidas_saei').once('value'),
             db.ref('cobranzas').once('value'),
-            db.ref('configuracion/gastos_recurrentes').once('value')
+            db.ref(`tesoreria/gastos_mensuales/${mes}`).once('value') // RUTA ACTUALIZADA
         ]);
         
-        // Disparamos la ejecución del motor
+        // Disparamos la ejecución del motor con los datos del mes
         if (typeof ejecutarIA === 'function') {
             await ejecutarIA({ ...(fS.val() || {}), ...(sS.val() || {}) }, cS.val() || {}, gS.val() || {});
         }
         
-        // Al terminar, redibujamos el dashboard con los datos frescos
+        // Recalculamos el total de gastos para la variable global y redibujamos
+        await calcularTotalGastos(); 
         if (typeof proyectarTodo === 'function') await proyectarTodo();
         
         btn.innerText = "✅ ¡LISTO!";
@@ -947,8 +1005,7 @@ async function sincronizacionTotal(event) {
         btn.disabled = false;
         setTimeout(() => { btn.innerText = originalText; }, 3000);
     }
-}
-    
+}    
 window.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         if (typeof dibujarGastos === 'function') dibujarGastos();
