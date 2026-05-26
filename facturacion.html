@@ -472,7 +472,8 @@ async function procesarTodo() {
     if (typeof window.render === "function") window.render();
 	if (typeof window.actualizarCuadrosTotales === "function") {
     window.actualizarCuadrosTotales();
-}            
+}
+}	
 window.actualizarPanelOS = function() {
     const listaOS = document.getElementById('lista-os');
     if(!listaOS) return;
