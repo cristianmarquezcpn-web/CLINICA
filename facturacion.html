@@ -470,9 +470,6 @@ async function procesarTodo() {
     
     window.dataFull = tempFull;
     if (typeof window.render === "function") window.render();
-	if (typeof window.actualizarCuadrosTotales === "function") {
-    window.actualizarCuadrosTotales();
-}
 }	
 window.actualizarPanelOS = function() {
     const listaOS = document.getElementById('lista-os');
@@ -1682,35 +1679,6 @@ window.limpiarFiltros = function() {
         const ck = fila.querySelector('.ck');
         if (ck && !ck.disabled) ck.checked = false;
     });
-};
-window.actualizarCuadrosTotales = function() {
-    const totales = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
-    
-    window.dataFull.forEach(p => {
-        // Normalizamos el módulo usando el campo 'mod' que tenés en el objeto
-        let mod = normalizar(p.mod || "");
-        
-        // Sumamos priorizando 'total', luego 'facturado'
-        let monto = parseFloat(p.total || p.facturado || 0);
-        
-        if (totales.hasOwnProperty(mod)) {
-            totales[mod] += monto;
-        }
-    });
-
-    const mapaIds = { "CD": "tot-cd", "CET": "tot-cet", "REHAB": "tot-rehab", "SAEI": "tot-saei" };
-    
-    let granTotal = 0;
-    for (let mod in totales) {
-        let el = document.getElementById(mapaIds[mod]);
-        if (el) {
-            el.innerText = `$ ${totales[mod].toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-        }
-        granTotal += totales[mod];
-    }
-    
-    const elGral = document.getElementById('tot-general');
-    if (elGral) elGral.innerText = `$ ${granTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
 };
 // --- ESCUCHAS DE BASE DE DATOS ---
 if (typeof db !== 'undefined') {
