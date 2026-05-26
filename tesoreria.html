@@ -253,7 +253,6 @@ let motorEncendido = false;
 function encenderMotorIA() {
     if (motorEncendido) return; // Evita que se dispare dos veces
     motorEncendido = true;
-
     db.ref('tesoreria/motor_ia').on('value', snap => {
         const val = snap.val();
         if (!val) return;
@@ -266,9 +265,16 @@ function encenderMotorIA() {
         const indic = val.indicadores_globales || {};
         const consejos = val.bot_financiero || [];
         
+        // Extraemos de forma segura los nuevos datos globales
+        const eqGlobal = indic.punto_equilibrio_clinica || {};
+        const rentGlobal = indic.rentabilidad_global || {};
+        
         const colorRiesgo = (m.riesgo || 0) > 1300 ? 'var(--a)' : 'var(--oro)';
         const colorEstado = rep.estado === "CRÍTICO" ? 'var(--a)' : 'var(--p)';
         const colorSemaforo = indic.semaforo === "ROJO" ? 'var(--a)' : (indic.semaforo === "AMARILLO" ? 'var(--oro)' : 'var(--p)');
+        
+        // Lógica para color de margen (verde si ganás, rojo si estás a pérdida)
+        const colorMargen = (rentGlobal.margen || 0) >= 0 ? 'var(--p)' : 'var(--a)';
         
         const salud = document.getElementById('saludNegocio');
         if (salud) {
@@ -278,7 +284,17 @@ function encenderMotorIA() {
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Precisión IA:</span> <b style="color:var(--p)">${((diag.accuracy_history || 0) * 100).toFixed(0)}%</b></div>
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Calle:</span> <b>$${(rep.calle || 0).toLocaleString()}</b></div>
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Esperado:</span> <b>$${(rep.esperado || 0).toLocaleString()}</b></div>
-                <div style="display:flex; justify-content:space-between;"><span>Delay Global:</span> <b style="color:var(--ac)">${indic.delay_global_promedio || 0} días</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Delay Global:</span> <b style="color:var(--ac)">${indic.delay_global_promedio || 0} días</b></div>
+                
+                <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #374151;"></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                    <span>Pto. Equilibrio:</span> 
+                    <b title="${eqGlobal.alerta || 'OK'}">$${(eqGlobal.valor || 0).toLocaleString()}</b>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span>Rentabilidad:</span> 
+                    <b style="color:${colorMargen}">$${(rentGlobal.margen || 0).toLocaleString()} (${(rentGlobal.porcentaje || 0)}%)</b>
+                </div>
             </div>`;
         }
 
@@ -350,7 +366,7 @@ function renderizarDashboardTopeDeGama() {
     
     contenedor.innerHTML = html;
 }
-function abrirModalDetalle(cuit) {
+    function abrirModalDetalle(cuit) {
     const d = motorGlobal.inteligencia_cuit[cuit];
     const modal = document.getElementById('modalDetalle');
     
@@ -366,59 +382,130 @@ function abrirModalDetalle(cuit) {
         estaVencido = fechaCobro < hoy;
     }
 
-    const colorScore = d.score < 50 ? '#ef4444' : '#22c55e';
-    const colorFecha = estaVencido ? '#ef4444' : '#22c55e';
+    // Colores de la paleta (P: Verde, A: Rojo, AC: Azul)
+    const colorScore = d.score < 50 ? 'var(--a)' : 'var(--p)';
+    const colorFecha = estaVencido ? 'var(--a)' : 'var(--p)';
     const alerta = d.alerta_analitica || { dias_de_offset: 0, nota: "Sin notas." };
+    const estrategiaStr = d.estrategia_seleccionada || "Estándar";
+    const estrategiaNota = d.estrategia_nota || "";
+    
+    // Mapeo del JSON
+    const dash = d.dashboard_pilares || {};
+    
+    const ratingObj = dash.rating || {};
+    const ranking = ratingObj.rating || "S/D";
+    const recomendacionRating = ratingObj.recomendacion || "";
+    
+    let colorRanking = 'var(--p)'; 
+    if (ranking.includes('B')) colorRanking = 'var(--ac)'; 
+    if (ranking.includes('C') || ranking.includes('D')) colorRanking = 'var(--a)';
+
+    const costoObj = dash.costoOportunidad || {};
+    const costoInflacion = costoObj.total ? `$${costoObj.total.toLocaleString()}` : 'N/A';
+    const costoExpl = costoObj.explicacion || "";
+
+    const proy = dash.proyeccion || {};
+    const pesimista = proy.escenario_pesimista || d.delay_estimado;
+    const optimista = proy.escenario_optimista || d.delay_estimado;
+
+    const alertaFinanciera = dash.alertaFinanciera || "S/D";
+    const colorAlertaFin = alertaFinanciera === "CRÍTICO" ? 'var(--a)' : 'var(--p)';
 
     modal.innerHTML = `
-    <div class="modal-contenido" style="background:#0b0e14; padding:20px; border-radius:8px; border:1px solid #374151; color:white; max-width:500px; margin:auto;">
-        <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-            <h3 style="margin:0; color:#3b82f6;">${d.nombre_fantasia}</h3>
-            <button onclick="document.getElementById('modalDetalle').style.display='none'" style="background:none; border:none; color:white; cursor:pointer;">❌ CERRAR</button>
+    <div class="modal-contenido" style="background:#0b0e14; padding:20px; border-radius:8px; border:1px solid #374151; color:white; max-width:650px; margin:auto; max-height: 90vh; overflow-y: auto;">
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; position:sticky; top:0; background:#0b0e14; padding-bottom:10px; border-bottom:1px solid #334155; z-index:10;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <h3 style="margin:0; color:var(--ac);">${d.nombre_fantasia}</h3>
+                <span style="background:${colorRanking}22; color:${colorRanking}; border:1px solid ${colorRanking}; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:14px;">
+                    Cat: ${ranking}
+                </span>
+            </div>
+            <button onclick="document.getElementById('modalDetalle').style.display='none'" style="background:none; border:none; color:white; cursor:pointer; font-weight:bold; padding:5px 10px; border-radius:4px;">❌ CERRAR</button>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; border-bottom:1px solid #334155; padding-bottom:15px; margin-bottom:15px;">
-            <div>
-                <small style="color:#666; font-size:10px;">DEUDA VIVA</small>
-                <div style="font-size:18px;">$${d.deuda_viva.toLocaleString()}</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:15px;">
+            <div style="background:#111827; padding:15px; border-radius:6px; border:1px solid #1f2937;">
+                <small style="color:#94a3b8; font-size:11px;">DEUDA VIVA TOTAL</small>
+                <div style="font-size:22px; font-weight:bold; color:white;">$${(d.deuda_viva || 0).toLocaleString()}</div>
             </div>
-            <div>
-                <small style="color:#666; font-size:10px;">PRÓXIMO COBRO</small>
-                <div style="color:${colorFecha}; font-weight:bold; font-size:18px;">${fechaProxima || 'N/A'} ${estaVencido ? '⚠️' : ''}</div>
-            </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-bottom:20px;">
-            <div style="background:#1e293b; padding:10px; border-radius:4px;">
-                <small style="font-size:9px; color:#94a3b8;">DELAY EST.</small>
-                <div style="font-size:14px; color: ${d.delay_estimado > 60 ? '#ef4444' : '#22c55e'}">${Math.round(d.delay_estimado)} d</div>
-            </div>
-            <div style="background:#1e293b; padding:10px; border-radius:4px;">
-                <small style="font-size:9px; color:#94a3b8;">SCORE IA</small>
-                <div style="font-size:14px; color:${colorScore}">${d.score}</div>
-            </div>
-            <div style="background:#1e293b; padding:10px; border-radius:4px;">
-                <small style="font-size:9px; color:#94a3b8;">TENDENCIA</small>
-                <div style="font-size:14px;">${d.tendencia_admin > 0 ? '+' : ''}${d.tendencia_admin}</div>
+            <div style="background:#111827; padding:15px; border-radius:6px; border:1px solid #1f2937;">
+                <small style="color:#94a3b8; font-size:11px;">PRÓXIMO COBRO ESTIMADO</small>
+                <div style="color:${colorFecha}; font-weight:bold; font-size:22px;">${fechaProxima || 'N/A'} ${estaVencido ? '⚠️' : ''}</div>
             </div>
         </div>
 
-        <div style="background:#0f172a; padding:10px; border-radius:4px; font-size:11px; border:1px solid #334155;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Efectividad:</span> <b>${(d.efectividad * 100).toFixed(0)}%</b></div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Patrón:</span> <b>${d.patron}</b></div>
-            <div style="display:flex; justify-content:space-between;"><span>Offset (Ajuste):</span> <b>${alerta.dias_de_offset} días</b></div>
-            <p style="color:#666; margin-top:10px; font-style:italic;">"${alerta.nota}"</p>
+        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-bottom:15px;">
+            <div style="background:#1e293b; padding:12px; border-radius:6px; border:1px solid #334155; text-align:center;">
+                <small style="font-size:10px; color:#94a3b8; display:block; margin-bottom:5px;">DELAY IA ESPERADO</small>
+                <div style="font-size:18px; font-weight:bold; color: ${d.delay_estimado > 60 ? 'var(--a)' : 'var(--p)'}">${Math.round(d.delay_estimado)} días</div>
+            </div>
+            <div style="background:#1e293b; padding:12px; border-radius:6px; border:1px solid #334155; text-align:center;">
+                <small style="font-size:10px; color:#94a3b8; display:block; margin-bottom:5px;">SCORE DE CONFIANZA</small>
+                <div style="font-size:18px; font-weight:bold; color:${colorScore}">${d.score}/100</div>
+            </div>
+            <div style="background:#1e293b; padding:12px; border-radius:6px; border:1px solid #334155; text-align:center;">
+                <small style="font-size:10px; color:#94a3b8; display:block; margin-bottom:5px;">TENDENCIA DE PAGO</small>
+                <div style="font-size:18px; font-weight:bold; color:${d.tendencia_subyacente > 0 ? 'var(--a)' : 'var(--p)'}">${d.tendencia_subyacente > 0 ? '+' : ''}${d.tendencia_subyacente} días</div>
+            </div>
         </div>
 
-        <div style="margin-top:20px; font-size:10px; color:#94a3b8; border-top:1px solid #334155; padding-top:10px;">
-            <p style="color:#3b82f6; font-weight:bold;">📘 GUÍA DE INTERPRETACIÓN:</p>
-            <ul style="padding-left:15px; line-height:1.5;">
-                <li><b>Delay Est.:</b> Tu tiempo de espera real. Más de 60 días impacta negativamente tu flujo de caja.</li>
-                <li><b>Score IA:</b> Calificación de confianza del cliente. Arriba de 50 es seguro; debajo, extrema precaución.</li>
-                <li><b>Tendencia:</b> Muestra si el cliente está empeorando (+ valor) o mejorando (- valor) sus tiempos de pago.</li>
-                <li><b>Offset:</b> Días extra que la IA suma a la factura porque sabe, por historial, que el cliente siempre se demora.</li>
-            </ul>
+        <div style="background:#0f172a; padding:15px; border-radius:6px; font-size:13px; border:1px solid #334155; margin-bottom:20px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span>Efectividad Histórica:</span> <b style="color:var(--p)">${((d.efectividad || 0) * 100).toFixed(0)}%</b></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span>Patrón de Pago:</span> <b style="color:var(--ac)">${d.patron}</b></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span>Estado Financiero:</span> <b style="color:${colorAlertaFin}">${alertaFinanciera}</b></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span>Pérdida por Inflación (Costo Oportunidad):</span> <b style="color:var(--a)">${costoInflacion}</b></div>
+            
+            <div style="margin-top:5px; margin-bottom:12px; padding:8px; background:#1e293b; border-radius:4px; font-size:11px; color:#94a3b8; border-left:3px solid var(--a);">
+                <i>${costoExpl}</i>
+            </div>
+
+            <hr style="border:0; border-top:1px solid #334155; margin:15px 0;">
+            
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                <span>Proyección de Cobro:</span> 
+                <b>Optimista <span style="color:var(--p)">${optimista}d</span> | Pesimista <span style="color:var(--a)">${pesimista}d</span></b>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span>Offset (Ajuste por comportamiento):</span> <b style="color:var(--a)">+${alerta.dias_de_offset} días</b></div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span>Estrategia Aplicada:</span> <b style="color:var(--ac)">${estrategiaStr}</b></div>
+            
+            <div style="margin-top:12px; padding:12px; background:#111827; border-radius:6px; border:1px solid var(--ac);">
+                <div style="color:var(--ac); font-weight:bold; margin-bottom:5px; font-size:12px;">💡 Recomendación para Cat. ${ranking}:</div>
+                <div style="color:#cbd5e1; font-size:12px;">${recomendacionRating}</div>
+                <div style="margin-top:8px; font-style:italic; color:#94a3b8; font-size:11px; border-top:1px dashed #334155; padding-top:8px;">
+                    🤖 <b>Nota del Motor IA:</b> ${estrategiaNota || alerta.nota}
+                </div>
+            </div>
         </div>
+
+        <div style="background:#1e293b; border:1px solid var(--ac); border-radius:8px; overflow:hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+            <div style="background:var(--ac); color:white; padding:12px 15px; font-weight:bold; font-size:14px;">
+                📘 Guía de Lectura para el Usuario
+            </div>
+            <div style="padding:15px; font-size:12px; color:#cbd5e1; line-height:1.6;">
+                <p style="margin-top:0; margin-bottom:15px;">Este panel utiliza Inteligencia Artificial para proteger las finanzas de la clínica, prediciendo cuándo pagará realmente cada cliente.</p>
+                
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                    <div>
+                        <h4 style="color:white; margin:0 0 8px 0; font-size:13px; border-bottom:1px solid #334155; padding-bottom:4px;">📊 Métricas Clave</h4>
+                        <ul style="margin:0; padding-left:15px; color:#94a3b8;">
+                            <li style="margin-bottom:6px;"><b style="color:white;">Categoría (A a D):</b> <span style="color:var(--p)">A son los mejores pagadores</span>; <span style="color:var(--a)">C o D son clientes críticos</span>. Dicta el nivel de urgencia.</li>
+                            <li style="margin-bottom:6px;"><b style="color:white;">Score (0-100):</b> Calificación del cliente. Por debajo de 50, se recomienda frenar servicios o exigir pagos por adelantado.</li>
+                            <li style="margin-bottom:6px;"><b style="color:white;">Delay IA:</b> Los días <i>reales</i> que el sistema calcula que tardaremos en cobrar, más allá de lo que diga la factura.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 style="color:white; margin:0 0 8px 0; font-size:13px; border-bottom:1px solid #334155; padding-bottom:4px;">💰 Dinero y Riesgo</h4>
+                        <ul style="margin:0; padding-left:15px; color:#94a3b8;">
+                            <li style="margin-bottom:6px;"><b style="color:white;">Pérdida por Inflación:</b> Dinero exacto que la clínica está perdiendo debido a los días de retraso de este cliente en particular.</li>
+                            <li style="margin-bottom:6px;"><b style="color:white;">Proyección:</b> Rango de días en los que podría caer el pago. Optimista si todo sale bien, Pesimista si el cliente vuelve a retrasarse.</li>
+                            <li style="margin-bottom:6px;"><b style="color:white;">Offset:</b> Días de "castigo" que la IA suma a la proyección porque el cliente tiene un historial de mentir sobre sus fechas de pago.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>`;
     
     modal.style.display = 'block';
@@ -876,7 +963,6 @@ function dibujarGastos() {
         });
     });
 }
-
 function abrirModalEdicionGasto(cat, key) {
     const mes = getMes();
     let modal = document.getElementById('modalEdicionGasto');
@@ -884,6 +970,9 @@ function abrirModalEdicionGasto(cat, key) {
         modal = document.createElement('div');
         modal.id = 'modalEdicionGasto';
         modal.className = 'modal';
+        // Fondo oscuro para cerrar al hacer click fuera
+        modal.style.cssText = "display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000;";
+        modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
         document.body.appendChild(modal);
     }
 
@@ -891,7 +980,13 @@ function abrirModalEdicionGasto(cat, key) {
         const it = snapshot.val() || {};
 
         modal.innerHTML = `
-        <div class="modal-contenido">
+        <div class="modal-contenido" style="position:relative; background:#111827; padding:25px; border-radius:10px; max-width:400px; margin:50px auto; color:white; border:1px solid #374151;">
+            
+            <button onclick="document.getElementById('modalEdicionGasto').style.display='none'" 
+                style="position:absolute; top:10px; right:10px; background:transparent; border:none; color:white; font-size:18px; cursor:pointer;">
+                ✕
+            </button>
+
             <h3 style="color:var(--ac); text-align:center; margin-bottom:20px;">EDITAR DETALLE DE GASTO</h3>
             
             <label>NOMBRE DEL GASTO</label>
@@ -917,7 +1012,7 @@ function abrirModalEdicionGasto(cat, key) {
             </div>
 
             <button onclick="eliminarGastoRecurrente('${cat}', '${key}'); document.getElementById('modalEdicionGasto').style.display='none'" 
-                style="width:100%; padding:15px; background:var(--a); border:none; color:white; font-weight:bold; cursor:pointer; border-radius:6px; margin-bottom:10px;">
+                style="width:100%; padding:15px; background:var(--a); border:none; color:white; font-weight:bold; cursor:pointer; border-radius:6px; margin-bottom:10px; margin-top:20px;">
                 BORRAR ESTE GASTO
             </button>
             
@@ -929,6 +1024,7 @@ function abrirModalEdicionGasto(cat, key) {
         modal.style.display = 'block';
     });
 }
+
 function updateGastoRecurrente(cat, key, campo, valor) {
     // Primero validamos el estado ANTES de hacer nada
     if (datosMes.metadata?.estado === "CERRADO") {
