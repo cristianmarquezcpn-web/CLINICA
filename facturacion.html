@@ -1687,16 +1687,11 @@ window.actualizarCuadrosTotales = function() {
     const totales = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
     
     window.dataFull.forEach(p => {
-        let mod = normalizar(p.modulo || p.mod || "");
+        // Normalizamos el módulo usando el campo 'mod' que tenés en el objeto
+        let mod = normalizar(p.mod || "");
         
-        // --- AQUÍ ESTÁ LA CORRECCIÓN ---
-        // Si hay factura, suma eso. Si no, suma el monto que debería facturarse (p.monto_fijo o p.total)
-        let monto = 0;
-        if (p.ultima_factura && p.ultima_factura.total) {
-            monto = parseFloat(p.ultima_factura.total);
-        } else {
-            monto = parseFloat(p.monto_fijo || p.total || 0);
-        }
+        // Sumamos priorizando 'total', luego 'facturado'
+        let monto = parseFloat(p.total || p.facturado || 0);
         
         if (totales.hasOwnProperty(mod)) {
             totales[mod] += monto;
