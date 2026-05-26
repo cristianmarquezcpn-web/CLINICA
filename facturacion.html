@@ -179,6 +179,18 @@ const db = firebase.database();
 const auth = firebase.auth();
 
 const VALORES = { "CET": 0, "CD": 0, "REHAB": 0, "SAEI": 0 };
+const MAPA_MODULOS = {
+    "SAEI": "SAEI", "SAIE": "SAEI", "SAE I": "SAEI", "SAEI ": "SAEI", "SAIE": "SAEI",
+    "REHAB": "REHAB", "REHABILITACION": "REHAB",
+    "CET": "CET",
+    "CD": "CD"
+};
+
+function normalizar(mod) {
+    if (!mod) return "GENERAL"; 
+    let m = mod.toString().toUpperCase().trim();
+    return MAPA_MODULOS[m] || m; // Si está en el mapa, lo corrige; si no, devuelve el original
+}
 let dataFull = [];
 let dictOS = {};
 
@@ -428,7 +440,7 @@ async function procesarTodo() {
             // BUSQUEDA POR PACIENTE Y MÓDULO EXACTO
             let ultFact = facturasArray.find(f => 
                 (f.id_paciente === idPac || f.id_paciente_db === idPac) && 
-                String(f.modulo || "").toUpperCase().trim() === String(nombreMod).toUpperCase().trim()
+                normalizar(f.modulo) === normalizar(nombreMod)
             );
 
             let facturaEsDeEsteMes = false;
@@ -516,12 +528,12 @@ window.render = function() {
     .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
     .filter(p => {
         if (typeof filtroActual === 'undefined' || filtroActual === 'TODOS') return true;
-        const mod = (p.modulo || p.mod || "").toUpperCase();
-        return mod === filtroActual.toUpperCase();
+        const mod = normalizar(p.modulo || p.mod || "");
+		return mod === filtroActual.toUpperCase();
     })
     .forEach(p => {
         const idPaciente = p.id || p.id_db || "S/N";
-        const nombreMod  = (p.modulo || p.mod || "S/M").toUpperCase();
+        const nombreMod = (p.modulo || p.mod || "S/M").toUpperCase();
         const miFactura = p.ultima_factura; 
         // --- LÓGICA DE FILTRO TEMPORAL ---
 
@@ -781,8 +793,9 @@ async function enviarAFIP_WS() {
 	function procesarFacturaAprobada(respuestaAfip, datosPedido) {
     // 1. NORMALIZACIÓN DE RUTAS
     const modOriginal = (datosPedido.modulo || "OTROS");
-    const moduloUpper = modOriginal.toUpperCase(); 
-    const esSaei = (moduloUpper === "SAEI");
+	const modNormalizado = normalizar(modOriginal); 
+	const esSaei = (modNormalizado === "SAEI");
+	const moduloUpper = modNormalizado;
     
     const rutaHistorial = esSaei ? 'facturas_emitidas_saei' : 'facturas_emitidas';
     const nuevaFacturaKey = db.ref().child(rutaHistorial).push().key;
@@ -1157,12 +1170,28 @@ window.onload = () => {
 };
 
 window.exportarExcel = () => {
-    const tabla = document.querySelector(".tabla-archivo");
-    const filtro = document.getElementById('mes_filtro_archivo').value || "archivo";
-    let html = tabla.outerHTML;
-    html = html.replace(/<button[^>]*>.*?<\/button>/g, '');
+    // CAMBIO: Ahora busca por el ID correcto que me pasaste
+    const tabla = document.getElementById("tabla-facturas");
+    
+    if (!tabla) {
+        alert("Error: No encontré la tabla con ID 'tabla-facturas'.");
+        return;
+    }
+
+    const filtro = document.getElementById('mes_filtro_archivo')?.value || "archivo";
+    
+    // Clonamos para trabajar sobre una copia y no romper la visual
+    let tablaClonada = tabla.cloneNode(true);
+    
+    // Eliminamos los elementos interactivos (checkboxes, inputs, botones) para que el Excel quede limpio
+    const elementosNoDeseados = tablaClonada.querySelectorAll('button, input, select, textarea');
+    elementosNoDeseados.forEach(el => el.remove());
+
+    let html = tablaClonada.outerHTML;
+    
     const uri = 'data:application/vnd.ms-excel;base64,';
     const template = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"></head><body><table>${html}</table></body></html>`;
+    
     const link = document.createElement("a");
     link.href = uri + btoa(unescape(encodeURIComponent(template)));
     link.download = `Facturacion_${filtro}.xls`;
