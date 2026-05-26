@@ -464,7 +464,6 @@ function abrirModalDetalle(cuit) {
         panelAjuste.style.display = 'none';
     }
 }
-
 async function conectarMes() {
     const mes = document.getElementById('mesFiltro').value;
     if (!mes) return;
@@ -473,20 +472,37 @@ async function conectarMes() {
     const [y, m] = mes.split('-').map(Number);
     const mAnt = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
     
+    // 1. Obtenemos el cierre del mes anterior
     const snapAnt = await db.ref(`tesoreria/meses/${mAnt}/cierre`).once('value');
-    const arrastre = snapAnt.val() || 0;
+    const datosCierre = snapAnt.val();
     
+    // 2. Extraemos el saldo numérico. 
+    // Si datosCierre es un objeto, tomamos saldo_final. Si no existe, es 0.
+    const saldoArrastre = (typeof datosCierre === 'object' && datosCierre !== null) 
+                          ? (datosCierre.saldo_final || 0) 
+                          : 0;
+    
+    // 3. Conectamos con el mes actual
     refMes = db.ref(`tesoreria/meses/${mes}`);
     refMes.on('value', snap => {
         const data = snap.val();
-        datosMes = data || { bancos: { galicia: arrastre, santander: 0 }, gastos: {}, metadata: { creado: new Date().toISOString() } };
         
-        document.getElementById('bancoGalicia').value = datosMes.bancos?.galicia ?? arrastre;
+        // Si el mes no tiene datos, creamos la estructura base con el arrastre
+        datosMes = data || { 
+            bancos: { galicia: saldoArrastre, santander: 0 }, 
+            gastos: {}, 
+            metadata: { creado: new Date().toISOString() } 
+        };
+        
+        // 4. Actualizamos inputs con seguridad
+        // Usamos el valor guardado en el mes actual si existe, sino el arrastre.
+        document.getElementById('bancoGalicia').value = datosMes.bancos?.galicia ?? saldoArrastre;
         document.getElementById('bancoSantander').value = datosMes.bancos?.santander ?? 0;
         
         proyectarTodo();
     });
 }
+
 // 1. FUNCIÓN PARA PROYECTAR Y RENDERIZAR SEMANAS
 // 1. FUNCIÓN PARA PROYECTAR Y RENDERIZAR SEMANAS
 async function proyectarTodo() {
@@ -532,35 +548,43 @@ async function proyectarTodo() {
         });
 
         // PROCESAR GASTOS (Ruta actualizada a la nueva estructura mensual)
-        const snapGastos = await db.ref(`tesoreria/gastos_mensuales/${mesSeleccionado}`).once('value');
-        const gastosMensuales = snapGastos.val() || {};
-
-        Object.keys(gastosMensuales).forEach(cat => {
-            const rubro = gastosMensuales[cat];
-            const itemsObj = rubro.items || {};
+        const snapGastos = await db.ref(`tesoreria/gastos_mensuales`).once('value');
+        const todosLosGastosMensuales = snapGastos.val() || {};
+        Object.keys(todosLosGastosMensuales).forEach(mesKey => {
+        const mesesData = todosLosGastosMensuales[mesKey];
+        
+            Object.keys(mesesData).forEach(cat => {
+        const rubro = mesesData[cat];
+        const itemsObj = rubro.items || {};
             
-            Object.keys(itemsObj).forEach(key => {
-                const g = itemsObj[key];
-                
-                // Filtros de vigencia y monto
-                if (g.desde && mesSeleccionado < g.desde) return; 
-                if (g.hasta && mesSeleccionado > g.hasta) return;
-                if (!g.monto || parseFloat(g.monto) <= 0) return;
-                
-                let sG = g.dia_pago ? Math.min(Math.ceil(parseInt(g.dia_pago) / 7), 4) : 1;
-                const monto = parseFloat(g.monto);
-                gasS[sG] += monto;
-                
-                const nombreMostrar = (g.nombre_gasto && g.nombre_gasto.trim() !== "") ? g.nombre_gasto : cat;
+           Object.keys(itemsObj).forEach(key => {
+            const g = itemsObj[key];
+            
+            // FILTRO INTELIGENTE DE VIGENCIA
+            // 1. Si el gasto empieza después del mes actual, no lo mostramos.
+            if (g.desde && mesSeleccionado < g.desde) return; 
+            // 2. Si el gasto tiene fecha fin y ya pasó, no lo mostramos.
+            if (g.hasta && mesSeleccionado > g.hasta) return;
+            // 3. Si el gasto no tiene vigencia, solo mostramos el del mes actual
+            if (!g.desde && mesKey !== mesSeleccionado) return;
 
-                detG[sG].push(`
+            if (!g.monto || parseFloat(g.monto) <= 0) return;
+            
+            let sG = g.dia_pago ? Math.min(Math.ceil(parseInt(g.dia_pago) / 7), 4) : 1;
+            const monto = parseFloat(g.monto);
+            gasS[sG] += monto;
+            
+            const nombreMostrar = (g.nombre_gasto && g.nombre_gasto.trim() !== "") ? g.nombre_gasto : cat;
+
+            detG[sG].push(`
                 <div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5; margin-bottom:2px;">
                 <span>📉 ${nombreMostrar.substring(0,8)}</span>
                 <span>$${Math.round(monto/1000)}k</span>
                 </div>
-                `);
-            });
+            `);
         });
+    });
+});
 
         window.ingresosSemanales = acumuladorIngresos;
         window.detallesSemanales = detG;
@@ -905,21 +929,33 @@ function abrirModalEdicionGasto(cat, key) {
         modal.style.display = 'block';
     });
 }
-
 function updateGastoRecurrente(cat, key, campo, valor) {
+    // Primero validamos el estado ANTES de hacer nada
+    if (datosMes.metadata?.estado === "CERRADO") {
+        alert("❌ Este mes está cerrado y no permite modificaciones.");
+        dibujarGastos(); // Forzamos redibujo para revertir el input visualmente
+        return;
+    }
+
     const mes = getMes();
     if (campo === 'monto') valor = parseFloat(valor) || 0;
     
     db.ref(`tesoreria/gastos_mensuales/${mes}/${cat}/items/${key}`).update({ [campo]: valor }).then(() => {
-        calcularTotalGastos(); // Recalcula el total tras la edición
+        calcularTotalGastos(); 
         if (typeof proyectarTodo === 'function') proyectarTodo();
     });
 }
 function eliminarGastoRecurrente(cat, key) {
+    // Primero validamos el estado
+    if (datosMes.metadata?.estado === "CERRADO") {
+        alert("❌ Este mes está cerrado y no permite modificaciones.");
+        return;
+    }
+
     const mes = getMes();
     if (confirm("¿Seguro que deseas eliminar este gasto?")) {
         db.ref(`tesoreria/gastos_mensuales/${mes}/${cat}/items/${key}`).remove().then(() => {
-            calcularTotalGastos(); // Recalcula el total tras el borrado
+            calcularTotalGastos();
             dibujarGastos();
             if (typeof proyectarTodo === 'function') proyectarTodo();
         });
@@ -941,19 +977,28 @@ async function calcularTotalGastos() {
     window.totalGastosProyectados = total;
     return total;
 }
-function cerrarMes() {
+async function cerrarMes() {
     const mes = getMes();
-    if (!confirm(`¿Estás seguro de cerrar el mes ${mes}? Esto impedirá ediciones futuras.`)) return;
+    if (!confirm(`¿Cerrar mes ${mes}? Se guardarán los saldos finales y se bloquearán ediciones.`)) return;
     
-    // Marcamos el mes como cerrado en la base de datos
-    db.ref(`tesoreria/gastos_mensuales/${mes}/metadata`).update({
+    // Obtenemos saldos actuales
+    const gal = parseFloat(document.getElementById('bancoGalicia').value) || 0;
+    const san = parseFloat(document.getElementById('bancoSantander').value) || 0;
+    
+    // Calculamos el saldo final total (esto es lo que debe arrastrar el mes siguiente)
+    const saldoFinal = gal + san;
+
+    // Marcamos el mes como CERRADO y guardamos el saldo final para el arrastre
+    await db.ref(`tesoreria/meses/${mes}/cierre`).set({
         estado: "CERRADO",
-        fecha_cierre: new Date().toISOString()
-    }).then(() => {
-        alert("Mes cerrado correctamente.");
-        dibujarGastos();
+        fecha_cierre: new Date().toISOString(),
+        saldo_final: saldoFinal,
+        bancos_al_cierre: { galicia: gal, santander: san }
     });
-}    
+
+    alert("Mes cerrado. Saldo final de $" + saldoFinal.toLocaleString() + " guardado para el próximo periodo.");
+    dibujarGastos();
+}
 // --- INICIALIZACIÓN "VIVA" ---
 // --- INICIALIZACIÓN "VIVA" ---
 window.onload = async () => {
