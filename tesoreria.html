@@ -492,6 +492,7 @@ function renderizarDashboardTopeDeGama() {
                             <li style="margin-bottom:6px;"><b style="color:white;">Categoría (A a D):</b> <span style="color:var(--p)">A son los mejores pagadores</span>; <span style="color:var(--a)">C o D son clientes críticos</span>. Dicta el nivel de urgencia.</li>
                             <li style="margin-bottom:6px;"><b style="color:white;">Score (0-100):</b> Calificación del cliente. Por debajo de 50, se recomienda frenar servicios o exigir pagos por adelantado.</li>
                             <li style="margin-bottom:6px;"><b style="color:white;">Delay IA:</b> Los días <i>reales</i> que el sistema calcula que tardaremos en cobrar, más allá de lo que diga la factura.</li>
+                            <li style="margin-bottom:6px;"><b style="color:white;">Tendencia de Pago:</b> Indica si el cliente está acelerando o ralentizando sus pagos respecto a su promedio. Un valor positivo en <span style="color:var(--a)">rojo</span> significa que cada vez tarda más.</li>
                         </ul>
                     </div>
                     <div>
@@ -500,6 +501,7 @@ function renderizarDashboardTopeDeGama() {
                             <li style="margin-bottom:6px;"><b style="color:white;">Pérdida por Inflación:</b> Dinero exacto que la clínica está perdiendo debido a los días de retraso de este cliente en particular.</li>
                             <li style="margin-bottom:6px;"><b style="color:white;">Proyección:</b> Rango de días en los que podría caer el pago. Optimista si todo sale bien, Pesimista si el cliente vuelve a retrasarse.</li>
                             <li style="margin-bottom:6px;"><b style="color:white;">Offset:</b> Días de "castigo" que la IA suma a la proyección porque el cliente tiene un historial de mentir sobre sus fechas de pago.</li>
+                            <li style="margin-bottom:6px;"><b style="color:white;">Patrón (NORMAL/ATRASO):</b> Indicador dinámico: es "NORMAL" si el delay es menor o igual al promedio ponderado de la clínica, y "ATRASO" si lo supera, adaptándose a la realidad del mercado.</li>
                         </ul>
                     </div>
                 </div>
@@ -1006,9 +1008,15 @@ function abrirModalEdicionGasto(cat, key) {
             <label>DÍA DE PAGO</label>
             <input type="number" class="modal-input" value="${it.dia_pago || 1}" onchange="updateGastoRecurrente('${cat}', '${key}', 'dia_pago', this.value)">
             
-            <div style="display:flex; gap:10px;">
-                <div style="flex:1;"><label>VIGENCIA DESDE</label><input type="month" class="modal-input" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)"></div>
-                <div style="flex:1;"><label>VIGENCIA HASTA</label><input type="month" class="modal-input" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'hasta', this.value)"></div>
+            <div style="display:flex; gap:10px; margin-top: 15px;">
+            <div style="flex:1; display:flex; flex-direction:column;">
+            <label style="font-size: 10px; color: #94a3b8; margin-bottom: 4px;">VIGENCIA DESDE</label>
+            <input type="month" class="modal-input" style="width: 100%; box-sizing: border-box;" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)">
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column;">
+            <label style="font-size: 10px; color: #94a3b8; margin-bottom: 4px;">VIGENCIA HASTA</label>
+            <input type="month" class="modal-input" style="width: 100%; box-sizing: border-box;" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'hasta', this.value)">
+            </div>
             </div>
 
             <button onclick="eliminarGastoRecurrente('${cat}', '${key}'); document.getElementById('modalEdicionGasto').style.display='none'" 
