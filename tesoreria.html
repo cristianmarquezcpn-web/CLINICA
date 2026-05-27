@@ -275,28 +275,45 @@ function encenderMotorIA() {
         
         // Lógica para color de margen (verde si ganás, rojo si estás a pérdida)
         const colorMargen = (rentGlobal.margen || 0) >= 0 ? 'var(--p)' : 'var(--a)';
-        
         const salud = document.getElementById('saludNegocio');
         if (salud) {
             salud.innerHTML = `<div style="padding:10px; background:#000; border-radius:8px; border:1px solid #374151; font-size:12px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Ratio Liquidez:</span> <b>${(diag.ratio_liquidez || 0).toLocaleString()}</b></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Riesgo Concent.:</span> <b>${(diag.riesgo_concentracion || 0).toFixed(0)}</b></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Precisión IA:</span> <b style="color:var(--p)">${((diag.accuracy_history || 0) * 100).toFixed(0)}%</b></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Calle:</span> <b>$${(rep.calle || 0).toLocaleString()}</b></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Esperado:</span> <b>$${(rep.esperado || 0).toLocaleString()}</b></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>Delay Global:</span> <b style="color:var(--ac)">${indic.delay_global_promedio || 0} días</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Facturación total del mes calculada por Titanium"><span>Facturado Tit.:</span> <b>$${(t.facturado || 0).toLocaleString()}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Gastos totales del mes descontados"><span>Gastos Mes:</span> <b style="color:var(--a)">$${(t.gastodelmes || 0).toLocaleString()}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Diferencia directa entre facturado y gastado"><span>Margen Real Tit.:</span> <b>$${(t.margenreal || 0).toLocaleString()}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Ganancia real tras descontar penalizaciones por riesgo"><span>Rentab. Titanium:</span> <b style="color:var(--p)">$${(t.rentabilidadtitanium || 0).toLocaleString()}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Porcentaje de la rentabilidad sobre la facturación"><span>Rentab. Real %:</span> <b>${t.rentabilidadporcentual || '0%'}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Calificación de salud y riesgo del negocio"><span>Rating Titanium:</span> <b style="color:var(--p)">${t.ratingperiodo || '-'}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Puntaje base de la evaluación financiera"><span>Score Ajustado:</span> <b>${t.score_ajustado || 0}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Penalización por depender de pocos clientes"><span>Riesgo Conc. Tit.:</span> <b style="color:var(--ac)">${t.riesgoconcentracion || '0%'}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Penalización financiera por demoras en cobro"><span>Riesgo Delay Tit.:</span> <b style="color:var(--ac)">${t.riesgodelay || '0%'}</b></div>
+
+                <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #374151;"></div>
+
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Capacidad para pagar deudas a corto plazo"><span>Ratio Liquidez:</span> <b>${(diag.ratio_liquidez || 0).toLocaleString()}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Concentración de deuda en pocos clientes"><span>Riesgo Concent.:</span> <b>${(diag.riesgo_concentracion || 0).toFixed(0)}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Nivel de acierto histórico del modelo predictivo"><span>Precisión IA:</span> <b style="color:var(--p)">${((diag.accuracy_history || 0) * 100).toFixed(0)}%</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Dinero pendiente de cobro en la calle"><span>Calle:</span> <b>$${(rep.calle || 0).toLocaleString()}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Dinero proyectado a cobrar"><span>Esperado:</span> <b>$${(rep.esperado || 0).toLocaleString()}</b></div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Promedio de días de atraso en pagos"><span>Delay Global:</span> <b style="color:var(--ac)">${indic.delay_global_promedio || 0} días</b></div>
                 
                 <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #374151;"></div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Facturación mínima para cubrir gastos">
                     <span>Pto. Equilibrio:</span> 
                     <b title="${eqGlobal.alerta || 'OK'}">$${(eqGlobal.valor || 0).toLocaleString()}</b>
                 </div>
-                <div style="display:flex; justify-content:space-between;">
+                <div style="display:flex; justify-content:space-between;" title="Margen de ganancia bruto">
                     <span>Rentabilidad:</span> 
                     <b style="color:${colorMargen}">$${(rentGlobal.margen || 0).toLocaleString()} (${(rentGlobal.porcentaje || 0)}%)</b>
                 </div>
+
+                <div style="margin-top:10px; padding:8px; background:#111; border-radius:4px; font-style:italic; text-align:center; border:1px solid #374151;" title="Diagnóstico automático de rentabilidad">
+                    ${t.resumen || ''}
+                </div>
             </div>`;
         }
+        
 
         const econ = document.getElementById('dataEconomica');
         if (econ) {
