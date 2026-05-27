@@ -1008,14 +1008,14 @@ function abrirModalEdicionGasto(cat, key) {
             <label>DÍA DE PAGO</label>
             <input type="number" class="modal-input" value="${it.dia_pago || 1}" onchange="updateGastoRecurrente('${cat}', '${key}', 'dia_pago', this.value)">
             
-            <div style="display:flex; gap:10px; margin-top: 15px;">
-            <div style="flex:1; display:flex; flex-direction:column;">
-            <label style="font-size: 10px; color: #94a3b8; margin-bottom: 4px;">VIGENCIA DESDE</label>
-            <input type="month" class="modal-input" style="width: 100%; box-sizing: border-box;" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)">
+            <div style="display:flex; gap:15px; margin-top: 15px;">
+            <div style="flex:1; min-width: 0;">
+            <label style="display:block; font-size: 10px; color: #94a3b8; margin-bottom: 5px;">VIGENCIA DESDE</label>
+            <input type="month" style="width: 100%; padding: 8px; background: #000; border: 1px solid #374151; color: white; border-radius: 4px; box-sizing: border-box;" value="${it.desde || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'desde', this.value)">
             </div>
-            <div style="flex:1; display:flex; flex-direction:column;">
-            <label style="font-size: 10px; color: #94a3b8; margin-bottom: 4px;">VIGENCIA HASTA</label>
-            <input type="month" class="modal-input" style="width: 100%; box-sizing: border-box;" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'hasta', this.value)">
+            <div style="flex:1; min-width: 0;">
+            <label style="display:block; font-size: 10px; color: #94a3b8; margin-bottom: 5px;">VIGENCIA HASTA</label>
+            <input type="month" style="width: 100%; padding: 8px; background: #000; border: 1px solid #374151; color: white; border-radius: 4px; box-sizing: border-box;" value="${it.hasta || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'hasta', this.value)">
             </div>
             </div>
 
