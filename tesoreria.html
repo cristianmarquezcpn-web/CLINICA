@@ -276,6 +276,9 @@ function encenderMotorIA() {
         // Lógica para color de margen (verde si ganás, rojo si estás a pérdida)
         const colorMargen = (rentGlobal.margen || 0) >= 0 ? 'var(--p)' : 'var(--a)';
         const salud = document.getElementById('saludNegocio');
+        db.ref('tesoreria/rentabilidad_titanium').once('value').then((snapTitanium) => {
+        // 2. Definimos 't'. Si no hay datos, usamos un objeto vacío para que no rompa
+        const t = snapTitanium.val() || {};
         if (salud) {
             salud.innerHTML = `<div style="padding:10px; background:#000; border-radius:8px; border:1px solid #374151; font-size:12px;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:5px;" title="Facturación total del mes calculada por Titanium"><span>Facturado Tit.:</span> <b>$${(t.facturado || 0).toLocaleString()}</b></div>
