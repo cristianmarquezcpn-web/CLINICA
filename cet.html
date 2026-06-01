@@ -738,13 +738,9 @@ function actualizarContadores() {
 async function descargarPDF_CET(n) {
     const p = pacs[n];
     const link = p.asistF_link || p.asistF;
-    
-    if(!link) { alert("No hay asistencia cargada en Cloudinary"); return; }
 
-    // 1. CAPTURAMOS EL TIPO (MIS/MII/SAEI) DESDE EL SELECT
-    const tipoPres = document.getElementById('p-pres')?.value || "";
+    if (!link) { alert("No hay asistencia cargada en Cloudinary"); return; }
 
-    // 2. CALCULAMOS MES VENCIDO Y AÑO
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
                    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     
@@ -758,35 +754,20 @@ async function descargarPDF_CET(n) {
     }
 
     const mesVencido = meses[indiceMesAnterior];
+    const nombreFichero = `Asistencia ${mesVencido} ${anioRef} ${n} CET.pdf`;
 
-    // 3. ARMAMOS EL NOMBRE PARA EL NAVEGADOR
-    const nombreFichero = `Asistencia ${mesVencido} ${anioRef} ${n} ${tipoPres}.pdf`;
-
-    try {
-        // Fetch al link de Cloudinary
-        const respuesta = await fetch(link);
-        if (!respuesta.ok) throw new Error("Error al traer el archivo");
-
-        const archivoBlob = await respuesta.blob();
-        const urlBlob = window.URL.createObjectURL(archivoBlob);
-        
-        const tagA = document.createElement('a');
-        tagA.href = urlBlob;
-        tagA.download = nombreFichero; // <--- AQUÍ OCURRE LA MAGIA
-        
-        document.body.appendChild(tagA);
-        tagA.click();
-        
-        // Limpieza de memoria
-        window.URL.revokeObjectURL(urlBlob);
-        document.body.removeChild(tagA);
-        
-    } catch (err) {
-        console.warn("Fallo la descarga directa, abriendo pestaña...", err);
-        window.open(link, '_blank');
-    }
+    // SOLUCIÓN: Usar un elemento <a> con el atributo 'download' directamente.
+    // Esto es mucho más compatible con archivos PDF externos en escritorio.
+    const tagA = document.createElement('a');
+    tagA.href = link;
+    tagA.download = nombreFichero; 
+    
+    // Algunos navegadores requieren que el elemento esté en el DOM
+    document.body.appendChild(tagA);
+    tagA.click();
+    document.body.removeChild(tagA);
 }
-    // --- BLOQUE DE SEGURIDAD Y CARGA AUTOMÁTICA ---
+// --- BLOQUE DE SEGURIDAD Y CARGA AUTOMÁTICA ---
 auth.onAuthStateChanged((user) => {
     if (user) {
         // Si hay usuario, mostramos en consola para estar seguros
