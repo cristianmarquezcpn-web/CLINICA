@@ -1170,7 +1170,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // 1. Al cargar la página, traemos el reporte guardado en Firebase
     async function cargarEstadoActual() {
-        const res = await fetch(`${API_URL}/api/cfo/obtener_reporte`);
+        const res = await fetch(`${API_URL}/api/contabilidad/obtener_reporte`);
         const data = await res.json();
         
         const contenedor = document.getElementById('contenedor-reporte');
@@ -1192,7 +1192,7 @@ window.addEventListener('DOMContentLoaded', () => {
             const contenidoCSV = e.target.result;
             
             // Enviamos el contenido al backend
-            const res = await fetch(`${API_URL}/api/cfo`, {
+            const res = await fetch(`${API_URL}/api/contabilidad`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt: "analiza " + contenidoCSV })
