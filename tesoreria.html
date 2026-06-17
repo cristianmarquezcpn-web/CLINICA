@@ -13,58 +13,26 @@
         :root { 
             --bg: #05070a; 
             --panel: #111827; 
-            --ac: #3b82f6;  /* Azul (AC) */
-            --p: #10b981;   /* Verde (P) */
-            --a: #ef4444;   /* Rojo (A) */
+            --ac: #3b82f6; 
+            --p: #10b981; 
+            --a: #ef4444; 
             --oro: #f59e0b; 
             --texto: #f8fafc; 
         }
-        
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background: var(--bg); 
-            color: var(--texto); 
-            margin: 0; 
-            padding: 25px; 
-            width: 100vw; 
-            overflow-x: hidden; 
-        }
-        
-        .grid-master { 
-            display: grid; 
-            grid-template-columns: minmax(280px, 1fr) minmax(400px, 2fr) minmax(280px, 1fr); 
-            gap: 20px; 
-            width: 100%; 
-        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--texto); margin: 0; padding: 25px; width: 100vw; overflow-x: hidden; }
+        .grid-master { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(400px, 2fr) minmax(280px, 1fr); gap: 20px; width: 100%; }
         .card { background: var(--panel); padding: 20px; border-radius: 16px; border: 1px solid #1f2937; margin-bottom: 20px; width: 100%; }
         h3 { font-size: 10px; text-transform: uppercase; color: var(--ac); letter-spacing: 2px; margin: 0 0 15px 0; }
         input { background: #000 !important; border: 1px solid #374151 !important; color: white !important; padding: 10px !important; border-radius: 8px !important; width: 100%; margin-bottom: 10px; }
         .btn { background: var(--ac); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; transition: opacity 0.2s; }
         .btn:hover { opacity: 0.8; }
-        
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; overflow-y: auto; }
         .modal-contenido { background: #0f172a; margin: 5% auto; padding: 30px; width: 90%; max-width: 600px; border-radius: 12px; border: 1px solid var(--ac); }
-        
-        @media (max-width: 1200px) {
-            .grid-master { grid-template-columns: 1fr; }
-        }
-        #modalEdicionGasto {
-        display: none; 
-        position: fixed; 
-        z-index: 1000; 
-        left: 0; top: 0; 
-        width: 100%; height: 100%; 
-        background-color: rgba(0,0,0,0.85);
-    }
-        input::-webkit-outer-spin-button,
-        input::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-    }
-        input[type=number] {
-        -moz-appearance: textfield;
-}
-</style>
+        @media (max-width: 1200px) { .grid-master { grid-template-columns: 1fr; } }
+        #modalEdicionGasto { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+    </style>
 </head>
 <body>
 
@@ -86,6 +54,20 @@
         <button onclick="window.location.href='index.html'" style="background: transparent; border: 1px solid #374151; color: #94a3b8; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 11px;">← VOLVER</button>
     </div>
 </div>
+
+<div class="card">
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <div style="flex-grow:1;">
+            <input type="file" id="archivoInput" accept=".csv" style="margin-bottom:0;" />
+        </div>
+        <button class="btn" onclick="subirYProcesar()" style="width:auto; padding:0 20px;">CARGAR EXTRACTO</button>
+    </div>
+</div>
+
+<div id="contenedor-reporte" class="card" style="display: none;">
+    <div id="contenido-tablero"></div>
+</div>
+
 <div class="grid-master">
     <div>
         <div class="card">
@@ -141,6 +123,7 @@
         </div>
     </div>
 </div>
+</body>
 <script>
 // --- 1. CONFIGURACIÓN E INICIALIZACIÓN FIREBASE ---
 const firebaseConfig = { 
@@ -1183,6 +1166,47 @@ window.addEventListener('DOMContentLoaded', () => {
         if (typeof proyectarTodo === 'function') proyectarTodo();
     }, 1000); // 1 segundo de margen para que Firebase descargue los datos
 });
+    const API_URL = "https://dominguito-san-juan.vercel.app";
+
+    // 1. Al cargar la página, traemos el reporte guardado en Firebase
+    async function cargarEstadoActual() {
+        const res = await fetch(`${API_URL}/api/cfo/obtener_reporte`);
+        const data = await res.json();
+        
+        const contenedor = document.getElementById('contenedor-reporte');
+        const contenido = document.getElementById('contenido-tablero');
+        
+        contenido.innerHTML = data.respuesta;
+        contenedor.style.display = 'block';
+    }
+
+    // 2. Al subir el archivo, lo mandamos a procesar
+    async function subirYProcesar() {
+        const fileInput = document.getElementById('archivoInput');
+        if (fileInput.files.length === 0) return alert("Selecciona un archivo");
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = async function(e) {
+            const contenidoCSV = e.target.result;
+            
+            // Enviamos el contenido al backend
+            const res = await fetch(`${API_URL}/api/cfo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: "analiza " + contenidoCSV })
+            });
+            
+            const data = await res.json();
+            document.getElementById('contenido-tablero').innerHTML = data.respuesta;
+        };
+        
+        reader.readAsText(file);
+    }
+
+    // Ejecutar al iniciar
+    window.onload = cargarEstadoActual;    
 </script>
 <div id="dominguito-container" style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end;">
     
