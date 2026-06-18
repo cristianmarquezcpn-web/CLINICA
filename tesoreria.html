@@ -1234,43 +1234,40 @@ const API_URL = "https://dominguito-san-juan.vercel.app";
     }
 
     // 2. Lógica para el nuevo Procesador IA Moderno
-    async function ejecutarAnalisisIA() {
-        const fileInput = document.getElementById('archivoInputModerno');
-        const resDiv = document.getElementById('resultadoAnalisis');
-        
-        if (fileInput.files.length === 0) return alert("Selecciona un archivo");
+   async function ejecutarAnalisisIA() {
+    const fileInput = document.getElementById('archivoInputModerno');
+    const resDiv = document.getElementById('resultadoAnalisis');
+    
+    if (fileInput.files.length === 0) return alert("Selecciona un archivo");
 
-        const file = fileInput.files[0];
-        resDiv.innerHTML = "<div style='text-align:center; padding:40px;'>🧠 <span class='loading'>IA TITANIUM PROCESANDO...</span></div>";
+    const file = fileInput.files[0];
+    resDiv.innerHTML = "<div style='text-align:center; padding:40px;'>🧠 <span class='loading'>IA TITANIUM PROCESANDO ARCHIVO BINARIO...</span></div>";
 
-        // Usamos FileReader para procesar el archivo
-        const reader = new FileReader();
-        reader.onload = async function(e) {
-            const contenido = e.target.result;
-            
-            try {
-                const res = await fetch(`${API_URL}/api/contabilidad`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: "analiza " + contenido })
-                });
-                
-                const data = await res.json();
-                
-                // Muestra el resultado dentro del modal
-                resDiv.innerHTML = data.respuesta;
-                
-                // OPCIONAL: Refresca el reporte principal también
-                cargarEstadoActual();
-            } catch (err) {
-                resDiv.innerHTML = "<p style='color:red;'>❌ Error crítico en el motor: " + err.message + "</p>";
-            }
-        };
+    // 1. Creamos el objeto FormData (esto es la clave para enviar archivos)
+    const formData = new FormData();
+    formData.append('file', file); 
+
+    try {
+        // 2. Enviamos el archivo al backend
+        // NOTA: Al usar FormData, NO definas 'Content-Type' en headers, 
+        // el navegador lo hace automáticamente.
+        const res = await fetch(`${API_URL}/api/contabilidad`, {
+            method: 'POST',
+            body: formData
+        });
         
-        // Lee el archivo como texto para enviarlo al backend
-        reader.readAsText(file);
+        const data = await res.json();
+        
+        // 3. Muestra el resultado
+        resDiv.innerHTML = data.respuesta;
+        
+        // 4. Refresca el tablero
+        cargarEstadoActual();
+        
+    } catch (err) {
+        resDiv.innerHTML = "<p style='color:red;'>❌ Error crítico en el motor: " + err.message + "</p>";
     }
-
+}
     // Funciones de control del modal
     function cerrarProcesador() {
         document.getElementById('modalProcesador').style.display = 'none';
