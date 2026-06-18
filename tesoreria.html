@@ -1219,9 +1219,14 @@ const API_URL = "https://dominguito-san-juan.vercel.app";
 function ejecutarScriptsInyectados(contenedor) {
     const scripts = contenedor.getElementsByTagName('script');
     for (let i = 0; i < scripts.length; i++) {
-        const nuevoScript = document.createElement('script');
-        nuevoScript.text = scripts[i].text;
-        document.body.appendChild(nuevoScript);
+        // En lugar de añadir un nuevo script al body, ejecutamos el contenido directamente
+        // Esto evita el problema de redeclarar variables constantes
+        try {
+            // Evaluamos el script en el contexto global
+            window.eval(scripts[i].text);
+        } catch (e) {
+            console.error("Error ejecutando script inyectado:", e);
+        }
     }
 }
 
