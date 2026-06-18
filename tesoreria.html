@@ -1215,26 +1215,38 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 const API_URL = "https://dominguito-san-juan.vercel.app";
 
-    // 1. Al cargar la página, traemos el reporte guardado en Firebase
-    async function cargarEstadoActual() {
-        try {
-            const res = await fetch(`${API_URL}/api/contabilidad/obtener_reporte`);
-            const data = await res.json();
-            
-            const contenedor = document.getElementById('contenedor-reporte');
-            const contenido = document.getElementById('contenido-tablero');
-            
-            if (data.respuesta) {
-                contenido.innerHTML = data.respuesta;
-                contenedor.style.display = 'block';
-            }
-        } catch (err) {
-            console.log("No hay reporte previo o error de conexión.");
-        }
+// Función auxiliar para forzar la ejecución de los scripts inyectados
+function ejecutarScriptsInyectados(contenedor) {
+    const scripts = contenedor.getElementsByTagName('script');
+    for (let i = 0; i < scripts.length; i++) {
+        const nuevoScript = document.createElement('script');
+        nuevoScript.text = scripts[i].text;
+        document.body.appendChild(nuevoScript);
     }
+}
 
-    // 2. Lógica para el nuevo Procesador IA Moderno
-   async function ejecutarAnalisisIA() {
+// 1. Al cargar la página, traemos el reporte guardado en Firebase
+async function cargarEstadoActual() {
+    try {
+        const res = await fetch(`${API_URL}/api/contabilidad/obtener_reporte`);
+        const data = await res.json();
+        
+        const contenedor = document.getElementById('contenedor-reporte');
+        const contenido = document.getElementById('contenido-tablero');
+        
+        if (data.respuesta) {
+            contenido.innerHTML = data.respuesta;
+            // Ejecutamos los scripts para activar botones y filtros
+            ejecutarScriptsInyectados(contenido);
+            contenedor.style.display = 'block';
+        }
+    } catch (err) {
+        console.log("No hay reporte previo o error de conexión.");
+    }
+}
+
+// 2. Lógica para el nuevo Procesador IA Moderno
+async function ejecutarAnalisisIA() {
     const fileInput = document.getElementById('archivoInputModerno');
     const resDiv = document.getElementById('resultadoAnalisis');
     
@@ -1243,14 +1255,10 @@ const API_URL = "https://dominguito-san-juan.vercel.app";
     const file = fileInput.files[0];
     resDiv.innerHTML = "<div style='text-align:center; padding:40px;'>🧠 <span class='loading'>IA TITANIUM PROCESANDO ARCHIVO BINARIO...</span></div>";
 
-    // 1. Creamos el objeto FormData (esto es la clave para enviar archivos)
     const formData = new FormData();
     formData.append('file', file); 
 
     try {
-        // 2. Enviamos el archivo al backend
-        // NOTA: Al usar FormData, NO definas 'Content-Type' en headers, 
-        // el navegador lo hace automáticamente.
         const res = await fetch(`${API_URL}/api/contabilidad`, {
             method: 'POST',
             body: formData
@@ -1258,23 +1266,25 @@ const API_URL = "https://dominguito-san-juan.vercel.app";
         
         const data = await res.json();
         
-        // 3. Muestra el resultado
+        // 3. Muestra el resultado e inyecta los scripts del reporte
         resDiv.innerHTML = data.respuesta;
+        ejecutarScriptsInyectados(resDiv);
         
-        // 4. Refresca el tablero
+        // 4. Refresca el tablero principal
         cargarEstadoActual();
         
     } catch (err) {
         resDiv.innerHTML = "<p style='color:red;'>❌ Error crítico en el motor: " + err.message + "</p>";
     }
 }
-    // Funciones de control del modal
-    function cerrarProcesador() {
-        document.getElementById('modalProcesador').style.display = 'none';
-    }
 
-    // Ejecutar al iniciar
-    window.onload = cargarEstadoActual;   
+// Funciones de control del modal
+function cerrarProcesador() {
+    document.getElementById('modalProcesador').style.display = 'none';
+}
+
+// Ejecutar al iniciar
+window.onload = cargarEstadoActual;
 </script>
 <div id="dominguito-container" style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end;">
     
