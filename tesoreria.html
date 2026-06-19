@@ -1218,78 +1218,69 @@ const API_URL = "https://dominguito-san-juan.vercel.app";
 
 // Función auxiliar para forzar la ejecución de los scripts inyectados
 function ejecutarScriptsInyectados(contenedor) {
-    const scripts = contenedor.getElementsByTagName('script');
-    for (let i = 0; i < scripts.length; i++) {
-        // En lugar de añadir un nuevo script al body, ejecutamos el contenido directamente
-        // Esto evita el problema de redeclarar variables constantes
-        try {
-            // Evaluamos el script en el contexto global
-            window.eval(scripts[i].text);
-        } catch (e) {
-            console.error("Error ejecutando script inyectado:", e);
-        }
-    }
+    const scripts = contenedor.getElementsByTagName('script');
+    for (let i = 0; i < scripts.length; i++) {
+        try {
+            window.eval(scripts[i].text);
+        } catch (e) {
+            console.error("Error ejecutando script inyectado:", e);
+        }
+    }
 }
 
-// 1. Al cargar la página, traemos el reporte guardado en Firebase
+// 1. Al cargar la página, traemos el reporte guardado (Mantenemos Vercel para la tabla)
 async function cargarEstadoActual() {
-    try {
-        const res = await fetch(`${API_URL}/api/contabilidad/obtener_reporte`);
-        const data = await res.json();
-        
-        const contenedor = document.getElementById('contenedor-reporte');
-        const contenido = document.getElementById('contenido-tablero');
-        
-        if (data.respuesta) {
-            contenido.innerHTML = data.respuesta;
-            // Ejecutamos los scripts para activar botones y filtros
-            ejecutarScriptsInyectados(contenido);
-            contenedor.style.display = 'block';
-        }
-    } catch (err) {
-        console.log("No hay reporte previo o error de conexión.");
-    }
+    try {
+        const res = await fetch(`${API_URL}/api/contabilidad/obtener_reporte`);
+        const data = await res.json();
+        
+        const contenedor = document.getElementById('contenedor-reporte');
+        const contenido = document.getElementById('contenido-tablero');
+        
+        if (data.respuesta) {
+            contenido.innerHTML = data.respuesta;
+            ejecutarScriptsInyectados(contenido);
+            contenedor.style.display = 'block';
+        }
+    } catch (err) {
+        console.log("No hay reporte previo o error de conexión.");
+    }
 }
 
-// 2. Lógica para el nuevo Procesador IA Moderno
+// 2. Lógica para el Procesador IA
 async function ejecutarAnalisisIA() {
-    const fileInput = document.getElementById('archivoInputModerno');
-    const resDiv = document.getElementById('resultadoAnalisis');
-    
-    if (fileInput.files.length === 0) return alert("Selecciona un archivo");
+    const fileInput = document.getElementById('archivoInputModerno');
+    const resDiv = document.getElementById('resultadoAnalisis');
+    
+    if (fileInput.files.length === 0) return alert("Selecciona un archivo");
 
-    const file = fileInput.files[0];
-    resDiv.innerHTML = "<div style='text-align:center; padding:40px;'>🧠 <span class='loading'>IA TITANIUM PROCESANDO ARCHIVO BINARIO...</span></div>";
+    const file = fileInput.files[0];
+    resDiv.innerHTML = "<div style='text-align:center; padding:40px;'>🧠 <span class='loading'>IA TITANIUM PROCESANDO...</span></div>";
 
-    const formData = new FormData();
-    formData.append('file', file); 
+    const formData = new FormData();
+    formData.append('file', file); 
 
-    try {
-        const res = await fetch(`${API_URL}/api/contabilidad`, {
-            method: 'POST',
-            body: formData
-        });
-        
-        const data = await res.json();
-        
-        // 3. Muestra el resultado e inyecta los scripts del reporte
-        resDiv.innerHTML = data.respuesta;
-        ejecutarScriptsInyectados(resDiv);
-        
-        // 4. Refresca el tablero principal
-        cargarEstadoActual();
-        
-    } catch (err) {
-        resDiv.innerHTML = "<p style='color:red;'>❌ Error crítico en el motor: " + err.message + "</p>";
-    }
+    try {
+        const res = await fetch(`${API_URL}/api/contabilidad`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await res.json();
+        resDiv.innerHTML = data.respuesta;
+        ejecutarScriptsInyectados(resDiv);
+        cargarEstadoActual();
+    } catch (err) {
+        resDiv.innerHTML = "<p style='color:red;'>❌ Error crítico: " + err.message + "</p>";
+    }
 }
 
-// Funciones de control del modal
 function cerrarProcesador() {
-    document.getElementById('modalProcesador').style.display = 'none';
+    document.getElementById('modalProcesador').style.display = 'none';
 }
+
+// 3. Función blindada: Confirma directo en Firebase (Adiós Error 405)
 window.confirmarPendiente = async function(id) {
-    // Buscamos el botón de forma más segura
     const btn = document.getElementById('btn_' + id) || document.querySelector(`[onclick*="${id}"]`);
     const select = document.getElementById('cat_' + id);
     const categoria = select ? select.value : 'VARIOS';
@@ -1300,30 +1291,26 @@ window.confirmarPendiente = async function(id) {
     }
     
     try {
-        const response = await fetch(`${API_URL}/api/contabilidad/confirmar_asiento`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: id, categoria: categoria })
+        // Grabación directa en Firebase (Ya no pasa por el servidor Vercel)
+        await firebase.database().ref('contabilidad/pendientes/' + id).update({
+            categoria: categoria,
+            estado: 'procesado'
         });
         
-        const result = await response.json();
+        alert("✅ Confirmado con éxito");
         
-        if (response.ok) {
-            alert("✅ Confirmado con éxito");
-            // Llamamos a la función que ya tenés, asegurando que se recargue el DOM
-            await cargarEstadoActual(); 
-        } else {
-            throw new Error(result.message || "Error al confirmar");
-        }
+        // Refrescamos la tabla que viene de Vercel
+        await cargarEstadoActual(); 
     } catch (err) {
         console.error("Error en confirmación:", err);
-        alert("❌ Error: " + err.message);
+        alert("❌ Error al grabar en base de datos: " + err.message);
         if (btn) {
             btn.innerText = 'Confirmar';
             btn.disabled = false;
         }
     }
 };
+
 // Ejecutar al iniciar
 window.onload = cargarEstadoActual;
 </script>
