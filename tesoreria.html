@@ -1287,6 +1287,36 @@ async function ejecutarAnalisisIA() {
 function cerrarProcesador() {
     document.getElementById('modalProcesador').style.display = 'none';
 }
+// Función global para confirmar asientos, declarada fuera de los scripts inyectados
+window.confirmarPendiente = async function(id) {
+    const btn = document.querySelector(`[onclick="confirmarPendiente('${id}')"]`);
+    if (btn) btn.innerText = '⏳ Procesando...';
+    
+    // Obtenemos la categoría seleccionada en el mismo renglón del botón
+    const select = document.getElementById(`cat_${id}`);
+    const categoria = select ? select.value : 'VARIOS';
+
+    try {
+        const response = await fetch(`${API_URL}/api/contabilidad/confirmar_asiento`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: id, categoria: categoria })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alert("✅ Confirmado con éxito");
+            cargarEstadoActual(); // Refresca la tabla automáticamente
+        } else {
+            throw new Error(result.message || "Error al confirmar");
+        }
+    } catch (err) {
+        console.error("Error en confirmación:", err);
+        alert("❌ Error: " + err.message);
+        if (btn) btn.innerText = 'Confirmar';
+    }
+};    
 
 // Ejecutar al iniciar
 window.onload = cargarEstadoActual;
