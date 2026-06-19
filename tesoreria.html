@@ -1279,41 +1279,40 @@ function cerrarProcesador() {
     document.getElementById('modalProcesador').style.display = 'none';
 }
 // 3. Función blindada: Confirma directo en Firebase (Adiós Error 405)
-window.confirmarPendiente = async function(id) {
-    const btn = document.getElementById('btn_' + id);
-    const select = document.getElementById('cat_' + id);
-    const categoria = select ? select.value : 'VARIOS';
+window.confirmarPendiente = async function(id_firebase, id_html) {
+    const btn = document.getElementById('btn_' + id_html);
+    const inputCat = document.getElementById('cat_' + id_html);
+    
+    // Validar datos antes de disparar
+    if (!inputCat || !inputCat.value) {
+        alert("⚠️ Debes ingresar una categoría");
+        return;
+    }
 
     btn.innerText = '⏳ PROCESANDO...';
     btn.disabled = true;
 
     try {
-        // La URL debe ser ABSOLUTA y exacta a tu definición en Python
-        const response = await fetch(`${API_URL}/api/contabilidad/confirmar_asiento`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                id: id, 
-                categoria: categoria 
-            })
+        // ACCIÓN: Escribir en Firebase DIRECTAMENTE desde el cliente
+        await firebase.database().ref('contabilidad/pendientes/' + id_firebase).update({
+            categoria: inputCat.value,
+            estado: 'procesado'
         });
-        
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({message: "Error de servidor"}));
-            throw new Error(errData.message || `Error ${response.status}`);
-        }
 
-        alert("✅ Asiento confirmado y libro diario actualizado");
-        location.reload(); // Recargamos para que el reporte se traiga nuevo desde el server
+        // Opcional: Si necesitas que el servidor se entere, puedes avisarle, 
+        // pero NO uses el fetch para hacer el cambio, úsalo para notificar.
+        alert("✅ Asiento confirmado correctamente.");
+        
+        // Esto refrescará la vista llamando a tu función Python nuevamente
+        location.reload(); 
         
     } catch (err) {
-        console.error("Fallo en la confirmación:", err);
+        console.error("Fallo:", err);
         alert("❌ Error: " + err.message);
         btn.innerText = 'CONFIRMAR';
         btn.disabled = false;
     }
 };
-
 // Ejecutar al iniciar
 window.onload = cargarEstadoActual;
 </script>
