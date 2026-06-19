@@ -153,23 +153,13 @@
     </div>
 </div>
 
-<div id="modalProcesador">
-    <div class="contenedor-pro-moderno">
-        <button class="btn-cerrar" onclick="document.getElementById('modalProcesador').style.display='none'">CERRAR [X]</button>
-        <h2 style="margin-top:0; color:var(--ac);">⚡ PROCESADOR TITANIUM IA</h2>
-        <p style="color:#94a3b8;">Sube el extracto bancario (Excel o CSV) para procesar el análisis contable directamente en el motor.</p>
-        
-        <div style="border: 2px dashed #374151; padding: 20px; border-radius: 12px; text-align: center; background: rgba(0,0,0,0.2);">
-            <input type="file" id="archivoInputModerno" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" style="margin-bottom:15px; cursor:pointer;">
-            <button class="btn" onclick="ejecutarAnalisisIA()" style="max-width: 300px;">🚀 INICIAR ANÁLISIS TITANIUM</button>
-        </div>
-
-        <div id="resultadoAnalisis">
-            <div style="text-align:center; color:#475569; padding:40px;">Esperando archivo para procesar...</div>
-        </div>
-    </div>
+<div class="tarjeta-modulo-tesoreria" style="border-top: 3px solid var(--ac);">
+    <h3>Módulo de Contabilidad Externa</h3>
+    <p>Auditoría de extractos bancarios, conciliaciones automáticas vía DeepSeek y visualización de Libro Diario.</p>
+    <a href="contabilidad.html" target="_blank" class="btn" style="background: var(--ac); text-decoration: none; display: inline-block; text-align: center;">
+        📊 ABRIR PANEL DE CONTROL CONTABLE
+    </a>
 </div>
-
 </body>
 <script>
 // --- 1. CONFIGURACIÓN E INICIALIZACIÓN FIREBASE ---
@@ -1214,107 +1204,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 1000); // 1 segundo de margen para que Firebase descargue los datos
 });
 
-const API_URL = "https://dominguito-san-juan.vercel.app";
-
-// Función auxiliar para forzar la ejecución de los scripts inyectados
-function ejecutarScriptsInyectados(contenedor) {
-    const scripts = contenedor.getElementsByTagName('script');
-    for (let i = 0; i < scripts.length; i++) {
-        try {
-            window.eval(scripts[i].text);
-        } catch (e) {
-            console.error("Error ejecutando script inyectado:", e);
-        }
-    }
-}
-
-// 1. Al cargar la página, traemos el reporte guardado (Mantenemos Vercel para la tabla)
-async function cargarEstadoActual() {
-    try {
-        const res = await fetch(`${API_URL}/api/contabilidad/obtener_reporte`);
-        const data = await res.json();
-        
-        const contenedor = document.getElementById('contenedor-reporte');
-        const contenido = document.getElementById('contenido-tablero');
-        
-        if (data.respuesta) {
-            contenido.innerHTML = data.respuesta;
-            ejecutarScriptsInyectados(contenido);
-            contenedor.style.display = 'block';
-        }
-    } catch (err) {
-        console.log("No hay reporte previo o error de conexión.");
-    }
-}
-
-// 2. Lógica para el Procesador IA
-async function ejecutarAnalisisIA() {
-    const fileInput = document.getElementById('archivoInputModerno');
-    const resDiv = document.getElementById('resultadoAnalisis');
-    
-    if (fileInput.files.length === 0) return alert("Selecciona un archivo");
-
-    const file = fileInput.files[0];
-    resDiv.innerHTML = "<div style='text-align:center; padding:40px;'>🧠 <span class='loading'>IA TITANIUM PROCESANDO...</span></div>";
-
-    const formData = new FormData();
-    formData.append('file', file); 
-
-    try {
-        const res = await fetch(`${API_URL}/api/contabilidad`, {
-            method: 'POST',
-            body: formData
-        });
-        
-        const data = await res.json();
-        resDiv.innerHTML = data.respuesta;
-        ejecutarScriptsInyectados(resDiv);
-        cargarEstadoActual();
-    } catch (err) {
-        resDiv.innerHTML = "<p style='color:red;'>❌ Error crítico: " + err.message + "</p>";
-    }
-}
-
-function cerrarProcesador() {
-    document.getElementById('modalProcesador').style.display = 'none';
-}
-// 3. Función blindada: Confirma directo en Firebase (Adiós Error 405)
-window.confirmarPendiente = async function(id_firebase, id_html) {
-    const btn = document.getElementById('btn_' + id_html);
-    const inputCat = document.getElementById('cat_' + id_html);
-    
-    // Validar datos antes de disparar
-    if (!inputCat || !inputCat.value) {
-        alert("⚠️ Debes ingresar una categoría");
-        return;
-    }
-
-    btn.innerText = '⏳ PROCESANDO...';
-    btn.disabled = true;
-
-    try {
-        // ACCIÓN: Escribir en Firebase DIRECTAMENTE desde el cliente
-        await firebase.database().ref('contabilidad/pendientes/' + id_firebase).update({
-            categoria: inputCat.value,
-            estado: 'procesado'
-        });
-
-        // Opcional: Si necesitas que el servidor se entere, puedes avisarle, 
-        // pero NO uses el fetch para hacer el cambio, úsalo para notificar.
-        alert("✅ Asiento confirmado correctamente.");
-        
-        // Esto refrescará la vista llamando a tu función Python nuevamente
-        location.reload(); 
-        
-    } catch (err) {
-        console.error("Fallo:", err);
-        alert("❌ Error: " + err.message);
-        btn.innerText = 'CONFIRMAR';
-        btn.disabled = false;
-    }
-};
-// Ejecutar al iniciar
-window.onload = cargarEstadoActual;
 </script>
 <div id="dominguito-container" style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end;">
     
