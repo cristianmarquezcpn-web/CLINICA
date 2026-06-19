@@ -1278,36 +1278,39 @@ async function ejecutarAnalisisIA() {
 function cerrarProcesador() {
     document.getElementById('modalProcesador').style.display = 'none';
 }
-
 // 3. Función blindada: Confirma directo en Firebase (Adiós Error 405)
 window.confirmarPendiente = async function(id) {
-    const btn = document.getElementById('btn_' + id) || document.querySelector(`[onclick*="${id}"]`);
+    const btn = document.getElementById('btn_' + id);
     const select = document.getElementById('cat_' + id);
     const categoria = select ? select.value : 'VARIOS';
 
-    if (btn) {
-        btn.innerText = '⏳ PROCESANDO...';
-        btn.disabled = true;
-    }
-    
+    btn.innerText = '⏳ PROCESANDO...';
+    btn.disabled = true;
+
     try {
-        // Grabación directa en Firebase (Ya no pasa por el servidor Vercel)
-        await firebase.database().ref('contabilidad/pendientes/' + id).update({
-            categoria: categoria,
-            estado: 'procesado'
+        // La URL debe ser ABSOLUTA y exacta a tu definición en Python
+        const response = await fetch(`${API_URL}/api/contabilidad/confirmar_asiento`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                id: id, 
+                categoria: categoria 
+            })
         });
         
-        alert("✅ Confirmado con éxito");
-        
-        // Refrescamos la tabla que viene de Vercel
-        await cargarEstadoActual(); 
-    } catch (err) {
-        console.error("Error en confirmación:", err);
-        alert("❌ Error al grabar en base de datos: " + err.message);
-        if (btn) {
-            btn.innerText = 'Confirmar';
-            btn.disabled = false;
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({message: "Error de servidor"}));
+            throw new Error(errData.message || `Error ${response.status}`);
         }
+
+        alert("✅ Asiento confirmado y libro diario actualizado");
+        location.reload(); // Recargamos para que el reporte se traiga nuevo desde el server
+        
+    } catch (err) {
+        console.error("Fallo en la confirmación:", err);
+        alert("❌ Error: " + err.message);
+        btn.innerText = 'CONFIRMAR';
+        btn.disabled = false;
     }
 };
 
