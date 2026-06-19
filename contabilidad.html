@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CFO Titanium - Módulo Contable</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        :root {
+            --bg-principal: #0b0f19;
+            --bg-tarjeta: #131a2c;
+            --bg-input: #1e293b;
+            --borde: #334155;
+            --texto: #f8fafc;
+            --texto-secundario: #94a3b8;
+            --p: #22c55e;   /* Verde para Ingresos / P */
+            --a: #ef4444;   /* Rojo para Egreso / A */
+            --ac: #3b82f6;  /* Azul para Contabilidad / AC */
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-principal);
+            color: var(--texto);
+            margin: 0;
+            padding: 24px;
+        }
+
+        .encabezado-modulo {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--borde);
+            padding-bottom: 16px;
+        }
+
+        .titulo-modulo h1 {
+            margin: 0;
+            font-size: 24px;
+            color: var(--ac);
+        }
+
+        .selector-periodo {
+            background: var(--bg-tarjeta);
+            border: 1px solid var(--borde);
+            color: var(--texto);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* Indicadores de Bancos */
+        .grilla-bancos {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .tarjeta-banco {
+            background: var(--bg-tarjeta);
+            border-left: 4px solid var(--ac);
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+        }
+
+        .banco-meta {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .banco-nombre { font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;}
+        .banco-saldo { font-size: 20px; font-weight: 700; color: var(--texto); }
+
+        .banco-detalles {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--texto-secundario);
+            border-top: 1px solid rgba(255,255,255,0.05);
+            padding-top: 8px;
+        }
+
+        /* Secciones del Tablero */
+        .seccion-tablero {
+            background: var(--bg-tarjeta);
+            border: 1px solid var(--borde);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .seccion-tablero h3 {
+            margin-top: 0;
+            margin-bottom: 16px;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Tablas e hilos de datos */
+        .tabla-contenedor {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        th {
+            background: rgba(255,255,255,0.02);
+            color: var(--texto-secundario);
+            padding: 12px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--borde);
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .monto-ingreso { color: var(--p); font-weight: 600; }
+        .monto-egreso { color: var(--a); font-weight: 600; }
+
+        /* Inputs y Botones Estilizados */
+        .input-categoria {
+            background: var(--bg-input);
+            border: 1px solid var(--borde);
+            color: var(--texto);
+            padding: 6px 12px;
+            border-radius: 6px;
+            width: 150px;
+            font-size: 12px;
+        }
+
+        .btn-accion {
+            background: var(--ac);
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 11px;
+            transition: opacity 0.2s;
+        }
+
+        .btn-accion:hover { opacity: 0.9; }
+
+        /* Modal Procesador IA */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 8, 16, 0.85);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .contenedor-pro-moderno {
+            background: var(--bg-tarjeta);
+            border: 1px solid var(--borde);
+            width: 100%;
+            max-width: 600px;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+        }
+
+        .zona-drop {
+            border: 2px dashed var(--borde);
+            padding: 32px 20px;
+            border-radius: 12px;
+            text-align: center;
+            background: rgba(0,0,0,0.2);
+            margin-bottom: 16px;
+        }
+
+        .loading {
+            animation: pulse 1.5s infinite;
+            font-weight: 600;
+            color: var(--ac);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="encabezado-modulo">
+        <div class="titulo-modulo">
+            <h1>📊 CFO TITANIUM <span style="font-weight: 300; color:var(--texto-secundario)">| Contabilidad Inteligente</span></h1>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <select id="selector-periodo" class="selector-periodo" onchange="cambiarPeriodo()"></select>
+            <button class="btn-accion" style="background: var(--p)" onclick="abrirProcesador()">🚀 SUBIR EXTRACTO</button>
+        </div>
+    </div>
+
+    <div id="grilla-bancos" class="grilla-bancos"></div>
+
+    <div class="seccion-tablero">
+        <h3 style="color: var(--p);">⏳ transacciones pendientes de revisión inteligente</h3>
+        <div class="tabla-contenedor">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Banco</th>
+                        <th>Descripción Original del Extracto</th>
+                        <th>Monto</th>
+                        <th>Propuesta IA / Cuenta Contable</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-pendientes"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="seccion-tablero">
+        <h3 style="color: var(--ac);">📖 libro diario (asientos liquidados por partida doble)</h3>
+        <div class="tabla-contenedor">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Detalle / Concepto Asiento</th>
+                        <th>Código Cuenta</th>
+                        <th>Debe ($)</th>
+                        <th>Haber ($)</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-diario"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="modalProcesador" class="modal">
+        <div class="contenedor-pro-moderno">
+            <h2 style="margin-top:0; color:var(--ac); font-size: 20px;">⚡ MOTOR DE PROCESAMIENTO TITANIUM</h2>
+            <p style="color: var(--texto-secundario); font-size: 13px; margin-bottom: 20px;">Sube un extracto nativo (Galicia o Santander) en formato Excel o CSV. El sistema identificará las columnas automáticamente e invocará al módulo de Inteligencia Contable.</p>
+            
+            <div class="zona-drop">
+                <input type="file" id="archivoInputModerno" accept=".csv, .xlsx, .xls" style="margin-bottom:16px; color: var(--texto-secundario);">
+                <button class="btn-accion" onclick="ejecutarAnalisisIA()" style="width: 100%; padding: 12px;">INICIAR AUDITORÍA DIGITAL</button>
+            </div>
+
+            <div id="resultadoAnalisis" style="margin-top: 12px;"></div>
+            <button class="btn-accion" style="background:#475569; margin-top:16px; width:100%;" onclick="cerrarProcesador()">CERRAR VENTANA</button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "https://dominguito-san-juan.vercel.app";
+        let periodoSeleccionado = "";
+
+        // Inicialización de Firebase (Completa con tus credenciales si no heredas la sesión)
+        // firebase.initializeApp(config);
+
+        async function inicializarModulo() {
+            try {
+                const res = await fetch(`${API_URL}/api/contabilidad/periodos`);
+                const meta = await res.json();
+                const selector = document.getElementById('selector-periodo');
+                
+                selector.innerHTML = "";
+                meta.data.periodos.forEach(p => {
+                    let opt = document.createElement('option');
+                    opt.value = p; opt.innerText = p;
+                    selector.appendChild(opt);
+                });
+                
+                periodoSeleccionado = meta.data.periodo_actual;
+                selector.value = periodoSeleccionado;
+                
+                cargarDatosTablero();
+            } catch (err) {
+                console.error("Error al inicializar períodos:", err);
+            }
+        }
+
+        async function cargarDatosTablero() {
+            if (!periodoSeleccionado) return;
+            try {
+                const res = await fetch(`${API_URL}/api/contabilidad`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ periodo: periodoSeleccionado })
+                });
+                const response = await res.json();
+                if (response.status === 'success') {
+                    renderizarPantalla(response.data);
+                }
+            } catch (err) {
+                console.error("Error al mapear datos del servidor:", err);
+            }
+        }
+
+        function renderizarPantalla(data) {
+            // 1. Renderizar Bloques de Bancos
+            const grilla = document.getElementById('grilla-bancos');
+            grilla.innerHTML = "";
+            for (const [banco, valores] of Object.entries(data.bancos)) {
+                grilla.innerHTML += `
+                    <div class="tarjeta-banco" style="border-left-color: ${banco === 'BANCOGALICIA' ? 'var(--p)' : 'var(--ac)'}">
+                        <div class="banco-meta">
+                            <span class="banco-nombre">${banco.replace('BANCO','BANCO ')}</span>
+                            <span class="banco-saldo">$ ${valores.saldofinal.toLocaleString('es-AR', {minimumFractionDigits:2})}</span>
+                        </div>
+                        <div class="banco-detalles">
+                            <div>Inicial: $ ${valores.saldoinicial}</div>
+                            <div>Ingresos: $ ${valores.totalingresos}</div>
+                            <div>Egresos: $ ${valores.totalegresos}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // 2. Renderizar Transacciones Pendientes
+            const tbodyPendientes = document.getElementById('tabla-pendientes');
+            tbodyPendientes.innerHTML = "";
+            if (data.pendientes.length === 0) {
+                tbodyPendientes.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--texto-secundario);">🎉 Sin movimientos pendientes de auditoría en este periodo.</td></tr>`;
+            } else {
+                data.pendientes.forEach((mov, index) => {
+                    tbodyPendientes.innerHTML += `
+                        <tr>
+                            <td>${mov.fecha}</td>
+                            <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
+                            <td style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${mov.descripcion}">${mov.descripcion}</td>
+                            <td><span class="${mov.monto > 0 ? 'monto-ingreso' : 'monto-egreso'}">$ ${mov.monto}</span></td>
+                            <td>
+                                <input type="text" id="cat_${index}" class="input-categoria" value="${mov.categoria || 'VARIOS'}" placeholder="CUENTA">
+                            </td>
+                            <td>
+                                <button id="btn_${index}" class="btn-accion" style="background: var(--p);" onclick="confirmarPendiente('${mov.id_firebase}', '${index}')">CONFIRMAR</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            // 3. Renderizar Libro Diario Estructurado
+            const tbodyDiario = document.getElementById('tabla-diario');
+            tbodyDiario.innerHTML = "";
+            if (data.diario.length === 0) {
+                tbodyDiario.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--texto-secundario);">No se registran asientos asentados en el mes.</td></tr>`;
+            } else {
+                data.diario.forEach(asiento => {
+                    asiento.asientos.forEach((linea, lIdx) => {
+                        tbodyDiario.innerHTML += `
+                            <tr style="${lIdx === 0 ? 'border-top: 1px solid var(--borde);' : ''}">
+                                <td>${lIdx === 0 ? asiento.fecha : ''}</td>
+                                <td style="${linea.haber > 0 ? 'padding-left: 30px; color: var(--texto-secundario);' : 'font-weight:500;'}">${linea.cuenta}</td>
+                                <td style="color: var(--texto-secundario); font-family: monospace;">${linea.codigo}</td>
+                                <td class="monto-ingreso">${linea.debe > 0 ? '$ ' + linea.debe : ''}</td>
+                                <td class="monto-egreso">${linea.haber > 0 ? '$ ' + linea.haber : ''}</td>
+                            </tr>
+                        `;
+                    });
+                });
+            }
+        }
+
+        function cambiarPeriodo() {
+            periodoSeleccionado = document.getElementById('selector-periodo').value;
+            cargarDatosTablero();
+        }
+
+        function abrirProcesador() { document.getElementById('modalProcesador').style.display = 'flex'; }
+        function cerrarProcesador() { document.getElementById('modalProcesador').style.display = 'none'; }
+
+        async function ejecutarAnalisisIA() {
+            const fileInput = document.getElementById('archivoInputModerno');
+            const resDiv = document.getElementById('resultadoAnalisis');
+            if (fileInput.files.length === 0) return alert("Selecciona un archivo");
+
+            resDiv.innerHTML = `<div class="loading">🧠 IA TITANIUM AUDITANDO EXTRACTO...</div>`;
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const res = await fetch(`${API_URL}/api/contabilidad`, { method: 'POST', body: formData });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    resDiv.innerHTML = `<span style="color:var(--p)">✅ Procesado con éxito. Se detectaron transacciones de ${data.data.pendientes[0]?.banco_origen || 'banco'}.</span>`;
+                    setTimeout(() => { cerrarProcesador(); inicializarModulo(); }, 1500);
+                }
+            } catch (err) {
+                resDiv.innerHTML = `<span style="color:var(--a)">❌ Error crítico en motor: ${err.message}</span>`;
+            }
+        }
+
+        window.confirmarPendiente = async function(id_firebase, id_html) {
+            const btn = document.getElementById('btn_' + id_html);
+            const inputCat = document.getElementById('cat_' + id_html);
+            
+            if (!inputCat || !inputCat.value) return alert("⚠️ Ingresa una cuenta contable válida");
+
+            btn.innerText = '⏳ ASENTANDO...';
+            btn.disabled = true;
+
+            try {
+                // Notifica y asienta por backend mediante API Rest segura para correr la lógica de partida doble
+                const res = await fetch(`${API_URL}/api/contabilidad/confirmar_asiento`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id_firebase, categoria: inputCat.value.toUpperCase(), periodo: periodoSeleccionado })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    cargarDatosTablero();
+                }
+            } catch (err) {
+                alert("❌ Fallo en registro: " + err.message);
+                btn.innerText = 'CONFIRMAR'; btn.disabled = false;
+            }
+        };
+
+        window.onload = inicializarModulo;
+    </script>
+</body>
+</html>
