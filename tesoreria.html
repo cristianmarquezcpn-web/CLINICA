@@ -1213,112 +1213,78 @@ window.addEventListener('DOMContentLoaded', () => {
         if (typeof proyectarTodo === 'function') proyectarTodo();
     }, 1000); // 1 segundo de margen para que Firebase descargue los datos
 });
-const API_URL = "https://dominguito-san-juan.vercel.app";
 
-// Función auxiliar para forzar la ejecución de los scripts inyectados
-function ejecutarScriptsInyectados(contenedor) {
-    const scripts = contenedor.getElementsByTagName('script');
-    for (let i = 0; i < scripts.length; i++) {
-        // En lugar de añadir un nuevo script al body, ejecutamos el contenido directamente
-        // Esto evita el problema de redeclarar variables constantes
-        try {
-            // Evaluamos el script en el contexto global
-            window.eval(scripts[i].text);
-        } catch (e) {
-            console.error("Error ejecutando script inyectado:", e);
-        }
-    }
-}
-
-// 1. Al cargar la página, traemos el reporte guardado en Firebase
 async function cargarEstadoActual() {
+    const contenedor = document.getElementById('contenedor-reporte');
+    const contenido = document.getElementById('contenido-tablero');
+    
     try {
-        const res = await fetch(`${API_URL}/api/contabilidad/obtener_reporte`);
-        const data = await res.json();
+        // Obtenemos los pendientes directamente de Firebase
+        const snapshot = await firebase.database().ref('contabilidad/pendientes').once('value');
+        const data = snapshot.val();
         
-        const contenedor = document.getElementById('contenedor-reporte');
-        const contenido = document.getElementById('contenido-tablero');
-        
-        if (data.respuesta) {
-            contenido.innerHTML = data.respuesta;
-            // Ejecutamos los scripts para activar botones y filtros
-            ejecutarScriptsInyectados(contenido);
+        if (data) {
+            // Aquí reconstruirías tu HTML basado en los datos de 'data'
+            // O, si prefieres mantener tu lógica anterior de inyección, 
+            // asegúrate de que el HTML generado sea local.
             contenedor.style.display = 'block';
         }
     } catch (err) {
-        console.log("No hay reporte previo o error de conexión.");
+        console.log("Error al cargar desde Firebase:", err);
     }
 }
 
-// 2. Lógica para el nuevo Procesador IA Moderno
-async function ejecutarAnalisisIA() {
-    const fileInput = document.getElementById('archivoInputModerno');
-    const resDiv = document.getElementById('resultadoAnalisis');
-    
-    if (fileInput.files.length === 0) return alert("Selecciona un archivo");
+// 2. Lógica para confirmar asientos (AHORA 100% FIREBASE)
+window.confirmarPendiente = async function(id) {
+    const btn = document.getElementById('btn_' + id);
+    const select = document.getElementById('cat_' + id);
+    const categoria = select ? select.value : 'VARIOS';
 
-    const file = fileInput.files[0];
-    resDiv.innerHTML = "<div style='text-align:center; padding:40px;'>🧠 <span class='loading'>IA TITANIUM PROCESANDO ARCHIVO BINARIO...</span></div>";
+    if (!categoria) {
+        alert("¡Debes ingresar una categoría!");
+        return;
+    }
 
-    const formData = new FormData();
-    formData.append('file', file); 
+    if (btn) {
+        btn.innerText = '⏳ PROCESANDO...';
+        btn.disabled = true;
+        btn.style.background = '#64748b';
+    }
 
     try {
-        const res = await fetch(`${API_URL}/api/contabilidad`, {
-            method: 'POST',
-            body: formData
+        // A) Actualizamos el asiento en Firebase
+        await firebase.database().ref('contabilidad/pendientes/' + id).update({
+            categoria: categoria,
+            estado: 'procesado'
         });
+
+        // B) Disparamos el aprendizaje IA en Firebase
+        const fila = btn.closest('tr');
+        const desc = fila.cells[1].innerText;
         
-        const data = await res.json();
-        
-        // 3. Muestra el resultado e inyecta los scripts del reporte
-        resDiv.innerHTML = data.respuesta;
-        ejecutarScriptsInyectados(resDiv);
-        
-        // 4. Refresca el tablero principal
-        cargarEstadoActual();
-        
+        await firebase.database().ref('aprendizaje_ia/reglas_personalizadas').push({
+            descripcion_keyword: desc.substring(0, 15).toUpperCase(),
+            categoria_ajustada: categoria,
+            timestamp: Date.now()
+        });
+
+        alert("✅ Confirmado y aprendido con éxito");
+        cargarEstadoActual(); // Refresca la tabla
     } catch (err) {
-        resDiv.innerHTML = "<p style='color:red;'>❌ Error crítico en el motor: " + err.message + "</p>";
+        console.error("Error en Firebase:", err);
+        alert("❌ Error al grabar: " + err.message);
+        if (btn) {
+            btn.innerText = 'CONFIRMAR';
+            btn.disabled = false;
+            btn.style.background = '#38bdf8';
+        }
     }
-}
+};
 
 // Funciones de control del modal
 function cerrarProcesador() {
     document.getElementById('modalProcesador').style.display = 'none';
 }
-// Función global para confirmar asientos, declarada fuera de los scripts inyectados
-window.confirmarPendiente = async function(id) {
-    const btn = document.querySelector(`[onclick="confirmarPendiente('${id}')"]`);
-    if (btn) btn.innerText = '⏳ Procesando...';
-    
-    // Obtenemos la categoría seleccionada en el mismo renglón del botón
-    const select = document.getElementById(`cat_${id}`);
-    const categoria = select ? select.value : 'VARIOS';
-
-    try {
-        const response = await fetch(`${API_URL}/api/contabilidad/confirmar_asiento`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: id, categoria: categoria })
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-            alert("✅ Confirmado con éxito");
-            cargarEstadoActual(); // Refresca la tabla automáticamente
-        } else {
-            throw new Error(result.message || "Error al confirmar");
-        }
-    } catch (err) {
-        console.error("Error en confirmación:", err);
-        alert("❌ Error: " + err.message);
-        if (btn) btn.innerText = 'Confirmar';
-    }
-};    
-
-// Ejecutar al iniciar
 window.onload = cargarEstadoActual;
 </script>
 <div id="dominguito-container" style="position:fixed; bottom:30px; right:30px; z-index:999999; display: flex; flex-direction: column; align-items: flex-end;">
