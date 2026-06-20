@@ -334,10 +334,8 @@
             }
         }
 
-       function renderizarPantalla(data) {
-    // ==========================================
-    // 1. Renderizar Bloques de Bancos
-    // ==========================================
+    function renderizarPantalla(data) {
+    // 1. Renderizar Bancos
     const grilla = document.getElementById('grilla-bancos');
     if (grilla) {
         grilla.innerHTML = "";
@@ -360,9 +358,7 @@
         }
     }
 
-    // ==========================================
     // 2. Renderizar Transacciones Pendientes
-    // ==========================================
     const tbodyPendientes = document.getElementById('tabla-pendientes');
     if (tbodyPendientes) {
         tbodyPendientes.innerHTML = "";
@@ -388,21 +384,18 @@
         }
     }
 
-    // ==========================================
-    // 3. Renderizar Libro Diario (Con opción de Edición/Baja)
-    // ==========================================
+    // 3. Renderizar Libro Diario
     const tbodyDiario = document.getElementById('tabla-diario');
     if (tbodyDiario) {
         tbodyDiario.innerHTML = "";
         if (!data.diario || data.diario.length === 0) {
             tbodyDiario.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No se registran asientos asentados en el mes.</td></tr>`;
         } else {
-            data.diario.forEach((asiento, aIdx) => {
+            data.diario.forEach((asiento) => {
                 if (asiento.asientos) {
                     asiento.asientos.forEach((linea, lIdx) => {
-                        // El botón de eliminar se muestra solo en el primer renglón del asiento para evitar inconsistencias de partida doble
                         const botonAccion = lIdx === 0 
-                            ? `<button class="btn-eliminar-asiento" title="Deshacer asiento y editar movimiento" style="background:transparent; border:none; color:var(--a); cursor:pointer;" onclick="deshacerAsiento('${asiento.id_origen || ''}', '${data.periodo}')">🗑️</button>` 
+                            ? `<button class="btn-eliminar-asiento" title="Deshacer asiento" style="background:transparent; border:none; color:var(--a); cursor:pointer;" onclick="deshacerAsiento('${asiento.id_origen || ''}', '${data.periodo}')">🗑️</button>` 
                             : '';
 
                         tbodyDiario.innerHTML += `
@@ -422,26 +415,13 @@
         }
     }
 
-    // ==========================================
-    // 4. Renderizar Libro Mayor Dinámico (Corrección de Estructura de Array)
-    // ==========================================
+    // 4. Renderizar Libro Mayor
     const tbodyMayor = document.getElementById('tabla-mayor');
     if (tbodyMayor) {
         tbodyMayor.innerHTML = "";
-        // Inyectamos el input del filtro del mayor dinámicamente arriba de la tabla si no existe en el DOM
-        if (!document.getElementById('filtroMayor')) {
-            const contenedorMayor = tbodyMayor.closest('.seccion-mayor') || tbodyMayor.parentElement;
-            const inputFiltro = document.createElement('div');
-            inputFiltro.innerHTML = `
-                <input type="text" id="filtroMayor" class="form-control bg-dark text-white border-secondary mb-2" placeholder="🔍 Filtrar cuentas analíticas del Mayor..." onkeyup="filtrarTablaMayor()" style="font-size:13px; max-width:300px;">
-            `;
-            contenedorMayor.insertBefore(inputFiltro, contenedorMayor.firstChild);
-        }
-
         if (!data.mayor || data.mayor.length === 0) {
-            tbodyMayor.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No hay acumulados para generar mayores en este período.</td></tr>`;
+            tbodyMayor.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No hay acumulados en este período.</td></tr>`;
         } else {
-            // Se corrige la iteración: data.mayor viene como una Lista ordenada desde Python
             data.mayor.forEach(cuenta => {
                 const saldo = cuenta.saldo || 0.0;
                 tbodyMayor.innerHTML += `
@@ -457,7 +437,6 @@
         }
     }
 }
-
 // ==========================================
 // 5. Motores de Filtrado Auxiliares (JS)
 // ==========================================
