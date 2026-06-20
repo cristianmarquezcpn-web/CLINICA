@@ -702,17 +702,29 @@ async function confirmarCreacionCuenta() {
     const nombre = document.getElementById('nombreCuenta').value;
     const tipo = document.getElementById('tipoCuenta').value;
 
-    const res = await fetch('/api/contabilidad/crear_cuenta', {
+    // --- CORRECCIÓN: Definimos la URL de forma segura ---
+    // Si API_URL no existe, usamos la URL base de tu backend en Vercel.
+    // Sustituye 'tu-proyecto' por el nombre real de tu app en Vercel.
+    const url = (typeof API_URL !== 'undefined') 
+                ? `${API_URL}/api/contabilidad/crear_cuenta` 
+                : 'https://tu-proyecto.vercel.app/api/contabilidad/crear_cuenta';
+
+    const res = await fetch(url, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ clave, nombre, tipo })
     });
     
+    // Ahora el navegador sí sabe a qué servidor enviar el POST
+    const data = await res.json();
+    
     if (res.ok) {
         document.getElementById('modalCuenta').style.display = 'none';
         alert("Cuenta creada. Ahora podés procesar el movimiento nuevamente.");
+    } else {
+        alert("Error: " + (data.message || "Error desconocido"));
     }
-}        
+}
         window.onload = inicializarModulo;
 </script>
 </body>
