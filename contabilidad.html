@@ -196,6 +196,32 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+     /* CORRECCIÓN DE TABLAS (SIN BORRAR NADA) */
+    table { table-layout: fixed !important; width: 100% !important; }
+    th, td { overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+    
+    /* COLORES SOLICITADOS */
+    .color-p { color: var(--p) !important; font-weight: 600 !important; }
+    .color-a { color: var(--a) !important; font-weight: 600 !important; }
+    .color-ac { color: var(--ac) !important; font-weight: 600 !important; }
+
+    /* ANCHOS FIJOS PARA QUE NO SE CORRAN LAS COLUMNAS */
+    /* Tabla Pendientes */
+    #tabla-pendientes td:nth-child(4) { width: 15%; }
+    /* Tabla Diario */
+    #tabla-diario td:nth-child(4), #tabla-diario td:nth-child(5) { width: 15%; }
+    /* Tabla Mayor */
+    #tabla-mayor td:nth-child(3), #tabla-mayor td:nth-child(4), #tabla-mayor td:nth-child(5) { width: 20%; } 
+    /* Esto hace que los textos largos bajen de renglón en lugar de desaparecer */
+    .desc-corta { 
+    white-space: normal !important; 
+    word-wrap: break-word !important; 
+    overflow: visible !important; 
+    }
+    .input-categoria, .input-comentario {
+    width: 100% !important;
+    box-sizing: border-box;
+    }    
     </style>
     <style>
     .hidden { display: none; }
@@ -354,7 +380,7 @@
                 console.error("Error al mapear datos del servidor:", err);
             }
         }
-    function renderizarPantalla(data) {
+function renderizarPantalla(data) {
     // 1. Renderizar Bancos
     const grilla = document.getElementById('grilla-bancos');
     if (grilla) {
@@ -390,10 +416,13 @@
                     <tr>
                         <td>${mov.fecha}</td>
                         <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
-                        <td style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${mov.descripcion}">${mov.descripcion}</td>
+                        <td class="desc-corta" title="${mov.descripcion}" style="white-space:normal; word-wrap:break-word;">
+                            ${mov.descripcion}
+                        </td>
                         <td><span class="${mov.monto > 0 ? 'monto-ingreso' : 'monto-egreso'}">$ ${mov.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span></td>
                         <td>
-                            <input type="text" id="cat_${index}" class="input-categoria" value="${mov.categoria || 'VARIOS'}" placeholder="CUENTA">
+                            <input type="text" id="cat_${index}" class="input-categoria" value="${mov.categoria || 'VARIOS'}" placeholder="CUENTA" style="width:100%; margin-bottom:4px;">
+                            <input type="text" id="com_${index}" class="input-comentario" placeholder="Comentario..." style="font-size:10px; width:100%; background: var(--bg-input); border: 1px solid var(--borde); color: white; padding: 4px; border-radius: 4px;">
                         </td>
                         <td>
                             <button id="btn_${index}" class="btn-accion" style="background: var(--p); color: #fff;" onclick="confirmarPendiente('${mov.id_firebase}', '${index}')">CONFIRMAR</button>
@@ -414,19 +443,15 @@
             data.diario.forEach((asiento) => {
                 if (asiento.asientos) {
                     asiento.asientos.forEach((linea, lIdx) => {
-                        // Seguridad para evitar que comillas en la categoría rompan el HTML
                         const catSafe = asiento.categoria ? String(asiento.categoria).replace(/'/g, "\\'") : '';
-                        
-                        const botonAccion = lIdx === 0 
-                            ? `<button title="Editar asiento" style="background:transparent; border:none; color:var(--p); cursor:pointer;" onclick="editarAsiento('${asiento.id_origen || ''}', '${data.periodo}', '${catSafe}')">✎</button>` 
-                            : '';
+                        const botonAccion = lIdx === 0 ? `<button title="Editar asiento" style="background:transparent; border:none; color:var(--p); cursor:pointer;" onclick="editarAsiento('${asiento.id_origen || ''}', '${data.periodo}', '${catSafe}')">✎</button>` : '';
 
                         tbodyDiario.innerHTML += `
                             <tr style="${lIdx === 0 ? 'border-top: 2px solid rgba(255,255,255,0.1);' : ''}">
                                 <td>${lIdx === 0 ? asiento.fecha : ''}</td>
                                 <td style="max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${asiento.descripcion || ''}">${lIdx === 0 ? (asiento.descripcion || '') : ''}</td>
-                                <td style="${linea.haber > 0 ? 'padding-left: 25px; color: rgba(255,255,255,0.6);' : 'font-weight:500;'}">${linea.cuenta}</td>
-                                <td style="color: rgba(255,255,255,0.4); font-family: monospace; font-size:12px;">${linea.codigo}</td>
+                                <td class="color-ac" style="${linea.haber > 0 ? 'padding-left: 25px;' : 'font-weight:500;'}">${linea.cuenta}</td>
+                                <td style="color: var(--texto-secundario); font-family: monospace; font-size:12px;">${linea.codigo}</td>
                                 <td class="monto-ingreso" style="font-family: monospace;">${linea.debe > 0 ? '$ ' + linea.debe.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : ''}</td>
                                 <td class="monto-egreso" style="font-family: monospace;">${linea.haber > 0 ? '$ ' + linea.haber.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : ''}</td>
                                 <td style="text-align:center;">${botonAccion}</td>
@@ -450,9 +475,9 @@
                 tbodyMayor.innerHTML += `
                     <tr onclick="document.getElementById('det_${idx}').classList.toggle('hidden')" style="cursor:pointer; background: rgba(255,255,255,0.02);">
                         <td style="font-family: monospace;">${cuenta.codigo}</td>
-                        <td style="font-weight: 600;">${cuenta.nombre}</td>
+                        <td style="font-weight: 600;" class="color-ac">${cuenta.nombre}</td>
                         <td colspan="2" style="font-size:10px; color:var(--a);">CLICK PARA VER ${cuenta.movimientos.length} MOVIMIENTOS</td>
-                        <td style="font-weight: 700; color: ${saldo >= 0 ? 'var(--p)' : 'var(--a)'};">$ ${saldo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                        <td style="font-weight: 700;" class="${saldo >= 0 ? 'monto-ingreso' : 'monto-egreso'}">$ ${saldo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
                     </tr>
                     <tr id="det_${idx}" class="hidden">
                         <td colspan="5" style="padding:0;">
@@ -461,8 +486,8 @@
                                     <div style="display:grid; grid-template-columns: 100px 1fr 100px 100px; font-size:11px; padding:4px; border-bottom:1px solid #222;">
                                         <span>${m.fecha}</span>
                                         <span>${m.descripcion}</span>
-                                        <span style="color:var(--p); text-align:right;">${m.debe > 0 ? '$ ' + m.debe.toLocaleString() : '-'}</span>
-                                        <span style="color:var(--a); text-align:right;">${m.haber > 0 ? '$ ' + m.haber.toLocaleString() : '-'}</span>
+                                        <span class="monto-ingreso" style="text-align:right;">${m.debe > 0 ? '$ ' + m.debe.toLocaleString() : '-'}</span>
+                                        <span class="monto-egreso" style="text-align:right;">${m.haber > 0 ? '$ ' + m.haber.toLocaleString() : '-'}</span>
                                     </div>
                                 `).join('')}
                             </div>
@@ -473,7 +498,6 @@
         }
     }
 }
- 
         // Funciones de Filtrado
         function filtrarTablaPendientes() {
             const textoBusqueda = document.getElementById('filtroTexto').value.toUpperCase();
@@ -553,32 +577,42 @@
                 resDiv.innerHTML = `<span style="color:var(--a)">❌ Error crítico en motor: ${err.message}</span>`;
             }
         }
+    window.confirmarPendiente = async function(id_firebase, id_html) {
+    const btn = document.getElementById('btn_' + id_html);
+    const inputCat = document.getElementById('cat_' + id_html);
+    const inputCom = document.getElementById('com_' + id_html); // Capturamos comentario
+    
+    if (!inputCat || !inputCat.value) return alert("⚠️ Ingresa una cuenta");
 
-        window.confirmarPendiente = async function(id_firebase, id_html) {
-            const btn = document.getElementById('btn_' + id_html);
-            const inputCat = document.getElementById('cat_' + id_html);
-            
-            if (!inputCat || !inputCat.value) return alert("⚠️ Ingresa una cuenta contable válida");
+    btn.innerText = '⏳ PROCESANDO...';
+    btn.disabled = true;
 
-            btn.innerText = '⏳ ASENTANDO...';
-            btn.disabled = true;
-
-            try {
-                const res = await fetch(`${API_URL}/api/contabilidad/confirmar_asiento`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: id_firebase, categoria: inputCat.value.toUpperCase(), periodo: periodoSeleccionado })
-                });
-                const data = await res.json();
-                if (data.status === 'success') {
-                    cargarDatosTablero();
-                }
-            } catch (err) {
-                alert("❌ Fallo en registro: " + err.message);
-                btn.innerText = 'CONFIRMAR'; btn.disabled = false;
-            }
-        };
-
+    try {
+        const res = await fetch(`${API_URL}/api/contabilidad/confirmar_asiento`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                id: id_firebase, 
+                categoria: inputCat.value.toUpperCase(),
+                comentario: inputCom.value, // Enviamos el comentario al Python
+                periodo: periodoSeleccionado 
+            })
+        });
+        
+        const data = await res.json();
+        if (data.status === 'success') {
+            // En lugar de recargar todo, solo marcamos visualmente o recargamos
+            btn.style.background = 'var(--ac)';
+            btn.innerText = '✅ ASENTADO';
+            // Opcional: setTimeout(() => cargarDatosTablero(), 1000); 
+            // Si recargas, el movimiento ya no aparecerá en "pendientes" si tu backend lo filtra
+        }
+    } catch (err) {
+        alert("❌ Error: " + err.message);
+        btn.innerText = 'CONFIRMAR'; btn.disabled = false;
+    }
+};
+        
     function editarAsiento(idOrigen, periodo, categoriaActual) {
     if (!idOrigen) {
         alert("Este asiento no cuenta con ID de rastreo directo.");
