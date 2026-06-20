@@ -413,8 +413,8 @@
                         if (asiento.asientos) {
                             asiento.asientos.forEach((linea, lIdx) => {
                                 const botonAccion = lIdx === 0 
-                                    ? `<button title="Deshacer asiento" style="background:transparent; border:none; color:var(--a); cursor:pointer;" onclick="deshacerAsiento('${asiento.id_origen || ''}', '${data.periodo}')">🗑️</button>` 
-                                    : '';
+                                ? `<button title="Editar asiento" style="background:transparent; border:none; color:var(--p); cursor:pointer;" onclick="editarAsiento('${asiento.id_origen || ''}', '${data.periodo}', '${asiento.categoria || ''}')">✎</button>` 
+                                : '';
 
                                 tbodyDiario.innerHTML += `
                                     <tr style="${lIdx === 0 ? 'border-top: 2px solid rgba(255,255,255,0.1);' : ''}">
@@ -435,33 +435,39 @@
 
             // 4. Renderizar Libro Mayor Robusto
             const tbodyMayor = document.getElementById('tabla-mayor');
-            if (tbodyMayor) {
-                tbodyMayor.innerHTML = "";
-                if (!data.mayor) {
-                    tbodyMayor.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No hay acumulados en este período.</td></tr>`;
-                } else {
-                    const listaMayor = Array.isArray(data.mayor) ? data.mayor : Object.values(data.mayor);
-                    
-                    if (listaMayor.length === 0) {
-                        tbodyMayor.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No hay acumulados para generar mayores.</td></tr>`;
-                    } else {
-                        listaMayor.forEach(cuenta => {
-                            const saldo = cuenta.saldo || 0.0;
-                            tbodyMayor.innerHTML += `
-                                <tr>
-                                    <td style="font-family: monospace; color: var(--texto-secundario);">${cuenta.codigo || '—'}</td>
-                                    <td style="font-weight: 600;">${cuenta.nombre || 'Cuenta sin nombre'}</td>
-                                    <td style="color: rgba(255,255,255,0.7); font-family: monospace;">—</td>
-                                    <td style="color: rgba(255,255,255,0.7); font-family: monospace;">—</td>
-                                    <td style="font-weight: 700; color: ${saldo >= 0 ? 'var(--p)' : 'var(--a)'}; font-family: monospace;">$ ${saldo.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
-                                </tr>
-                            `;
-                        });
-                    }
-                }
-            }
-        }
-
+if (tbodyMayor) {
+    tbodyMayor.innerHTML = "";
+    if (!data.mayor || data.mayor.length === 0) {
+        tbodyMayor.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No hay acumulados.</td></tr>`;
+    } else {
+        data.mayor.forEach((cuenta, idx) => {
+            const saldo = cuenta.saldo || 0.0;
+            // Fila principal
+            tbodyMayor.innerHTML += `
+                <tr onclick="document.getElementById('det_${idx}').classList.toggle('hidden')" style="cursor:pointer; background: rgba(255,255,255,0.02);">
+                    <td style="font-family: monospace;">${cuenta.codigo}</td>
+                    <td style="font-weight: 600;">${cuenta.nombre}</td>
+                    <td colspan="2" style="font-size:10px; color:var(--a);">CLICK PARA VER ${cuenta.movimientos.length} MOVIMIENTOS</td>
+                    <td style="font-weight: 700; color: ${saldo >= 0 ? 'var(--p)' : 'var(--a)'};">$ ${saldo.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                </tr>
+                <tr id="det_${idx}" class="hidden">
+                    <td colspan="5" style="padding:0;">
+                        <div style="background: rgba(0,0,0,0.2); padding: 10px;">
+                            ${cuenta.movimientos.map(m => `
+                                <div style="display:grid; grid-template-columns: 100px 1fr 100px 100px; font-size:11px; padding:4px; border-bottom:1px solid #222;">
+                                    <span>${m.fecha}</span>
+                                    <span>${m.descripcion}</span>
+                                    <span style="color:var(--p); text-align:right;">${m.debe > 0 ? '$ ' + m.debe.toLocaleString() : '-'}</span>
+                                    <span style="color:var(--a); text-align:right;">${m.haber > 0 ? '$ ' + m.haber.toLocaleString() : '-'}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+}
         // Funciones de Filtrado
         function filtrarTablaPendientes() {
             const textoBusqueda = document.getElementById('filtroTexto').value.toUpperCase();
@@ -567,30 +573,39 @@
             }
         };
 
-        function deshacerAsiento(idOrigen, periodo) {
-            if(!idOrigen) {
-                alert("Este asiento es antiguo o general y no cuenta con ID de rastreo directo.");
-                return;
-            }
-            if(!confirm("¿Estás seguro de que querés deshacer este asiento? El movimiento volverá al estado de revisión inteligente.")) return;
+    function editarAsiento(idOrigen, periodo, categoriaActual) {
+    if (!idOrigen) {
+        alert("Este asiento no cuenta con ID de rastreo directo.");
+        return;
+    }
 
-            fetch(`${API_URL}/api/contabilidad/deshacer_asiento`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: idOrigen, periodo: periodo })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if(data.status === 'success' || data.status === 'ok') {
-                    alert("Asiento deshecho con éxito. Los saldos fueron recalculados.");
-                    renderizarPantalla(data);
-                } else {
-                    alert("Error: " + data.message);
-                }
-            })
-            .catch(err => console.error("Error al conectar con la API:", err));
-        }        
+    // Pedimos la nueva categoría. Puedes cambiar esto por un <select> o modal si preferís.
+    const nuevaCategoria = prompt("Escribí la nueva categoría para este asiento:", categoriaActual);
+    
+    if (!nuevaCategoria || nuevaCategoria === categoriaActual) return;
 
+    if (!confirm(`¿Confirmás cambiar la categoría a "${nuevaCategoria}"? El asiento y el mayor se actualizarán automáticamente.`)) return;
+
+    fetch(`${API_URL}/api/contabilidad/editar_asiento`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            id: idOrigen, 
+            periodo: periodo, 
+            nueva_categoria: nuevaCategoria 
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert("Asiento editado y Mayor actualizado con éxito.");
+            renderizarPantalla(data);
+        } else {
+            alert("Error al editar: " + (data.message || "Error desconocido"));
+        }
+    })
+    .catch(err => console.error("Error al conectar con la API:", err));
+}
         window.onload = inicializarModulo;
     </script>
 </body>
