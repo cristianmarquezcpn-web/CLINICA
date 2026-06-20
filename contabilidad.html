@@ -405,34 +405,42 @@ function renderizarPantalla(data) {
     }
 
     // 2. Renderizar Transacciones Pendientes
-    const tbodyPendientes = document.getElementById('tabla-pendientes');
-    if (tbodyPendientes) {
-        tbodyPendientes.innerHTML = "";
-        if (!data.pendientes || data.pendientes.length === 0) {
-            tbodyPendientes.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--texto-secundario); padding: 20px;">🎉 Sin movimientos pendientes de auditoría en este periodo.</td></tr>`;
-        } else {
-            data.pendientes.forEach((mov, index) => {
-                tbodyPendientes.innerHTML += `
-                    <tr>
-                        <td>${mov.fecha}</td>
-                        <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
-                        <td class="desc-corta" title="${mov.descripcion}" style="white-space:normal; word-wrap:break-word;">
-                            ${mov.descripcion}
-                        </td>
-                        <td><span class="${mov.monto > 0 ? 'monto-ingreso' : 'monto-egreso'}">$ ${mov.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span></td>
-                        <td>
-                            <input type="text" id="cat_${index}" class="input-categoria" value="${mov.categoria || 'VARIOS'}" placeholder="CUENTA" style="width:100%; margin-bottom:4px;">
-                            <input type="text" id="com_${index}" class="input-comentario" placeholder="Comentario..." style="font-size:10px; width:100%; background: var(--bg-input); border: 1px solid var(--borde); color: white; padding: 4px; border-radius: 4px;">
-                        </td>
-                        <td>
-                            <button id="btn_${index}" class="btn-accion" style="background: var(--p); color: #fff;" onclick="confirmarPendiente('${mov.id_firebase}', '${index}')">CONFIRMAR</button>
-                        </td>
-                    </tr>
-                `;
-            });
-        }
+const tbodyPendientes = document.getElementById('tabla-pendientes');
+if (tbodyPendientes) {
+    tbodyPendientes.innerHTML = "";
+    if (!data.pendientes || data.pendientes.length === 0) {
+        tbodyPendientes.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--texto-secundario); padding: 20px;">🎉 Sin movimientos pendientes de auditoría en este periodo.</td></tr>`;
+    } else {
+        data.pendientes.forEach((mov, index) => {
+            // Evaluamos si ya está procesado
+            const isProcesado = mov.procesado === true;
+            
+            tbodyPendientes.innerHTML += `
+                <tr>
+                    <td>${mov.fecha}</td>
+                    <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
+                    <td class="desc-corta" title="${mov.descripcion}" style="white-space:normal; word-wrap:break-word;">
+                        ${mov.descripcion}
+                    </td>
+                    <td><span class="${mov.monto > 0 ? 'monto-ingreso' : 'monto-egreso'}">$ ${mov.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span></td>
+                    <td>
+                        <input type="text" id="cat_${index}" class="input-categoria" value="${mov.categoria || 'VARIOS'}" placeholder="CUENTA" style="width:100%; margin-bottom:4px;" ${isProcesado ? 'disabled' : ''}>
+                        <input type="text" id="com_${index}" class="input-comentario" placeholder="Comentario..." style="font-size:10px; width:100%; background: var(--bg-input); border: 1px solid var(--borde); color: white; padding: 4px; border-radius: 4px;" ${isProcesado ? 'disabled' : ''}>
+                    </td>
+                    <td>
+                        <button id="btn_${index}" 
+                                class="btn-accion" 
+                                style="background: ${isProcesado ? '#64748b' : 'var(--p)'}; color: #fff; cursor: ${isProcesado ? 'default' : 'pointer'};" 
+                                ${isProcesado ? 'disabled' : ''} 
+                                onclick="confirmarPendiente('${mov.id_firebase}', '${index}')">
+                            ${isProcesado ? '✅ ASENTADO' : 'CONFIRMAR'}
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
     }
-
+}
     // 3. Renderizar Libro Diario
     const tbodyDiario = document.getElementById('tabla-diario');
     if (tbodyDiario) {
@@ -577,15 +585,17 @@ function renderizarPantalla(data) {
                 resDiv.innerHTML = `<span style="color:var(--a)">❌ Error crítico en motor: ${err.message}</span>`;
             }
         }
-    window.confirmarPendiente = async function(id_firebase, id_html) {
+   window.confirmarPendiente = async function(id_firebase, id_html) {
     const btn = document.getElementById('btn_' + id_html);
     const inputCat = document.getElementById('cat_' + id_html);
-    const inputCom = document.getElementById('com_' + id_html); // Capturamos comentario
+    const inputCom = document.getElementById('com_' + id_html);
     
     if (!inputCat || !inputCat.value) return alert("⚠️ Ingresa una cuenta");
 
+    // 1. Estado de carga inmediato
     btn.innerText = '⏳ PROCESANDO...';
     btn.disabled = true;
+    btn.style.opacity = '0.7';
 
     try {
         const res = await fetch(`${API_URL}/api/contabilidad/confirmar_asiento`, {
@@ -594,25 +604,37 @@ function renderizarPantalla(data) {
             body: JSON.stringify({ 
                 id: id_firebase, 
                 categoria: inputCat.value.toUpperCase(),
-                comentario: inputCom.value, // Enviamos el comentario al Python
+                comentario: inputCom.value,
                 periodo: periodoSeleccionado 
             })
         });
         
         const data = await res.json();
+        
         if (data.status === 'success') {
-            // En lugar de recargar todo, solo marcamos visualmente o recargamos
-            btn.style.background = 'var(--ac)';
-            btn.innerText = '✅ ASENTADO';
-            // Opcional: setTimeout(() => cargarDatosTablero(), 1000); 
-            // Si recargas, el movimiento ya no aparecerá en "pendientes" si tu backend lo filtra
+            // 2. Estado de éxito: Botón bloqueado visualmente
+            btn.innerText = '✅ CONFIRMADO';
+            btn.style.background = '#64748b'; // Un color gris/neutro
+            btn.style.cursor = 'default';
+            btn.disabled = true; // Bloqueo total del botón
+            
+            // Opcional: Bloqueamos también los inputs para que no se editen más
+            if (inputCat) inputCat.disabled = true;
+            if (inputCom) inputCom.disabled = true;
+
+            // Opcional: Actualizamos los datos generales si es necesario
+            // cargarDatosTablero(); 
+        } else {
+            throw new Error(data.message || "Error desconocido");
         }
     } catch (err) {
         alert("❌ Error: " + err.message);
-        btn.innerText = 'CONFIRMAR'; btn.disabled = false;
+        // 3. Restaurar en caso de error
+        btn.innerText = 'CONFIRMAR';
+        btn.disabled = false;
+        btn.style.opacity = '1';
     }
 };
-        
     function editarAsiento(idOrigen, periodo, categoriaActual) {
     if (!idOrigen) {
         alert("Este asiento no cuenta con ID de rastreo directo.");
