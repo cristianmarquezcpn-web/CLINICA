@@ -197,6 +197,9 @@
             50% { opacity: 0.5; }
         }
     </style>
+    <style>
+    .hidden { display: none; }
+    </style>
 </head>
 <body>
 
@@ -351,123 +354,126 @@
                 console.error("Error al mapear datos del servidor:", err);
             }
         }
-
-        function renderizarPantalla(data) {
-            // 1. Renderizar Bancos
-            const grilla = document.getElementById('grilla-bancos');
-            if (grilla) {
-                grilla.innerHTML = "";
-                if (data.bancos) {
-                    for (const [banco, valores] of Object.entries(data.bancos)) {
-                        grilla.innerHTML += `
-                            <div class="tarjeta-banco" style="border-left-color: ${banco === 'BANCOGALICIA' ? 'var(--p)' : 'var(--ac)'}">
-                                <div class="banco-meta">
-                                    <span class="banco-nombre">${banco.replace('BANCO','BANCO ')}</span>
-                                    <span class="banco-saldo">$ ${valores.saldofinal.toLocaleString('es-AR', {minimumFractionDigits:2})}</span>
-                                </div>
-                                <div class="banco-detalles">
-                                    <div>Inicial: $ ${valores.saldoinicial.toLocaleString('es-AR', {minimumFractionDigits:2})}</div>
-                                    <div>Ingresos: $ ${valores.totalingresos.toLocaleString('es-AR', {minimumFractionDigits:2})}</div>
-                                    <div>Egresos: $ ${valores.totalegresos.toLocaleString('es-AR', {minimumFractionDigits:2})}</div>
-                                </div>
-                            </div>
-                        `;
-                    }
-                }
+    function renderizarPantalla(data) {
+    // 1. Renderizar Bancos
+    const grilla = document.getElementById('grilla-bancos');
+    if (grilla) {
+        grilla.innerHTML = "";
+        if (data.bancos) {
+            for (const [banco, valores] of Object.entries(data.bancos)) {
+                grilla.innerHTML += `
+                    <div class="tarjeta-banco" style="border-left-color: ${banco === 'BANCOGALICIA' ? 'var(--p)' : 'var(--ac)'}">
+                        <div class="banco-meta">
+                            <span class="banco-nombre">${banco.replace('BANCO', 'BANCO ')}</span>
+                            <span class="banco-saldo">$ ${valores.saldofinal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div class="banco-detalles">
+                            <div>Inicial: $ ${valores.saldoinicial.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</div>
+                            <div>Ingresos: $ ${valores.totalingresos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</div>
+                            <div>Egresos: $ ${valores.totalegresos.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                    </div>
+                `;
             }
+        }
+    }
 
-            // 2. Renderizar Transacciones Pendientes
-            const tbodyPendientes = document.getElementById('tabla-pendientes');
-            if (tbodyPendientes) {
-                tbodyPendientes.innerHTML = "";
-                if (!data.pendientes || data.pendientes.length === 0) {
-                    tbodyPendientes.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--texto-secundario); padding: 20px;">🎉 Sin movimientos pendientes de auditoría en este periodo.</td></tr>`;
-                } else {
-                    data.pendientes.forEach((mov, index) => {
-                        tbodyPendientes.innerHTML += `
-                            <tr>
-                                <td>${mov.fecha}</td>
-                                <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
-                                <td style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${mov.descripcion}">${mov.descripcion}</td>
-                                <td><span class="${mov.monto > 0 ? 'monto-ingreso' : 'monto-egreso'}">$ ${mov.monto.toLocaleString('es-AR', {minimumFractionDigits:2})}</span></td>
-                                <td>
-                                    <input type="text" id="cat_${index}" class="input-categoria" value="${mov.categoria || 'VARIOS'}" placeholder="CUENTA">
-                                </td>
-                                <td>
-                                    <button id="btn_${index}" class="btn-accion" style="background: var(--p); color: #fff;" onclick="confirmarPendiente('${mov.id_firebase}', '${index}')">CONFIRMAR</button>
-                                </td>
+    // 2. Renderizar Transacciones Pendientes
+    const tbodyPendientes = document.getElementById('tabla-pendientes');
+    if (tbodyPendientes) {
+        tbodyPendientes.innerHTML = "";
+        if (!data.pendientes || data.pendientes.length === 0) {
+            tbodyPendientes.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--texto-secundario); padding: 20px;">🎉 Sin movimientos pendientes de auditoría en este periodo.</td></tr>`;
+        } else {
+            data.pendientes.forEach((mov, index) => {
+                tbodyPendientes.innerHTML += `
+                    <tr>
+                        <td>${mov.fecha}</td>
+                        <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
+                        <td style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${mov.descripcion}">${mov.descripcion}</td>
+                        <td><span class="${mov.monto > 0 ? 'monto-ingreso' : 'monto-egreso'}">$ ${mov.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span></td>
+                        <td>
+                            <input type="text" id="cat_${index}" class="input-categoria" value="${mov.categoria || 'VARIOS'}" placeholder="CUENTA">
+                        </td>
+                        <td>
+                            <button id="btn_${index}" class="btn-accion" style="background: var(--p); color: #fff;" onclick="confirmarPendiente('${mov.id_firebase}', '${index}')">CONFIRMAR</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+    }
+
+    // 3. Renderizar Libro Diario
+    const tbodyDiario = document.getElementById('tabla-diario');
+    if (tbodyDiario) {
+        tbodyDiario.innerHTML = "";
+        if (!data.diario || data.diario.length === 0) {
+            tbodyDiario.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No se registran asientos asentados en el mes.</td></tr>`;
+        } else {
+            data.diario.forEach((asiento) => {
+                if (asiento.asientos) {
+                    asiento.asientos.forEach((linea, lIdx) => {
+                        // Seguridad para evitar que comillas en la categoría rompan el HTML
+                        const catSafe = asiento.categoria ? String(asiento.categoria).replace(/'/g, "\\'") : '';
+                        
+                        const botonAccion = lIdx === 0 
+                            ? `<button title="Editar asiento" style="background:transparent; border:none; color:var(--p); cursor:pointer;" onclick="editarAsiento('${asiento.id_origen || ''}', '${data.periodo}', '${catSafe}')">✎</button>` 
+                            : '';
+
+                        tbodyDiario.innerHTML += `
+                            <tr style="${lIdx === 0 ? 'border-top: 2px solid rgba(255,255,255,0.1);' : ''}">
+                                <td>${lIdx === 0 ? asiento.fecha : ''}</td>
+                                <td style="max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${asiento.descripcion || ''}">${lIdx === 0 ? (asiento.descripcion || '') : ''}</td>
+                                <td style="${linea.haber > 0 ? 'padding-left: 25px; color: rgba(255,255,255,0.6);' : 'font-weight:500;'}">${linea.cuenta}</td>
+                                <td style="color: rgba(255,255,255,0.4); font-family: monospace; font-size:12px;">${linea.codigo}</td>
+                                <td class="monto-ingreso" style="font-family: monospace;">${linea.debe > 0 ? '$ ' + linea.debe.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : ''}</td>
+                                <td class="monto-egreso" style="font-family: monospace;">${linea.haber > 0 ? '$ ' + linea.haber.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : ''}</td>
+                                <td style="text-align:center;">${botonAccion}</td>
                             </tr>
                         `;
                     });
                 }
-            }
+            });
+        }
+    }
 
-            // 3. Renderizar Libro Diario
-            const tbodyDiario = document.getElementById('tabla-diario');
-            if (tbodyDiario) {
-                tbodyDiario.innerHTML = "";
-                if (!data.diario || data.diario.length === 0) {
-                    tbodyDiario.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No se registran asientos asentados en el mes.</td></tr>`;
-                } else {
-                    data.diario.forEach((asiento) => {
-                        if (asiento.asientos) {
-                            asiento.asientos.forEach((linea, lIdx) => {
-                                const botonAccion = lIdx === 0 
-                                ? `<button title="Editar asiento" style="background:transparent; border:none; color:var(--p); cursor:pointer;" onclick="editarAsiento('${asiento.id_origen || ''}', '${data.periodo}', '${asiento.categoria || ''}')">✎</button>` 
-                                : '';
-
-                                tbodyDiario.innerHTML += `
-                                    <tr style="${lIdx === 0 ? 'border-top: 2px solid rgba(255,255,255,0.1);' : ''}">
-                                        <td>${lIdx === 0 ? asiento.fecha : ''}</td>
-                                        <td style="max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${asiento.descripcion || ''}">${lIdx === 0 ? (asiento.descripcion || '') : ''}</td>
-                                        <td style="${linea.haber > 0 ? 'padding-left: 25px; color: rgba(255,255,255,0.6);' : 'font-weight:500;'}">${linea.cuenta}</td>
-                                        <td style="color: rgba(255,255,255,0.4); font-family: monospace; font-size:12px;">${linea.codigo}</td>
-                                        <td class="monto-ingreso" style="font-family: monospace;">${linea.debe > 0 ? '$ ' + linea.debe.toLocaleString('es-AR', {minimumFractionDigits:2}) : ''}</td>
-                                        <td class="monto-egreso" style="font-family: monospace;">${linea.haber > 0 ? '$ ' + linea.haber.toLocaleString('es-AR', {minimumFractionDigits:2}) : ''}</td>
-                                        <td style="text-align:center;">${botonAccion}</td>
-                                    </tr>
-                                `;
-                            });
-                        }
-                    });
-                }
-            }
-
-            // 4. Renderizar Libro Mayor Robusto
-            const tbodyMayor = document.getElementById('tabla-mayor');
-if (tbodyMayor) {
-    tbodyMayor.innerHTML = "";
-    if (!data.mayor || data.mayor.length === 0) {
-        tbodyMayor.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No hay acumulados.</td></tr>`;
-    } else {
-        data.mayor.forEach((cuenta, idx) => {
-            const saldo = cuenta.saldo || 0.0;
-            // Fila principal
-            tbodyMayor.innerHTML += `
-                <tr onclick="document.getElementById('det_${idx}').classList.toggle('hidden')" style="cursor:pointer; background: rgba(255,255,255,0.02);">
-                    <td style="font-family: monospace;">${cuenta.codigo}</td>
-                    <td style="font-weight: 600;">${cuenta.nombre}</td>
-                    <td colspan="2" style="font-size:10px; color:var(--a);">CLICK PARA VER ${cuenta.movimientos.length} MOVIMIENTOS</td>
-                    <td style="font-weight: 700; color: ${saldo >= 0 ? 'var(--p)' : 'var(--a)'};">$ ${saldo.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
-                </tr>
-                <tr id="det_${idx}" class="hidden">
-                    <td colspan="5" style="padding:0;">
-                        <div style="background: rgba(0,0,0,0.2); padding: 10px;">
-                            ${cuenta.movimientos.map(m => `
-                                <div style="display:grid; grid-template-columns: 100px 1fr 100px 100px; font-size:11px; padding:4px; border-bottom:1px solid #222;">
-                                    <span>${m.fecha}</span>
-                                    <span>${m.descripcion}</span>
-                                    <span style="color:var(--p); text-align:right;">${m.debe > 0 ? '$ ' + m.debe.toLocaleString() : '-'}</span>
-                                    <span style="color:var(--a); text-align:right;">${m.haber > 0 ? '$ ' + m.haber.toLocaleString() : '-'}</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </td>
-                </tr>
-            `;
-        });
+    // 4. Renderizar Libro Mayor Robusto
+    const tbodyMayor = document.getElementById('tabla-mayor');
+    if (tbodyMayor) {
+        tbodyMayor.innerHTML = "";
+        if (!data.mayor || data.mayor.length === 0) {
+            tbodyMayor.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No hay acumulados.</td></tr>`;
+        } else {
+            data.mayor.forEach((cuenta, idx) => {
+                const saldo = cuenta.saldo || 0.0;
+                tbodyMayor.innerHTML += `
+                    <tr onclick="document.getElementById('det_${idx}').classList.toggle('hidden')" style="cursor:pointer; background: rgba(255,255,255,0.02);">
+                        <td style="font-family: monospace;">${cuenta.codigo}</td>
+                        <td style="font-weight: 600;">${cuenta.nombre}</td>
+                        <td colspan="2" style="font-size:10px; color:var(--a);">CLICK PARA VER ${cuenta.movimientos.length} MOVIMIENTOS</td>
+                        <td style="font-weight: 700; color: ${saldo >= 0 ? 'var(--p)' : 'var(--a)'};">$ ${saldo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                    <tr id="det_${idx}" class="hidden">
+                        <td colspan="5" style="padding:0;">
+                            <div style="background: rgba(0,0,0,0.2); padding: 10px;">
+                                ${cuenta.movimientos.map(m => `
+                                    <div style="display:grid; grid-template-columns: 100px 1fr 100px 100px; font-size:11px; padding:4px; border-bottom:1px solid #222;">
+                                        <span>${m.fecha}</span>
+                                        <span>${m.descripcion}</span>
+                                        <span style="color:var(--p); text-align:right;">${m.debe > 0 ? '$ ' + m.debe.toLocaleString() : '-'}</span>
+                                        <span style="color:var(--a); text-align:right;">${m.haber > 0 ? '$ ' + m.haber.toLocaleString() : '-'}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
     }
 }
+ 
         // Funciones de Filtrado
         function filtrarTablaPendientes() {
             const textoBusqueda = document.getElementById('filtroTexto').value.toUpperCase();
@@ -607,6 +613,6 @@ if (tbodyMayor) {
     .catch(err => console.error("Error al conectar con la API:", err));
 }
         window.onload = inicializarModulo;
-    </script>
+</script>
 </body>
 </html>
