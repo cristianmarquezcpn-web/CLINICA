@@ -215,23 +215,27 @@
     <div id="grilla-bancos" class="grilla-bancos"></div>
 
     <div class="seccion-tablero">
-        <h3 style="color: var(--p);">⏳ transacciones pendientes de revisión inteligente</h3>
-        <div class="tabla-contenedor">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Banco</th>
-                        <th>Descripción Original del Extracto</th>
-                        <th>Monto</th>
-                        <th>Propuesta IA / Cuenta Contable</th>
-                        <th>Acción</th>
-                    </tr>
-                </thead>
-                <tbody id="tabla-pendientes"></tbody>
-            </table>
+    <h3 style="color: var(--p);">⏳ transacciones pendientes de revisión inteligente</h3>
+    
+    <div class="row mb-3 p-3" style="background-color: #111827; border-radius: 8px; margin: 0 1px 15px 1px; display: flex; gap: 20px;">
+        <div class="col-md-6 mb-2" style="flex: 1;">
+            <label class="form-label text-muted small" style="display:block; margin-bottom:5px;">Buscar por descripción o cuenta</label>
+            <input type="text" id="filtroTexto" class="form-control bg-dark text-white border-secondary" 
+                   style="width: 100%; padding: 8px; background: #1e293b; border: 1px solid #334155; color: white; border-radius: 4px;" 
+                   placeholder="Ej: UBER, PROVEEDORES, MERPAGO..." onkeyup="filtrarTablaPendientes()">
+        </div>
+        <div class="col-md-6 mb-2" style="flex: 1;">
+            <label class="form-label text-muted small" style="display:block; margin-bottom:5px;">Filtrar por Fecha</label>
+            <input type="text" id="filtroFecha" class="form-control bg-dark text-white border-secondary" 
+                   style="width: 100%; padding: 8px; background: #1e293b; border: 1px solid #334155; color: white; border-radius: 4px;" 
+                   placeholder="Ej: 04/05/26" onkeyup="filtrarTablaPendientes()">
         </div>
     </div>
+    <div class="tabla-contenedor">
+        <table>
+            </table>
+    </div>
+</div>
 
     <div class="seccion-tablero">
         <h3 style="color: var(--ac);">📖 libro diario (asientos liquidados por partida doble)</h3>
@@ -330,96 +334,171 @@
             }
         }
 
-        function renderizarPantalla(data) {
-            // 1. Renderizar Bloques de Bancos
-            const grilla = document.getElementById('grilla-bancos');
-            grilla.innerHTML = "";
-            if(data.bancos) {
-                for (const [banco, valores] of Object.entries(data.bancos)) {
-                    grilla.innerHTML += `
-                        <div class="tarjeta-banco" style="border-left-color: ${banco === 'BANCOGALICIA' ? 'var(--p)' : 'var(--ac)'}">
-                            <div class="banco-meta">
-                                <span class="banco-nombre">${banco.replace('BANCO','BANCO ')}</span>
-                                <span class="banco-saldo">$ ${valores.saldofinal.toLocaleString('es-AR', {minimumFractionDigits:2})}</span>
-                            </div>
-                            <div class="banco-detalles">
-                                <div>Inicial: $ ${valores.saldoinicial}</div>
-                                <div>Ingresos: $ ${valores.totalingresos}</div>
-                                <div>Egresos: $ ${valores.totalegresos}</div>
-                            </div>
+       function renderizarPantalla(data) {
+    // ==========================================
+    // 1. Renderizar Bloques de Bancos
+    // ==========================================
+    const grilla = document.getElementById('grilla-bancos');
+    if (grilla) {
+        grilla.innerHTML = "";
+        if (data.bancos) {
+            for (const [banco, valores] of Object.entries(data.bancos)) {
+                grilla.innerHTML += `
+                    <div class="tarjeta-banco" style="border-left-color: ${banco === 'BANCOGALICIA' ? 'var(--p)' : 'var(--ac)'}">
+                        <div class="banco-meta">
+                            <span class="banco-nombre">${banco.replace('BANCO','BANCO ')}</span>
+                            <span class="banco-saldo">$ ${valores.saldofinal.toLocaleString('es-AR', {minimumFractionDigits:2})}</span>
                         </div>
-                    `;
-                }
-            }
-
-            // 2. Renderizar Transacciones Pendientes
-            const tbodyPendientes = document.getElementById('tabla-pendientes');
-            tbodyPendientes.innerHTML = "";
-            if (!data.pendientes || data.pendientes.length === 0) {
-                tbodyPendientes.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--texto-secundario);">🎉 Sin movimientos pendientes de auditoría en este periodo.</td></tr>`;
-            } else {
-                data.pendientes.forEach((mov, index) => {
-                    tbodyPendientes.innerHTML += `
-                        <tr>
-                            <td>${mov.fecha}</td>
-                            <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
-                            <td style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${mov.descripcion}">${mov.descripcion}</td>
-                            <td><span class="${mov.monto > 0 ? 'monto-ingreso' : 'monto-egreso'}">$ ${mov.monto}</span></td>
-                            <td>
-                                <input type="text" id="cat_${index}" class="input-categoria" value="${mov.categoria || 'VARIOS'}" placeholder="CUENTA">
-                            </td>
-                            <td>
-                                <button id="btn_${index}" class="btn-accion" style="background: var(--p);" onclick="confirmarPendiente('${mov.id_firebase}', '${index}')">CONFIRMAR</button>
-                            </td>
-                        </tr>
-                    `;
-                });
-            }
-
-            // 3. Renderizar Libro Diario
-            const tbodyDiario = document.getElementById('tabla-diario');
-            tbodyDiario.innerHTML = "";
-            if (!data.diario || data.diario.length === 0) {
-                tbodyDiario.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--texto-secundario);">No se registran asientos asentados en el mes.</td></tr>`;
-            } else {
-                data.diario.forEach(asiento => {
-                    if(asiento.asientos) {
-                        asiento.asientos.forEach((linea, lIdx) => {
-                            tbodyDiario.innerHTML += `
-                                <tr style="${lIdx === 0 ? 'border-top: 1px solid var(--borde);' : ''}">
-                                    <td>${lIdx === 0 ? asiento.fecha : ''}</td>
-                                    <td style="${linea.haber > 0 ? 'padding-left: 30px; color: var(--texto-secundario);' : 'font-weight:500;'}">${linea.cuenta}</td>
-                                    <td style="color: var(--texto-secundario); font-family: monospace;">${linea.codigo}</td>
-                                    <td class="monto-ingreso">${linea.debe > 0 ? '$ ' + linea.debe : ''}</td>
-                                    <td class="monto-egreso">${linea.haber > 0 ? '$ ' + linea.haber : ''}</td>
-                                </tr>
-                            `;
-                        });
-                    }
-                });
-            }
-
-            // 4. Renderizar Libro Mayor Dinámico
-            const tbodyMayor = document.getElementById('tabla-mayor');
-            tbodyMayor.innerHTML = "";
-            if (!data.mayor || Object.keys(data.mayor).length === 0) {
-                tbodyMayor.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--texto-secundario);">No hay acumulados para generar mayores en este período.</td></tr>`;
-            } else {
-                for (const [cuenta, valores] of Object.entries(data.mayor)) {
-                    const neto = valores.debe - valores.haber;
-                    tbodyMayor.innerHTML += `
-                        <tr>
-                            <td style="font-family: monospace; color: var(--texto-secundario);">${valores.codigo || '—'}</td>
-                            <td style="font-weight: 600;">${cuenta}</td>
-                            <td>$ ${valores.debe.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
-                            <td>$ ${valores.haber.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
-                            <td style="font-weight: 700; color: ${neto >= 0 ? 'var(--p)' : 'var(--a)'}">$ ${neto.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
-                        </tr>
-                    `;
-                }
+                        <div class="banco-detalles">
+                            <div>Inicial: $ ${valores.saldoinicial.toLocaleString('es-AR', {minimumFractionDigits:2})}</div>
+                            <div>Ingresos: $ ${valores.totalingresos.toLocaleString('es-AR', {minimumFractionDigits:2})}</div>
+                            <div>Egresos: $ ${valores.totalegresos.toLocaleString('es-AR', {minimumFractionDigits:2})}</div>
+                        </div>
+                    </div>
+                `;
             }
         }
+    }
 
+    // ==========================================
+    // 2. Renderizar Transacciones Pendientes
+    // ==========================================
+    const tbodyPendientes = document.getElementById('tabla-pendientes');
+    if (tbodyPendientes) {
+        tbodyPendientes.innerHTML = "";
+        if (!data.pendientes || data.pendientes.length === 0) {
+            tbodyPendientes.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--texto-secundario); padding: 20px;">🎉 Sin movimientos pendientes de auditoría en este periodo.</td></tr>`;
+        } else {
+            data.pendientes.forEach((mov, index) => {
+                tbodyPendientes.innerHTML += `
+                    <tr>
+                        <td>${mov.fecha}</td>
+                        <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
+                        <td style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${mov.descripcion}">${mov.descripcion}</td>
+                        <td><span class="${mov.monto > 0 ? 'monto-ingreso' : 'monto-egreso'}">$ ${mov.monto.toLocaleString('es-AR', {minimumFractionDigits:2})}</span></td>
+                        <td>
+                            <input type="text" id="cat_${index}" class="input-categoria" value="${mov.categoria || 'VARIOS'}" placeholder="CUENTA" style="text-transform: uppercase;">
+                        </td>
+                        <td>
+                            <button id="btn_${index}" class="btn-accion" style="background: var(--p); color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;" onclick="confirmarPendiente('${mov.id_firebase}', '${index}')">CONFIRMAR</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+    }
+
+    // ==========================================
+    // 3. Renderizar Libro Diario (Con opción de Edición/Baja)
+    // ==========================================
+    const tbodyDiario = document.getElementById('tabla-diario');
+    if (tbodyDiario) {
+        tbodyDiario.innerHTML = "";
+        if (!data.diario || data.diario.length === 0) {
+            tbodyDiario.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No se registran asientos asentados en el mes.</td></tr>`;
+        } else {
+            data.diario.forEach((asiento, aIdx) => {
+                if (asiento.asientos) {
+                    asiento.asientos.forEach((linea, lIdx) => {
+                        // El botón de eliminar se muestra solo en el primer renglón del asiento para evitar inconsistencias de partida doble
+                        const botonAccion = lIdx === 0 
+                            ? `<button class="btn-eliminar-asiento" title="Deshacer asiento y editar movimiento" style="background:transparent; border:none; color:var(--a); cursor:pointer;" onclick="deshacerAsiento('${asiento.id_origen || ''}', '${data.periodo}')">🗑️</button>` 
+                            : '';
+
+                        tbodyDiario.innerHTML += `
+                            <tr style="${lIdx === 0 ? 'border-top: 2px solid rgba(255,255,255,0.1);' : ''}">
+                                <td>${lIdx === 0 ? asiento.fecha : ''}</td>
+                                <td style="max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${asiento.descripcion || ''}">${lIdx === 0 ? (asiento.descripcion || '') : ''}</td>
+                                <td style="${linea.haber > 0 ? 'padding-left: 25px; color: rgba(255,255,255,0.6);' : 'font-weight:500;'}">${linea.cuenta}</td>
+                                <td style="color: rgba(255,255,255,0.4); font-family: monospace; font-size:12px;">${linea.codigo}</td>
+                                <td class="monto-ingreso" style="font-family: monospace;">${linea.debe > 0 ? '$ ' + linea.debe.toLocaleString('es-AR', {minimumFractionDigits:2}) : ''}</td>
+                                <td class="monto-egreso" style="font-family: monospace;">${linea.haber > 0 ? '$ ' + linea.haber.toLocaleString('es-AR', {minimumFractionDigits:2}) : ''}</td>
+                                <td style="text-align:center;">${botonAccion}</td>
+                            </tr>
+                        `;
+                    });
+                }
+            });
+        }
+    }
+
+    // ==========================================
+    // 4. Renderizar Libro Mayor Dinámico (Corrección de Estructura de Array)
+    // ==========================================
+    const tbodyMayor = document.getElementById('tabla-mayor');
+    if (tbodyMayor) {
+        tbodyMayor.innerHTML = "";
+        // Inyectamos el input del filtro del mayor dinámicamente arriba de la tabla si no existe en el DOM
+        if (!document.getElementById('filtroMayor')) {
+            const contenedorMayor = tbodyMayor.closest('.seccion-mayor') || tbodyMayor.parentElement;
+            const inputFiltro = document.createElement('div');
+            inputFiltro.innerHTML = `
+                <input type="text" id="filtroMayor" class="form-control bg-dark text-white border-secondary mb-2" placeholder="🔍 Filtrar cuentas analíticas del Mayor..." onkeyup="filtrarTablaMayor()" style="font-size:13px; max-width:300px;">
+            `;
+            contenedorMayor.insertBefore(inputFiltro, contenedorMayor.firstChild);
+        }
+
+        if (!data.mayor || data.mayor.length === 0) {
+            tbodyMayor.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No hay acumulados para generar mayores en este período.</td></tr>`;
+        } else {
+            // Se corrige la iteración: data.mayor viene como una Lista ordenada desde Python
+            data.mayor.forEach(cuenta => {
+                const saldo = cuenta.saldo || 0.0;
+                tbodyMayor.innerHTML += `
+                    <tr>
+                        <td style="font-family: monospace; color: var(--texto-secundario);">${cuenta.codigo || '—'}</td>
+                        <td style="font-weight: 600;">${cuenta.nombre}</td>
+                        <td style="color: rgba(255,255,255,0.7); font-family: monospace;">—</td>
+                        <td style="color: rgba(255,255,255,0.7); font-family: monospace;">—</td>
+                        <td style="font-weight: 700; color: ${saldo >= 0 ? 'var(--p)' : 'var(--a)'}; font-family: monospace;">$ ${saldo.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                    </tr>
+                `;
+            });
+        }
+    }
+}
+
+// ==========================================
+// 5. Motores de Filtrado Auxiliares (JS)
+// ==========================================
+function filtrarTablaPendientes() {
+    const textoBusqueda = document.getElementById('filtroTexto').value.toUpperCase();
+    const fechaBusqueda = document.getElementById('filtroFecha').value.toUpperCase();
+    const tbody = document.getElementById('tabla-pendientes');
+    if (!tbody) return;
+    
+    const filas = tbody.getElementsByTagName('tr');
+    for (let i = 0; i < filas.length; i++) {
+        const fila = filas[i];
+        if (fila.textContent.includes("Sin movimientos")) continue;
+
+        const celdaFecha = fila.cells[0] ? fila.cells[0].textContent.toUpperCase() : '';
+        const celdaDesc = fila.cells[2] ? fila.cells[2].textContent.toUpperCase() : '';
+        const celdaPropuesta = fila.cells[4] ? fila.cells[4].getElementsByTagName('input')[0].value.toUpperCase() : '';
+
+        const coincideTexto = celdaDesc.includes(textoBusqueda) || celdaPropuesta.includes(textoBusqueda);
+        const coincideFecha = celdaFecha.includes(fechaBusqueda);
+
+        fila.style.display = (coincideTexto && coincideFecha) ? '' : 'none';
+    }
+}
+
+function filtrarTablaMayor() {
+    const filtro = document.getElementById('filtroMayor').value.toUpperCase();
+    const tbody = document.getElementById('tabla-mayor');
+    if (!tbody) return;
+
+    const filas = tbody.getElementsByTagName('tr');
+    for (let i = 0; i < filas.length; i++) {
+        const fila = filas[i];
+        if (fila.textContent.includes("No hay acumulados")) continue;
+
+        const codigo = fila.cells[0] ? fila.cells[0].textContent.toUpperCase() : '';
+        const nombreCuenta = fila.cells[1] ? fila.cells[1].textContent.toUpperCase() : '';
+
+        fila.style.display = (codigo.includes(filtro) || nombreCuenta.includes(filtro)) ? '' : 'none';
+    }
+}
         function cambiarPeriodo() {
             periodoSeleccionado = document.getElementById('selector-periodo').value;
             cargarDatosTablero();
@@ -480,6 +559,60 @@
                 btn.innerText = 'CONFIRMAR'; btn.disabled = false;
             }
         };
+    function filtrarTablaPendientes() {
+    const textoBusqueda = document.getElementById('filtroTexto').value.toUpperCase();
+    const fechaBusqueda = document.getElementById('filtroFecha').value.toUpperCase();
+    
+    // Suponiendo que el cuerpo de tu tabla de pendientes tiene el id 'tabla-pendientes-body'
+    // Si no tiene id, podés asignárselo en el HTML: <tbody id="tabla-pendientes-body">
+    const tbody = document.getElementById('tabla-pendientes-body');
+    if (!tbody) return;
+    
+    const filas = tbody.getElementsByTagName('tr');
+
+    for (let i = 0; i < filas.length; i++) {
+        const fila = filas[i];
+        // Saltamos la fila informativa si dice "Sin movimientos pendientes"
+        if (fila.textContent.includes("Sin movimientos")) continue;
+
+        const celdaFecha = fila.cells[0] ? fila.cells[0].textContent.toUpperCase() : '';
+        const celdaDesc = fila.cells[2] ? fila.cells[2].textContent.toUpperCase() : '';
+        const celdaPropuesta = fila.cells[4] ? fila.cells[4].textContent.toUpperCase() : '';
+
+        const coincideTexto = celdaDesc.includes(textoBusqueda) || celdaPropuesta.includes(textoBusqueda);
+        const coincideFecha = celdaFecha.includes(fechaBusqueda);
+
+        if (coincideTexto && coincideFecha) {
+            fila.style.display = '';
+        } else {
+            fila.style.display = 'none';
+        }
+    }
+}
+function deshacerAsiento(idOrigen, periodo) {
+    if(!idOrigen) {
+        alert("Este asiento es antiguo o general y no cuenta con ID de rastreo directo.");
+        return;
+    }
+    if(!confirm("¿Estás seguro de que querés deshacer este asiento? El movimiento volverá al estado de revisión inteligente.")) return;
+
+    // Podés apuntar esto a tu endpoint de reprocesar o armar un endpoint dedicado en Flask
+    fetch('/api/contabilidad/deshacer_asiento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: idOrigen, periodo: periodo })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.status === 'success' || data.status === 'ok') {
+            alert("Asiento deshecho con éxito. Los saldos fueron recalculados.");
+            renderizarPantalla(data); // Volvemos a dibujar toda la pantalla con los datos actualizados
+        } else {
+            alert("Error: " + data.message);
+        }
+    })
+    .catch(err => console.error("Error al conectar con la API:", err));
+}        
 
         window.onload = inicializarModulo;
     </script>
