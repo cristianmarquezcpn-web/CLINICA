@@ -335,6 +335,25 @@
         </div>
     </div>
 
+    <div id="modalCuenta" class="modal">
+    <div class="contenedor-pro-moderno">
+        <h2 style="color:var(--ac); font-size: 20px;">🆕 ¿NUEVA CUENTA CONTABLE?</h2>
+        <p style="color:var(--texto-secundario);">La IA sugiere la categoría: <strong id="nombreSugerido" style="color:white;"></strong></p>
+        
+        <input type="text" id="nombreCuenta" class="input-categoria" style="width:100% !important; margin-bottom: 10px;" placeholder="Nombre de la cuenta...">
+        <select id="tipoCuenta" class="input-categoria" style="width:100% !important; margin-bottom: 20px;">
+            <option value="ACTIVO">ACTIVO</option>
+            <option value="PASIVO">PASIVO</option>
+            <option value="INGRESO">INGRESO</option>
+            <option value="EGRESO">EGRESO</option>
+        </select>
+        
+        <div style="display:flex; gap: 10px;">
+            <button class="btn-accion" style="flex:1; background: var(--p);" onclick="confirmarCreacionCuenta()">CREAR Y ASIGNAR</button>
+            <button class="btn-accion" style="flex:1; background: #64748b;" onclick="document.getElementById('modalCuenta').style.display='none'">CANCELAR</button>
+        </div>
+    </div>
+</div>
     <script>
         const API_URL = "https://dominguito-san-juan.vercel.app";
         let periodoSeleccionado = "";
@@ -570,31 +589,41 @@ if (tbodyDiario) {
         function abrirProcesador() { document.getElementById('modalProcesador').style.display = 'flex'; }
         function cerrarProcesador() { document.getElementById('modalProcesador').style.display = 'none'; }
 
-        async function ejecutarAnalisisIA() {
-            const fileInput = document.getElementById('archivoInputModerno');
-            const resDiv = document.getElementById('resultadoAnalisis');
-            if (fileInput.files.length === 0) return alert("Selecciona un archivo");
+    async function ejecutarAnalisisIA() {
+    const fileInput = document.getElementById('archivoInputModerno');
+    const resDiv = document.getElementById('resultadoAnalisis');
+    if (fileInput.files.length === 0) return alert("Selecciona un archivo");
 
-            resDiv.innerHTML = `<div class="loading">🧠 IA TITANIUM AUDITANDO EXTRACTO...</div>`;
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+    resDiv.innerHTML = `<div class="loading">🧠 IA TITANIUM AUDITANDO EXTRACTO...</div>`;
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
 
-            try {
-                const res = await fetch(`${API_URL}/api/contabilidad`, { 
-                    method: 'POST', 
-                    body: formData 
-                });
-                const data = await res.json();
-                if(data.status === 'success') {
-                    resDiv.innerHTML = `<span style="color:var(--p)">✅ Procesado con éxito. Se detectaron transacciones de manera correcta.</span>`;
-                    setTimeout(() => { cerrarProcesador(); inicializarModulo(); }, 1500);
-                } else {
-                    resDiv.innerHTML = `<span style="color:var(--a)">❌ Error del Servidor: ${data.message || 'Error desconocido'}</span>`;
-                }
-            } catch (err) {
-                resDiv.innerHTML = `<span style="color:var(--a)">❌ Error crítico en motor: ${err.message}</span>`;
-            }
+    try {
+        const res = await fetch(`${API_URL}/api/contabilidad`, { 
+            method: 'POST', 
+            body: formData 
+        });
+        const data = await res.json();
+
+        // NUEVA LÓGICA: Detección de cuenta no existente
+        if (data.requiere_creacion) {
+            resDiv.innerHTML = `<span style="color:var(--ac)">⚠️ IA detectó una categoría nueva: ${data.cuenta_propuesta}</span>`;
+            
+            // Abrimos el modal automáticamente
+            document.getElementById('modalCuenta').style.display = 'flex';
+            document.getElementById('nombreSugerido').innerText = data.cuenta_propuesta;
+            document.getElementById('nombreCuenta').value = data.cuenta_propuesta.replace('_', ' ');
+            
+        } else if (data.status === 'success') {
+            resDiv.innerHTML = `<span style="color:var(--p)">✅ Procesado con éxito.</span>`;
+            setTimeout(() => { cerrarProcesador(); inicializarModulo(); }, 1500);
+        } else {
+            resDiv.innerHTML = `<span style="color:var(--a)">❌ Error: ${data.message || 'Error desconocido'}</span>`;
         }
+    } catch (err) {
+        resDiv.innerHTML = `<span style="color:var(--a)">❌ Error crítico en motor: ${err.message}</span>`;
+    }
+}
 window.confirmarPendiente = async function(id_firebase, id_html) {
     const btn = document.getElementById('btn_' + id_html);
     const inputCat = document.getElementById('cat_' + id_html);
@@ -668,6 +697,22 @@ window.confirmarPendiente = async function(id_firebase, id_html) {
     })
     .catch(err => console.error("Error al conectar con la API:", err));
 }
+async function confirmarCreacionCuenta() {
+    const clave = document.getElementById('nombreCuenta').value.toUpperCase().replace(/\s+/g, '_');
+    const nombre = document.getElementById('nombreCuenta').value;
+    const tipo = document.getElementById('tipoCuenta').value;
+
+    const res = await fetch('/api/contabilidad/crear_cuenta', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ clave, nombre, tipo })
+    });
+    
+    if (res.ok) {
+        document.getElementById('modalCuenta').style.display = 'none';
+        alert("Cuenta creada. Ahora podés procesar el movimiento nuevamente.");
+    }
+}        
         window.onload = inicializarModulo;
 </script>
 </body>
