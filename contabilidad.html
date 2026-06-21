@@ -434,40 +434,40 @@ if (tbodyPendientes) {
             // Usamos el ID de Firebase para identificar inputs, es infalible
             const uid = mov.id_firebase; 
             
-            tbodyPendientes.innerHTML += `
-                <tr style="vertical-align: middle;">
-                    <td>${mov.fecha}</td>
-                    <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
-                    <td class="desc-corta" title="${mov.descripcion}" style="white-space:normal; word-wrap:break-word; max-width: 250px;">
-                        ${mov.descripcion}
-                    </td>
-                    <td>
-                        <span class="${mov.monto > 0 ? 'monto-ingreso' : 'monto-egreso'}">
-                            $ ${mov.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                        </span>
-                    </td>
-                    <td style="min-width: 180px;">
-                        <div style="display: flex; flex-direction: column; gap: 6px;">
-                            <input type="text" id="cat_${uid}" class="input-categoria" 
-                                   value="${mov.categoria || ''}" placeholder="CUENTA CONTABLE" 
-                                   ${isProcesado ? 'disabled' : ''}>
-                            
-                            <input type="text" id="com_${uid}" class="input-comentario" 
-                                   value="${mov.comentario || ''}" placeholder="Agregar comentario..." 
-                                   style="font-size:10px; width:100%; padding: 4px; border-radius: 4px; background: var(--bg-input); border: 1px solid var(--borde); color: #94a3b8;" 
-                                   ${isProcesado ? 'disabled' : ''}>
-                        </div>
-                    </td>
-                    <td>
-                        <button id="btn_${uid}" class="btn-accion" 
-                                style="background: ${isProcesado ? '#64748b' : 'var(--p)'};" 
-                                ${isProcesado ? 'disabled' : ''} 
-                                onclick="confirmarPendiente('${uid}', '${uid}')">
-                            ${isProcesado ? '✅ ASENTADO' : 'CONFIRMAR'}
-                        </button>
-                    </td>
-                </tr>
-            `;
+           tbodyPendientes.innerHTML += `
+    <tr style="vertical-align: middle;">
+        <td>${mov.fecha}</td>
+        <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
+        <td class="desc-corta" title="${mov.descripcion}">${mov.descripcion}</td>
+        <td>
+            <span class="${mov.monto > 0 ? 'monto-ingreso' : 'monto-egreso'}">
+                $ ${mov.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+            </span>
+        </td>
+        <td style="min-width: 180px;">
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+                <input type="text" id="cat_${uid}" class="input-categoria" 
+                       value="${mov.categoria || ''}" 
+                       placeholder="CUENTA CONTABLE" 
+                       oninput="this.style.borderColor='var(--borde)'"
+                       ${isProcesado ? 'disabled' : ''}>
+                
+                <input type="text" id="com_${uid}" class="input-comentario" 
+                       value="${mov.comentario || ''}" 
+                       placeholder="Agregar comentario..." 
+                       ${isProcesado ? 'disabled' : ''}>
+            </div>
+        </td>
+        <td>
+            <button id="btn_${uid}" class="btn-accion" 
+                    style="background: ${isProcesado ? '#64748b' : 'var(--p)'};" 
+                    ${isProcesado ? 'disabled' : ''} 
+                    onclick="gestionarConfirmacion('${uid}')">
+                ${isProcesado ? '✅ ASENTADO' : 'CONFIRMAR'}
+            </button>
+        </td>
+    </tr>
+`;
         });
     }
 }
@@ -589,7 +589,7 @@ if (tbodyDiario) {
         function abrirProcesador() { document.getElementById('modalProcesador').style.display = 'flex'; }
         function cerrarProcesador() { document.getElementById('modalProcesador').style.display = 'none'; }
 
-    async function ejecutarAnalisisIA() {
+   async function ejecutarAnalisisIA() {
     const fileInput = document.getElementById('archivoInputModerno');
     const resDiv = document.getElementById('resultadoAnalisis');
     if (fileInput.files.length === 0) return alert("Selecciona un archivo");
@@ -605,18 +605,16 @@ if (tbodyDiario) {
         });
         const data = await res.json();
 
-        // NUEVA LÓGICA: Detección de cuenta no existente
-        if (data.requiere_creacion) {
-            resDiv.innerHTML = `<span style="color:var(--ac)">⚠️ IA detectó una categoría nueva: ${data.cuenta_propuesta}</span>`;
+        if (data.status === 'success') {
+            // El backend ya procesó todo y lo dejó en 'pendientes'.
+            // Solo avisamos que se cargaron los movimientos.
+            resDiv.innerHTML = `<span style="color:var(--p)">✅ Extracto procesado. Ahora revisa los pendientes.</span>`;
             
-            // Abrimos el modal automáticamente
-            document.getElementById('modalCuenta').style.display = 'flex';
-            document.getElementById('nombreSugerido').innerText = data.cuenta_propuesta;
-            document.getElementById('nombreCuenta').value = data.cuenta_propuesta.replace('_', ' ');
-            
-        } else if (data.status === 'success') {
-            resDiv.innerHTML = `<span style="color:var(--p)">✅ Procesado con éxito.</span>`;
-            setTimeout(() => { cerrarProcesador(); inicializarModulo(); }, 1500);
+            // Refrescamos el tablero para que aparezcan los nuevos movimientos
+            setTimeout(() => { 
+                cerrarProcesador(); 
+                cargarDatosTablero(); 
+            }, 1500);
         } else {
             resDiv.innerHTML = `<span style="color:var(--a)">❌ Error: ${data.message || 'Error desconocido'}</span>`;
         }
@@ -649,14 +647,22 @@ window.confirmarPendiente = async function(id_firebase, id_html) {
         
         const data = await res.json();
         
+        // MANEJO DE ERROR ESPECÍFICO (La cuenta no existe)
+        if (res.status === 422) {
+            const crear = confirm(`⚠️ La cuenta '${inputCat.value.toUpperCase()}' no existe. ¿Quieres crearla ahora?`);
+            if (crear) {
+                // Aquí disparas tu lógica de creación de cuenta
+                await abrirModalCrearCuenta(inputCat.value.toUpperCase());
+            }
+            throw new Error("Cuenta no existente. Configúrala antes de confirmar.");
+        }
+
         if (data.status === 'success') {
             btn.innerText = '✅ CONFIRMADO';
             btn.style.background = '#64748b';
             btn.disabled = true;
 
-            // --- CORRECCIÓN: Refresco automático ---
             await cargarDatosTablero(); 
-            // Esto vuelve a traer los datos del servidor y actualiza toda la pantalla
         } else {
             throw new Error(data.message || "Error desconocido");
         }
@@ -725,7 +731,56 @@ async function confirmarCreacionCuenta() {
         alert("Error: " + (data.message || "Error desconocido"));
     }
 }
-        window.onload = inicializarModulo;
+window.gestionarConfirmacion = async function(uid) {
+    const btn = document.getElementById('btn_' + uid);
+    const catInput = document.getElementById('cat_' + uid);
+    
+    // Primero intentamos confirmar
+    try {
+        await confirmarPendiente(uid, uid); 
+    } catch (err) {
+        // Si el error es porque la cuenta no existe (detectado por tu lógica anterior)
+        if (err.message.includes("Cuenta no existente")) {
+            catInput.style.borderColor = 'var(--a)'; // Rojo para indicar error
+            
+            // Abrir tu modal de creación ya existente
+            document.getElementById('modalCuenta').style.display = 'flex';
+            document.getElementById('nombreSugerido').innerText = catInput.value;
+            document.getElementById('nombreCuenta').value = catInput.value.replace('_', ' ');
+            
+            // Opcional: configurar un callback para reintentar automáticamente
+            window.reintentarConfirmar = () => confirmarPendiente(uid, uid);
+        }
+    }
+};
+ window.guardarCuentaNueva = async function() {
+    const clave = document.getElementById('nombreSugerido').innerText; // GASTOS_UBER
+    const nombre = document.getElementById('nombreCuenta').value;
+    const tipo = document.getElementById('tipoCuenta').value; // 'EGRESO', 'INGRESO', etc.
+
+    const res = await fetch(`${API_URL}/api/contabilidad/crear_cuenta`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clave, nombre, tipo })
+    });
+
+    const data = await res.json();
+
+    if (data.status === 'success') {
+        alert("✅ Cuenta creada con éxito.");
+        document.getElementById('modalCuenta').style.display = 'none';
+
+        // --- EL CICLO AUTOMÁTICO ---
+        // Si teníamos un reintento pendiente, lo ejecutamos ahora
+        if (typeof window.reintentarConfirmar === 'function') {
+            await window.reintentarConfirmar();
+            window.reintentarConfirmar = null; // Limpiamos la referencia
+        }
+    } else {
+        alert("❌ Error al crear cuenta: " + data.message);
+    }
+};       
+window.onload = inicializarModulo;
 </script>
 </body>
 </html>
