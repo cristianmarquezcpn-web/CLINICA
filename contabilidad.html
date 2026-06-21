@@ -281,9 +281,7 @@
 
     <div class="seccion-tablero">
     <h3 style="color: var(--ac);">📖 libro diario (asientos liquidados por partida doble)</h3>
-    <button class="btn-accion" 
-        onclick="exportarLibroDiarioCompleto(data)" 
-        style="background: var(--p); margin-bottom: 10px;">
+    <button class="btn-accion" onclick="exportarLibroDiarioCompleto(window.dataActual)" style="background: var(--p);">
     📥 EXPORTAR DIARIO (AGRUPADO + INDIVIDUAL)
     </button>
     <div class="tabla-contenedor">
@@ -390,8 +388,6 @@
         }
 window.cargarDatosTablero = async function() {
     try {
-        console.log("🔄 Sincronizando datos con el servidor...");
-        
         const res = await fetch(`${API_URL}/api/contabilidad`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -401,17 +397,9 @@ window.cargarDatosTablero = async function() {
         const response = await res.json();
         
         if (response.status === 'success') {
-            console.log("✅ Datos recibidos. Renderizando UI...");
-            
-            // --- ESTO ES LO QUE HACE QUE NO NECESITES F5 ---
-            // Asegúrate de que esta función exista y reciba 'response.data'
-            if (typeof renderizarPantalla === 'function') {
-                renderizarPantalla(response.data);
-            } else {
-                console.error("❌ ERROR: La función renderizarPantalla no está definida.");
-            }
-        } else {
-            console.warn("⚠️ El servidor respondió pero sin success:", response);
+            // --- AQUÍ ESTÁ EL CAMBIO ---
+            window.dataActual = response.data; // Guardamos los datos globalmente
+            renderizarPantalla(response.data);
         }
     } catch (err) {
         console.error("❌ Error al refrescar datos:", err);
@@ -799,19 +787,21 @@ window.gestionarConfirmacion = async function(uid) {
     }
 };     
 window.exportarLibroDiarioCompleto = function(data) { 
-    // 1. Validación de seguridad
-    if (!data || !data.diario) {
-        return alert("❌ No hay datos cargados para exportar.");
+    // 1. Validación de seguridad: usamos los datos recibidos o el respaldo global
+    const datosParaExportar = data || window.dataActual;
+    
+    if (!datosParaExportar || !datosParaExportar.diario) {
+        return alert("❌ No hay datos cargados para exportar. Sincroniza el periodo primero.");
     }
     
-    const todosLosAsientos = data.diario;
+    const todosLosAsientos = datosParaExportar.diario;
     const seleccionados = Array.from(document.querySelectorAll('.selector-asiento:checked')).map(cb => cb.value);
     
-    // 2. Separación de datos
+    // 2. Separación de datos: Lo seleccionado vs Lo que queda individual
     const aAgrupar = todosLosAsientos.filter(a => seleccionados.includes(a.id_origen));
     const individuales = todosLosAsientos.filter(a => !seleccionados.includes(a.id_origen));
 
-    // 3. Acumulación (solo si hay seleccionados)
+    // 3. Acumulación (agrupamos por código de cuenta)
     const resumen = {};
     aAgrupar.forEach(a => {
         a.asientos.forEach(linea => {
@@ -824,28 +814,28 @@ window.exportarLibroDiarioCompleto = function(data) {
         });
     });
 
-    // 4. Generación de CSV
+    // 4. Generación de CSV (con BOM para que Excel lea bien las tildes)
     let csv = "\ufeffTipo,Codigo,Cuenta,Debe,Haber\n";
     
-    // Agrupados
+    // Primero: Filas AGRUPADAS
     Object.values(resumen).forEach(row => {
         csv += `AGRUPADO,${row.codigo},${row.cuenta},${row.debe.toFixed(2)},${row.haber.toFixed(2)}\n`;
     });
 
-    // Individuales
+    // Segundo: Filas INDIVIDUALES
     individuales.forEach(a => {
         a.asientos.forEach(linea => {
             csv += `INDIVIDUAL,${linea.codigo},${linea.cuenta},${parseFloat(linea.debe || 0).toFixed(2)},${parseFloat(linea.haber || 0).toFixed(2)}\n`;
         });
     });
 
-    // 5. Descarga forzada
+    // 5. Descarga del archivo
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "Libro_Diario_Completo.csv";
     link.click();
-};    
+};  
 window.onload = inicializarModulo;
 </script>
 </body>
