@@ -341,6 +341,7 @@
         <p style="color:var(--texto-secundario);">La IA sugiere la categoría: <strong id="nombreSugerido" style="color:white;"></strong></p>
         
         <input type="text" id="nombreCuenta" class="input-categoria" style="width:100% !important; margin-bottom: 10px;" placeholder="Nombre de la cuenta...">
+        <input type="text" id="codigoCuenta" class="input-categoria" style="width:100% !important; margin-bottom: 10px;" placeholder="Código (ej: 5.1.05)...">
         <select id="tipoCuenta" class="input-categoria" style="width:100% !important; margin-bottom: 20px;">
             <option value="ACTIVO">ACTIVO</option>
             <option value="PASIVO">PASIVO</option>
@@ -743,12 +744,15 @@ window.abrirModalCrearCuenta = function(sugerencia = "") {
 window.guardarCuentaNueva = async function() {
     const clave = document.getElementById('nombreSugerido').innerText; 
     const nombre = document.getElementById('nombreCuenta').value;
+    const codigo = document.getElementById('codigoCuenta').value; // <--- NUEVO
     const tipo = document.getElementById('tipoCuenta').value;
+
+    if (!codigo) return alert("⚠️ Debes ingresar un código contable.");
 
     const res = await fetch(`${API_URL}/api/contabilidad/crear_cuenta`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clave, nombre, tipo })
+        body: JSON.stringify({ clave, nombre, codigo, tipo }) // Enviamos el código
     });
 
     const data = await res.json();
