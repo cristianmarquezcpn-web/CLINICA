@@ -281,7 +281,7 @@
 
     <div class="seccion-tablero">
     <h3 style="color: var(--ac);">📖 libro diario (asientos liquidados por partida doble)</h3>
-    <button class="btn-accion" onclick="exportarLibroDiarioCompleto()" style="background: var(--p); margin-bottom: 10px;">
+    <button class="btn-accion" onclick="exportarLibroDiarioCompleto(data)" style="background: var(--p); margin-bottom: 10px;">
         📥 EXPORTAR DIARIO (AGRUPADO + INDIVIDUAL)
     </button>
     <div class="tabla-contenedor">
@@ -796,7 +796,10 @@ window.gestionarConfirmacion = async function(uid) {
         }
     }
 };     
-window.exportarLibroDiarioCompleto = function() {
+window.exportarLibroDiarioCompleto = function(data) { 
+    if (!data || !data.diario) {
+        return alert("❌ No hay datos cargados para exportar.");
+    }
     const todosLosAsientos = data.diario; // Tus datos cargados
     const seleccionados = Array.from(document.querySelectorAll('.selector-asiento:checked')).map(cb => cb.value);
     
