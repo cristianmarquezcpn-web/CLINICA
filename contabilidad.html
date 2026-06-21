@@ -815,17 +815,17 @@ window.exportarLibroDiarioCompleto = function(data) {
     });
 
     // 4. Generación de CSV (con BOM para que Excel lea bien las tildes)
-    let csv = "\ufeffTipo,Codigo,Cuenta,Debe,Haber\n";
+    let csv = "\ufeffTipo;Codigo;Cuenta;Debe;Haber\n";
     
     // Primero: Filas AGRUPADAS
     Object.values(resumen).forEach(row => {
-        csv += `AGRUPADO,${row.codigo},${row.cuenta},${row.debe.toFixed(2)},${row.haber.toFixed(2)}\n`;
+        csv += `AGRUPADO;${row.codigo};${row.cuenta};${row.debe.toFixed(2)};${row.haber.toFixed(2)}\n`;
     });
 
     // Segundo: Filas INDIVIDUALES
     individuales.forEach(a => {
         a.asientos.forEach(linea => {
-            csv += `INDIVIDUAL,${linea.codigo},${linea.cuenta},${parseFloat(linea.debe || 0).toFixed(2)},${parseFloat(linea.haber || 0).toFixed(2)}\n`;
+            csv += `INDIVIDUAL;${linea.codigo};${linea.cuenta};${parseFloat(linea.debe || 0).toFixed(2)};${parseFloat(linea.haber || 0).toFixed(2)}\n`;
         });
     });
 
