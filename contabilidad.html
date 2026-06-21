@@ -349,9 +349,9 @@
         </select>
         
         <div style="display:flex; gap: 10px;">
-            <button class="btn-accion" style="flex:1; background: var(--p);" onclick="confirmarCreacionCuenta()">CREAR Y ASIGNAR</button>
-            <button class="btn-accion" style="flex:1; background: #64748b;" onclick="document.getElementById('modalCuenta').style.display='none'">CANCELAR</button>
-        </div>
+        <button class="btn-accion" style="flex:1; background: var(--p);" onclick="guardarCuentaNueva()">CREAR Y ASIGNAR</button>
+        <button class="btn-accion" style="flex:1; background: #64748b;" onclick="document.getElementById('modalCuenta').style.display='none'">CANCELAR</button>
+    </div>
     </div>
 </div>
     <script>
@@ -718,60 +718,22 @@ window.confirmarPendiente = async function(id_firebase, id_html) {
     })
     .catch(err => console.error("Error al conectar con la API:", err));
 }
-async function confirmarCreacionCuenta() {
-    const clave = document.getElementById('nombreCuenta').value.toUpperCase().replace(/\s+/g, '_');
-    const nombre = document.getElementById('nombreCuenta').value;
-    const tipo = document.getElementById('tipoCuenta').value;
-
-    // --- CORRECCIÓN: Definimos la URL de forma segura ---
-    // Si API_URL no existe, usamos la URL base de tu backend en Vercel.
-    // Sustituye 'tu-proyecto' por el nombre real de tu app en Vercel.
-    const url = (typeof API_URL !== 'undefined') 
-                ? `${API_URL}/api/contabilidad/crear_cuenta` 
-                : 'https://tu-proyecto.vercel.app/api/contabilidad/crear_cuenta';
-
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ clave, nombre, tipo })
-    });
+window.abrirModalCrearCuenta = function(sugerencia = "") {
+    const modal = document.getElementById('modalCuenta');
+    const inputNombre = document.getElementById('nombreCuenta');
+    const displaySugerido = document.getElementById('nombreSugerido');
     
-    // Ahora el navegador sí sabe a qué servidor enviar el POST
-    const data = await res.json();
-    
-    if (res.ok) {
-        document.getElementById('modalCuenta').style.display = 'none';
-        alert("Cuenta creada. Ahora podés procesar el movimiento nuevamente.");
-    } else {
-        alert("Error: " + (data.message || "Error desconocido"));
-    }
-}
-window.gestionarConfirmacion = async function(uid) {
-    const btn = document.getElementById('btn_' + uid);
-    const catInput = document.getElementById('cat_' + uid);
-    
-    // Primero intentamos confirmar
-    try {
-        await confirmarPendiente(uid, uid); 
-    } catch (err) {
-        // Si el error es porque la cuenta no existe (detectado por tu lógica anterior)
-        if (err.message.includes("Cuenta no existente")) {
-            catInput.style.borderColor = 'var(--a)'; // Rojo para indicar error
-            
-            // Abrir tu modal de creación ya existente
-            document.getElementById('modalCuenta').style.display = 'flex';
-            document.getElementById('nombreSugerido').innerText = catInput.value;
-            document.getElementById('nombreCuenta').value = catInput.value.replace('_', ' ');
-            
-            // Opcional: configurar un callback para reintentar automáticamente
-            window.reintentarConfirmar = () => confirmarPendiente(uid, uid);
-        }
+    if (modal) {
+        modal.style.display = 'flex';
+        displaySugerido.innerText = sugerencia;
+        inputNombre.value = sugerencia.replace(/_/g, ' ');
     }
 };
- window.guardarCuentaNueva = async function() {
-    const clave = document.getElementById('nombreSugerido').innerText; // GASTOS_UBER
+
+window.guardarCuentaNueva = async function() {
+    const clave = document.getElementById('nombreSugerido').innerText; 
     const nombre = document.getElementById('nombreCuenta').value;
-    const tipo = document.getElementById('tipoCuenta').value; // 'EGRESO', 'INGRESO', etc.
+    const tipo = document.getElementById('tipoCuenta').value;
 
     const res = await fetch(`${API_URL}/api/contabilidad/crear_cuenta`, {
         method: 'POST',
@@ -785,16 +747,33 @@ window.gestionarConfirmacion = async function(uid) {
         alert("✅ Cuenta creada con éxito.");
         document.getElementById('modalCuenta').style.display = 'none';
 
-        // --- EL CICLO AUTOMÁTICO ---
-        // Si teníamos un reintento pendiente, lo ejecutamos ahora
         if (typeof window.reintentarConfirmar === 'function') {
             await window.reintentarConfirmar();
-            window.reintentarConfirmar = null; // Limpiamos la referencia
+            window.reintentarConfirmar = null; 
         }
     } else {
         alert("❌ Error al crear cuenta: " + data.message);
     }
-};       
+};
+
+window.gestionarConfirmacion = async function(uid) {
+    const catInput = document.getElementById('cat_' + uid);
+    
+    try {
+        await confirmarPendiente(uid, uid); 
+    } catch (err) {
+        // Si el error es que la cuenta no existe, disparamos el modal
+        if (err.message.includes("Cuenta no existente") || err.status === 404) {
+            catInput.style.borderColor = 'var(--a)';
+            
+            // Asignamos el reintento
+            window.reintentarConfirmar = () => confirmarPendiente(uid, uid);
+            
+            // Abrimos el modal
+            window.abrirModalCrearCuenta(catInput.value);
+        }
+    }
+};     
 window.onload = inicializarModulo;
 </script>
 </body>
