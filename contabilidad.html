@@ -436,6 +436,7 @@ window.renderizarPantalla = function(data) {
             }
         }
     }
+
     // 2. Renderizar Transacciones Pendientes
     const tbodyPendientes = document.getElementById('tabla-pendientes');
     if (tbodyPendientes) {
@@ -458,33 +459,37 @@ window.renderizarPantalla = function(data) {
                 const isProcesado = mov.procesado === true;
                 const uid = mov.id_firebase; 
                 tbodyPendientes.innerHTML += `
-                <tr style="vertical-align: middle;">
-                <td>${mov.fechaISO.split('-').reverse().join('/')}</td>
-                <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
-                <td class="desc-corta" title="${mov.descripcion}">${mov.descripcion}</td>
-                <td>
-            <span class="${mov.monto > 0 ? 'monto-ingreso' : 'monto-egreso'}">
-                $ ${mov.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-            </span>
-        </td>
-        <td style="min-width: 180px;">
-            <div style="display: flex; flex-direction: column; gap: 6px;">
-                <input type="text" id="cat_${uid}" class="input-categoria" 
-                       value="${mov.categoria || ''}" placeholder="CUENTA CONTABLE" 
-                       ${isProcesado ? 'disabled' : ''}>
-                <input type="text" id="com_${uid}" class="input-comentario" 
-                       value="${mov.comentario || ''}" placeholder="Agregar comentario..." 
-                       ${isProcesado ? 'disabled' : ''}>
-            </div>
-        </td>
-        <td>
-            <button id="btn_${uid}" class="btn-accion" style="background: ${isProcesado ? '#64748b' : 'var(--p)'};" 
-                    ${isProcesado ? 'disabled' : ''} onclick="gestionarConfirmacion('${uid}')">
-                ${isProcesado ? '✅ ASENTADO' : 'CONFIRMAR'}
-            </button>
-        </td>
-    </tr>
-`;
+                    <tr style="vertical-align: middle;">
+                        <td>${mov.fechaISO.split('-').reverse().join('/')}</td>
+                        <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
+                        <td class="desc-corta" title="${mov.descripcion}">${mov.descripcion}</td>
+                        <td>
+                            <span class="${mov.monto > 0 ? 'monto-ingreso' : 'monto-egreso'}">
+                                $ ${mov.monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                            </span>
+                        </td>
+                        <td style="min-width: 180px;">
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <input type="text" id="cat_${uid}" class="input-categoria" 
+                                       value="${mov.categoria || ''}" placeholder="CUENTA CONTABLE" 
+                                       oninput="this.style.borderColor='var(--borde)'" ${isProcesado ? 'disabled' : ''}>
+                                <input type="text" id="com_${uid}" class="input-comentario" 
+                                       value="${mov.comentario || ''}" placeholder="Agregar comentario..." 
+                                       ${isProcesado ? 'disabled' : ''}>
+                            </div>
+                        </td>
+                        <td>
+                            <button id="btn_${uid}" class="btn-accion" style="background: ${isProcesado ? '#64748b' : 'var(--p)'};" 
+                                    ${isProcesado ? 'disabled' : ''} onclick="gestionarConfirmacion('${uid}')">
+                                ${isProcesado ? '✅ ASENTADO' : 'CONFIRMAR'}
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+    }
+
     // 3. Renderizar Libro Diario
     const tbodyDiario = document.getElementById('tabla-diario');
     if (tbodyDiario) {
@@ -514,7 +519,7 @@ window.renderizarPantalla = function(data) {
         }
     }
 
-    // 4. Renderizar Libro Mayor con formato forzado de puntos
+    // 4. Renderizar Libro Mayor
     const tbodyMayor = document.getElementById('tabla-mayor');
     if (tbodyMayor) {
         tbodyMayor.innerHTML = "";
@@ -523,7 +528,6 @@ window.renderizarPantalla = function(data) {
         } else {
             data.mayor.forEach((cuenta, idx) => {
                 const saldo = cuenta.saldo || 0.0;
-                // Lógica de puntos: si no tiene punto, intenta formatear 1102 -> 1.1.02
                 let codigoFormateado = cuenta.codigo;
                 if (codigoFormateado && !codigoFormateado.includes('.')) {
                     codigoFormateado = codigoFormateado.replace(/(\d{1})(\d{1})(\d+)/, '$1.$2.$3');
@@ -554,7 +558,7 @@ window.renderizarPantalla = function(data) {
             });
         }
     }
-}
+};
         
         // Funciones de Filtrado
         function filtrarTablaPendientes() {
