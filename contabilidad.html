@@ -281,7 +281,9 @@
 
     <div class="seccion-tablero">
     <h3 style="color: var(--ac);">📖 libro diario (asientos liquidados por partida doble)</h3>
-    <button class="btn-accion" onclick="exportarLibroDiarioCompleto(data)" style="background: var(--p);">
+    <button class="btn-accion" 
+        onclick="exportarLibroDiarioCompleto(data)" 
+        style="background: var(--p); margin-bottom: 10px;">
     📥 EXPORTAR DIARIO (AGRUPADO + INDIVIDUAL)
     </button>
     <div class="tabla-contenedor">
@@ -797,7 +799,7 @@ window.gestionarConfirmacion = async function(uid) {
     }
 };     
 window.exportarLibroDiarioCompleto = function(data) { 
-    // Validación de seguridad
+    // 1. Validación de seguridad
     if (!data || !data.diario) {
         return alert("❌ No hay datos cargados para exportar.");
     }
@@ -805,11 +807,11 @@ window.exportarLibroDiarioCompleto = function(data) {
     const todosLosAsientos = data.diario;
     const seleccionados = Array.from(document.querySelectorAll('.selector-asiento:checked')).map(cb => cb.value);
     
-    // 1. Identificamos qué agrupar y qué dejar individual
+    // 2. Separación de datos
     const aAgrupar = todosLosAsientos.filter(a => seleccionados.includes(a.id_origen));
     const individuales = todosLosAsientos.filter(a => !seleccionados.includes(a.id_origen));
 
-    // 2. Acumulamos lo seleccionado por código de cuenta
+    // 3. Acumulación (solo si hay seleccionados)
     const resumen = {};
     aAgrupar.forEach(a => {
         a.asientos.forEach(linea => {
@@ -822,30 +824,28 @@ window.exportarLibroDiarioCompleto = function(data) {
         });
     });
 
-    // 3. Generamos el CSV
-    // Incluimos un BOM al inicio para que Excel reconozca las tildes correctamente
+    // 4. Generación de CSV
     let csv = "\ufeffTipo,Codigo,Cuenta,Debe,Haber\n";
     
-    // Primero: Lo agrupado
+    // Agrupados
     Object.values(resumen).forEach(row => {
-        if(row.debe > 0 || row.haber > 0)
-            csv += `AGRUPADO,${row.codigo},${row.cuenta},${row.debe.toFixed(2)},${row.haber.toFixed(2)}\n`;
+        csv += `AGRUPADO,${row.codigo},${row.cuenta},${row.debe.toFixed(2)},${row.haber.toFixed(2)}\n`;
     });
 
-    // Segundo: Lo individual
+    // Individuales
     individuales.forEach(a => {
         a.asientos.forEach(linea => {
-            csv += `INDIVIDUAL,${linea.codigo},${line.cuenta},${linea.debe.toFixed(2)},${linea.haber.toFixed(2)}\n`;
+            csv += `INDIVIDUAL,${linea.codigo},${linea.cuenta},${parseFloat(linea.debe || 0).toFixed(2)},${parseFloat(linea.haber || 0).toFixed(2)}\n`;
         });
     });
 
-    // 4. Descarga
+    // 5. Descarga forzada
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "Libro_Diario_Completo.csv";
     link.click();
-};       
+};    
 window.onload = inicializarModulo;
 </script>
 </body>
