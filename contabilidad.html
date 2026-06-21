@@ -382,22 +382,36 @@
                 cargarDatosTablero();
             }
         }
-
-        async function cargarDatosTablero() {
-            try {
-                const res = await fetch(`${API_URL}/api/contabilidad`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ periodo: periodoSeleccionado })
-                });
-                const response = await res.json();
-                if (response.status === 'success') {
-                    renderizarPantalla(response.data);
-                }
-            } catch (err) {
-                console.error("Error al mapear datos del servidor:", err);
+window.cargarDatosTablero = async function() {
+    try {
+        console.log("🔄 Sincronizando datos con el servidor...");
+        
+        const res = await fetch(`${API_URL}/api/contabilidad`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ periodo: periodoSeleccionado })
+        });
+        
+        const response = await res.json();
+        
+        if (response.status === 'success') {
+            console.log("✅ Datos recibidos. Renderizando UI...");
+            
+            // --- ESTO ES LO QUE HACE QUE NO NECESITES F5 ---
+            // Asegúrate de que esta función exista y reciba 'response.data'
+            if (typeof renderizarPantalla === 'function') {
+                renderizarPantalla(response.data);
+            } else {
+                console.error("❌ ERROR: La función renderizarPantalla no está definida.");
             }
+        } else {
+            console.warn("⚠️ El servidor respondió pero sin success:", response);
         }
+    } catch (err) {
+        console.error("❌ Error al refrescar datos:", err);
+    }
+};
+       
 function renderizarPantalla(data) {
     // 1. Renderizar Bancos
     const grilla = document.getElementById('grilla-bancos');
