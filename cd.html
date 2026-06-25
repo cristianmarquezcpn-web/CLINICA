@@ -218,8 +218,7 @@
     
     // Variables principales y del módulo
     let pacs = {}, msgs = {}, nF = "", tempFiles = {};
-    let modoActual = 'orientador', seleccionadoId = null, tallerSeleccionado = 1;
-
+    let modoActual = 'orientador', seleccionadoId = null, tallerSeleccionado = 'kine';
     database.on('value', (s) => {
         const d = s.val() || {}; pacs = d.pacientes || {}; msgs = d.mensajes || {};
         renderTableros(); renderLista(); renderChat();
@@ -565,30 +564,44 @@
                 </div>` : '<p style="color:red; font-weight:bold; margin-top:10px;">⬅️ Selecciona un niño a la izquierda</p>'}
             </div>`;
     }
+function renderTerapeuta() {
+    const area = document.getElementById('area-carga');
+    
+    // Mapeo directo: valor interno (id) -> nombre visible (label)
+    const opciones = [
+        { id: 'kine', label: 'KINE' },
+        { id: 'psico', label: 'PSICO' },
+        { id: 'ts', label: 'T.S' },
+        { id: 'to', label: 'T.O' }
+    ];
 
-    function renderTerapeuta() {
-        const area = document.getElementById('area-carga');
-        area.innerHTML = `
-            <div style="margin-bottom:15px; display:flex; gap:5px; align-items:center">
-                <b>SELECCIONAR TALLER:</b>
-                ${[kinesiologia,Psicologia,T.S,T.O].map(n => `<button class="btn" style="background:${tallerSeleccionado==n?'var(--violeta)':'#ccc'}; font-size:11px; padding:10px 15px;" onclick="tallerSeleccionado=${n};actualizarModuloSalas()">TALLER ${n}</button>`).join('')}
-            </div>
-            <div style="background:#fff4e6; padding:15px; border-radius:10px; border:1px solid var(--naranja)">
-                <h3 style="margin:0; color:var(--naranja)">👨‍⚕️ EJE TERAPÉUTICO - TALLER ${tallerSeleccionado}</h3>
-                ${seleccionadoId ? `<p>Paciente: <b style="color:var(--oscuro)">${seleccionadoId}</b></p><div class="grid-docs">
-                    ${renderDocBoxModulo('PLAN DE TRABAJO', `t${tallerSeleccionado}_plan`, seleccionadoId)}
-                    ${renderDocBoxModulo('DIAGNÓSTICO', `t${tallerSeleccionado}_diag`, seleccionadoId)}
-                    ${renderDocBoxModulo('INF. 1º TRIMESTRAL', `t${tallerSeleccionado}_trim1`, seleccionadoId)}
-                    ${renderDocBoxModulo('INF. 2º TRIMESTRAL', `t${tallerSeleccionado}_trim2`, seleccionadoId)}
-					${renderDocBoxModulo('INF. 3º TRIMESTRAL', `t${tallerSeleccionado}_trim3`, seleccionadoId)}
-					${renderDocBoxModulo('INF. ANUAL', `t${tallerSeleccionado}_anual`, seleccionadoId)}
-                    ${renderDocBoxModulo('TALLER 1º TRIM', `t${tallerSeleccionado}_ex1`, seleccionadoId)}
-                    ${renderDocBoxModulo('TALLER 2º TRIM', `t${tallerSeleccionado}_ex2`, seleccionadoId)}
-					${renderDocBoxModulo('TALLER 3º TRIM', `t${tallerSeleccionado}_ex3`, seleccionadoId)}
-                </div>` : '<p style="color:red; font-weight:bold; margin-top:10px;">⬅️ Selecciona un niño a la izquierda</p>'}
-            </div>`;
-    }
-
+    area.innerHTML = `
+        <div style="margin-bottom:15px; display:flex; gap:5px; align-items:center">
+            <b>SELECCIONAR TALLER:</b>
+            ${opciones.map(opt => `
+                <button class="btn" 
+                        style="background:${tallerSeleccionado == opt.id ? 'var(--violeta)' : '#ccc'}; font-size:11px; padding:10px 15px;" 
+                        onclick="tallerSeleccionado='${opt.id}'; actualizarModuloSalas()">
+                    ${opt.label}
+                </button>
+            `).join('')}
+        </div>
+        <div style="background:#fff4e6; padding:15px; border-radius:10px; border:1px solid var(--naranja)">
+            <h3 style="margin:0; color:var(--naranja)">👨‍⚕️ EJE TERAPÉUTICO - TALLER ${tallerSeleccionado.toUpperCase()}</h3>
+            ${seleccionadoId ? `<p>Paciente: <b style="color:var(--oscuro)">${seleccionadoId}</b></p>
+            <div class="grid-docs">
+                ${renderDocBoxModulo('PLAN DE TRABAJO', `t${tallerSeleccionado}_plan`, seleccionadoId)}
+                ${renderDocBoxModulo('DIAGNÓSTICO', `t${tallerSeleccionado}_diag`, seleccionadoId)}
+                ${renderDocBoxModulo('INF. 1º TRIM', `t${tallerSeleccionado}_trim1`, seleccionadoId)}
+                ${renderDocBoxModulo('INF. 2º TRIM', `t${tallerSeleccionado}_trim2`, seleccionadoId)}
+                ${renderDocBoxModulo('INF. 3º TRIM', `t${tallerSeleccionado}_trim3`, seleccionadoId)}
+                ${renderDocBoxModulo('INF. ANUAL', `t${tallerSeleccionado}_anual`, seleccionadoId)}
+                ${renderDocBoxModulo('TALLER 1º TRIM', `t${tallerSeleccionado}_ex1`, seleccionadoId)}
+                ${renderDocBoxModulo('TALLER 2º TRIM', `t${tallerSeleccionado}_ex2`, seleccionadoId)}
+                ${renderDocBoxModulo('TALLER 3º TRIM', `t${tallerSeleccionado}_ex3`, seleccionadoId)}
+            </div>` : '<p style="color:red; font-weight:bold; margin-top:10px;">⬅️ Selecciona un niño a la izquierda</p>'}
+        </div>`;
+}
     function renderDocBoxModulo(label, id, key) {
         const url = (pacs[key] && pacs[key][id + "_link"]) ? pacs[key][id + "_link"] : "";
         return `
