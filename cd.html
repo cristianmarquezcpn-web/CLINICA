@@ -549,10 +549,10 @@
             <div style="background:#eef7ff; padding:15px; border-radius:10px; margin-bottom:20px; border:1px solid var(--azul)">
                 <h3 style="margin:0; color:var(--azul)">📁 PLANIFICACIONES DE TALLERES (SALA ${s})</h3>
                 <div class="grid-docs">
-                    ${renderDocBoxModulo('TALLER 1', 'plan_t1', salaKey)}
-                    ${renderDocBoxModulo('TALLER 2', 'plan_t2', salaKey)}
-                    ${renderDocBoxModulo('TALLER 3', 'plan_t3', salaKey)}
-                    ${renderDocBoxModulo('TALLER 4', 'plan_t4', salaKey)}
+                    ${renderDocBoxModulo('KINESIOLOGIA', 'plan_kine', salaKey)}
+                    ${renderDocBoxModulo('PSICOLOGIA', 'plan_psico', salaKey)}
+                    ${renderDocBoxModulo('T.S', 'plan_ts', salaKey)}
+                    ${renderDocBoxModulo('T.O', 'plan_to', salaKey)}
                 </div>
             </div>
             <div style="background:white; padding:15px; border-radius:10px; border:1px solid #ddd">
@@ -578,10 +578,13 @@
                 ${seleccionadoId ? `<p>Paciente: <b style="color:var(--oscuro)">${seleccionadoId}</b></p><div class="grid-docs">
                     ${renderDocBoxModulo('PLAN DE TRABAJO', `t${tallerSeleccionado}_plan`, seleccionadoId)}
                     ${renderDocBoxModulo('DIAGNÓSTICO', `t${tallerSeleccionado}_diag`, seleccionadoId)}
-                    ${renderDocBoxModulo('INF. TRIMESTRAL', `t${tallerSeleccionado}_trim`, seleccionadoId)}
-                    ${renderDocBoxModulo('INF. ANUAL', `t${tallerSeleccionado}_anual`, seleccionadoId)}
-                    ${renderDocBoxModulo('EXTRA 1', `t${tallerSeleccionado}_ex1`, seleccionadoId)}
-                    ${renderDocBoxModulo('EXTRA 2', `t${tallerSeleccionado}_ex2`, seleccionadoId)}
+                    ${renderDocBoxModulo('INF. 1º TRIMESTRAL', `t${tallerSeleccionado}_trim1`, seleccionadoId)}
+                    ${renderDocBoxModulo('INF. 2º TRIMESTRAL', `t${tallerSeleccionado}_trim2`, seleccionadoId)}
+					${renderDocBoxModulo('INF. 3º TRIMESTRAL', `t${tallerSeleccionado}_trim3`, seleccionadoId)}
+					${renderDocBoxModulo('INF. ANUAL', `t${tallerSeleccionado}_anual`, seleccionadoId)}
+                    ${renderDocBoxModulo('TALLER 1º TRIM', `t${tallerSeleccionado}_ex1`, seleccionadoId)}
+                    ${renderDocBoxModulo('TALLER 2º TRIM', `t${tallerSeleccionado}_ex2`, seleccionadoId)}
+					${renderDocBoxModulo('TALLER 3º TRIM', `t${tallerSeleccionado}_ex3`, seleccionadoId)}
                 </div>` : '<p style="color:red; font-weight:bold; margin-top:10px;">⬅️ Selecciona un niño a la izquierda</p>'}
             </div>`;
     }
