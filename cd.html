@@ -648,7 +648,7 @@ document.addEventListener('focusout', function (event) {
             }
         });
     }
-}, true);
+}, true);	
 async function descargarPDF(n) {
     const p = pacs[n];
     const link = p.asistF_link || p.asistF;
@@ -700,7 +700,6 @@ async function descargarPDF(n) {
         window.open(link, '_blank');
     }
 }
-
 firebase.auth().onAuthStateChanged((user) => {
     if (user) {
         console.log("Sesión iniciada:", user.email);
