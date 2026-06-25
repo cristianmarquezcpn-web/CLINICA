@@ -649,13 +649,18 @@ document.addEventListener('focusout', function (event) {
         });
     }
 }, true);
-	async function descargarPDF(n) {
+async function descargarPDF(n) {
     const p = pacs[n];
     const link = p.asistF_link || p.asistF;
     
     if(!link) { alert("No hay asistencia cargada en Cloudinary"); return; }
 
-    // 1. CALCULAMOS MES VENCIDO Y AÑO
+    // 1. Detectar si el link contiene extensiones de imagen
+    const linkLower = link.toLowerCase();
+    const esImagen = linkLower.includes('.png') || linkLower.includes('.jpg') || linkLower.includes('.jpeg');
+    const extension = esImagen ? '.png' : '.pdf'; // Si es imagen, usamos .png (o .jpg), sino .pdf
+
+    // 2. CALCULAMOS MES VENCIDO Y AÑO
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
                    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     
@@ -670,9 +675,8 @@ document.addEventListener('focusout', function (event) {
 
     const mesVencido = meses[indiceMesAnterior];
 
-    // 2. ARMAMOS EL NOMBRE CON "CD" FIJO AL FINAL
-    // Ejemplo: Asistencia Febrero 2026 Pedro CD.pdf
-    const nombreFichero = `Asistencia ${mesVencido} ${anioRef} ${n} CD.pdf`;
+    // 3. ARMAMOS EL NOMBRE CON LA EXTENSIÓN CORRECTA
+    const nombreFichero = `Asistencia ${mesVencido} ${anioRef} ${n} CD${extension}`;
 
     try {
         const respuesta = await fetch(link);
@@ -692,6 +696,7 @@ document.addEventListener('focusout', function (event) {
         document.body.removeChild(tagA);
         
     } catch (err) {
+        // Si hay error de CORS o de red, abre el link en una pestaña nueva
         window.open(link, '_blank');
     }
 }
