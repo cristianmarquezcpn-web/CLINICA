@@ -313,15 +313,25 @@
         document.getElementById('modal').style.display="block"; document.getElementById('overlay').style.display="block"; 
     }
 
-    async function subirACloudinary(file) {
-        const formData = new FormData();
-        const nombreLimpio = file.name.split('.').slice(0, -1).join('.');
-        formData.append('file', file);
-        formData.append('upload_preset', 'clinic_preset');
-        formData.append('public_id', nombreLimpio);
-        try { const resp = await fetch('https://api.cloudinary.com/v1_1/duscmxxws/auto/upload', { method: 'POST', body: formData }); const data = await resp.json(); return data.secure_url || null; } 
-        catch (e) { return null; }
+   async function subirACloudinary(file) {
+    const formData = new FormData();
+    const nombreLimpio = file.name.split('.').slice(0, -1).join('.');
+    formData.append('file', file);
+    formData.append('upload_preset', 'clinic_preset');
+    formData.append('public_id', nombreLimpio);
+
+    // Cambiamos 'auto/upload' por 'image/upload' y añadimos la transformación f_pdf
+    const url = 'https://api.cloudinary.com/v1_1/duscmxxws/image/upload?transformation=f_pdf';
+
+    try { 
+        const resp = await fetch(url, { method: 'POST', body: formData }); 
+        const data = await resp.json(); 
+        return data.secure_url || null; 
+    } catch (e) { 
+        console.error("Error en subida:", e);
+        return null; 
     }
+}
 
     function subPre(t, i) { 
         if(!i.files[0]) return;
@@ -588,19 +598,29 @@
             </div>`;
     }
 
-    async function subirDocModulo(docId, key, input) {
-        if(!input.files[0]) return;
-        const file = input.files[0];
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('upload_preset', 'clinic_preset');
-        formData.append('public_id', file.name.split('.').slice(0, -1).join('.'));
-        try {
-            const resp = await fetch('https://api.cloudinary.com/v1_1/duscmxxws/auto/upload', { method: 'POST', body: formData });
-            const data = await resp.json();
-            if(data.secure_url) guardarLinkModulo(docId, key, data.secure_url);
-        } catch (e) { alert("Error al subir archivo"); }
+   async function subirDocModulo(docId, key, input) {
+    if(!input.files[0]) return;
+    const file = input.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'clinic_preset');
+    formData.append('public_id', file.name.split('.').slice(0, -1).join('.'));
+    
+    try {
+        // CAMBIO: Se reemplaza 'auto/upload' por 'image/upload' con la transformación
+        const resp = await fetch('https://api.cloudinary.com/v1_1/duscmxxws/image/upload?transformation=f_pdf', { 
+            method: 'POST', 
+            body: formData 
+        });
+        const data = await resp.json();
+        if(data.secure_url) {
+            // Cloudinary ahora devolverá una URL con extensión .pdf
+            guardarLinkModulo(docId, key, data.secure_url);
+        }
+    } catch (e) { 
+        alert("Error al subir archivo"); 
     }
+}
 
     function guardarLinkModulo(docId, key, valor) {
         let update = {}; update[docId + "_link"] = valor;
