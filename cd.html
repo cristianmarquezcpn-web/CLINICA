@@ -571,7 +571,7 @@
         area.innerHTML = `
             <div style="margin-bottom:15px; display:flex; gap:5px; align-items:center">
                 <b>SELECCIONAR TALLER:</b>
-                ${[kine,Psico,T.S,T.O].map(n => `<button class="btn" style="background:${tallerSeleccionado==n?'var(--violeta)':'#ccc'}; font-size:11px; padding:10px 15px;" onclick="tallerSeleccionado=${n};actualizarModuloSalas()">TALLER ${n}</button>`).join('')}
+                ${[kinesiologia,Psicologia,T.S,T.O].map(n => `<button class="btn" style="background:${tallerSeleccionado==n?'var(--violeta)':'#ccc'}; font-size:11px; padding:10px 15px;" onclick="tallerSeleccionado=${n};actualizarModuloSalas()">TALLER ${n}</button>`).join('')}
             </div>
             <div style="background:#fff4e6; padding:15px; border-radius:10px; border:1px solid var(--naranja)">
                 <h3 style="margin:0; color:var(--naranja)">👨‍⚕️ EJE TERAPÉUTICO - TALLER ${tallerSeleccionado}</h3>
