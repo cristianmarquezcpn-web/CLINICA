@@ -321,7 +321,7 @@
     formData.append('public_id', nombreLimpio);
 
     // Volvemos a 'auto/upload' para que Cloudinary detecte el formato real
-    const url = 'https://api.cloudinary.com/v1_1/duscmxxws/auto/upload';
+    const url = 'https://api.cloudinary.com/v1_1/duscmxxws/raw/upload';
 
     try { 
         const resp = await fetch(url, { method: 'POST', body: formData }); 
@@ -604,20 +604,24 @@
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', 'clinic_preset');
+    // Mantenemos el public_id limpio
     formData.append('public_id', file.name.split('.').slice(0, -1).join('.'));
     
     try {
-        // CAMBIO: Se reemplaza 'auto/upload' por 'image/upload' con la transformación
-        const resp = await fetch('https://api.cloudinary.com/v1_1/duscmxxws/image/upload?transformation=f_pdf', { 
+        // CAMBIO CRÍTICO: Usar 'raw/upload'
+        // Esto le dice a Cloudinary: "guarda el archivo tal cual, sin convertirlo"
+        const resp = await fetch('https://api.cloudinary.com/v1_1/duscmxxws/raw/upload', { 
             method: 'POST', 
             body: formData 
         });
+        
         const data = await resp.json();
         if(data.secure_url) {
-            // Cloudinary ahora devolverá una URL con extensión .pdf
+            // Guardamos el link original del archivo
             guardarLinkModulo(docId, key, data.secure_url);
         }
     } catch (e) { 
+        console.error(e);
         alert("Error al subir archivo"); 
     }
 }
@@ -653,33 +657,37 @@ async function descargarPDF(n) {
     const p = pacs[n];
     const link = p.asistF_link || p.asistF;
     
-    if(!link) { alert("No hay asistencia cargada en Cloudinary"); return; }
+    if (!link) { 
+        alert("No hay asistencia cargada en Cloudinary"); 
+        return; 
+    }
 
-    // 1. DETERMINAR EXTENSIÓN REAL
-    const linkLower = link.toLowerCase();
-    // Si la URL termina en .pdf, mantenemos .pdf, sino extraemos la extensión real
-    const tienePdf = linkLower.includes('.pdf');
-    const extension = tienePdf ? '.pdf' : (linkLower.includes('.png') ? '.png' : '.jpg');
-
-    // 2. CALCULAR MES Y AÑO
+    // 1. CALCULAMOS MES Y AÑO PARA EL NOMBRE
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
                    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     const fechaHoy = new Date();
     let indiceMesAnterior = fechaHoy.getMonth() - 1;
     let anioRef = fechaHoy.getFullYear();
     if (indiceMesAnterior < 0) { indiceMesAnterior = 11; anioRef--; }
+    const linkLower = link.toLowerCase();
+    const extension = linkLower.includes('.pdf') ? '.pdf' : 
+                     (linkLower.includes('.png') ? '.png' : '.jpg');
 
     const nombreFichero = `Asistencia ${meses[indiceMesAnterior]} ${anioRef} ${n} CD${extension}`;
 
-    // 3. DESCARGA DIRECTA (EVITA CORRUPCIÓN Y PAINT)
-    const tagA = document.createElement('a');
-    tagA.href = link;
-    tagA.target = '_blank';
-    tagA.download = nombreFichero; 
-    
-    document.body.appendChild(tagA);
-    tagA.click();
-    document.body.removeChild(tagA);
+    try {
+        const respuesta = await fetch(link);
+        const blob = await respuesta.blob();
+        const urlBlob = window.URL.createObjectURL(blob);
+        
+        // Abrimos en una ventana nueva, pero con la URL del Blob que el navegador SÍ acepta
+        const ventana = window.open(urlBlob, '_blank');
+        setTimeout(() => window.URL.revokeObjectURL(urlBlob), 10000);
+        
+    } catch (err) {
+        
+        window.open(link, '_blank');
+    }
 }
 firebase.auth().onAuthStateChanged((user) => {
     if (user) {
