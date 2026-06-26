@@ -542,28 +542,29 @@
     }
 
     function renderOrientador(t, s) {
-        const area = document.getElementById('area-carga');
-        const salaKey = `SALA_T${t}_S${s}`;
-        area.innerHTML = `
-            <div style="background:#eef7ff; padding:15px; border-radius:10px; margin-bottom:20px; border:1px solid var(--azul)">
-                <h3 style="margin:0; color:var(--azul)">📁 PLANIFICACIONES DE TALLERES (SALA ${s})</h3>
-                <div class="grid-docs">
-                    ${renderDocBoxModulo('KINESIOLOGIA', 'plan_kine', salaKey)}
-                    ${renderDocBoxModulo('PSICOLOGIA', 'plan_psico', salaKey)}
-                    ${renderDocBoxModulo('T.S', 'plan_ts', salaKey)}
-                    ${renderDocBoxModulo('T.O', 'plan_to', salaKey)}
-                </div>
+    const area = document.getElementById('area-carga');
+    const salaKey = `SALA_T${t}_S${s}`;
+    
+    area.innerHTML = `
+        <div style="background:#eef7ff; padding:15px; border-radius:10px; margin-bottom:20px; border:1px solid var(--azul)">
+            <h3 style="margin:0; color:var(--azul)">📁 PLANIFICACIONES DE TALLERES (SALA ${s})</h3>
+            <div class="grid-docs">
+                ${renderDocBoxModulo('TALLER ANUAL', 'plan_anual', salaKey)}
+                ${renderDocBoxModulo('TALLER 1º T', 'plan_t1', salaKey)}
+                ${renderDocBoxModulo('TALLER 2º T', 'plan_t2', salaKey)}
+                ${renderDocBoxModulo('TALLER 3º T', 'plan_t3', salaKey)}
             </div>
-            <div style="background:white; padding:15px; border-radius:10px; border:1px solid #ddd">
-                <h3 style="margin:0">📑 INFORMES TRIMESTRALES DE SALA</h3>
-                ${seleccionadoId ? `<p>Niño: <b style="color:var(--azul)">${seleccionadoId}</b></p><div class="grid-docs">
-                    ${renderDocBoxModulo('1° TRIM', 'inf_s_t1', seleccionadoId)}
-                    ${renderDocBoxModulo('2° TRIM', 'inf_s_t2', seleccionadoId)}
-                    ${renderDocBoxModulo('3° TRIM', 'inf_s_t3', seleccionadoId)}
-                    ${renderDocBoxModulo('4° TRIM', 'inf_s_t4', seleccionadoId)}
-                </div>` : '<p style="color:red; font-weight:bold; margin-top:10px;">⬅️ Selecciona un niño a la izquierda</p>'}
-            </div>`;
-    }
+        </div>
+        <div style="background:white; padding:15px; border-radius:10px; border:1px solid #ddd">
+            <h3 style="margin:0">📑 INFORMES TRIMESTRALES DE SALA</h3>
+            ${seleccionadoId ? `<p>Niño: <b style="color:var(--azul)">${seleccionadoId}</b></p><div class="grid-docs">
+                ${renderDocBoxModulo('1° TRIM', 'inf_s_t1', seleccionadoId)}
+                ${renderDocBoxModulo('2° TRIM', 'inf_s_t2', seleccionadoId)}
+                ${renderDocBoxModulo('3° TRIM', 'inf_s_t3', seleccionadoId)}
+                ${renderDocBoxModulo('4° TRIM', 'inf_s_t4', seleccionadoId)}
+            </div>` : '<p style="color:red; font-weight:bold; margin-top:10px;">⬅️ Selecciona un niño a la izquierda</p>'}
+        </div>`;
+}
 function renderTerapeuta() {
     const area = document.getElementById('area-carga');
     
