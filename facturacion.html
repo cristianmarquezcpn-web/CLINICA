@@ -1042,7 +1042,173 @@ const MODELO_FACTURA_B = (d) => {
         </div>
     </div>`;
 };
-	window.descargarFactura = async (idFactura) => { 
+const MODELO_FACTURA_A = (d) => {
+    // 1. CÁLCULOS (Idénticos a la B para mantener consistencia)
+    const totalFacturado = d.total || d.total_facturado || 0;
+    const alicuotaComp = d.alicuota || 0;
+    const coeficiente = alicuotaComp > 0 ? (parseFloat(alicuotaComp) / (100 + parseFloat(alicuotaComp))) : 0;
+    const ivaContenido = totalFacturado * coeficiente;
+    const valorSubtotal = totalFacturado / (1 + (parseFloat(alicuotaComp) / 100));
+
+    // 2. LÓGICA DE LETRA Y TIPO
+    const codNum = parseInt(d.tipo_comp || d.tipo_cod);
+    let letraFactura = "A"; // Forzado a A
+    
+    const esNC = (codNum === 8 || codNum === 3 || codNum === 13);
+    const tituloDoc = esNC ? "NOTA DE CRÉDITO" : (d.titulo_documento || "FACTURA");
+
+    let lineaAsociada = "";
+    if (esNC && (d.asoc_nro || d.nro_asoc)) {
+        const pvA = String(d.asoc_pv || 5).padStart(5, '0');
+        const nroA = String(d.asoc_nro || d.nro_asoc).padStart(8, '0');
+        lineaAsociada = `
+            <div style="width: 100%; margin-top: 2mm; font-size: 11px; font-family: 'Arial Narrow', sans-serif;">
+                <b>Fac. Asociada: ${pvA}-${nroA}</b>
+            </div>`;
+    }
+
+    const fechaHoy = new Date().toLocaleDateString('es-AR').split('/').reverse().join('-');
+    const fechaParaQr = (d.fecha && d.fecha.includes('/')) 
+        ? d.fecha.split('/').reverse().join('-') 
+        : (d.fecha && d.fecha.includes('-') ? d.fecha : fechaHoy);
+
+    // QR (Misma lógica que te funciona perfecto en la B)
+    const datosParaQr = {
+        ver: 1,
+        fecha: fechaParaQr,
+        cuit: parseInt(d.emisor_cuit),
+        ptoVta: parseInt(d.ptoVta),
+        tipoCmp: codNum,
+        nroCmp: parseInt(d.nro),
+        importe: totalFacturado,
+        moneda: "PES",
+        ctz: 1,
+        tipoDocRec: (d.receptor_cuit || "").length > 10 ? 80 : 96,
+        nroDocRec: parseInt((d.receptor_cuit || "").replace(/\D/g, '') || 0),
+        tipoCodAut: "E",
+        codAut: parseInt(d.cae)
+    };
+
+    const datosBase64 = btoa(JSON.stringify(datosParaQr));
+    const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent("https://www.afip.gob.ar/fe/qr/?p=" + datosBase64)}`;
+
+    return `
+    <div class="hoja-a4">
+        <div class="factura-border">
+            <div class="copia">${d.copia || 'ORIGINAL'}</div>
+            
+            <div class="header">
+                <div class="empresa">
+                    <div class="emisor-name" style="margin-bottom: 3mm;">${d.emisor_rs}</div>
+                    <div style="font-size: 10px; line-height: 1.4;">
+                        <div style="margin-bottom: 1.5mm;"><b>Razón Social:</b> ${d.emisor_rs}</div>
+                        <div style="margin-bottom: 1.5mm;"><b>Domicilio Comercial:</b> ${d.emisor_dom}</div>
+                        <div><b>Condición frente al IVA:</b> ${d.emisor_iva}</div>
+                    </div>
+                </div>
+                <div class="tipo">
+                    <div class="letra">${letraFactura}</div>
+                    <div class="cod">COD. ${d.tipo_cod}</div>
+                </div>
+                <div class="datos">
+                    <div style="font-size:18px; font-weight:bold; margin-bottom:1mm;">${tituloDoc}</div>
+                    <b>Punto de Venta: ${d.ptoVta} &nbsp; Comp. Nro: ${d.nro}</b><br>
+                    <b>Fecha de Emisión: ${d.fecha}</b><br><br>
+                    <b>CUIT:</b> ${d.emisor_cuit}<br>
+                    <b>Ingresos Brutos:</b> ${d.emisor_iibb}<br>
+                    <b>Inicio de Actividades:</b> ${d.emisor_inicio}
+                </div>
+            </div>
+
+            <div class="periodo-blanco">
+                <div><b>Período Facturado Desde:</b> ${d.desde}</div>
+                <div><b>Hasta:</b> ${d.hasta}</div>
+                <div><b>Fecha de Vto. para el pago:</b> ${d.vto_pago}</div>
+            </div>
+
+            <div class="cliente-container">
+                <div class="cliente-izq">
+                    <b>CUIT:</b> ${d.receptor_cuit}<br>
+                    <b>Condición frente al IVA:</b> ${d.receptor_iva}<br>
+                    <b>Condición de venta:</b> ${d.condicion_venta}
+                </div>
+                <div class="cliente-der">
+                    <b>Apellido y Nombre / Razón Social:</b> ${d.receptor_rs}<br>
+                    <b>Domicilio:</b> ${d.receptor_dom}
+                    ${lineaAsociada}
+                </div>
+            </div>
+
+            <div class="detalle">
+                <table style="width:100%; table-layout: fixed; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="width:40%; padding-left: 2mm;">Código / Producto / Servicio</th>
+                            <th style="width:10%; text-align: center;">Cant.</th>
+                            <th style="width:10%; text-align: center;">U. Medida</th>
+                            <th style="width:15%; text-align: right;">Precio Unit.</th>
+                            <th style="width:10%; text-align: center;">% Bonif</th>
+                            <th style="width:15%; text-align: right; padding-right: 2mm;">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding-left: 2mm;">${d.concepto}</td>
+                            <td style="text-align: center;">1,00</td>
+                            <td style="text-align: center;">unidades</td>
+                            <td style="text-align: right;">$ ${totalFacturado.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                            <td style="text-align: center;">0,00</td>
+                            <td style="text-align: right; padding-right: 2mm;">$ ${totalFacturado.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="totales-box">
+                <div class="ley-box">
+                    <b>Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)</b><br>
+                    IVA Contenido: $ ${ivaContenido.toLocaleString('es-AR', {minimumFractionDigits:2})}
+                </div>
+                <div class="tabla-totales">
+                    <div class="linea-total">
+                        <span>Subtotal: $</span>
+                        <span>${valorSubtotal.toLocaleString('es-AR', {minimumFractionDigits:2})}</span>
+                    </div>
+                    <div class="linea-total">
+                        <span>Importe Otros Tributos: $</span>
+                        <span>0,00</span>
+                    </div>
+                    <div class="linea-total bold">
+                        <span>Importe Total: $</span>
+                        <span>${totalFacturado.toLocaleString('es-AR', {minimumFractionDigits:2})}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-final">
+                <div class="qr-container" style="display: flex; align-items: center; gap: 8px;">
+                    <img src="${qrImgUrl}" width="85">
+                    <div style="text-align:center">
+                        <div style="font-weight:900; font-size:24px; font-style:italic; line-height:0.8;">ARCA</div>
+                        <div style="font-size:6.5px; font-weight:bold; letter-spacing:0.1px;">AGENCIA DE RECAUDACIÓN Y CONTROL ADUANERO</div>
+                        <div style="border-top:1.2px solid black; margin-top:1.2mm; padding-top:1mm; font-weight:bold; font-size:10px;">Comprobante Autorizado</div>
+                    </div>
+                </div>
+                
+                <div style="font-size:9px; max-width:35%; text-align:center;">
+                    Esta Agencia no se responsabiliza por los datos ingresados en el detalle de la operación.<br><br>
+                    <b>Pág. 1/1</b>
+                </div>
+
+                <div class="f-right">
+                    <b>CAE Nº:</b> ${d.cae}<br>
+                    <b>Fecha de Vto. de CAE:</b> ${d.cae_vto}
+                </div>
+            </div>
+        </div>
+    </div>`;
+};		
+window.descargarFactura = async (idFactura) => { 
     if (!idFactura || idFactura === 'undefined' || idFactura === '') {
         return alert("No hay factura emitida para este módulo");
     }
@@ -1060,6 +1226,11 @@ const MODELO_FACTURA_B = (d) => {
     if (!p || !miCAE) {
         return alert("Error: No se encontró factura con CAE en la base de datos.");
     }
+
+    // --- DETERMINAR MODELO ---
+    const tipoInt = parseInt(p.tipo_comp || p.tipo_cod || 6);
+    const esA = [1, 3].includes(tipoInt);
+    const ModeloElegido = esA ? MODELO_FACTURA_A : MODELO_FACTURA_B;
 	
     console.log("Generando PDF para:", p.razon_social, "CAE:", miCAE);
     const cuitEmisor = "30714900192";
@@ -1082,13 +1253,13 @@ const MODELO_FACTURA_B = (d) => {
         emisor_inicio: "06/07/2015",
         emisor_iva: "IVA Responsable Inscripto", 
         
-       tipo_cod: String(p.tipo_comp || p.tipo_cod || 6).padStart(3, '0'),
+        tipo_cod: String(p.tipo_comp || p.tipo_cod || 6).padStart(3, '0'),
 
-		// 2. PUNTO DE VENTA (00005)
-		ptoVta: String(p.punto_venta || 5).padStart(5, '0'),
-		
-		// 3. NÚMERO DE COMPROBANTE (00000024)
-		nro: String(p.nro_comp || 0).padStart(8, '0'),
+        // 2. PUNTO DE VENTA (00005)
+        ptoVta: String(p.punto_venta || 5).padStart(5, '0'),
+        
+        // 3. NÚMERO DE COMPROBANTE (00000024)
+        nro: String(p.nro_comp || 0).padStart(8, '0'),
         fecha: (p.fecha_emision || p.fecha || "").includes('/') ? (p.fecha_emision || p.fecha).split('/').map(x => x.padStart(2, '0')).join('/') : new Date().toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'}).replace(/\D/g, '/').substring(0, 10),
         desde: f(p.periodo_desde), 
         hasta: f(p.periodo_hasta),
@@ -1105,9 +1276,6 @@ const MODELO_FACTURA_B = (d) => {
         
         condicion_venta: p.condicion_venta || "CUENTA CORRIENTE",
         concepto: (p.concepto || p.detalle || p.descripcion || p.conceptos || "PRESTACIÓN DE SERVICIOS").toUpperCase(),
-        
-        total: parseFloat(p.total || 0),
-        cae: p.cae,
         
         total: parseFloat(p.total || 0),
         cae: p.cae,
@@ -1149,13 +1317,13 @@ const MODELO_FACTURA_B = (d) => {
             .f-right { text-align: right; font-size: 11px; width: 40%; }
         </style>
         </head><body>
-            ${typeof MODELO_FACTURA_B === 'function' ? MODELO_FACTURA_B({...datos, copia: "ORIGINAL"}) : "Falta función MODELO_FACTURA_B"}
-            ${typeof MODELO_FACTURA_B === 'function' ? MODELO_FACTURA_B({...datos, copia: "DUPLICADO"}) : ""}
-            ${typeof MODELO_FACTURA_B === 'function' ? MODELO_FACTURA_B({...datos, copia: "TRIPLICADO"}) : ""}
+            ${typeof ModeloElegido === 'function' ? ModeloElegido({...datos, copia: "ORIGINAL"}) : "Error: Modelo no encontrado"}
+            ${typeof ModeloElegido === 'function' ? ModeloElegido({...datos, copia: "DUPLICADO"}) : ""}
+            ${typeof ModeloElegido === 'function' ? ModeloElegido({...datos, copia: "TRIPLICADO"}) : ""}
         </body></html>`);
     win.document.close();
     win.onload = () => { setTimeout(() => win.print(), 800); };
-};
+};		
 	// FUNCIONES AUXILIARES (Fuera de descargarFactura)
 function tgl(m) { 
     document.querySelectorAll('.ck:not(:disabled)').forEach(x => x.checked = m.checked); 
