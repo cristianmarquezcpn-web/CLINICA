@@ -735,6 +735,12 @@ async function enviarAFIP_WS() {
         if (!cuitCapturado || cuitCapturado.length < 10) {
             alert(`⚠️ Error en ${idDelPaciente}: El CUIT está vacío o es inválido.`);
             continue;
+		console.log("Buscando CUIT en diccionario:", cuitCapturado);
+		// 2. Ver qué tiene el diccionario en ese CUIT
+		console.log("Lo que encontró el diccionario:", cacheCondicionesIVA[cuitCapturado]);
+		// 3. Ver qué valor vas a usar finalmente
+		const condicionFiscal = cacheCondicionesIVA[cuitCapturado] || "VALOR POR DEFECTO";
+		console.log("Valor final que se enviará:", condicionFiscal);	
         }
 
         // --- CONSTRUCCIÓN DEL PEDIDO ---
