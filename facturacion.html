@@ -693,22 +693,18 @@ window.gestionarTipoComp = function(select) {
 };
 let cacheCondicionesIVA = {};
 async function cargarConfiguraciones() {
-    
     const snapshot = await db.ref('config/obras_sociales').once('value');
     const todasLasObras = snapshot.val();
-    
     cacheCondicionesIVA = {}; 
-
     for (let nombreObra in todasLasObras) {
-        let datosObra = todasLasObras[nombreObra];
-        let cuitLimpio = String(datosObra.cuit || "").replace(/\D/g, '').trim();
-        let condicion = datosObra.condicion_iva || "IVA Sujeto Exento";
-
-        if (cuitLimpio) {
-            cacheCondicionesIVA[cuitLimpio] = condicion;
+        let datos = todasLasObras[nombreObra];
+        let cuitEnFirebase = String(datos.cuit || "").replace(/\D/g, '').trim();
+        if (cuitEnFirebase) {
+            cacheCondicionesIVA[cuitEnFirebase] = datos.condicion_iva || "IVA Sujeto Exento";
         }
     }
-    console.log("Diccionario cargado. Total de CUITs:", Object.keys(cacheCondicionesIVA).length);
+    
+    console.log("Diccionario indexado por CUIT:", cacheCondicionesIVA);
 }
 async function enviarAFIP_WS() {
     const seleccionados = document.querySelectorAll('.ck:checked');
