@@ -728,19 +728,19 @@ async function enviarAFIP_WS() {
         const tipo = parseInt(fila.querySelector('.sel-tipo')?.value); 
 
         const cuitCapturado = fila.querySelector('.cuit-val')?.value.replace(/\D/g, '');
-		const condicionFiscal = cacheCondicionesIVA[cuitCapturado] || "IVA Sujeto Exento";
+        
+        // --- BÚSQUEDA EN DICCIONARIO Y LOGS ---
+        const condicionFiscal = cacheCondicionesIVA[cuitCapturado] || "IVA Sujeto Exento";
+        console.log("Buscando CUIT en diccionario:", cuitCapturado);
+        console.log("Lo que encontró el diccionario:", cacheCondicionesIVA[cuitCapturado]);
+        console.log("Valor final que se enviará:", condicionFiscal);
+
         const razonCapturada = fila.querySelector('.rs-val')?.value.toUpperCase();
         const domCapturada = fila.querySelector('.dom-val')?.value.toUpperCase();
 
         if (!cuitCapturado || cuitCapturado.length < 10) {
             alert(`⚠️ Error en ${idDelPaciente}: El CUIT está vacío o es inválido.`);
-            continue;
-		console.log("Buscando CUIT en diccionario:", cuitCapturado);
-		// 2. Ver qué tiene el diccionario en ese CUIT
-		console.log("Lo que encontró el diccionario:", cacheCondicionesIVA[cuitCapturado]);
-		// 3. Ver qué valor vas a usar finalmente
-		const condicionFiscal = cacheCondicionesIVA[cuitCapturado] || "VALOR POR DEFECTO";
-		console.log("Valor final que se enviará:", condicionFiscal);	
+            continue; 
         }
 
         // --- CONSTRUCCIÓN DEL PEDIDO ---
