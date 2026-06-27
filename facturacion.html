@@ -692,19 +692,29 @@ window.gestionarTipoComp = function(select) {
     }
 };
 let cacheCondicionesIVA = {};
-
 async function cargarConfiguraciones() {
     const snapshot = await db.ref('config/obras_sociales').once('value');
     const todasLasObras = snapshot.val();
     
+    // DEBUG: Ver qué llega realmente desde Firebase
+    console.log("Datos crudos de Firebase:", todasLasObras);
+
+    if (!todasLasObras) return;
+
     for (let key in todasLasObras) {
         let obra = todasLasObras[key];
-        if (obra.cuit && obra.condicion_iva) {
-            // Guardamos la condición usando el CUIT como clave
-            cacheCondicionesIVA[obra.cuit] = obra.condicion_iva;
+        
+        // Probamos acceder a 'cuit' directamente (como nos confirmaste)
+        // Convertimos a string para asegurar comparación exacta
+        let cuitLimpio = String(obra.cuit || "").trim();
+        let condicion = obra.condicion_iva;
+
+        if (cuitLimpio && condicion) {
+            cacheCondicionesIVA[cuitLimpio] = condicion;
         }
     }
-}		
+    console.log("Diccionario final cargado:", cacheCondicionesIVA);
+}
 async function enviarAFIP_WS() {
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("Selecciona pacientes");
