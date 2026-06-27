@@ -1119,7 +1119,7 @@ return `
 <div class="cliente-container">
 <div class="cliente-izq">
 <b>CUIT:</b> ${d.receptor_cuit}<br>
-<b>Condición frente al IVA:</b> ${d.receptor_iva}<br>
+<b>Condición frente al IVA:</b> ${d.condicion_iva}<br>
 <b>Condición de venta:</b> ${d.condicion_venta}
 </div>
 <div class="cliente-der">
@@ -1132,12 +1132,13 @@ ${lineaAsociada}
 <table style="width:100%; table-layout: fixed; border-collapse: collapse;">
 <thead>
 <tr>
-<th style="width:40%; padding-left: 2mm;">Código / Producto / Servicio</th>
+<th style="width:35%; padding-left: 2mm;">Código / Producto / Servicio</th>
 <th style="width:10%; text-align: center;">Cant.</th>
 <th style="width:10%; text-align: center;">U. Medida</th>
 <th style="width:15%; text-align: right;">Precio Unit.</th>
 <th style="width:10%; text-align: center;">% Bonif</th>
-<th style="width:15%; text-align: right; padding-right: 2mm;">Subtotal</th>
+<th style="width:10%; text-align: center;">Alicuota IVA</th>
+<th style="width:10%; text-align: right; padding-right: 2mm;">Subtotal c/IVA</th>
 </tr>
 </thead>
 <tbody>
@@ -1147,6 +1148,7 @@ ${lineaAsociada}
 <td style="text-align: center;">unidades</td>
 <td style="text-align: right;">$ ${totalFacturado.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
 <td style="text-align: center;">0,00</td>
+<td style="text-align: center;">Exento</td>
 <td style="text-align: right; padding-right: 2mm;">$ ${totalFacturado.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
 </tr>
 </tbody>
