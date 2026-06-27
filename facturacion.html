@@ -691,22 +691,19 @@ window.gestionarTipoComp = function(select) {
         pVtaInput.value = 5;
     }
 };
-let cacheCondicionesIVA = {};
-async function cargarConfiguraciones() {
+async function enviarAFIP_WS() {
+    let cacheCondicionesIVA = {};
     const snapshot = await db.ref('config/obras_sociales').once('value');
     const todasLasObras = snapshot.val();
-    cacheCondicionesIVA = {}; 
-    for (let nombreObra in todasLasObras) {
-        let datos = todasLasObras[nombreObra];
-        let cuitEnFirebase = String(datos.cuit || "").replace(/\D/g, '').trim();
-        if (cuitEnFirebase) {
-            cacheCondicionesIVA[cuitEnFirebase] = datos.condicion_iva || "IVA Sujeto Exento";
+    if (todasLasObras) {
+        for (let key in todasLasObras) {
+            let cuitFB = String(todasLasObras[key].cuit || "").replace(/\D/g, '').trim();
+            if (cuitFB) {
+                cacheCondicionesIVA[cuitFB] = todasLasObras[key].condicion_iva || "IVA Sujeto Exento";
+            }
         }
     }
-    
-    console.log("Diccionario indexado por CUIT:", cacheCondicionesIVA);
-}
-async function enviarAFIP_WS() {
+
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("Selecciona pacientes");
     
