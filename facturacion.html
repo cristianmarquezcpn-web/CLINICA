@@ -691,6 +691,20 @@ window.gestionarTipoComp = function(select) {
         pVtaInput.value = 5;
     }
 };
+let cacheCondicionesIVA = {};
+
+async function cargarConfiguraciones() {
+    const snapshot = await db.ref('config/obras_sociales').once('value');
+    const todasLasObras = snapshot.val();
+    
+    for (let key in todasLasObras) {
+        let obra = todasLasObras[key];
+        if (obra.cuit && obra.condicion_iva) {
+            // Guardamos la condición usando el CUIT como clave
+            cacheCondicionesIVA[obra.cuit] = obra.condicion_iva;
+        }
+    }
+}		
 async function enviarAFIP_WS() {
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("Selecciona pacientes");
@@ -714,6 +728,7 @@ async function enviarAFIP_WS() {
         const tipo = parseInt(fila.querySelector('.sel-tipo')?.value); 
 
         const cuitCapturado = fila.querySelector('.cuit-val')?.value.replace(/\D/g, '');
+		const condicionFiscal = cacheCondicionesIVA[cuitCapturado] || "IVA Sujeto Exento";
         const razonCapturada = fila.querySelector('.rs-val')?.value.toUpperCase();
         const domCapturada = fila.querySelector('.dom-val')?.value.toUpperCase();
 
@@ -730,7 +745,7 @@ async function enviarAFIP_WS() {
             razon_social: razonCapturada,
             cuit: cuitCapturado,
             domicilio: domCapturada,
-            iva_condicion: "IVA Sujeto Exento", 
+            iva_condicion: condicionFiscal, 
             tipo: tipo,
             descripcion: fila.querySelector('.det-val')?.value.toUpperCase() || "PRESTACION DE SERVICIOS",
             total: montoNeto + (montoNeto * (alicuota / 100)) + montoExento, 
