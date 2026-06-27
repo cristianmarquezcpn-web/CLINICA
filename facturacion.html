@@ -1042,7 +1042,7 @@ const MODELO_FACTURA_B = (d) => {
         </div>
     </div>`;
 };
-const MODELO_FACTURA_A = (d) => {
+   const MODELO_FACTURA_A = (d) => {
     // 1. CÁLCULOS (Idénticos a la B para mantener consistencia)
     const totalFacturado = d.total || d.total_facturado || 0;
     const alicuotaComp = d.alicuota || 0;
@@ -1207,6 +1207,8 @@ const MODELO_FACTURA_A = (d) => {
             </div>
         </div>
     </div>`;
+};		     
+        
 };		
 window.descargarFactura = async (idFactura) => { 
     if (!idFactura || idFactura === 'undefined' || idFactura === '') {
