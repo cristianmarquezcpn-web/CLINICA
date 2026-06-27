@@ -1152,11 +1152,13 @@ ${lineaAsociada}
 </tbody>
 </table>
 </div>
+<div class="totales-container" style="display: flex; justify-content: flex-end; align-items: flex-start; margin-bottom: 5mm; width: 100%;">
+    
+    <div style="font-size: 11px; margin-right: auto; padding-top: 2mm;">
+        Importe Otros Tributos: $ 0,00
+    </div>
 
-            <div class="totales-box" style="display: flex; justify-content: flex-end; margin-bottom: 5mm;">
-    <div class="tabla-totales" style="width: 45%; border: 1px solid #000; padding: 2mm; font-size: 11px;">
-        <div style="margin-bottom: 1mm;">Importe Otros Tributos: $ 0.00</div>
-        
+    <div class="tabla-totales" style="width: 40%; border: 1px solid #000; padding: 2mm; font-size: 11px;">
         <div style="display:flex; justify-content:space-between; margin-bottom: 1mm;"><span>Importe Exento: $</span> <span>${totalFacturado.toLocaleString('es-AR', {minimumFractionDigits:2})}</span></div>
         <div style="display:flex; justify-content:space-between; margin-bottom: 1mm;"><span>IVA 27%: $</span> <span>0,00</span></div>
         <div style="display:flex; justify-content:space-between; margin-bottom: 1mm;"><span>IVA 21%: $</span> <span>0,00</span></div>
@@ -1171,7 +1173,7 @@ ${lineaAsociada}
         </div>
     </div>
 </div>
-            <div class="footer-final">
+<div class="footer-final">
                 <div class="qr-container" style="display: flex; align-items: center; gap: 8px;">
                     <img src="${qrImgUrl}" width="85">
                     <div style="text-align:center">
