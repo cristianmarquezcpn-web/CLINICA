@@ -756,16 +756,28 @@ async function descargarPDF_CET(n) {
     const mesVencido = meses[indiceMesAnterior];
     const nombreFichero = `Asistencia ${mesVencido} ${anioRef} ${n} CET.pdf`;
 
-    // SOLUCIÓN: Usar un elemento <a> con el atributo 'download' directamente.
-    // Esto es mucho más compatible con archivos PDF externos en escritorio.
-    const tagA = document.createElement('a');
-    tagA.href = link;
-    tagA.download = nombreFichero; 
-    
-    // Algunos navegadores requieren que el elemento esté en el DOM
-    document.body.appendChild(tagA);
-    tagA.click();
-    document.body.removeChild(tagA);
+    try {
+        const respuesta = await fetch(link);
+        if (!respuesta.ok) throw new Error("Error al traer el archivo");
+
+        const archivoBlob = await respuesta.blob();
+        const urlBlob = window.URL.createObjectURL(archivoBlob);
+        
+        const tagA = document.createElement('a');
+        tagA.href = urlBlob;
+        tagA.download = nombreFichero;
+        
+        document.body.appendChild(tagA);
+        tagA.click();
+        
+        // Limpieza
+        window.URL.revokeObjectURL(urlBlob);
+        document.body.removeChild(tagA);
+        
+    } catch (err) {
+        console.warn("Fallo la descarga forzada, abriendo en pestaña...", err);
+        window.open(link, '_blank');
+    }
 }
 // --- BLOQUE DE SEGURIDAD Y CARGA AUTOMÁTICA ---
 auth.onAuthStateChanged((user) => {
