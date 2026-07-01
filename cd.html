@@ -694,16 +694,29 @@ async function descargarPDF(n) {
 
     const nombreFichero = `Asistencia ${meses[indiceMesAnterior]} ${anioRef} ${n} CD${extension}`;
 
-    // 2. DESCARGA FORZADA (RESPEPTA EL NOMBRE)
+    // 2. DESCARGA USANDO BLOB (Igual que la que te funcionó)
+    try {
+        const respuesta = await fetch(link);
+        if (!respuesta.ok) throw new Error("Error al traer el archivo");
+
+        const archivoBlob = await respuesta.blob();
+        const urlBlob = window.URL.createObjectURL(archivoBlob);
+        
         const tagA = document.createElement('a');
-    tagA.href = link;
-    tagA.target = '_blank';
-    tagA.download = nombreFichero; 
-    
-    // Intentamos descargar directo
-    document.body.appendChild(tagA);
-    tagA.click();
-    document.body.removeChild(tagA);
+        tagA.href = urlBlob;
+        tagA.download = nombreFichero; // Ahora sí lo tomará
+        
+        document.body.appendChild(tagA);
+        tagA.click();
+        
+        // Limpieza de memoria
+        window.URL.revokeObjectURL(urlBlob);
+        document.body.removeChild(tagA);
+        
+    } catch (err) {
+        console.warn("Fallo la descarga forzada, abriendo en pestaña...", err);
+        window.open(link, '_blank');
+    }
 }
 firebase.auth().onAuthStateChanged((user) => {
     if (user) {
