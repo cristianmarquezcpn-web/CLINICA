@@ -42,9 +42,21 @@ self.addEventListener('activate', (e) => {
 
 // 3. FETCH (Estrategia: Primero Red, si falla, Caché)
 self.addEventListener('fetch', (e) => {
+  
+  if (e.request.url.includes('openai.com') || e.request.url.includes('api.tu-servicio.com')) {
+    return; // Esto le dice al Service Worker: "No te metas, deja que el navegador haga el fetch normal"
+  }
+
   e.respondWith(
-    fetch(e.request).catch(() => {
-      return caches.match(e.request);
-    })
+    fetch(e.request)
+      .catch(async () => {
+        const cachedResponse = await caches.match(e.request);
+        
+ 
+        return cachedResponse || new Response("Recurso no encontrado", { 
+            status: 404, 
+            statusText: "Not Found" 
+        });
+      })
   );
 });
