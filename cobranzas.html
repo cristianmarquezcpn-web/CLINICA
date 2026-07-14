@@ -978,7 +978,6 @@ async function vincularNC(idFactura) {
     const dataGral = snapGral.val() || {};
     const dataSaei = snapSaei.val() || {};
     
-    // Unimos todo en un solo diccionario para que la búsqueda sea transparente
     const todas = { ...dataGral, ...dataSaei };
     
     // 2. Filtramos solo las que son NC
@@ -1004,13 +1003,16 @@ async function vincularNC(idFactura) {
     
     const idNC = idsNC[parseInt(seleccion) - 1];
     
+    // --- AQUÍ ESTABA EL ERROR: Faltaba definir nroNC antes de usarlo ---
+    const ncSeleccionada = todas[idNC];
+    const nroNC = ncSeleccionada.nro_comp; // <-- Aquí obtenemos el valor del campo
+    
     // 3. Determinamos dónde vive la factura original para actualizarla
-    // Si la factura que intentas vincular está en 'dataSaei', actualizamos ahí; sino, en 'facturas_emitidas'
     const nodoDestino = dataSaei.hasOwnProperty(idFactura) ? 'facturas_emitidas_saei' : 'facturas_emitidas';
     
     await db.ref(`${nodoDestino}/${idFactura}`).update({
         id_nc_vinculada: idNC,
-		nro_nc_vinculada: nroNC
+        nro_nc_vinculada: nroNC // <-- Ahora nroNC ya tiene un valor definido
     });
     
     alert(`✅ Factura vinculada a la NC ${nroNC}`);
