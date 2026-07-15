@@ -977,42 +977,47 @@ async function vincularNC(idFactura) {
 
     const dataGral = snapGral.val() || {};
     const dataSaei = snapSaei.val() || {};
-    
     const todas = { ...dataGral, ...dataSaei };
     
-    // 2. Filtramos solo las que son NC
-    const idsNC = Object.keys(todas).filter(id => 
-        todas[id].tipo_comp == 8 || 
-        todas[id].tipo_comp == 3 || 
-        String(todas[id].nro_comp || "").toUpperCase().includes('NC')
-    );
+    // --- NUEVA LÓGICA DE LIMPIEZA ---
+    // Obtenemos todos los IDs de NC que YA han sido vinculados en alguna factura
+    const idsYaUsados = Object.values(todas)
+        .filter(f => f.id_nc_vinculada) // Buscamos facturas que ya tienen vinculación
+        .map(f => f.id_nc_vinculada);    // Creamos una lista solo con los IDs de las NC usadas
+    
+    // 2. Filtramos: solo NC que NO estén en la lista de 'idsYaUsados'
+    const idsNC = Object.keys(todas).filter(id => {
+        const esNC = todas[id].tipo_comp == 8 || todas[id].tipo_comp == 3 || String(todas[id].nro_comp || "").toUpperCase().includes('NC');
+        const estaOcupada = idsYaUsados.includes(id);
+        
+        return esNC && !estaOcupada; // Solo dejamos pasar las que son NC Y no están ocupadas
+    });
     
     if (idsNC.length === 0) {
-        alert("No hay Notas de Crédito encontradas en ninguna de las dos bases.");
+        alert("No hay más Notas de Crédito disponibles (todas han sido vinculadas).");
         return;
     }
     
-    let listaNC = "Seleccione la Nota de Crédito que anula esta factura:\n\n";
+    // 3. Construimos el menú con las NC limpias
+    let listaNC = "Seleccione la Nota de Crédito para vincular:\n\n";
     idsNC.forEach((id, index) => {
         const nc = todas[id];
-        listaNC += `${index + 1}. [${nc.modulo || 'Gral'}] ${nc.nro_comp} - ${nc.receptor_nombre}\n`;
+        listaNC += `${index + 1}. [Nº ${nc.nro_comp || 'S/N'}] | ${nc.modulo || 'Gral'} | ${nc.receptor_nombre}\n`;
     });
     
     const seleccion = prompt(listaNC, "1");
     if (!seleccion || isNaN(seleccion)) return;
     
     const idNC = idsNC[parseInt(seleccion) - 1];
-    
-    // --- AQUÍ ESTABA EL ERROR: Faltaba definir nroNC antes de usarlo ---
     const ncSeleccionada = todas[idNC];
-    const nroNC = ncSeleccionada.nro_comp; // <-- Aquí obtenemos el valor del campo
+    const nroNC = ncSeleccionada.nro_comp; 
     
-    // 3. Determinamos dónde vive la factura original para actualizarla
+    // 4. Actualizamos
     const nodoDestino = dataSaei.hasOwnProperty(idFactura) ? 'facturas_emitidas_saei' : 'facturas_emitidas';
     
     await db.ref(`${nodoDestino}/${idFactura}`).update({
         id_nc_vinculada: idNC,
-        nro_nc_vinculada: nroNC // <-- Ahora nroNC ya tiene un valor definido
+        nro_nc_vinculada: String(nroNC)
     });
     
     alert(`✅ Factura vinculada a la NC ${nroNC}`);
