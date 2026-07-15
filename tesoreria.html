@@ -723,17 +723,16 @@ async function proyectarTodo() {
             for (let i = 1; i <= 4; i++) {
                 saldoAcumulado += (ingS[i] - gasS[i]);
                 const esPasado = (mesSeleccionado < mesActualStr) || (mesSeleccionado === mesActualStr && i < semanaActual);
-                const estiloFondo = esPasado ? "background: #0b0e14; opacity: 0.7; border-top: 3px solid #374151;" : `border-top: 3px solid ${saldoAcumulado < 0 ? 'var(--rojo)':'var(--verde)'};`;
-
+                const estiloFondo = esPasado ? "background: #0b0e14; opacity: 0.8; border-top: 3px solid #374151;" : `border-top: 3px solid ${saldoAcumulado < 0 ? 'var(--rojo)':'var(--verde)'};`;
                 let htmlIngresos = Object.keys(acumuladorIngresos[i]).map(nombre => {
-                    const pct = ingS[i] > 0 ? ((acumuladorIngresos[i][nombre].monto / ingS[i]) * 100).toFixed(0) : 0;
+                   const pct = ingS[i] > 0 ? ((acumuladorIngresos[i][nombre].monto / ingS[i]) * 100).toFixed(0) : 0;
                     return `
                         <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:2px; align-items:center;">
-                            <span title="${nombre}" style="${esPasado ? 'color:#4b5563' : 'color:var(--acento)'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60px;">${nombre}</span>
-                            <span style="opacity:0.5; font-size:8px;">${pct}%</span>
-                            <span style="font-weight:bold;">$${Math.round(acumuladorIngresos[i][nombre].monto/1000)}k</span>
+            <span title="${nombre}" style="color: ${esPasado ? '#6b7280' : 'var(--acento)'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60px;">${nombre}</span>
+            <span style="opacity:0.5; font-size:8px; color: #4b5563;">${pct}%</span>
+            <span style="font-weight:bold; color: ${esPasado ? '#94a3b8' : '#fff'};">$${Math.round(acumuladorIngresos[i][nombre].monto/1000)}k</span>
                         </div>`;
-                }).join('');
+                        }).join('');
 
                 grid.innerHTML += `
                 <div class="sem-card" style="${estiloFondo} background:#111827; padding:10px; border-radius:4px; cursor:pointer;" onclick="abrirDetalleSemana(${i}, ${Math.round(saldoAcumulado)})">
