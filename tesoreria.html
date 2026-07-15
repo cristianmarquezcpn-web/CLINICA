@@ -650,7 +650,7 @@ async function proyectarTodo() {
         let detG = { 1: [], 2: [], 3: [], 4: [] };
         let acumuladorIngresos = { 1: {}, 2: {}, 3: {}, 4: {} };
 
-        // Procesar Ingresos
+        // 1. PROCESAR INGRESOS (Asegurando que siempre entren si el mes coincide)
         const inteligencia = window.motorGlobal.inteligencia_cuit;
         Object.keys(inteligencia).forEach(cuit => {
             const cliente = inteligencia[cuit];
@@ -663,6 +663,7 @@ async function proyectarTodo() {
                 const [y, m, d] = fechaCobro.split('-').map(Number);
                 const mesC = `${y}-${String(m).padStart(2, '0')}`;
                 
+                // Si la factura es del mes, la acumulamos
                 if (mesC === mesSeleccionado) {
                     const s = Math.min(Math.ceil(d / 7), 4);
                     const nombre = cliente.nombre_fantasia || "CLIENTE";
