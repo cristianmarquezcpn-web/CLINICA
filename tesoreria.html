@@ -933,43 +933,65 @@ function guardarBancos() {
         if (typeof proyectarTodo === 'function') proyectarTodo();
     });
 }
-
 // --- DIBUJADO Y LECTURA ---
-function dibujarGastos() {
+async function dibujarGastos() {
     const mes = getMes();
     const cont = document.getElementById('contGastos');
     if (!cont) return;
+
+    // 1. Calculamos el mes anterior para posible clonación
+    const [y, m] = mes.split('-').map(Number);
+    const date = new Date(y, m - 1);
+    date.setMonth(date.getMonth() - 1);
+    const mesAnterior = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+    const refActual = db.ref(`tesoreria/gastos_mensuales/${mes}`);
+    const snapshot = await refActual.once('value');
+    let gastos = snapshot.val();
+
+    // 2. Si no hay gastos, intentamos clonar el mes anterior
+    if (!gastos) {
+        const snapAnterior = await db.ref(`tesoreria/gastos_mensuales/${mesAnterior}`).once('value');
+        const dataAnterior = snapAnterior.val();
+
+        if (dataAnterior) {
+            console.log(`Clonando gastos de ${mesAnterior} a ${mes}...`);
+            await refActual.set(dataAnterior);
+            gastos = dataAnterior;
+            // Actualizamos la interfaz y el motor tras clonar
+            if (typeof proyectarTodo === 'function') proyectarTodo();
+        } else {
+            cont.innerHTML = `<div style="color:#6b7280; font-size:12px; padding:10px;">No hay gastos para este mes.</div>`;
+            return;
+        }
+    }
+
+    // 3. Dibujado de gastos (ya garantizando que 'gastos' tiene datos)
     cont.innerHTML = "";
-    
-    // Leemos la ruta centralizada por mes
-    db.ref(`tesoreria/gastos_mensuales/${mes}`).once('value', snapshot => {
-        const gastos = snapshot.val() || {};
-        
-        Object.keys(gastos).forEach(cat => {
-            const rubro = gastos[cat];
-            const itemsObj = rubro.items || {};
-            let itemsHtml = "";
+    Object.keys(gastos).forEach(cat => {
+        const rubro = gastos[cat];
+        const itemsObj = rubro.items || {};
+        let itemsHtml = "";
 
-            Object.keys(itemsObj).forEach(key => {
-                const it = itemsObj[key];
-                itemsHtml += `
-                <div style="background:#0b0e14; padding:8px; border-radius:4px; margin-bottom:8px; border:1px solid #1f2937; display:grid; grid-template-columns: 1fr 60px 40px 30px; gap:4px; align-items:center;">
-                    <input type="text" value="${it.nombre_gasto || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'nombre_gasto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
-                    <input type="number" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', '${key}', 'monto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
-                    <input type="number" value="${it.dia_pago || 1}" onchange="updateGastoRecurrente('${cat}', '${key}', 'dia_pago', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
-                    <button onclick="abrirModalEdicionGasto('${cat}', '${key}')" style="background:transparent; border:none; color:#3b82f6; cursor:pointer; font-size:14px;">⚙️</button>
-                </div>`;
-            });
-
-            cont.innerHTML += `
-            <div style="margin-bottom:15px; border-left:3px solid var(--p); padding-left:10px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-                    <b style="color:var(--p); font-size:12px; text-transform:uppercase;">${cat}</b>
-                    <button onclick="agregarGastoAItem('${cat}')" style="background:#3b82f6; border:none; color:white; padding:1px 8px; cursor:pointer; font-size:12px; border-radius:3px;">+</button>
-                </div>
-                ${itemsHtml}
+        Object.keys(itemsObj).forEach(key => {
+            const it = itemsObj[key];
+            itemsHtml += `
+            <div style="background:#0b0e14; padding:8px; border-radius:4px; margin-bottom:8px; border:1px solid #1f2937; display:grid; grid-template-columns: 1fr 60px 40px 30px; gap:4px; align-items:center;">
+                <input type="text" value="${it.nombre_gasto || ''}" onchange="updateGastoRecurrente('${cat}', '${key}', 'nombre_gasto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
+                <input type="number" value="${it.monto || 0}" onchange="updateGastoRecurrente('${cat}', '${key}', 'monto', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
+                <input type="number" value="${it.dia_pago || 1}" onchange="updateGastoRecurrente('${cat}', '${key}', 'dia_pago', this.value)" style="background:#000; color:#fff; border:1px solid #444; padding:4px; font-size:11px; border-radius:2px;">
+                <button onclick="abrirModalEdicionGasto('${cat}', '${key}')" style="background:transparent; border:none; color:#3b82f6; cursor:pointer; font-size:14px;">⚙️</button>
             </div>`;
         });
+
+        cont.innerHTML += `
+        <div style="margin-bottom:15px; border-left:3px solid var(--p); padding-left:10px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                <b style="color:var(--p); font-size:12px; text-transform:uppercase;">${cat}</b>
+                <button onclick="agregarGastoAItem('${cat}')" style="background:#3b82f6; border:none; color:white; padding:1px 8px; cursor:pointer; font-size:12px; border-radius:3px;">+</button>
+            </div>
+            ${itemsHtml}
+        </div>`;
     });
 }
 function abrirModalEdicionGasto(cat, key) {
