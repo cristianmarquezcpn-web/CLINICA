@@ -651,7 +651,7 @@ async function proyectarTodo() {
         let acumuladorIngresos = { 1: {}, 2: {}, 3: {}, 4: {} };
 
         // 1. PROCESAR INGRESOS
-        // Creamos un caché temporal para el modal
+        // Caché estructurado: { semana: { cuit: { nombre: "...", monto: 0 } } }
         window.cacheIngresos = { 1: {}, 2: {}, 3: {}, 4: {} }; 
         const inteligencia = window.motorGlobal.inteligencia_cuit;
         
@@ -668,12 +668,14 @@ async function proyectarTodo() {
                 const s = Math.min(Math.ceil(d / 7), 4);
                 const nombre = cliente.nombre_fantasia || "CLIENTE";
                 
-                // Siempre guardamos en el caché, independientemente del filtro
                 if (mesC === mesSeleccionado) {
-                    if (!window.cacheIngresos[s][nombre]) window.cacheIngresos[s][nombre] = { monto: 0 };
-                    window.cacheIngresos[s][nombre].monto += (f.monto || 0);
+                    // Guardado en caché por CUIT para integridad
+                    if (!window.cacheIngresos[s][cuit]) {
+                        window.cacheIngresos[s][cuit] = { nombre: nombre, monto: 0 };
+                    }
+                    window.cacheIngresos[s][cuit].monto += (f.monto || 0);
 
-                    // Acumulamos para el grid actual
+                    // Acumulador por nombre para el grid
                     if (!acumuladorIngresos[s][nombre]) acumuladorIngresos[s][nombre] = { monto: 0 };
                     acumuladorIngresos[s][nombre].monto += (f.monto || 0);
                     ingS[s] += (f.monto || 0);
@@ -718,6 +720,7 @@ async function proyectarTodo() {
                 saldoAcumulado += (ingS[i] - gasS[i]);
                 const esPasado = (mesSeleccionado < mesActualStr) || (mesSeleccionado === mesActualStr && i < semanaActual);
                 const estiloFondo = esPasado ? "background: #0b0e14; opacity: 0.8; border-top: 3px solid #374151;" : `border-top: 3px solid ${saldoAcumulado < 0 ? 'var(--rojo)':'var(--verde)'};`;
+                
                 let htmlIngresos = Object.keys(acumuladorIngresos[i]).map(nombre => {
                    const pct = ingS[i] > 0 ? ((acumuladorIngresos[i][nombre].monto / ingS[i]) * 100).toFixed(0) : 0;
                     return `<div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:2px; align-items:center;"><span title="${nombre}" style="color: ${esPasado ? '#6b7280' : 'var(--acento)'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60px;">${nombre}</span><span style="opacity:0.5; font-size:8px; color: #4b5563;">${pct}%</span><span style="font-weight:bold; color: ${esPasado ? '#94a3b8' : '#fff'};">$${Math.round(acumuladorIngresos[i][nombre].monto/1000)}k</span></div>`;
@@ -727,13 +730,14 @@ async function proyectarTodo() {
             }
         }
     } catch (error) { console.error("Error al proyectar:", error); }
-}        
-// 2. MODAL DETALLE SEMANAL (CORREGIDO)
+}
+
+// 2. MODAL DETALLE SEMANAL
 window.abrirDetalleSemana = function(numSemana, saldoSem) {
     const modal = document.getElementById('modalSemana');
     const contenido = document.getElementById('contenidoModal');
     
-    // USAMOS EL CACHÉ QUE NO SE BORRA
+    // Obtenemos los ingresos desde el caché que preserva los nombres
     const ingresosObj = window.cacheIngresos[numSemana] || {}; 
     const gastosArr = window.detallesSemanales[numSemana] || [];
     
@@ -746,8 +750,15 @@ window.abrirDetalleSemana = function(numSemana, saldoSem) {
         </div>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
             <div style="background:#05070a; padding:15px; border-radius:10px; border:1px solid #1f2937;">
-                <h4 style="color:#60a5fa; font-size:11px; margin-bottom:10px; letter-spacing:1px;">INGRESOS POR OS</h4>
-                <div style="${scrollStyle}">${Object.entries(ingresosObj).map(([nombre, data]) => `<div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #1f2937; padding-bottom:4px;"><span style="font-size:11px; line-height:1.2; word-break:break-word; max-width:70%; color:#d1d5db;">${nombre}</span><b style="font-size:12px; color:#fff;">$${Math.round(data.monto).toLocaleString()}</b></div>`).join('')}</div>
+                <h4 style="color:#60a5fa; font-size:11px; margin-bottom:10px; letter-spacing:1px;">INGRESOS POR CLIENTE</h4>
+                <div style="${scrollStyle}">
+                    ${Object.values(ingresosObj).map(data => `
+                        <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #1f2937; padding-bottom:4px;">
+                            <span style="font-size:11px; line-height:1.2; word-break:break-word; max-width:70%; color:#d1d5db;">${data.nombre}</span>
+                            <b style="font-size:12px; color:#fff;">$${Math.round(data.monto).toLocaleString()}</b>
+                        </div>
+                    `).join('')}
+                </div>
             </div>
             <div style="background:#05070a; padding:15px; border-radius:10px; border:1px solid #1f2937;">
                 <h4 style="color:#fca5a5; font-size:11px; margin-bottom:10px; letter-spacing:1px;">DESGLOSE GASTOS</h4>
