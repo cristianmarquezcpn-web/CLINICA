@@ -562,7 +562,7 @@ function renderizarDashboardTopeDeGama() {
 
     const saldoActual = motorGlobal.reporte?.esperado || 0;
     const nuevoSaldo = saldoActual - impactoTotal;
-    const gastosM = await calcularTotalGastosMensuales();
+    const gastosM = await calcularTotalGastos();
     
     const resStress = document.getElementById('resStress');
     const panelAjuste = document.getElementById('panelAjuste');
