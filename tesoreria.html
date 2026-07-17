@@ -950,21 +950,35 @@ async function dibujarGastos() {
     let gastos = snapshot.val();
 
     // 2. Si no hay gastos, intentamos clonar el mes anterior
-    if (!gastos) {
-        const snapAnterior = await db.ref(`tesoreria/gastos_mensuales/${mesAnterior}`).once('value');
-        const dataAnterior = snapAnterior.val();
+if (!gastos) {
+    const snapAnterior = await db.ref(`tesoreria/gastos_mensuales/${mesAnterior}`).once('value');
+    const dataAnterior = snapAnterior.val();
 
-        if (dataAnterior) {
-            console.log(`Clonando gastos de ${mesAnterior} a ${mes}...`);
-            await refActual.set(dataAnterior);
-            gastos = dataAnterior;
-            // Actualizamos la interfaz y el motor tras clonar
-            if (typeof proyectarTodo === 'function') proyectarTodo();
-        } else {
-            cont.innerHTML = `<div style="color:#6b7280; font-size:12px; padding:10px;">No hay gastos para este mes.</div>`;
-            return;
-        }
+    if (dataAnterior) {
+        console.log(`Clonando gastos de ${mesAnterior} a ${mes} con nuevos IDs...`);
+        
+        let nuevosGastos = {};
+
+        // Recorremos el objeto anterior y generamos nuevos IDs para cada ítem
+        Object.keys(dataAnterior).forEach(cat => {
+            nuevosGastos[cat] = { items: {} };
+            const itemsAnteriores = dataAnterior[cat].items || {};
+            
+            Object.keys(itemsAnteriores).forEach(oldKey => {
+                // Generamos una nueva Key para Firebase y asignamos el objeto
+                const nuevaKey = db.ref().push().key; 
+                nuevosGastos[cat].items[nuevaKey] = itemsAnteriores[oldKey];
+            });
+        });
+
+        // Guardamos la nueva estructura con los nuevos IDs
+        await refActual.set(nuevosGastos);
+        gastos = nuevosGastos;
+        
+        if (typeof proyectarTodo === 'function') proyectarTodo();
+    } else {
     }
+}
 
     // 3. Dibujado de gastos (ya garantizando que 'gastos' tiene datos)
     cont.innerHTML = "";
