@@ -1304,8 +1304,8 @@ async function detectarPagosPendientes() {
                     const mov = movNode.val();
                     
                     // 1. Extraer CUIT de la descripción (busca secuencia de 11 números)
-                    const regexCuit = /\d{11}/;
-                    const cuitExtraido = mov.descripcion ? (mov.descripcion.match(regexCuit) ? mov.descripcion.match(regexCuit)[0] : "SIN CUIT") : "SIN CUIT";
+                    const regexCuit = /(30|33)\d{9}/; 
+					const cuitExtraido = mov.descripcion ? (mov.descripcion.match(regexCuit) ? mov.descripcion.match(regexCuit)[0] : "SIN CUIT") : "SIN CUIT";
 					const esBasura = /ANULACION|REINTEGRO|DEV\.IMP|COMISIONES/i.test(mov.descripcion);	
                     // 2. Filtro: Solo procesar si el tipo es INGRESO
                     if (mov.tipo === "INGRESO" && mov.monto > 99999 && !esBasura) {
@@ -1361,11 +1361,22 @@ function crearAvisoEnPantalla(info) {
     };
 }
 window.cargarAsistente = (cuit, monto, fecha, uid) => {
-    uidPagoActual = uid; // Ahora sí, guarda el ID correctamente
-    document.getElementById('cuit-conciliar').value = cuit;
-    document.getElementById('monto-banco').value = monto;
+    uidPagoActual = uid; 
+
+    // 1. Preparamos el contenedor/modal primero
     prepararConciliacion();
-    alert("✅ CUIT y Monto cargados. ¡Dale al botón 'Auto-Seleccionar' y listo!");
+
+    // 2. Usamos un pequeño 'setTimeout' para darle tiempo al navegador de renderizar el HTML
+    // que acabamos de crear con innerHTML en prepararConciliacion()
+    setTimeout(() => {
+        const inputCuit = document.getElementById('cuit-conciliar');
+        const inputMonto = document.getElementById('monto-banco');
+
+        if (inputCuit) inputCuit.value = cuit;
+        if (inputMonto) inputMonto.value = monto;
+        
+        alert("✅ CUIT y Monto cargados. ¡Dale al botón 'Auto-Seleccionar' y listo!");
+    }, 100); 
 };
 document.addEventListener('DOMContentLoaded', () => {
     detectarPagosPendientes();
