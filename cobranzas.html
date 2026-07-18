@@ -1207,7 +1207,6 @@ function autoSeleccionarPorMonto() {
     const top5 = combinaciones.slice(0, 5);
     mostrarSelector(top5, montoBanco);
 }
-
 function mostrarSelector(opciones, montoBanco) {
     if (opciones.length === 0) {
         alert("No se encontraron combinaciones posibles.");
@@ -1219,16 +1218,21 @@ function mostrarSelector(opciones, montoBanco) {
     opciones.forEach((op, index) => {
         const diferencia = montoBanco - op.suma;
         const fechaMasVieja = Math.min(...op.lista.map(f => f.fecha));
-        mensaje += `${index + 1}) Suma: $${op.suma.toFixed(2)} | Dif: $${diferencia.toFixed(2)} | Items: ${op.lista.length} | Fecha mas vieja: ${fechaMasVieja}\n`;
+        const numerosFacturas = op.lista.map(f => {
+            return f.element.querySelector('span[style*="monospace"]').innerText;
+        }).join(', ');
+
+        mensaje += `${index + 1}) Suma: $${op.suma.toFixed(2)} | Dif: $${diferencia.toFixed(2)}\n`;
+        mensaje += `   Facturas: ${numerosFacturas}\n`;
+        mensaje += `   Fecha más vieja: ${fechaMasVieja}\n\n`;
     });
     
-    const seleccion = prompt(mensaje + "\nElegí el número de opción (1 al 5) o Cancelar:");
+    const seleccion = prompt(mensaje + "Elegí el número de opción (1 al 5) o Cancelar:");
     
     if (seleccion !== null && opciones[seleccion - 1]) {
         aplicarCombinacion(opciones[seleccion - 1]);
     }
 }
-
 function aplicarCombinacion(combinacion) {
     document.querySelectorAll('.fila-ajuste').forEach(f => {
         f.querySelector('.check-conciliar').checked = false;
