@@ -1272,10 +1272,9 @@ async function ejecutarConciliacionFinal(uid, periodo) { // Recibimos uid y peri
 
     // 2. Esperamos que terminen todas las facturas
     await Promise.all(promesas);
-
-    // 3. Marcamos el pago como procesado (usando los parámetros que le pasamos a la función)
-    await db.ref('contabilidad/' + periodo + '/' + uid).update({
-        procesado_cobranzas: true
+	await db.ref('contabilidad/' + periodo + '/pendientes/' + uid).update({
+    procesado_cobranzas: true
+});
     });
     
     console.log("¡Pago marcado como procesado!");
@@ -1286,60 +1285,44 @@ async function ejecutarConciliacionFinal(uid, periodo) { // Recibimos uid y peri
     renderizarTodo();
 }
 async function detectarPagosPendientes() {
-    console.log("🔍 [DEBUG] Buscando pagos pendientes...");
+    console.log("🔍 Buscando en pendientes...");
     const contenedor = document.getElementById('contenedor-avisos');
-    if (!contenedor) {
-        console.error("❌ [DEBUG] Error: No existe el elemento con ID 'contenedor-avisos'");
-        return;
-    }
+    if (!contenedor) return;
     contenedor.innerHTML = "";
 
-    const periodoMinimo = "2026-07"; 
+    const periodoActual = "2026-07"; // O el periodo que necesites
 
     try {
-        const snapshot = await db.ref('contabilidad').once('value');
+        // Apuntamos directo a la ruta que confirmamos
+        const refPendientes = db.ref(`contabilidad/${periodoActual}/pendientes`);
+        const snapshot = await refPendientes.once('value');
         
         if (!snapshot.exists()) {
-            console.warn("⚠️ [DEBUG] La rama 'contabilidad' está vacía.");
+            console.log("⚠️ No hay nada en pendientes para este periodo.");
             return;
         }
 
-        let cont = 0;
-        snapshot.forEach(mesNode => {
-            const nombreMes = mesNode.key;
-            console.log(`📂 [DEBUG] Revisando nodo: ${nombreMes}`);
+        snapshot.forEach(movNode => {
+            const mov = movNode.val();
+            const docId = movNode.key;
 
-            if (nombreMes < periodoMinimo) return;
+            const esProcesado = mov.procesado_cobranzas === true;
+            const tieneDatos = (mov.cuit_cliente && mov.monto);
 
-            mesNode.forEach(movNode => {
-                const mov = movNode.val();
-                const docId = movNode.key;
-
-                // Debug detallado de cada registro
-                const esProcesado = mov.procesado_cobranzas === true;
-                const tieneDatos = (mov.cuit_cliente && mov.monto);
-                
-                console.log(`   📄 [DEBUG] Movimiento ${docId}: Procesado=${esProcesado}, TieneDatos=${!!tieneDatos}`);
-
-                if (!esProcesado && tieneDatos) {
-                    console.log(`   ✅ [DEBUG] ¡ENCONTRADO PENDIENTE! ${docId}`);
-                    crearAvisoEnPantalla({
-                        cuit: mov.cuit_cliente,
-                        monto: mov.monto,
-                        fecha: mov.fecha,
-                        uid: docId,
-                        periodo: nombreMes,
-                        desc: mov.descripcion
-                    });
-                    cont++;
-                }
-            });
+            if (!esProcesado && tieneDatos) {
+                console.log(`✅ ¡Encontrado! ${docId}`);
+                crearAvisoEnPantalla({
+                    cuit: mov.cuit_cliente,
+                    monto: mov.monto,
+                    fecha: mov.fecha,
+                    uid: docId,
+                    periodo: periodoActual,
+                    desc: mov.descripcion
+                });
+            }
         });
-
-        console.log(`🏁 [DEBUG] Finalizado. Total encontrados: ${cont}`);
-
     } catch (error) {
-        console.error("❌ [DEBUG] Error fatal en Firebase:", error);
+        console.error("❌ Error accediendo a la ruta:", error);
     }
 }
 function crearAvisoEnPantalla(info) {
