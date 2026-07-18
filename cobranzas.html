@@ -1274,9 +1274,7 @@ async function ejecutarConciliacionFinal(uid, periodo) { // Recibimos uid y peri
     await Promise.all(promesas);
 	await db.ref('contabilidad/' + periodo + '/pendientes/' + uid).update({
     procesado_cobranzas: true
-});
-    });
-    
+}); 
     console.log("¡Pago marcado como procesado!");
     alert("¡Conciliación exitosa!");
     
