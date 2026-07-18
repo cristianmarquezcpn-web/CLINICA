@@ -1059,28 +1059,31 @@ function prepararConciliacion() {
 
     Object.keys(facturas).forEach(id => {
         const f = facturas[id];
-        const saldo = Math.max(0, (f.netoCalc || 0) - (cobros[id]?.monto_cobrado || 0));
         
-        if (f.receptor_cuit?.includes(cuit) && saldo > 0.5) {
+        // CORRECCIÓN: Usamos el campo 'total' bruto de Firebase.
+        // No restamos retenciones aquí, solo lo que ya se cobró.
+        const saldoBruto = parseFloat(f.total || 0);
+        const yaCobrado = parseFloat(cobros[id]?.monto_cobrado || 0);
+        const saldoPendiente = Math.max(0, saldoBruto - yaCobrado);
+        
+        if (f.receptor_cuit?.includes(cuit) && saldoPendiente > 0.5) {
             const esSAEI = (f.modulo || "").toUpperCase() === "SAEI";
-            // Formato visual 00000-00000000
             const pv = String(f.punto_venta || 0).padStart(5, '0');
             const nc = String(f.nro_comp || 0).padStart(8, '0');
 
             contenedor.innerHTML += `
-                <div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" data-saldo="${saldo}"
+                <div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" data-saldo="${saldoPendiente}"
                      style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
                     <input type="checkbox" class="check-conciliar" style="width:20px; height:20px;" onchange="actualizarResumen()">
                     <span style="flex:2; font-family:monospace; font-weight:bold;">${pv}-${nc}</span>
-                    <span style="flex:1; color:#27ae60; font-weight:bold;">$${saldo.toFixed(2)}</span>
+                    <span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
                     <input type="number" class="edit-cobro" value="0" style="flex:1; width:80px; padding:5px;" oninput="actualizarResumen()">
                     <input type="number" class="edit-ret-gs" value="0" style="flex:1; width:80px; padding:5px;">
                     <input type="number" class="edit-ret-iibb" value="0" style="flex:1; width:80px; padding:5px;">
                 </div>`;
         }
     });
-}
-
+}	
 // --- 2. FUNCIONES DE AYUDA ---
 function actualizarResumen() {
     const totalBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
@@ -1097,38 +1100,40 @@ function autoSeleccionarPorMonto() {
     const montoBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
     const filas = Array.from(document.querySelectorAll('.fila-ajuste'));
     
-    // Ordenamos de mayor a menor para encontrar combinaciones grandes primero
+    // 1. Limpiamos selección actual
+    filas.forEach(f => {
+        f.querySelector('.check-conciliar').checked = false;
+        f.querySelector('.edit-cobro').value = "0";
+    });
+
+    // 2. Ordenamos de mayor a menor (esto ayuda a cubrir el monto rápido)
     filas.sort((a, b) => parseFloat(b.dataset.saldo) - parseFloat(a.dataset.saldo));
-    
-    let acumulado = 0;
-    let facturasSeleccionadas = []; // <-- Array para guardar los nombres
-    
+
+    let restante = montoBanco;
+    let seleccionadas = [];
+
+    // 3. Iteramos tratando de cubrir el monto
     filas.forEach(fila => {
-        const checkbox = fila.querySelector('.check-conciliar');
         const saldo = parseFloat(fila.dataset.saldo);
-        const input = fila.querySelector('.edit-cobro');
-        const numeroFactura = fila.querySelector('span[style*="monospace"]').innerText;
         
-        // Tolerancia de 100 pesos por si hay diferencias de centavos
-        if (acumulado + saldo <= montoBanco + 100) {
-            checkbox.checked = true;
-            input.value = saldo.toFixed(2);
-            acumulado += saldo;
-            facturasSeleccionadas.push(numeroFactura); // Guardamos el número
-        } else {
-            checkbox.checked = false;
-            input.value = "0";
+        // Si el saldo de la factura es menor o igual a lo que me falta cubrir
+        // (con una tolerancia de 100 pesos)
+        if (saldo <= restante + 100) {
+            fila.querySelector('.check-conciliar').checked = true;
+            fila.querySelector('.edit-cobro').value = saldo.toFixed(2);
+            restante -= saldo;
+            seleccionadas.push(fila.querySelector('span[style*="monospace"]').innerText);
         }
     });
-    
+
     actualizarResumen();
-    
-    // Muestra el detalle de qué facturas se llevaron el dinero
-    const mensaje = facturasSeleccionadas.length > 0 
-        ? `¡Auto-Selección exitosa!\n\nFacturas incluidas:\n${facturasSeleccionadas.join(', ')}`
-        : "No encontré facturas que sumen ese monto.";
-        
-    alert(mensaje);
+
+    // 4. Feedback al usuario
+    if (seleccionadas.length > 0) {
+        alert(`¡Auto-Selección completada!\nSe incluyeron ${seleccionadas.length} facturas.\n\nDiferencia final: $${restante.toFixed(2)}`);
+    } else {
+        alert("No pude encontrar facturas para conciliar.");
+    }
 }
 // --- 3. GUARDADO FINAL ---
 async function ejecutarConciliacionFinal() {
