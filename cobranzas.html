@@ -1265,7 +1265,6 @@ function mostrarSelector(opciones, montoBanco) {
 
     const mostrar = opciones.slice(0, 10);
     
-    // 1. Crear el overlay con ID único para poder eliminarlo sin errores
     const overlay = document.createElement('div');
     overlay.id = "modal-combinaciones"; 
     overlay.style = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center;";
@@ -1281,20 +1280,32 @@ function mostrarSelector(opciones, montoBanco) {
         let listaDetallada = op.lista.map(f => {
             const pvNc = f.element.querySelector('span[style*="monospace"]').innerText;
             
-            // --- CÓDIGO DE TU FUNCIÓN LOCALIZADO ---
-            const fRaw = f.fecha.toString();
+            // --- LÓGICA UNIFICADA Y CORREGIDA ---
+            let fRaw = f.fecha.toString().trim();
             let fechaFormateada = fRaw;
 
+            // 1. Caso con guiones (YYYY-MM-DD)
             if (fRaw.includes('-')) {
                 const partes = fRaw.split('-');
                 if (partes[0].length === 4) {
                     fechaFormateada = `${partes[2].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[0]}`;
                 }
-            } else if (fRaw.includes('/')) {
+            } 
+            // 2. Caso con barras (D/M/YYYY o DD/MM/YYYY)
+            else if (fRaw.includes('/')) {
                 const partes = fRaw.split('/');
                 fechaFormateada = `${partes[0].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[2]}`;
+            } 
+            // 3. Caso numérico "pegado" (ej: 1472026 -> 14/07/2026)
+            else if (/^\d+$/.test(fRaw) && fRaw.length >= 6) {
+                const anio = fRaw.slice(-4);
+                const resto = fRaw.slice(0, -4);
+                // Si el resto tiene 3 dígitos (ej: 772 -> 7/7) o 4 (ej: 1472 -> 14/7)
+                const dia = resto.length === 3 ? resto.slice(0, 1) : resto.slice(0, 2);
+                const mes = resto.length === 3 ? resto.slice(1) : resto.slice(2);
+                fechaFormateada = `${dia.padStart(2, '0')}/${mes.padStart(2, '0')}/${anio}`;
             }
-            // ----------------------------------------
+            
             
             const modulo = f.element.dataset.modulo || "S/D";
             const paciente = f.element.dataset.paciente || "S/D";
@@ -1309,14 +1320,12 @@ function mostrarSelector(opciones, montoBanco) {
                  </div>`;
     });
     
-    // Botón cerrar que busca el ID único
     modal.innerHTML = html + `<button onclick="document.getElementById('modal-combinaciones').remove()" style="padding:8px 16px; cursor:pointer; background:#7f8c8d; color:white; border:none; border-radius:4px;">Cerrar</button>`;
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
     
     window.opcionesGlobales = opciones;
 }
-
 // 3. Función auxiliar segura
 window.aplicarYLimpiar = function(idx) {
     aplicarCombinacion(window.opcionesGlobales[idx]);
