@@ -1062,16 +1062,18 @@ function prepararConciliacion() {
         
         // CORRECCIÓN: Usamos el campo 'total' bruto de Firebase.
         // No restamos retenciones aquí, solo lo que ya se cobró.
-        const saldoBruto = parseFloat(f.total || 0);
+        const totalBruto = parseFloat(f.total || 0); 
         const yaCobrado = parseFloat(cobros[id]?.monto_cobrado || 0);
-        const saldoPendiente = Math.max(0, saldoBruto - yaCobrado);
+        
+        // Aquí no hay rastro de retenciones. Es matemática pura.
+        const saldoPendiente = Math.max(0, totalBruto - yaCobrado);
         
         if (f.receptor_cuit?.includes(cuit) && saldoPendiente > 0.5) {
             const esSAEI = (f.modulo || "").toUpperCase() === "SAEI";
             const pv = String(f.punto_venta || 0).padStart(5, '0');
             const nc = String(f.nro_comp || 0).padStart(8, '0');
 
-            contenedor.innerHTML += `
+            ccontenedor.innerHTML += `
                 <div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" data-saldo="${saldoPendiente}"
                      style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
                     <input type="checkbox" class="check-conciliar" style="width:20px; height:20px;" onchange="actualizarResumen()">
