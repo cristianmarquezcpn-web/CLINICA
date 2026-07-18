@@ -62,7 +62,7 @@
     </style>
 </head>
 <body>
-
+<div id="contenedor-avisos" style="margin-bottom: 20px;"></div>
 <div class="container">
     <div class="header">
         <div>
@@ -1272,6 +1272,66 @@ async function ejecutarConciliacionFinal() {
     alert("¡Conciliación exitosa!");
     renderizarTodo();
 }
+async function detectarPagosPendientes() {
+    const contenedor = document.getElementById('contenedor-avisos');
+    if (!contenedor) return;
+	contenedor.innerHTML = "";
+    const res = await fetch(`${API_URL}/api/contabilidad`);
+    const data = await res.json();
+    
+    // 2. Filtramos: que tengan cuit, que tengan monto y que no estén procesados
+    const pendientes = data.pendientes.filter(p => p.cuit_cliente && p.monto && !p.procesado_cobranzas);
+
+    pendientes.forEach(mov => {
+        // Acá usamos el Regex para sacar el CUIT del choclo de texto
+        const cuitMatch = mov.descripcion.match(/\b\d{11}\b/);
+        const cuit = cuitMatch ? cuitMatch[0] : null;
+
+        if (cuit) {
+            crearAvisoEnPantalla({
+                cuit: cuit,
+                monto: mov.monto,
+                fecha: mov.fecha,
+                uid: mov.id_firebase,
+                desc: mov.descripcion
+            });
+        }
+    });
+}
+
+function crearAvisoEnPantalla(info) {
+    const contenedor = document.getElementById('contenedor-avisos'); // Un div vacío arriba de tu tabla
+    contenedor.innerHTML += `
+        <div style="background:var(--p); color:white; padding:15px; border-radius:5px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;">
+            <div>
+                <strong>💡 Nuevo pago detectado:</strong> ${info.desc.split('|')[1].trim()} 
+                <br>Monto: $${info.monto.toLocaleString()} | Fecha: ${info.fecha}
+            </div>
+            <button onclick="cargarAsistente('${info.cuit}', ${info.monto}, '${info.fecha}')" 
+                    style="background:white; color:var(--p); border:none; padding:8px; cursor:pointer; font-weight:bold;">
+                ASIGNAR AHORA
+            </button>
+        </div>
+    `;
+}
+window.cargarAsistente = (cuit, monto, fecha) => {
+    // 1. Rellena el CUIT y dispara la búsqueda
+    document.getElementById('cuit-conciliar').value = cuit;
+    
+    // 2. Pre-rellena el monto para el Auto-Seleccionar
+    document.getElementById('monto-banco').value = monto;
+    
+    // 3. Dispara tu función original que busca las facturas
+    prepararConciliacion(); 
+    
+    // 4. (Opcional) Si tenés un campo de fecha para el cobro:
+    // document.getElementById('fecha-pago').value = fecha;
+    
+    alert("✅ CUIT y Monto cargados. ¡Dale al botón 'Auto-Seleccionar' y listo!");
+};
+document.addEventListener('DOMContentLoaded', () => {
+    detectarPagosPendientes();
+});
 </script>
 </body>
 </html>      
