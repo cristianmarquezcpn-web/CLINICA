@@ -1059,7 +1059,7 @@ function prepararConciliacion() {
 
     Object.keys(facturas).forEach(id => {
         const f = facturas[id];
-        const saldo = Math.max(0, (f.netoCalc || 0) - (cobros[id]?.monto_cobrado || 0) - (f.retGS_manual || 0) - (f.retIIBB_manual || 0));
+        const saldo = Math.max(0, (f.netoCalc || 0) - (cobros[id]?.monto_cobrado || 0));
         
         if (f.receptor_cuit?.includes(cuit) && saldo > 0.5) {
             const esSAEI = (f.modulo || "").toUpperCase() === "SAEI";
@@ -1096,26 +1096,40 @@ function actualizarResumen() {
 function autoSeleccionarPorMonto() {
     const montoBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
     const filas = Array.from(document.querySelectorAll('.fila-ajuste'));
+    
+    // Ordenamos de mayor a menor para encontrar combinaciones grandes primero
     filas.sort((a, b) => parseFloat(b.dataset.saldo) - parseFloat(a.dataset.saldo));
     
     let acumulado = 0;
+    let facturasSeleccionadas = []; // <-- Array para guardar los nombres
+    
     filas.forEach(fila => {
         const checkbox = fila.querySelector('.check-conciliar');
         const saldo = parseFloat(fila.dataset.saldo);
         const input = fila.querySelector('.edit-cobro');
+        const numeroFactura = fila.querySelector('span[style*="monospace"]').innerText;
         
+        // Tolerancia de 100 pesos por si hay diferencias de centavos
         if (acumulado + saldo <= montoBanco + 100) {
             checkbox.checked = true;
             input.value = saldo.toFixed(2);
             acumulado += saldo;
+            facturasSeleccionadas.push(numeroFactura); // Guardamos el número
         } else {
             checkbox.checked = false;
             input.value = "0";
         }
     });
+    
     actualizarResumen();
+    
+    // Muestra el detalle de qué facturas se llevaron el dinero
+    const mensaje = facturasSeleccionadas.length > 0 
+        ? `¡Auto-Selección exitosa!\n\nFacturas incluidas:\n${facturasSeleccionadas.join(', ')}`
+        : "No encontré facturas que sumen ese monto.";
+        
+    alert(mensaje);
 }
-
 // --- 3. GUARDADO FINAL ---
 async function ejecutarConciliacionFinal() {
     const filasAProcesar = Array.from(document.querySelectorAll('.fila-ajuste')).filter(f => f.querySelector('.check-conciliar').checked);
@@ -1130,9 +1144,9 @@ async function ejecutarConciliacionFinal() {
         const id = f.dataset.id;
         const raiz = (f.dataset.tipo === 'SAEI') ? 'facturas_emitidas_saei' : 'facturas_emitidas';
         const cobro = parseFloat(f.querySelector('.edit-cobro').value) || 0;
-        const retGS = parseFloat(f.querySelector('.edit-ret-gs').value) || 0;
-        const retIIBB = parseFloat(f.querySelector('.edit-ret-iibb').value) || 0;
-
+		const retGS = parseFloat(f.querySelector('.edit-ret-gs').value) || 0;
+		const retIIBB = parseFloat(f.querySelector('.edit-ret-iibb').value) || 0;
+		if (cobro === 0 && retGS === 0 && retIIBB === 0) return;
         const snapFac = await db.ref(`${raiz}/${id}`).once('value');
         const facActual = snapFac.val() || {};
         await db.ref(`${raiz}/${id}`).update({
