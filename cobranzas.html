@@ -1282,14 +1282,25 @@ function mostrarSelector(opciones, montoBanco) {
         let listaDetallada = op.lista.map(f => {
             const pvNc = f.element.querySelector('span[style*="monospace"]').innerText;
             
-            // Convertimos a string y normalizamos a 8 dígitos (YYYYMMDD)
-            let fStr = f.fecha.toString().padStart(8, '0');
-            
-            // Si la fecha tiene más de 8 dígitos (como el error anterior), tomamos los últimos 8
-            if (fStr.length > 8) fStr = fStr.slice(-8);
-            
-            // Ahora formateamos con seguridad
-            const fechaFormateada = `${fStr.substring(6,8)}/${fStr.substring(4,6)}/${fStr.substring(0,4)}`;
+            let fStr = f.fecha.toString();
+            let fechaFormateada = "";
+
+            // Lógica unificada para manejar / o -
+            if (fStr.includes('/') || fStr.includes('-')) {
+                // Separamos por / o por - usando una expresión regular
+                const partes = fStr.split(/[\/\-]/);
+                
+                // Si viene YYYY-MM-DD (2025-11-04)
+                if (partes[0].length === 4) {
+                    fechaFormateada = `${partes[2].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[0]}`;
+                } 
+                // Si viene D/M/YYYY o DD/MM/YYYY (9/4/2026)
+                else {
+                    fechaFormateada = `${partes[0].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[2]}`;
+                }
+            } else {
+                fechaFormateada = fStr; 
+            }
             
             const modulo = f.element.dataset.modulo || "S/D";
             const paciente = f.element.dataset.paciente || "S/D";
