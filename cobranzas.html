@@ -1282,21 +1282,28 @@ async function ejecutarConciliacionFinal() {
 async function detectarPagosPendientes() {
     const contenedor = document.getElementById('contenedor-avisos');
     if (!contenedor) return;
-
     contenedor.innerHTML = "";
 
+    // Filtro fijo: ignoramos todo lo anterior a julio de 2026
+    const periodoMinimo = "2026-07"; 
+
     try {
-        // Leemos desde Realtime Database
-        const snapshot = await db.ref('contabilidad')
-            .orderByChild('procesado_cobranzas')
-            .equalTo(false)
-            .once('value');
+        // Obtenemos todos los registros de contabilidad
+        const snapshot = await db.ref('contabilidad').once('value');
 
         snapshot.forEach(doc => {
-            const mov = doc.val(); 
-            const docId = doc.key; 
+            const mov = doc.val();
+            const docId = doc.key;
             
-            if (mov.cuit_cliente && mov.monto) {
+            // Filtro de lógica pura: 
+            // 1. Periodo >= "2026-07"
+            // 2. procesado_cobranzas NO es true
+            // 3. Tenga los datos mínimos (cuit y monto)
+            const esPendiente = (mov.periodo >= periodoMinimo) && 
+                                (mov.procesado_cobranzas !== true) && 
+                                (mov.cuit_cliente && mov.monto);
+
+            if (esPendiente) {
                 const cuitMatch = mov.descripcion.match(/\b\d{11}\b/);
                 const cuit = cuitMatch ? cuitMatch[0] : null;
 
@@ -1305,14 +1312,14 @@ async function detectarPagosPendientes() {
                         cuit: cuit,
                         monto: mov.monto,
                         fecha: mov.fecha,
-                        uid: docId, 
+                        uid: docId,
                         desc: mov.descripcion
                     });
                 }
             }
         });
     } catch (error) {
-        console.error("Error leyendo Realtime Database:", error);
+        console.error("Error al detectar pagos:", error);
     }
 }
 function crearAvisoEnPantalla(info) {
