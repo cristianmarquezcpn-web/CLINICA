@@ -1076,16 +1076,19 @@ function prepararConciliacion() {
             const pv = String(f.punto_venta || 0).padStart(5, '0');
             const nc = String(f.nro_comp || 0).padStart(8, '0');
 
-            contenedor.innerHTML += `
-                <div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" data-saldo="${saldoPendiente}"
-                     style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
-                    <input type="checkbox" class="check-conciliar" style="width:20px; height:20px;" onchange="actualizarResumen()">
-                    <span style="flex:2; font-family:monospace; font-weight:bold;">${pv}-${nc}</span>
-                    <span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
-                    <input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()">
-        			<input type="number" class="edit-ret-gs" value="0" oninput="actualizarResumen()">
-        			<input type="number" class="edit-ret-iibb" value="0" oninput="actualizarResumen()">
-                </div>`;
+            const fechaFormateada = f.fecha_emision.toString().replace(/-/g, '').replace(/\//g, '');
+
+			contenedor.innerHTML += `
+    		<div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" 
+         	data-saldo="${saldoPendiente}" data-fecha="${fechaFormateada}"
+         	style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
+        	<input type="checkbox" class="check-conciliar" style="width:20px; height:20px;" onchange="actualizarResumen()">
+        	<span style="flex:2; font-family:monospace; font-weight:bold;">${pv}-${nc}</span>
+        	<span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
+        	<input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()">
+        	<input type="number" class="edit-ret-gs" value="0" oninput="actualizarResumen()">
+        	<input type="number" class="edit-ret-iibb" value="0" oninput="actualizarResumen()">
+    		</div>`;
         }
     });
 }	
@@ -1148,40 +1151,86 @@ function autoSeleccionarPorMonto() {
     const montoBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
     const filas = Array.from(document.querySelectorAll('.fila-ajuste'));
     
-    // 1. Limpiamos selección actual
-    filas.forEach(f => {
+    // Mapeo de facturas con saldo > 0 e incluyendo fecha
+    const facturas = filas.map(f => ({
+        id: f.dataset.id,
+        saldo: parseFloat(f.dataset.saldo) || 0,
+        // Convertimos la fecha a número (YYYYMMDD) para comparar
+        fecha: parseInt(f.dataset.fecha || "99999999"), 
+        element: f
+    })).filter(f => f.saldo > 0);
+
+    let combinaciones = [];
+    
+    // Función recursiva optimizada para grupos de hasta 10 facturas
+    function buscarCombinaciones(index, actualSuma, actualLista) {
+        if (actualLista.length > 0) {
+            combinaciones.push({ lista: actualLista, suma: actualSuma });
+        }
+        
+        if (index >= facturas.length || actualLista.length >= 10) return;
+
+        for (let i = index; i < facturas.length; i++) {
+            buscarCombinaciones(i + 1, actualSuma + facturas[i].saldo, [...actualLista, facturas[i]]);
+        }
+    }
+
+    buscarCombinaciones(0, 0, []);
+
+    // ORDENAMIENTO INTELIGENTE: Diferencia primero, Antigüedad después
+    combinaciones.sort((a, b) => {
+        const diffA = Math.abs(montoBanco - a.suma);
+        const diffB = Math.abs(montoBanco - b.suma);
+        
+        // Tolerancia de 1 peso para considerar "empate" en la suma
+        if (Math.abs(diffA - diffB) > 1) {
+            return diffA - diffB; // Prioriza la menor diferencia
+        }
+        
+        // Si la suma es casi igual, prioriza la combinación con la factura más vieja
+        const fechaMinA = Math.min(...a.lista.map(f => f.fecha));
+        const fechaMinB = Math.min(...b.lista.map(f => f.fecha));
+        return fechaMinA - fechaMinB; // Menor número = Fecha más vieja
+    });
+
+    const top5 = combinaciones.slice(0, 5);
+    mostrarSelector(top5, montoBanco);
+}
+
+function mostrarSelector(opciones, montoBanco) {
+    if (opciones.length === 0) {
+        alert("No se encontraron combinaciones posibles.");
+        return;
+    }
+
+    let mensaje = `He encontrado las mejores combinaciones (priorizando facturas viejas):\n\n`;
+    
+    opciones.forEach((op, index) => {
+        const diferencia = montoBanco - op.suma;
+        const fechaMasVieja = Math.min(...op.lista.map(f => f.fecha));
+        mensaje += `${index + 1}) Suma: $${op.suma.toFixed(2)} | Dif: $${diferencia.toFixed(2)} | Items: ${op.lista.length} | Fecha mas vieja: ${fechaMasVieja}\n`;
+    });
+    
+    const seleccion = prompt(mensaje + "\nElegí el número de opción (1 al 5) o Cancelar:");
+    
+    if (seleccion !== null && opciones[seleccion - 1]) {
+        aplicarCombinacion(opciones[seleccion - 1]);
+    }
+}
+
+function aplicarCombinacion(combinacion) {
+    document.querySelectorAll('.fila-ajuste').forEach(f => {
         f.querySelector('.check-conciliar').checked = false;
         f.querySelector('.edit-cobro').value = "0";
     });
 
-    // 2. Ordenamos de mayor a menor (esto ayuda a cubrir el monto rápido)
-    filas.sort((a, b) => parseFloat(b.dataset.saldo) - parseFloat(a.dataset.saldo));
-
-    let restante = montoBanco;
-    let seleccionadas = [];
-
-    // 3. Iteramos tratando de cubrir el monto
-    filas.forEach(fila => {
-        const saldo = parseFloat(fila.dataset.saldo);
-        
-        // Si el saldo de la factura es menor o igual a lo que me falta cubrir
-        // (con una tolerancia de 100 pesos)
-        if (saldo <= restante + 100) {
-            fila.querySelector('.check-conciliar').checked = true;
-            fila.querySelector('.edit-cobro').value = saldo.toFixed(2);
-            restante -= saldo;
-            seleccionadas.push(fila.querySelector('span[style*="monospace"]').innerText);
-        }
+    combinacion.lista.forEach(item => {
+        const fila = item.element;
+        fila.querySelector('.check-conciliar').checked = true;
+        fila.querySelector('.edit-cobro').value = item.saldo.toFixed(2);
     });
-
+    
     actualizarResumen();
-
-    // 4. Feedback al usuario
-    if (seleccionadas.length > 0) {
-        alert(`¡Auto-Selección completada!\nSe incluyeron ${seleccionadas.length} facturas.\n\nDiferencia final: $${restante.toFixed(2)}`);
-    } else {
-        alert("No pude encontrar facturas para conciliar.");
-    }
 }
 // --- 3. GUARDADO FINAL ---
 async function ejecutarConciliacionFinal() {
