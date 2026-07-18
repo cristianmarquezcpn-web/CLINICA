@@ -1283,44 +1283,35 @@ async function ejecutarConciliacionFinal(uid, periodo) { // Recibimos uid y peri
     renderizarTodo();
 }
 async function detectarPagosPendientes() {
-    console.log("🔍 Buscando en pendientes...");
+    console.log("🔍 [DEBUG FINAL] Escaneando todo en pendientes...");
     const contenedor = document.getElementById('contenedor-avisos');
-    if (!contenedor) return;
     contenedor.innerHTML = "";
 
-    const periodoActual = "2026-07"; // O el periodo que necesites
-
     try {
-        // Apuntamos directo a la ruta que confirmamos
-        const refPendientes = db.ref(`contabilidad/${periodoActual}/pendientes`);
-        const snapshot = await refPendientes.once('value');
+        const ref = db.ref('contabilidad/2026-07/pendientes');
+        const snapshot = await ref.once('value');
         
         if (!snapshot.exists()) {
-            console.log("⚠️ No hay nada en pendientes para este periodo.");
+            console.warn("⚠️ La ruta 'contabilidad/2026-07/pendientes' está vacía o no existe.");
             return;
         }
 
         snapshot.forEach(movNode => {
             const mov = movNode.val();
-            const docId = movNode.key;
-
-            const esProcesado = mov.procesado_cobranzas === true;
-            const tieneDatos = (mov.cuit_cliente && mov.monto);
-
-            if (!esProcesado && tieneDatos) {
-                console.log(`✅ ¡Encontrado! ${docId}`);
-                crearAvisoEnPantalla({
-                    cuit: mov.cuit_cliente,
-                    monto: mov.monto,
-                    fecha: mov.fecha,
-                    uid: docId,
-                    periodo: periodoActual,
-                    desc: mov.descripcion
-                });
-            }
+            console.log(`📄 [DEBUG] Encontré registro ${movNode.key}:`, mov);
+            
+            // Forzamos la creación del cartel para CADA registro
+            crearAvisoEnPantalla({
+                cuit: mov.cuit_cliente || "SIN CUIT",
+                monto: mov.monto || 0,
+                fecha: mov.fecha || "SIN FECHA",
+                uid: movNode.key,
+                periodo: "2026-07",
+                desc: mov.descripcion || "Sin descripción"
+            });
         });
     } catch (error) {
-        console.error("❌ Error accediendo a la ruta:", error);
+        console.error("❌ Error de acceso:", error);
     }
 }
 function crearAvisoEnPantalla(info) {
