@@ -1280,34 +1280,43 @@ async function ejecutarConciliacionFinal() {
     renderizarTodo();
 }
 async function detectarPagosPendientes() {
+    console.log("🚀 Iniciando búsqueda de pendientes...");
     const contenedor = document.getElementById('contenedor-avisos');
-    if (!contenedor) return;
+    if (!contenedor) {
+        console.log("❌ No se encontró el contenedor de avisos");
+        return;
+    }
     contenedor.innerHTML = "";
 
-    // Filtro fijo: ignoramos todo lo anterior a julio de 2026
     const periodoMinimo = "2026-07"; 
 
     try {
-        // Obtenemos todos los registros de contabilidad
         const snapshot = await db.ref('contabilidad').once('value');
+        
+        if (!snapshot.exists()) {
+            console.log("⚠️ La rama 'contabilidad' está vacía");
+            return;
+        }
 
+        let encontrados = 0;
         snapshot.forEach(doc => {
             const mov = doc.val();
             const docId = doc.key;
             
-            // Filtro de lógica pura: 
-            // 1. Periodo >= "2026-07"
-            // 2. procesado_cobranzas NO es true
-            // 3. Tenga los datos mínimos (cuit y monto)
+            // Log para ver qué estamos leyendo
+            console.log(`Revisando ${docId}: Periodo=${mov.periodo}, Procesado=${mov.procesado_cobranzas}`);
+
             const esPendiente = (mov.periodo >= periodoMinimo) && 
                                 (mov.procesado_cobranzas !== true) && 
                                 (mov.cuit_cliente && mov.monto);
 
             if (esPendiente) {
+                console.log(`✅ ¡Encontrado! ${docId} cumple los requisitos.`);
                 const cuitMatch = mov.descripcion.match(/\b\d{11}\b/);
                 const cuit = cuitMatch ? cuitMatch[0] : null;
 
                 if (cuit) {
+                    encontrados++;
                     crearAvisoEnPantalla({
                         cuit: cuit,
                         monto: mov.monto,
@@ -1315,11 +1324,18 @@ async function detectarPagosPendientes() {
                         uid: docId,
                         desc: mov.descripcion
                     });
+                } else {
+                    console.log(`❌ No se pudo extraer el CUIT de la descripción: ${mov.descripcion}`);
                 }
+            } else {
+                console.log(`⏭️ Ignorado: ${docId} (No cumple filtro)`);
             }
         });
+
+        console.log(`🏁 Búsqueda terminada. Total avisos creados: ${encontrados}`);
+
     } catch (error) {
-        console.error("Error al detectar pagos:", error);
+        console.error("❌ Error al acceder a Firebase:", error);
     }
 }
 function crearAvisoEnPantalla(info) {
