@@ -1237,8 +1237,7 @@ function aplicarCombinacion(combinacion) {
     actualizarResumen();
 }
 // --- 3. GUARDADO FINAL ---
-async function ejecutarConciliacionFinal() {
-	const uid = uidPagoActual;
+async function ejecutarConciliacionFinal(uid, periodo) { // Recibimos uid y periodo directamente
     const filasAProcesar = Array.from(document.querySelectorAll('.fila-ajuste')).filter(f => f.querySelector('.check-conciliar').checked);
     if (filasAProcesar.length === 0) return alert("Selecciona al menos una factura.");
     
@@ -1247,13 +1246,15 @@ async function ejecutarConciliacionFinal() {
 
     if(!confirm(`¿Conciliar ${filasAProcesar.length} facturas con fecha ${fechaPago}?`)) return;
 
+    // 1. Procesamos las facturas (las promesas)
     const promesas = filasAProcesar.map(async (f) => {
         const id = f.dataset.id;
         const raiz = (f.dataset.tipo === 'SAEI') ? 'facturas_emitidas_saei' : 'facturas_emitidas';
         const cobro = parseFloat(f.querySelector('.edit-cobro').value) || 0;
-		const retGS = parseFloat(f.querySelector('.edit-ret-gs').value) || 0;
-		const retIIBB = parseFloat(f.querySelector('.edit-ret-iibb').value) || 0;
-		if (cobro === 0 && retGS === 0 && retIIBB === 0) return;
+        const retGS = parseFloat(f.querySelector('.edit-ret-gs').value) || 0;
+        const retIIBB = parseFloat(f.querySelector('.edit-ret-iibb').value) || 0;
+        if (cobro === 0 && retGS === 0 && retIIBB === 0) return;
+
         const snapFac = await db.ref(`${raiz}/${id}`).once('value');
         const facActual = snapFac.val() || {};
         await db.ref(`${raiz}/${id}`).update({
@@ -1268,14 +1269,20 @@ async function ejecutarConciliacionFinal() {
             monto_cobrado: (previo.monto_cobrado || 0) + cobro
         });
     });
-	await db.ref('contabilidad/' + mov.periodo + '/' + uid).update({
-    procesado_cobranzas: true
-        });
-        console.log("¡Pago marcado como procesado!");
-    }
+
+    // 2. Esperamos que terminen todas las facturas
     await Promise.all(promesas);
+
+    // 3. Marcamos el pago como procesado (usando los parámetros que le pasamos a la función)
+    await db.ref('contabilidad/' + periodo + '/' + uid).update({
+        procesado_cobranzas: true
+    });
+    
+    console.log("¡Pago marcado como procesado!");
     alert("¡Conciliación exitosa!");
-	detectarPagosPendientes();
+    
+    // 4. Refrescamos
+    detectarPagosPendientes();
     renderizarTodo();
 }
 async function detectarPagosPendientes() {
@@ -1314,7 +1321,8 @@ async function detectarPagosPendientes() {
                             cuit: cuit,
                             monto: mov.monto,
                             fecha: mov.fecha,
-                            uid: docId, // Firebase path ahora sería: contabilidad/2026-07/docId
+                            uid: docId, 
+							periodo: nombreMes,
                             desc: mov.descripcion
                         });
                     }
@@ -1326,19 +1334,30 @@ async function detectarPagosPendientes() {
     }
 }
 function crearAvisoEnPantalla(info) {
-    const contenedor = document.getElementById('contenedor-avisos'); // Un div vacío arriba de tu tabla
-    contenedor.innerHTML += `
-        <div style="background:var(--p); color:white; padding:15px; border-radius:5px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;">
-            <div>
-                <strong>💡 Nuevo pago detectado:</strong> ${info.desc.split('|')[1].trim()} 
-                <br>Monto: $${info.monto.toLocaleString()} | Fecha: ${info.fecha}
-            </div>
-            <button onclick="cargarAsistente('${info.cuit}', ${info.monto}, '${info.fecha}','${info.uid}')" 
-                    style="background:white; color:var(--p); border:none; padding:8px; cursor:pointer; font-weight:bold;">
-                ASIGNAR AHORA
-            </button>
-        </div>
-    `;
+    const contenedor = document.getElementById('contenedor-avisos');
+    
+    // Importante: Asegúrate de que info.periodo esté disponible aquí
+    const divAviso = document.createElement('div');
+    divAviso.style = "background:var(--p); color:white; padding:15px; border-radius:5px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;";
+    
+    divAviso.innerHTML = `
+        <div>
+            <strong>💡 Nuevo pago detectado:</strong> ${info.desc ? info.desc.split('|')[1]?.trim() : 'Sin descripción'} 
+            <br>Monto: $${info.monto.toLocaleString()} | Fecha: ${info.fecha} | Periodo: ${info.periodo}
+        </div>
+        <button id="btn-conciliar-${info.uid}" 
+                style="background:white; color:var(--p); border:none; padding:8px; cursor:pointer; font-weight:bold;">
+            ASIGNAR AHORA
+        </button>
+    `;
+    
+    contenedor.appendChild(divAviso);
+
+    // Asignamos el evento al botón pasando el UID y el PERIODO necesarios
+    divAviso.querySelector(`#btn-conciliar-${info.uid}`).onclick = () => {
+        // Aquí pasamos los datos que necesita nuestra función corregida
+        ejecutarConciliacionFinal(info.uid, info.periodo);
+    };
 }
 window.cargarAsistente = (cuit, monto, fecha, uid) => {
     uidPagoActual = uid; // Ahora sí, guarda el ID correctamente
