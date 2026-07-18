@@ -464,13 +464,12 @@ if (!firebase.apps.length) {
             let s = String(saldo || "0").replace(/[^0-9,-]/g, '').replace(',', '.');
             saldoLimpio = parseFloat(s) || 0;
         }
-
-        const netoLimpio = (typeof f.netoCalc === 'number') ? f.netoCalc : 0;
-        agrupadoOS[os].totalPendienteOS += (esNC ? netoLimpio : saldoLimpio);
+		const valorParaSumar = esNC ? 0 : saldoLimpio;
         
-        if (saldoLimpio > 0.5 || esNC) {
-            const importeAReportar = esNC ? netoLimpio : saldoLimpio;
-            globalPendiente += importeAReportar;
+        agrupadoOS[os].totalPendienteOS += valorParaSumar;
+        
+        if (valorParaSumar > 0.5) {
+            globalPendiente += valorParaSumar;
             
             let m = "CD"; 
             let infoFila = JSON.stringify(f).toUpperCase();
@@ -480,12 +479,11 @@ if (!firebase.apps.length) {
             else if (infoFila.includes("SAEI")) m = "SAEI";
 
             if (!modulosNeto[m]) modulosNeto[m] = 0;
-            modulosNeto[m] += importeAReportar;
+            modulosNeto[m] += valorParaSumar; // Suma solo el valor positivo pendiente
             
-            if (!esNC) {
-                if (mora > agrupadoOS[os].moraMax) agrupadoOS[os].moraMax = mora;
-                if (fEmi < agrupadoOS[os].fechaMasVieja) agrupadoOS[os].fechaMasVieja = fEmi;
-            }
+            // Mora y fechas: Solo para facturas activas
+            if (mora > agrupadoOS[os].moraMax) agrupadoOS[os].moraMax = mora;
+            if (fEmi < agrupadoOS[os].fechaMasVieja) agrupadoOS[os].fechaMasVieja = fEmi;
         } 
     }); 
 
