@@ -1306,9 +1306,9 @@ async function detectarPagosPendientes() {
                     // 1. Extraer CUIT de la descripción (busca secuencia de 11 números)
                     const regexCuit = /\d{11}/;
                     const cuitExtraido = mov.descripcion ? (mov.descripcion.match(regexCuit) ? mov.descripcion.match(regexCuit)[0] : "SIN CUIT") : "SIN CUIT";
-
+					const esBasura = /ANULACION|REINTEGRO|DEV\.IMP|COMISIONES/i.test(mov.descripcion);	
                     // 2. Filtro: Solo procesar si el tipo es INGRESO
-                    if (mov.tipo === "INGRESO") {
+                    if (mov.tipo === "INGRESO" && mov.monto > 99999 && !esBasura) {
                         crearAvisoEnPantalla({
                             cuit: cuitExtraido,
                             monto: mov.monto || 0,
@@ -1327,29 +1327,37 @@ async function detectarPagosPendientes() {
 }
 function crearAvisoEnPantalla(info) {
     const contenedor = document.getElementById('contenedor-avisos');
-    
-    // Importante: Asegúrate de que info.periodo esté disponible aquí
     const divAviso = document.createElement('div');
-    // En lugar de tu estilo actual, usa este que garantiza lectura
-divAviso.style = "background:var(--p); color:#FFFFFF; padding:15px; border-radius:5px; margin-bottom:10px; border: 1px solid #333; display:flex; align-items:center; justify-content:space-between;";
+    
+    // CSS SÓLIDO Y PROFESIONAL
+    divAviso.style.cssText = `
+        background-color: #2c3e50 !important; 
+        color: #ffffff !important; 
+        padding: 20px; 
+        border-radius: 8px; 
+        margin-bottom: 15px; 
+        border-left: 6px solid #e74c3c; 
+        display: flex; 
+        align-items: center; 
+        justify-content: space-between;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    `;
     
     divAviso.innerHTML = `
-        <div>
-            <strong>💡 Nuevo pago detectado:</strong> ${info.desc ? info.desc.split('|')[1]?.trim() : 'Sin descripción'} 
-            <br>Monto: $${info.monto.toLocaleString()} | Fecha: ${info.fecha} | Periodo: ${info.periodo}
+        <div style="flex-grow: 1;">
+            <strong style="font-size: 1.1em;">💡 ${info.desc ? info.desc.split('|')[1]?.trim() : 'Sin descripción'}</strong> 
+            <br><span style="opacity: 0.8;">Monto: $${info.monto.toLocaleString()} | Fecha: ${info.fecha}</span>
         </div>
-        <button id="btn-conciliar-${info.uid}" 
-                style="background:white; color:var(--p); border:none; padding:8px; cursor:pointer; font-weight:bold;">
-            ASIGNAR AHORA
+        <button id="btn-conciliar-${info.uid}" style="background:#e74c3c; color:white; border:none; padding:10px 20px; cursor:pointer; font-weight:bold; border-radius:4px;">
+            ASIGNAR PAGO
         </button>
     `;
     
     contenedor.appendChild(divAviso);
-
-    // Asignamos el evento al botón pasando el UID y el PERIODO necesarios
+    
+    // EL CAMBIO IMPORTANTE PARA QUE ABRA EL MODAL Y NO CONCILIE SOLO:
     divAviso.querySelector(`#btn-conciliar-${info.uid}`).onclick = () => {
-        // Aquí pasamos los datos que necesita nuestra función corregida
-        ejecutarConciliacionFinal(info.uid, info.periodo);
+        window.cargarAsistente(info.cuit, info.monto, info.fecha, info.uid);
     };
 }
 window.cargarAsistente = (cuit, monto, fecha, uid) => {
