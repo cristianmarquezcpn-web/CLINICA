@@ -1035,13 +1035,20 @@ async function vincularNC(idFactura) {
     renderizarTodo();
 }	
 // --- 1. PREPARACIÓN Y RENDERIZADO DE TABLA ---
-function prepararConciliacion() {
-    const cuitInput = document.getElementById('cuit-conciliar').value.replace(/\D/g, '');
+function prepararConciliacion(cuitForzado = null) {
+    // Si viene cuitForzado, lo usamos; si no, leemos el input
+    const cuitInput = (cuitForzado || document.getElementById('cuit-conciliar').value || "").replace(/\D/g, '');
     const contenedor = document.getElementById('lista-ajuste-editable');
+    
     if (!cuitInput) {
         alert("Por favor, ingresá un CUIT válido primero.");
         return;
     }
+
+    // Si estamos en modo automático, actualizamos el input visualmente
+    const inputCuitVisual = document.getElementById('cuit-conciliar');
+    if (inputCuitVisual) inputCuitVisual.value = cuitInput;
+
     document.getElementById('controles-conciliacion').style.display = 'block';
     
     contenedor.innerHTML = `
@@ -1068,37 +1075,31 @@ function prepararConciliacion() {
         const retGS = parseFloat(f.retGS_manual || 0);
         const retIIBB = parseFloat(f.retIIBB_manual || 0);
         const cuitFactura = (f.receptor_cuit || "").replace(/\D/g, '');
-        // El monto total aplicado es: Banco + Retenciones
-        const totalAplicado = yaCobrado + retGS + retIIBB;
         
-        // 4. Saldo real (Bruto - (Banco + Retenciones))
+        const totalAplicado = yaCobrado + retGS + retIIBB;
         const saldoPendiente = Math.max(0, totalBruto - totalAplicado);
         
+        // Comparación exacta y estricta
         if (cuitFactura === cuitInput && saldoPendiente > 0.5) {
             const esSAEI = (f.modulo || "").toUpperCase() === "SAEI";
             const pv = String(f.punto_venta || 0).padStart(5, '0');
             const nc = String(f.nro_comp || 0).padStart(8, '0');
-
             const fechaFormateada = f.fecha_emision.toString().replace(/-/g, '').replace(/\//g, '');
-
 			
-			contenedor.innerHTML += `
-    		<div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" 
-         	data-saldo="${saldoPendiente}" data-fecha="${fechaFormateada}"
-         	style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
-        
-       		<input type="checkbox" class="check-conciliar" style="width:20px; height:20px;" onchange="actualizarResumen()">
-        
-        	<span style="flex:2; font-family:monospace; font-weight:bold;">${pv}-${nc}</span>
-        	<span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
-        
-            <input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-        	<input type="number" class="edit-ret-gs" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-        	<input type="number" class="edit-ret-iibb" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-    		</div>`;
+            contenedor.innerHTML += `
+            <div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" 
+                 data-saldo="${saldoPendiente}" data-fecha="${fechaFormateada}"
+                 style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
+                <input type="checkbox" class="check-conciliar" style="width:20px; height:20px;" onchange="actualizarResumen()">
+                <span style="flex:2; font-family:monospace; font-weight:bold;">${pv}-${nc}</span>
+                <span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
+                <input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+                <input type="number" class="edit-ret-gs" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+                <input type="number" class="edit-ret-iibb" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+            </div>`;
         }
     });
-}	
+}
 // --- 2. FUNCIONES DE AYUDA ---
 function actualizarResumen() {
     const totalBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
@@ -1369,20 +1370,19 @@ function crearAvisoEnPantalla(info) {
 window.cargarAsistente = (cuit, monto, fecha, uid) => {
     uidPagoActual = uid; 
 
-    // 1. Preparamos el contenedor/modal primero
-    prepararConciliacion();
+    // 1. Llamamos a la función pasando el CUIT directamente
+    prepararConciliacion(cuit);
 
-    // 2. Usamos un pequeño 'setTimeout' para darle tiempo al navegador de renderizar el HTML
-    // que acabamos de crear con innerHTML en prepararConciliacion()
+    // 2. Damos un respiro mínimo para asignar el monto (que sí es un campo que ya existe en el HTML creado)
     setTimeout(() => {
-        const inputCuit = document.getElementById('cuit-conciliar');
         const inputMonto = document.getElementById('monto-banco');
-
-        if (inputCuit) inputCuit.value = cuit;
-        if (inputMonto) inputMonto.value = monto;
-        
-        alert("✅ CUIT y Monto cargados. ¡Dale al botón 'Auto-Seleccionar' y listo!");
-    }, 100); 
+        if (inputMonto) {
+            inputMonto.value = monto;
+            // Opcional: llamamos a actualizarResumen si quieres que calcule solo
+            if (typeof actualizarResumen === 'function') actualizarResumen();
+        }
+        alert("✅ Datos cargados correctamente.");
+    }, 50); 
 };
 document.addEventListener('DOMContentLoaded', () => {
     detectarPagosPendientes();
