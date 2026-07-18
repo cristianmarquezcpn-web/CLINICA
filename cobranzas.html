@@ -1093,7 +1093,7 @@ function prepararConciliacion(cuitForzado = null) {
             <div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" 
                  data-saldo="${saldoPendiente}" data-fecha="${fechaFormateada}"
                  style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
-                <input type="checkbox" class="check-conciliar" style="width:20px; height:20px;" onchange="actualizarResumen()">
+                <input type="checkbox" class="check-conciliar" onchange="manejarSeleccion(this)">
                 <span style="flex:2; font-family:monospace; font-weight:bold;">${pv}-${nc}</span>
                 <span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
                 <input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
@@ -1103,6 +1103,25 @@ function prepararConciliacion(cuitForzado = null) {
         }
     });
 }
+function manejarSeleccion(checkbox) {
+    const fila = checkbox.closest('.fila-ajuste');
+    const inputPago = fila.querySelector('.edit-cobro');
+    const saldoPendiente = parseFloat(fila.dataset.saldo);
+
+    if (checkbox.checked) {
+        // Al marcar, le damos el saldo completo como sugerencia inicial
+        if (parseFloat(inputPago.value) === 0) {
+            inputPago.value = saldoPendiente.toFixed(2);
+        }
+    } else {
+        // Al desmarcar, limpiamos todo
+        inputPago.value = "0";
+        fila.querySelector('.edit-ret-gs').value = "0";
+        fila.querySelector('.edit-ret-iibb').value = "0";
+    }
+    
+    actualizarResumen();
+}	
 // --- 2. FUNCIONES DE AYUDA ---
 function actualizarResumen() {
     const totalBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
@@ -1178,8 +1197,9 @@ function autoSeleccionarPorMonto() {
 }
 
 function buscarMejoresCombinaciones(facturasRaw, montoBanco) {
+    // FASE 1: Filtrado más amplio (ahora aceptamos facturas hasta el monto + retenciones estimadas)
     const facturas = facturasRaw
-        .filter(f => f.saldo <= montoBanco + 1)
+        .filter(f => f.saldo > 0)
         .map(f => ({ ...f, saldo: Math.round(f.saldo * 100) / 100 }))
         .sort((a, b) => a.saldo - b.saldo);
 
@@ -1187,47 +1207,41 @@ function buscarMejoresCombinaciones(facturasRaw, montoBanco) {
 
     const n = facturas.length;
     const MAXFACTURAS = 10;
-    const TOLERANCIA = 1;
+    
+    // SUMA PREFIJO para podas rápidas
     const sumaPrefijo = new Array(n + 1).fill(0);
     for (let i = 0; i < n; i++) sumaPrefijo[i + 1] = sumaPrefijo[i] + facturas[i].saldo;
 
     let topOpciones = []; 
 
     function buscar(index, actualSuma, actualLista, cantidadFacturas) {
-        if (actualSuma > montoBanco + TOLERANCIA) return;
-        
+        // Evaluar cada combinación encontrada como una opción válida
         if (cantidadFacturas > 0) {
             const diferencia = montoBanco - actualSuma;
-            if (diferencia >= -TOLERANCIA) {
-                topOpciones.push({
-                    lista: [...actualLista],
-                    suma: actualSuma,
-                    diferencia: diferencia,
-                    fecha: Math.min(...actualLista.map(f => f.fecha))
-                });
-                
-                topOpciones.sort((a, b) => Math.abs(a.diferencia) - Math.abs(b.diferencia) || a.fecha - b.fecha);
-                if (topOpciones.length > 10) topOpciones.pop();
-            }
+            
+            // Guardamos la opción siempre, porque ahora nos interesa la "menor diferencia"
+            topOpciones.push({
+                lista: [...actualLista],
+                suma: actualSuma,
+                diferencia: diferencia,
+                fecha: Math.min(...actualLista.map(f => f.fecha))
+            });
+            
+            // Mantenemos solo las 10 mejores ordenadas por la diferencia ABSOLUTA (cercanía)
+            topOpciones.sort((a, b) => Math.abs(a.diferencia) - Math.abs(b.diferencia));
+            if (topOpciones.length > 10) topOpciones.pop();
         }
         
         if (index >= n || cantidadFacturas >= MAXFACTURAS) return;
         
+        // PODA RELAJADA: Solo cortamos si ni sumando todo lo restante llegamos al 80% del monto
         const k = Math.min(n - index, MAXFACTURAS - cantidadFacturas);
-        if (actualSuma + (sumaPrefijo[index + k] - sumaPrefijo[index]) < montoBanco * 0.95) return;
+        if (actualSuma + (sumaPrefijo[index + k] - sumaPrefijo[index]) < montoBanco * 0.8) return;
         
         let i = index;
         while (i < n) {
-            const saldo = facturas[i].saldo;
-            if (actualSuma + saldo > montoBanco + TOLERANCIA) {
-                while (i < n && facturas[i].saldo === saldo) i++;
-                continue;
-            }
-            if (i < n - 1 && actualSuma + saldo + (sumaPrefijo[n] - sumaPrefijo[i + 1]) < montoBanco * 0.95) {
-                i++; continue;
-            }
-            
-            buscar(i + 1, actualSuma + saldo, [...actualLista, facturas[i]], cantidadFacturas + 1);
+            // Buscamos todas las combinaciones posibles sin restringir por "match perfecto"
+            buscar(i + 1, actualSuma + facturas[i].saldo, [...actualLista, facturas[i]], cantidadFacturas + 1);
             i++;
         }
     }
