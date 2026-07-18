@@ -1067,7 +1067,12 @@ function prepararConciliacion() {
         
         // Aquí no hay rastro de retenciones. Es matemática pura.
         const saldoPendiente = Math.max(0, totalBruto - yaCobrado);
-        
+        console.log(`--- Análisis Factura ${id} ---`);
+        console.log(`- Factura: ${f.punto_venta}-${f.nro_comp}`);
+        console.log(`- Firebase Total (f.total): ${f.total}`);
+        console.log(`- Ya Cobrado (cobros[id].monto_cobrado): ${cobros[id]?.monto_cobrado}`);
+        console.log(`- Resultado (saldoPendiente): ${saldoPendiente}`);
+        console.log(`- ¿Tiene otros campos? netoCalc: ${f.netoCalc} | neto: ${f.neto}`);
         if (f.receptor_cuit?.includes(cuit) && saldoPendiente > 0.5) {
             const esSAEI = (f.modulo || "").toUpperCase() === "SAEI";
             const pv = String(f.punto_venta || 0).padStart(5, '0');
