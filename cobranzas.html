@@ -1268,9 +1268,8 @@ async function ejecutarConciliacionFinal() {
             monto_cobrado: (previo.monto_cobrado || 0) + cobro
         });
     });
-	if (uid) {
-        await db.ref('contabilidad/' + uid).update({
-            procesado_cobranzas: true
+	await db.ref('contabilidad/' + mov.periodo + '/' + uid).update({
+    procesado_cobranzas: true
         });
         console.log("¡Pago marcado como procesado!");
     }
@@ -1280,62 +1279,50 @@ async function ejecutarConciliacionFinal() {
     renderizarTodo();
 }
 async function detectarPagosPendientes() {
-    console.log("🚀 Iniciando búsqueda de pendientes...");
+    console.log("🚀 Iniciando búsqueda profunda...");
     const contenedor = document.getElementById('contenedor-avisos');
-    if (!contenedor) {
-        console.log("❌ No se encontró el contenedor de avisos");
-        return;
-    }
+    if (!contenedor) return;
     contenedor.innerHTML = "";
 
     const periodoMinimo = "2026-07"; 
 
     try {
+        // 1. Obtenemos los meses
         const snapshot = await db.ref('contabilidad').once('value');
         
-        if (!snapshot.exists()) {
-            console.log("⚠️ La rama 'contabilidad' está vacía");
-            return;
-        }
-
-        let encontrados = 0;
-        snapshot.forEach(doc => {
-            const mov = doc.val();
-            const docId = doc.key;
+        snapshot.forEach(mesNode => {
+            const nombreMes = mesNode.key; // "2026-07"
             
-            // Log para ver qué estamos leyendo
-            console.log(`Revisando ${docId}: Periodo=${mov.periodo}, Procesado=${mov.procesado_cobranzas}`);
+            // Si el nombre del nodo no es un periodo, lo ignoramos
+            if (nombreMes < periodoMinimo) return;
 
-            const esPendiente = (mov.periodo >= periodoMinimo) && 
-                                (mov.procesado_cobranzas !== true) && 
-                                (mov.cuit_cliente && mov.monto);
+            // 2. Iteramos sobre los movimientos dentro de ese mes
+            mesNode.forEach(movNode => {
+                const mov = movNode.val();
+                const docId = movNode.key;
 
-            if (esPendiente) {
-                console.log(`✅ ¡Encontrado! ${docId} cumple los requisitos.`);
-                const cuitMatch = mov.descripcion.match(/\b\d{11}\b/);
-                const cuit = cuitMatch ? cuitMatch[0] : null;
+                // Ahora sí, aquí están los datos reales del movimiento
+                const esPendiente = (mov.procesado_cobranzas !== true) && 
+                                    (mov.cuit_cliente && mov.monto);
 
-                if (cuit) {
-                    encontrados++;
-                    crearAvisoEnPantalla({
-                        cuit: cuit,
-                        monto: mov.monto,
-                        fecha: mov.fecha,
-                        uid: docId,
-                        desc: mov.descripcion
-                    });
-                } else {
-                    console.log(`❌ No se pudo extraer el CUIT de la descripción: ${mov.descripcion}`);
+                if (esPendiente) {
+                    const cuitMatch = mov.descripcion ? mov.descripcion.match(/\b\d{11}\b/) : null;
+                    const cuit = cuitMatch ? cuitMatch[0] : null;
+
+                    if (cuit) {
+                        crearAvisoEnPantalla({
+                            cuit: cuit,
+                            monto: mov.monto,
+                            fecha: mov.fecha,
+                            uid: docId, // Firebase path ahora sería: contabilidad/2026-07/docId
+                            desc: mov.descripcion
+                        });
+                    }
                 }
-            } else {
-                console.log(`⏭️ Ignorado: ${docId} (No cumple filtro)`);
-            }
+            });
         });
-
-        console.log(`🏁 Búsqueda terminada. Total avisos creados: ${encontrados}`);
-
     } catch (error) {
-        console.error("❌ Error al acceder a Firebase:", error);
+        console.error("❌ Error:", error);
     }
 }
 function crearAvisoEnPantalla(info) {
