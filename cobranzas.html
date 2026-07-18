@@ -1082,9 +1082,9 @@ function prepararConciliacion() {
                     <input type="checkbox" class="check-conciliar" style="width:20px; height:20px;" onchange="actualizarResumen()">
                     <span style="flex:2; font-family:monospace; font-weight:bold;">${pv}-${nc}</span>
                     <span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
-                    <input type="number" class="edit-cobro" value="0" style="flex:1; width:80px; padding:5px;" oninput="actualizarResumen()">
-                    <input type="number" class="edit-ret-gs" value="0" style="flex:1; width:80px; padding:5px;">
-                    <input type="number" class="edit-ret-iibb" value="0" style="flex:1; width:80px; padding:5px;">
+                    <input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()">
+        			<input type="number" class="edit-ret-gs" value="0" oninput="actualizarResumen()">
+        			<input type="number" class="edit-ret-iibb" value="0" oninput="actualizarResumen()">
                 </div>`;
         }
     });
@@ -1092,15 +1092,58 @@ function prepararConciliacion() {
 // --- 2. FUNCIONES DE AYUDA ---
 function actualizarResumen() {
     const totalBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
+    
+    // Filtramos solo las filas chequeadas
     const filas = Array.from(document.querySelectorAll('.fila-ajuste')).filter(f => f.querySelector('.check-conciliar').checked);
-    const totalConciliado = filas.reduce((sum, f) => sum + (parseFloat(f.querySelector('.edit-cobro').value) || 0), 0);
+    
+    // Sumamos TODO: Cobro + Retención GS + Retención IIBB
+    const totalConciliado = filas.reduce((sum, f) => {
+        const cobro = parseFloat(f.querySelector('.edit-cobro').value) || 0;
+        const retGS = parseFloat(f.querySelector('.edit-ret-gs').value) || 0;
+        const retIIBB = parseFloat(f.querySelector('.edit-ret-iibb').value) || 0;
+        return sum + cobro + retGS + retIIBB;
+    }, 0);
+    
     const diff = totalBanco - totalConciliado;
     
     const div = document.getElementById('resumen-conciliacion');
-    div.innerHTML = `Diferencia vs Banco: $${diff.toFixed(2)}`;
+    div.innerHTML = `Total Conciliado: $${totalConciliado.toFixed(2)} | Diferencia: $${diff.toFixed(2)}`;
     div.style.color = Math.abs(diff) < 0.5 ? "#27ae60" : "#c0392b";
 }
+function distribuirMonto() {
+    // 1. ¿Qué monto distribuimos?
+    const montoADistribuir = parseFloat(prompt("Ingresa el monto total a distribuir:")) || 0;
+    if (montoADistribuir === 0) return;
 
+    // 2. ¿A qué campo lo mandamos?
+    const tipo = prompt("¿A qué campo lo enviamos? (escribí 'GS' o 'IIBB'):")?.toUpperCase();
+    
+    // Validamos que el destino sea válido
+    const claseDestino = (tipo === 'IIBB') ? '.edit-ret-iibb' : '.edit-ret-gs';
+
+    // 3. Buscamos filas marcadas
+    const filasSeleccionadas = Array.from(document.querySelectorAll('.fila-ajuste')).filter(f => 
+        f.querySelector('.check-conciliar').checked
+    );
+
+    if (filasSeleccionadas.length === 0) {
+        alert("Primero seleccioná las facturas.");
+        return;
+    }
+
+    // 4. Repartimos
+    const montoPorFactura = montoADistribuir / filasSeleccionadas.length;
+
+    filasSeleccionadas.forEach(fila => {
+        const input = fila.querySelector(claseDestino);
+        if (input) {
+            input.value = montoPorFactura.toFixed(2);
+        }
+    });
+
+    // 5. IMPORTANTE: Recalculamos el total arriba
+    actualizarResumen();
+}
 function autoSeleccionarPorMonto() {
     const montoBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
     const filas = Array.from(document.querySelectorAll('.fila-ajuste'));
