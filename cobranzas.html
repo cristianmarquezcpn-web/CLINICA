@@ -1036,7 +1036,6 @@ async function vincularNC(idFactura) {
 }	
 // --- 1. PREPARACIÓN Y RENDERIZADO DE TABLA ---
 function prepararConciliacion(cuitForzado = null) {
-    // Si viene cuitForzado, lo usamos; si no, leemos el input
     const cuitInput = (cuitForzado || document.getElementById('cuit-conciliar').value || "").replace(/\D/g, '');
     const contenedor = document.getElementById('lista-ajuste-editable');
     
@@ -1045,7 +1044,6 @@ function prepararConciliacion(cuitForzado = null) {
         return;
     }
 
-    // Si estamos en modo automático, actualizamos el input visualmente
     const inputCuitVisual = document.getElementById('cuit-conciliar');
     if (inputCuitVisual) inputCuitVisual.value = cuitInput;
 
@@ -1069,6 +1067,12 @@ function prepararConciliacion(cuitForzado = null) {
 
     Object.keys(facturas).forEach(id => {
         const f = facturas[id];
+        
+        // --- BLINDAJE TESORERÍA: Ignorar NC y facturas vinculadas ---
+        const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp || "").toUpperCase().includes('NC'));
+        if (esNC || f.id_nc_vinculada) return; 
+        // -----------------------------------------------------------
+
         const cobroData = cobros[id] || {};
         const totalBruto = parseFloat(f.total || 0); 
         const yaCobrado = parseFloat(cobroData.monto_cobrado || 0);
@@ -1079,13 +1083,12 @@ function prepararConciliacion(cuitForzado = null) {
         const totalAplicado = yaCobrado + retGS + retIIBB;
         const saldoPendiente = Math.max(0, totalBruto - totalAplicado);
         
-        // Comparación exacta y estricta
         if (cuitFactura === cuitInput && saldoPendiente > 0.5) {
             const esSAEI = (f.modulo || "").toUpperCase() === "SAEI";
             const pv = String(f.punto_venta || 0).padStart(5, '0');
             const nc = String(f.nro_comp || 0).padStart(8, '0');
             const fechaFormateada = f.fecha_emision.toString().replace(/-/g, '').replace(/\//g, '');
-			
+            
             contenedor.innerHTML += `
             <div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" 
                  data-saldo="${saldoPendiente}" data-fecha="${fechaFormateada}"
@@ -1241,16 +1244,31 @@ function aplicarCombinacion(combinacion) {
     actualizarResumen();
 }
 // --- 3. GUARDADO FINAL ---
-async function ejecutarConciliacionFinal(uid, periodo) { // Recibimos uid y periodo directamente
+async function ejecutarConciliacionFinal(uid, periodo) {
     const filasAProcesar = Array.from(document.querySelectorAll('.fila-ajuste')).filter(f => f.querySelector('.check-conciliar').checked);
     if (filasAProcesar.length === 0) return alert("Selecciona al menos una factura.");
-    
-    const fechaPago = prompt("Ingresá la fecha de pago (YYYY-MM-DD):", new Date().toISOString().slice(0, 10));
-    if (!fechaPago) return;
 
-    if(!confirm(`¿Conciliar ${filasAProcesar.length} facturas con fecha ${fechaPago}?`)) return;
+    // 1. Intentamos obtener la fecha desde el extracto para pre-cargarla
+    const snapPendiente = await db.ref('contabilidad/' + periodo + '/pendientes/' + uid).once('value');
+    const dataPendiente = snapPendiente.val() || {};
+    const fechaOriginal = dataPendiente.fecha || ""; // Formato esperado "DD/MM/YY"
 
-    // 1. Procesamos las facturas (las promesas)
+    // 2. Pedimos la fecha (obligatoria)
+    let fechaInput = prompt("Confirmá la fecha de pago (DD/MM/AA):", fechaOriginal);
+    if (!fechaInput) return;
+
+    // 3. Conversión estricta a YYYY-MM-DD
+    const partes = fechaInput.split('/');
+    if (partes.length !== 3) {
+        alert("❌ Error: El formato debe ser DD/MM/AA (ej: 08/07/26).");
+        return;
+    }
+    const fechaPagoFinal = `20${partes[2]}-${partes[1]}-${partes[0]}`;
+    const mesCobroIndex = fechaPagoFinal.substring(0, 7); // Genera "2026-07"
+
+    if (!confirm(`¿Conciliar ${filasAProcesar.length} facturas con fecha ${fechaPagoFinal}?`)) return;
+
+    // 4. Procesamos las facturas
     const promesas = filasAProcesar.map(async (f) => {
         const id = f.dataset.id;
         const raiz = (f.dataset.tipo === 'SAEI') ? 'facturas_emitidas_saei' : 'facturas_emitidas';
@@ -1259,6 +1277,7 @@ async function ejecutarConciliacionFinal(uid, periodo) { // Recibimos uid y peri
         const retIIBB = parseFloat(f.querySelector('.edit-ret-iibb').value) || 0;
         if (cobro === 0 && retGS === 0 && retIIBB === 0) return;
 
+        // Actualizar saldos manuales en factura
         const snapFac = await db.ref(`${raiz}/${id}`).once('value');
         const facActual = snapFac.val() || {};
         await db.ref(`${raiz}/${id}`).update({
@@ -1266,23 +1285,27 @@ async function ejecutarConciliacionFinal(uid, periodo) { // Recibimos uid y peri
             retIIBB_manual: (facActual.retIIBB_manual || 0) + retIIBB
         });
 
+        // Actualizar cobranzas (con el mes_cobro_index blindado)
         const snapCob = await db.ref(`cobranzas/${id}`).once('value');
         const previo = snapCob.exists() ? snapCob.val() : { monto_cobrado: 0 };
         await db.ref(`cobranzas/${id}`).update({
-            fecha_pago: fechaPago,
+            fecha_pago: fechaPagoFinal,
+            mes_cobro_index: mesCobroIndex, 
             monto_cobrado: (previo.monto_cobrado || 0) + cobro
         });
     });
 
-    // 2. Esperamos que terminen todas las facturas
     await Promise.all(promesas);
-	await db.ref('contabilidad/' + periodo + '/pendientes/' + uid).update({
-    procesado_cobranzas: true
-}); 
+
+    // 5. Marcar procesado en extracto
+    await db.ref('contabilidad/' + periodo + '/pendientes/' + uid).update({
+        procesado_cobranzas: true
+    });
+
     console.log("¡Pago marcado como procesado!");
     alert("¡Conciliación exitosa!");
-    
-    // 4. Refrescamos
+
+    // 6. Refrescamos
     detectarPagosPendientes();
     renderizarTodo();
 }
