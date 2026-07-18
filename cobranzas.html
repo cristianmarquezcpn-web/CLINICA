@@ -1265,19 +1265,36 @@ function mostrarSelector(opciones, montoBanco) {
 
     // --- FUNCIÓN LOCAL (PRIVADA DEL SELECTOR) ---
     function formatearFechaInterna(fechaRaw) {
-        const fStr = String(fechaRaw);
+        const fStr = String(fechaRaw).trim();
         if (!fStr) return 'S/D';
         
+        // 1. Si viene con guiones
         if (fStr.includes('-')) {
             const partes = fStr.split('-');
-            if (partes[0].length === 4) {
-                return `${partes[2].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[0]}`;
-            }
+            return `${partes[2].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[0]}`;
         }
+        
+        // 2. Si viene con barras
         if (fStr.includes('/')) {
             const partes = fStr.split('/');
             return `${partes[0].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[2]}`;
         }
+
+        // 3. LA CLAVE: Si NO tiene guiones ni barras (Caso 772026)
+        // Probamos si son solo números y tiene longitud suficiente para ser fecha
+        if (/^\d{6,8}$/.test(fStr)) {
+            // Si tiene 8 dígitos (YYYYMMDD)
+            if (fStr.length === 8) {
+                return `${fStr.substring(6,8)}/${fStr.substring(4,6)}/${fStr.substring(0,4)}`;
+            }
+            // Si tiene 6 o 7 dígitos (ej: 772026 -> 07/07/2026)
+            const anio = fStr.slice(-4);
+            const diaMes = fStr.slice(0, -4);
+            const dia = diaMes.length === 3 ? diaMes.slice(0, 1) : diaMes.slice(0, 2);
+            const mes = diaMes.slice(1); // El mes es lo que sobra
+            return `${dia.padStart(2, '0')}/${mes.padStart(2, '0')}/${anio}`;
+        }
+
         return fStr;
     }
     // ----------------------------------------------
