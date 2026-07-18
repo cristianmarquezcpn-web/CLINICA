@@ -1344,10 +1344,10 @@ function mostrarSelector(opciones, montoBanco) {
         }).join('');
 
         html += `<div style="border:1px solid #ddd; padding:12px; margin-bottom:12px; border-radius:5px; background:#fafafa;">
-                    <button onclick="aplicarYLimpiar(${index})" style="padding:6px 12px; cursor:pointer; background:#27ae60; color:white; border:none; border-radius:4px; margin-right:10px;">Elegir Opción ${index + 1}</button>
-                    <strong>Suma: $${op.suma.toFixed(2)} | Diferencia: $${diff}</strong>
-                    <ul style="font-size:13px; margin:10px 0 0 0; list-style:none; padding-left:0;">${listaDetallada}</ul>
-                 </div>`;
+    <button onclick="procesarSeleccion(${index})" style="padding:6px 12px; cursor:pointer; background:#27ae60; color:white; border:none; border-radius:4px; margin-right:10px;">Elegir Opción ${index + 1}</button>
+    <strong>Suma: $${op.suma.toFixed(2)} | Diferencia: $${diff}</strong>
+    <ul style="font-size:13px; margin:10px 0 0 0; list-style:none; padding-left:0;">${listaDetallada}</ul>
+	</div>`;
     });
     
     modal.innerHTML = html + `<button onclick="document.getElementById('modal-combinaciones').remove()" style="padding:8px 16px; cursor:pointer; background:#7f8c8d; color:white; border:none; border-radius:4px;">Cerrar</button>`;
@@ -1370,6 +1370,17 @@ function aplicarCombinacion(combinacion) {
     
     actualizarResumen();
 }
+function procesarSeleccion(index) {
+    // 1. Obtenemos la combinación elegida
+    const seleccionada = window.opcionesGlobales[index];
+    
+    // 2. Ejecutamos la lógica que sí tenés bien definida
+    aplicarCombinacion(seleccionada);
+    
+    // 3. Cerramos el modal
+    const modal = document.getElementById('modal-combinaciones');
+    if (modal) modal.remove();
+}	
 // --- 3. GUARDADO FINAL ---
 async function ejecutarConciliacionFinal(uid, periodo) {
     const filasAProcesar = Array.from(document.querySelectorAll('.fila-ajuste')).filter(f => f.querySelector('.check-conciliar').checked);
