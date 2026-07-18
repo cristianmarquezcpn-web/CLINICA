@@ -1345,17 +1345,22 @@ async function ejecutarConciliacionFinal(uid, periodo) {
         alert("❌ Error: El formato debe ser DD/MM/AA (ej: 08/07/26).");
         return;
     }
-    const fechaPagoFinal = `20${partes[2]}-${partes[1]}-${partes[0]}`;
-    const mesCobroIndex = fechaPagoFinal.substring(0, 7);
+    
+    const dd = partes[0].padStart(2, '0');
+    const mm = partes[1].padStart(2, '0');
+    const yy = partes[2].length === 2 ? `20${partes[2]}` : partes[2];
+    
+    const fechaPagoFinal = `${yy}-${mm}-${dd}`;
+    const mesCobroIndex = `${yy}-${mm}`; // Mejor así para el índice
 
-    // 4. Lista de facturas para confirmación (Respetando formato PV-Nro)
+    // 4. Lista de facturas para confirmación
     const listadoFacturas = filasAProcesar.map(f => {
-        // Busca el span con el formato PV-Nro (monospace)
         return f.querySelector('span[style*="monospace"]').innerText;
     }).join(', ');
-
-    if (!confirm(`¿Conciliar ${filasAProcesar.length} factura(s): [${listadoFacturas}] con fecha ${fechaPagoFinal}?`)) return;
-
+    
+    const fechaVisual = `${dd}/${mm}/${yy.substring(2)}`;
+    
+    if (!confirm(`¿Conciliar ${filasAProcesar.length} factura(s): [${listadoFacturas}] con fecha ${fechaVisual}?`)) return;
     // 5. Procesar
     const promesas = filasAProcesar.map(async (f) => {
         const id = f.dataset.id;
