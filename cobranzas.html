@@ -1036,11 +1036,14 @@ async function vincularNC(idFactura) {
 }	
 // --- 1. PREPARACIÓN Y RENDERIZADO DE TABLA ---
 function prepararConciliacion() {
-    const cuit = document.getElementById('cuit-conciliar').value;
+    const cuitInput = document.getElementById('cuit-conciliar').value.replace(/\D/g, '');
     const contenedor = document.getElementById('lista-ajuste-editable');
+    if (!cuitInput) {
+        alert("Por favor, ingresá un CUIT válido primero.");
+        return;
+    }
     document.getElementById('controles-conciliacion').style.display = 'block';
-
-    // Estilo Punch: Cabecera Profesional
+    
     contenedor.innerHTML = `
         <div style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #dee2e6;">
             <input type="number" id="monto-banco" placeholder="Monto total en banco" style="padding:8px; width:200px; border:1px solid #ced4da; border-radius:4px;" oninput="actualizarResumen()">
@@ -1064,14 +1067,14 @@ function prepararConciliacion() {
         const yaCobrado = parseFloat(cobroData.monto_cobrado || 0);
         const retGS = parseFloat(f.retGS_manual || 0);
         const retIIBB = parseFloat(f.retIIBB_manual || 0);
-        
+        const cuitFactura = (f.receptor_cuit || "").replace(/\D/g, '');
         // El monto total aplicado es: Banco + Retenciones
         const totalAplicado = yaCobrado + retGS + retIIBB;
         
         // 4. Saldo real (Bruto - (Banco + Retenciones))
         const saldoPendiente = Math.max(0, totalBruto - totalAplicado);
         
-        if (f.receptor_cuit?.includes(cuit) && saldoPendiente > 0.5) {
+        if (cuitFactura === cuitInput && saldoPendiente > 0.5) {
             const esSAEI = (f.modulo || "").toUpperCase() === "SAEI";
             const pv = String(f.punto_venta || 0).padStart(5, '0');
             const nc = String(f.nro_comp || 0).padStart(8, '0');
@@ -1348,7 +1351,8 @@ function crearAvisoEnPantalla(info) {
             <strong style="font-size: 1.1em;">💡 ${info.desc ? info.desc.split('|')[1]?.trim() : 'Sin descripción'}</strong> 
             <br><span style="opacity: 0.8;">Monto: $${info.monto.toLocaleString()} | Fecha: ${info.fecha}</span>
         </div>
-        <button id="btn-conciliar-${info.uid}" style="background:#e74c3c; color:white; border:none; padding:10px 20px; cursor:pointer; font-weight:bold; border-radius:4px;">
+        <button id="btn-descartar-${info.uid}" style="background:#7f8c8d; color:white; border:none; padding:10px; cursor:pointer; border-radius:4px;">✖</button>
+		<button id="btn-conciliar-${info.uid}" style="background:#e74c3c; color:white; border:none; padding:10px 20px; cursor:pointer; font-weight:bold; border-radius:4px;">
             ASIGNAR PAGO
         </button>
     `;
@@ -1357,7 +1361,9 @@ function crearAvisoEnPantalla(info) {
     
     // EL CAMBIO IMPORTANTE PARA QUE ABRA EL MODAL Y NO CONCILIE SOLO:
     divAviso.querySelector(`#btn-conciliar-${info.uid}`).onclick = () => {
-        window.cargarAsistente(info.cuit, info.monto, info.fecha, info.uid);
+		divAviso.remove();
+        const cuitLimpio = info.cuit.replace(/\D/g, ''); 
+    window.cargarAsistente(cuitLimpio, info.monto, info.fecha, info.uid);
     };
 }
 window.cargarAsistente = (cuit, monto, fecha, uid) => {
