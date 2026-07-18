@@ -1269,7 +1269,7 @@ async function ejecutarConciliacionFinal() {
         });
     });
 	if (uid) {
-        await db.collection('contabilidad').doc(uid).update({
+        await db.ref('contabilidad/' + uid).update({
             procesado_cobranzas: true
         });
         console.log("¡Pago marcado como procesado!");
@@ -1286,13 +1286,16 @@ async function detectarPagosPendientes() {
     contenedor.innerHTML = "";
 
     try {
-        
-        const snapshot = await db.collection('contabilidad').where('procesado_cobranzas', '==', false).get();
+        // Leemos desde Realtime Database
+        const snapshot = await db.ref('contabilidad')
+            .orderByChild('procesado_cobranzas')
+            .equalTo(false)
+            .once('value');
 
         snapshot.forEach(doc => {
-            const mov = doc.data();
+            const mov = doc.val(); 
+            const docId = doc.key; 
             
-            // Verificamos que tenga los datos necesarios
             if (mov.cuit_cliente && mov.monto) {
                 const cuitMatch = mov.descripcion.match(/\b\d{11}\b/);
                 const cuit = cuitMatch ? cuitMatch[0] : null;
@@ -1302,14 +1305,14 @@ async function detectarPagosPendientes() {
                         cuit: cuit,
                         monto: mov.monto,
                         fecha: mov.fecha,
-                        uid: doc.id, // ID de Firebase
+                        uid: docId, 
                         desc: mov.descripcion
                     });
                 }
             }
         });
     } catch (error) {
-        console.error("Error leyendo Firebase:", error);
+        console.error("Error leyendo Realtime Database:", error);
     }
 }
 function crearAvisoEnPantalla(info) {
