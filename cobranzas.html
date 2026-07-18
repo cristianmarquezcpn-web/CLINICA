@@ -1281,8 +1281,15 @@ function mostrarSelector(opciones, montoBanco) {
         // 2. Usamos el dataset del elemento HTML para leer módulo y paciente correctamente
         let listaDetallada = op.lista.map(f => {
             const pvNc = f.element.querySelector('span[style*="monospace"]').innerText;
-            const fecha = f.fecha.toString();
-            const fechaFormateada = `${fecha.substring(6,8)}/${fecha.substring(4,6)}/${fecha.substring(0,4)}`;
+            
+            // Convertimos a string y normalizamos a 8 dígitos (YYYYMMDD)
+            let fStr = f.fecha.toString().padStart(8, '0');
+            
+            // Si la fecha tiene más de 8 dígitos (como el error anterior), tomamos los últimos 8
+            if (fStr.length > 8) fStr = fStr.slice(-8);
+            
+            // Ahora formateamos con seguridad
+            const fechaFormateada = `${fStr.substring(6,8)}/${fStr.substring(4,6)}/${fStr.substring(0,4)}`;
             
             const modulo = f.element.dataset.modulo || "S/D";
             const paciente = f.element.dataset.paciente || "S/D";
