@@ -1249,36 +1249,55 @@ function buscarMejoresCombinaciones(facturasRaw, montoBanco) {
     buscar(0, 0, [], 0);
     return topOpciones;
 }
-
 function mostrarSelector(opciones, montoBanco) {
-    if (opciones.length === 0) {
-        alert("No se encontraron combinaciones posibles.");
-        return;
-    }
-
     const mostrar = opciones.slice(0, 10);
-    let mensaje = `He encontrado las mejores combinaciones (priorizando facturas viejas):\n\n`;
+    
+    // Crear el overlay
+    const overlay = document.createElement('div');
+    overlay.style = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center;";
+    
+    // Crear la ventana modal
+    const modal = document.createElement('div');
+    modal.style = "width:80%; max-height:80%; background:white; padding:20px; border-radius:10px; overflow-y:auto; box-shadow:0 0 20px rgba(0,0,0,0.3);";
+    
+    let html = `<h2 style="margin-top:0;">Selección de Combinaciones</h2>`;
     
     mostrar.forEach((op, index) => {
-        const diferencia = montoBanco - op.suma;
-        const fechaNum = Math.min(...op.lista.map(f => f.fecha)).toString();
-        const formatoFecha = `${fechaNum.substring(6,8)}/${fechaNum.substring(4,6)}/${fechaNum.substring(2,4)}`;
+        const diff = (montoBanco - op.suma).toFixed(2);
         
-        const numerosFacturas = op.lista.map(f => {
-            return f.element.querySelector('span[style*="monospace"]').innerText;
-        }).join(', ');
+        // Detalle de cada factura en esta combinación
+        let listaDetallada = op.lista.map(f => {
+            const pvNc = f.element.querySelector('span[style*="monospace"]').innerText;
+            const fecha = f.fecha.toString();
+            const fechaFormateada = `${fecha.substring(6,8)}/${fecha.substring(4,6)}/${fecha.substring(0,4)}`;
+            
+            // Accedemos a los datos que ya tienes en el objeto factura
+            const modulo = f.modulo || "S/M"; 
+            const paciente = f.id_paciente || "S/P";
+            
+            return `<li style="margin-bottom:4px;">${pvNc} | <b>${fechaFormateada}</b> | <span style="background:#e8f4fd; padding:1px 4px; border-radius:3px;">${modulo}</span> | ${paciente}</li>`;
+        }).join('');
 
-        mensaje += `${index + 1}) Suma: $${op.suma.toFixed(2)} | Dif: $${diferencia.toFixed(2)}\n`;
-        mensaje += `   Facturas: ${numerosFacturas}\n`;
-        mensaje += `   Más antigua: ${formatoFecha}\n\n`;
+        html += `<div style="border:1px solid #ddd; padding:12px; margin-bottom:12px; border-radius:5px; background:#fafafa;">
+                    <button onclick="aplicarYLimpiar(${index})" style="padding:6px 12px; cursor:pointer; background:#27ae60; color:white; border:none; border-radius:4px; margin-right:10px;">Elegir Opción ${index + 1}</button>
+                    <strong>Suma: $${op.suma.toFixed(2)} | Diferencia: $${diff}</strong>
+                    <ul style="font-size:13px; margin:10px 0 0 0; list-style:none; padding-left:0;">${listaDetallada}</ul>
+                 </div>`;
     });
     
-    const seleccion = prompt(mensaje + "Elegí el número de opción (1 al 10) o Cancelar:");
+    modal.innerHTML = html + `<button onclick="this.parentElement.parentElement.remove()" style="padding:8px 16px; cursor:pointer; background:#7f8c8d; color:white; border:none; border-radius:4px;">Cerrar</button>`;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
     
-    if (seleccion !== null && opciones[seleccion - 1]) {
-        aplicarCombinacion(opciones[seleccion - 1]);
-    }
+    window.opcionesGlobales = opciones;
 }
+
+// Función auxiliar para aplicar la elegida
+window.aplicarYLimpiar = function(idx) {
+    aplicarCombinacion(window.opcionesGlobales[idx]);
+    document.querySelector('div[style*="position:fixed"]').remove();
+};
+
 function aplicarCombinacion(combinacion) {
     document.querySelectorAll('.fila-ajuste').forEach(f => {
         f.querySelector('.check-conciliar').checked = false;
