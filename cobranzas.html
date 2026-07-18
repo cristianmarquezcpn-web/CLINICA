@@ -1283,32 +1283,43 @@ async function ejecutarConciliacionFinal(uid, periodo) { // Recibimos uid y peri
     renderizarTodo();
 }
 async function detectarPagosPendientes() {
-    console.log("🔍 [DEBUG FINAL] Escaneando todo en pendientes...");
+    console.log("🔍 [DEBUG] Escaneando meses desde 07 en adelante...");
     const contenedor = document.getElementById('contenedor-avisos');
     contenedor.innerHTML = "";
 
     try {
-        const ref = db.ref('contabilidad/2026-07/pendientes');
-        const snapshot = await ref.once('value');
-        
-        if (!snapshot.exists()) {
-            console.warn("⚠️ La ruta 'contabilidad/2026-07/pendientes' está vacía o no existe.");
-            return;
-        }
+        const refContabilidad = db.ref('contabilidad');
+        const snapshotContabilidad = await refContabilidad.once('value');
 
-        snapshot.forEach(movNode => {
-            const mov = movNode.val();
-            console.log(`📄 [DEBUG] Encontré registro ${movNode.key}:`, mov);
+        if (!snapshotContabilidad.exists()) return;
+
+        snapshotContabilidad.forEach(periodoNode => {
+            const mes = periodoNode.key;
             
-            // Forzamos la creación del cartel para CADA registro
-            crearAvisoEnPantalla({
-                cuit: mov.cuit_cliente || "SIN CUIT",
-                monto: mov.monto || 0,
-                fecha: mov.fecha || "SIN FECHA",
-                uid: movNode.key,
-                periodo: "2026-07",
-                desc: mov.descripcion || "Sin descripción"
-            });
+            // Filtro: Solo procesar desde julio 2026 en adelante
+            if (mes >= "2026-07") {
+                const pendientesRef = periodoNode.child('pendientes');
+                
+                pendientesRef.forEach(movNode => {
+                    const mov = movNode.val();
+                    
+                    // 1. Extraer CUIT de la descripción (busca secuencia de 11 números)
+                    const regexCuit = /\d{11}/;
+                    const cuitExtraido = mov.descripcion ? (mov.descripcion.match(regexCuit) ? mov.descripcion.match(regexCuit)[0] : "SIN CUIT") : "SIN CUIT";
+
+                    // 2. Filtro: Solo procesar si el tipo es INGRESO
+                    if (mov.tipo === "INGRESO") {
+                        crearAvisoEnPantalla({
+                            cuit: cuitExtraido,
+                            monto: mov.monto || 0,
+                            fecha: mov.fecha || "SIN FECHA",
+                            uid: movNode.key,
+                            periodo: mes,
+                            desc: mov.descripcion || "Sin descripción"
+                        });
+                    }
+                });
+            }
         });
     } catch (error) {
         console.error("❌ Error de acceso:", error);
@@ -1319,7 +1330,8 @@ function crearAvisoEnPantalla(info) {
     
     // Importante: Asegúrate de que info.periodo esté disponible aquí
     const divAviso = document.createElement('div');
-    divAviso.style = "background:var(--p); color:white; padding:15px; border-radius:5px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;";
+    // En lugar de tu estilo actual, usa este que garantiza lectura
+divAviso.style = "background:var(--p); color:#FFFFFF; padding:15px; border-radius:5px; margin-bottom:10px; border: 1px solid #333; display:flex; align-items:center; justify-content:space-between;";
     
     divAviso.innerHTML = `
         <div>
