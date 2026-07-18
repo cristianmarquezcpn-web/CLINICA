@@ -1078,16 +1078,20 @@ function prepararConciliacion() {
 
             const fechaFormateada = f.fecha_emision.toString().replace(/-/g, '').replace(/\//g, '');
 
+			
 			contenedor.innerHTML += `
     		<div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" 
          	data-saldo="${saldoPendiente}" data-fecha="${fechaFormateada}"
          	style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
-        	<input type="checkbox" class="check-conciliar" style="width:20px; height:20px;" onchange="actualizarResumen()">
+        
+       		<input type="checkbox" class="check-conciliar" style="width:20px; height:20px;" onchange="actualizarResumen()">
+        
         	<span style="flex:2; font-family:monospace; font-weight:bold;">${pv}-${nc}</span>
         	<span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
-        	<input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()" style="width: 80px;">
-			<input type="number" class="edit-ret-gs" value="0" oninput="actualizarResumen()" style="width: 80px;">
-			<input type="number" class="edit-ret-iibb" value="0" oninput="actualizarResumen()" style="width: 80px;">
+        
+            <input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+        	<input type="number" class="edit-ret-gs" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+        	<input type="number" class="edit-ret-iibb" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
     		</div>`;
         }
     });
