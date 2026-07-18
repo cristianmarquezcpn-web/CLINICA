@@ -1073,7 +1073,7 @@ function prepararConciliacion() {
             const pv = String(f.punto_venta || 0).padStart(5, '0');
             const nc = String(f.nro_comp || 0).padStart(8, '0');
 
-            ccontenedor.innerHTML += `
+            contenedor.innerHTML += `
                 <div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" data-saldo="${saldoPendiente}"
                      style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
                     <input type="checkbox" class="check-conciliar" style="width:20px; height:20px;" onchange="actualizarResumen()">
