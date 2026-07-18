@@ -651,7 +651,7 @@ async function proyectarTodo() {
         let acumuladorIngresos = { 1: {}, 2: {}, 3: {}, 4: {} };
 
         // 1. PROCESAR INGRESOS
-        // Caché estructurado: { semana: { cuit: { nombre: "...", monto: 0 } } }
+        // Caché estructurado: { semana: { cuit: { nombre: "...", monto: 0, facturas: [] } } }
         window.cacheIngresos = { 1: {}, 2: {}, 3: {}, 4: {} }; 
         const inteligencia = window.motorGlobal.inteligencia_cuit;
         
@@ -667,13 +667,26 @@ async function proyectarTodo() {
                 const mesC = `${y}-${String(m).padStart(2, '0')}`;
                 const s = Math.min(Math.ceil(d / 7), 4);
                 const nombre = cliente.nombre_fantasia || "CLIENTE";
+                const ptoVta = String(f.punto_venta || 0).padStart(5, '0');
+                const nroComp = String(f.nro_comp || 0).padStart(8, '0');
+                const labelFactura = `${ptoVta}-${nroComp}`;
                 
                 if (mesC === mesSeleccionado) {
                     // Guardado en caché por CUIT para integridad
                     if (!window.cacheIngresos[s][cuit]) {
-                        window.cacheIngresos[s][cuit] = { nombre: nombre, monto: 0 };
+                        window.cacheIngresos[s][cuit] = { 
+                            nombre: nombre, 
+                            monto: 0, 
+                            facturas: [] // Inicializado correctamente
+                        };
                     }
+                    
                     window.cacheIngresos[s][cuit].monto += (f.monto || 0);
+                    window.cacheIngresos[s][cuit].facturas.push({ 
+                        label: labelFactura, 
+                        monto: f.monto,
+                        fecha: f.fecha_emision // Incluida la fecha
+                    });
 
                     // Acumulador por nombre para el grid
                     if (!acumuladorIngresos[s][nombre]) acumuladorIngresos[s][nombre] = { monto: 0 };
@@ -682,33 +695,37 @@ async function proyectarTodo() {
                 }
             });
         });
-
         // 2. PROCESAR GASTOS
-        const snapGastos = await db.ref(`tesoreria/gastos_mensuales`).once('value');
-        const todosLosGastosMensuales = snapGastos.val() || {};
-        
-        Object.keys(todosLosGastosMensuales).forEach(mesKey => {
-            const mesesData = todosLosGastosMensuales[mesKey];
-            Object.keys(mesesData).forEach(cat => {
-                const rubro = mesesData[cat];
-                const itemsObj = rubro.items || {};
-                Object.keys(itemsObj).forEach(key => {
-                    const g = itemsObj[key];
-                    if (g.desde && mesSeleccionado < g.desde) return; 
-                    if (g.hasta && mesSeleccionado > g.hasta) return;
-                    if (!g.desde && mesKey !== mesSeleccionado) return;
-                    if (!g.monto || parseFloat(g.monto) <= 0) return;
-                    
-                    let sG = g.dia_pago ? Math.min(Math.ceil(parseInt(g.dia_pago) / 7), 4) : 1;
-                    const monto = parseFloat(g.monto);
-                    gasS[sG] += monto;
-                    
-                    const nombreMostrar = (g.nombre_gasto && g.nombre_gasto.trim() !== "") ? g.nombre_gasto : cat;
-                    detG[sG].push(`<div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5; margin-bottom:2px;"><span>📉 ${nombreMostrar.substring(0,8)}</span><span>$${Math.round(monto/1000)}k</span></div>`);
-                });
-            });
-        });
+const snapGastos = await db.ref(`tesoreria/gastos_mensuales`).once('value');
+const todosLosGastosMensuales = snapGastos.val() || {};
 
+Object.keys(todosLosGastosMensuales).forEach(mesKey => {
+    // FILTRO CRÍTICO: Si no es el mes que estamos viendo, lo ignoramos 
+    // a menos que sea un gasto recurrente con vigencia activa.
+    if (mesKey !== mesSeleccionado) return; 
+
+    const mesesData = todosLosGastosMensuales[mesKey];
+    Object.keys(mesesData).forEach(cat => {
+        const rubro = mesesData[cat];
+        const itemsObj = rubro.items || {};
+        
+        Object.keys(itemsObj).forEach(key => {
+            const g = itemsObj[key];
+            
+            // Validaciones de monto y existencia
+            if (!g.monto || parseFloat(g.monto) <= 0) return;
+            
+            // Calculamos semana
+            let sG = g.dia_pago ? Math.min(Math.ceil(parseInt(g.dia_pago) / 7), 4) : 1;
+            const monto = parseFloat(g.monto);
+            
+            gasS[sG] += monto;
+            
+            const nombreMostrar = (g.nombre_gasto && g.nombre_gasto.trim() !== "") ? g.nombre_gasto : cat;
+            detG[sG].push(`<div style="display:flex; justify-content:space-between; font-size:10px; color:#fca5a5; margin-bottom:2px;"><span>📉 ${nombreMostrar.substring(0,8)}</span><span>$${Math.round(monto/1000)}k</span></div>`);
+        });
+    });
+});
         window.ingresosSemanales = acumuladorIngresos;
         window.detallesSemanales = detG;
 
@@ -737,7 +754,6 @@ window.abrirDetalleSemana = function(numSemana, saldoSem) {
     const modal = document.getElementById('modalSemana');
     const contenido = document.getElementById('contenidoModal');
     
-    // Obtenemos los ingresos desde el caché que preserva los nombres
     const ingresosObj = window.cacheIngresos[numSemana] || {}; 
     const gastosArr = window.detallesSemanales[numSemana] || [];
     
@@ -753,8 +769,9 @@ window.abrirDetalleSemana = function(numSemana, saldoSem) {
                 <h4 style="color:#60a5fa; font-size:11px; margin-bottom:10px; letter-spacing:1px;">INGRESOS POR CLIENTE</h4>
                 <div style="${scrollStyle}">
                     ${Object.values(ingresosObj).map(data => `
-                        <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #1f2937; padding-bottom:4px;">
-                            <span style="font-size:11px; line-height:1.2; word-break:break-word; max-width:70%; color:#d1d5db;">${data.nombre}</span>
+                        <div onclick="mostrarDesgloseFacturas('${data.nombre.replace(/'/g, "\\'")}', '${encodeURIComponent(JSON.stringify(data.facturas))}', ${numSemana}, ${saldoSem})" 
+                             style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #1f2937; padding-bottom:4px; cursor:pointer;">
+                            <span style="font-size:11px; line-height:1.2; word-break:break-word; max-width:70%; color:#60a5fa;">${data.nombre} ℹ️</span>
                             <b style="font-size:12px; color:#fff;">$${Math.round(data.monto).toLocaleString()}</b>
                         </div>
                     `).join('')}
@@ -768,6 +785,34 @@ window.abrirDetalleSemana = function(numSemana, saldoSem) {
         <button onclick="document.getElementById('modalSemana').style.display='none'" style="margin-top:20px; width:100%; padding:12px; background:#374151; border:none; color:white; cursor:pointer; border-radius:6px; font-weight:bold;">CERRAR DETALLE</button>
     `;
     modal.style.display = 'flex';
+};
+
+// Función para cambiar de vista dentro del mismo modal
+window.mostrarDesgloseFacturas = function(nombre, jsonFacturas, numSemana, saldoSem) {
+    const contenido = document.getElementById('contenidoModal');
+    const facturas = JSON.parse(decodeURIComponent(jsonFacturas));
+
+    contenido.innerHTML = `
+        <div style="margin-bottom:20px;">
+            <button onclick="abrirDetalleSemana(${numSemana}, ${saldoSem})" style="background:none; border:none; color:#60a5fa; cursor:pointer; margin-bottom:10px; font-weight:bold;">← Volver a Semana ${numSemana}</button>
+            <h3 style="color:var(--acento); margin:0; font-size:18px;">${nombre}</h3>
+            <div style="font-size:11px; color:#94a3b8; margin-top:5px;">DETALLE DE COMPROBANTES</div>
+        </div>
+        <div style="max-height:300px; overflow-y:auto; font-size:12px;">
+            <div style="display:flex; justify-content:space-between; padding:5px; color:#4b5563; font-size:10px; border-bottom:1px solid #1f2937; margin-bottom:5px;">
+                <span>FECHA</span>
+                <span style="text-align:center; flex-grow:1;">COMPROBANTE</span>
+                <span>MONTO</span>
+            </div>
+            ${facturas.map(f => `
+                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #1f2937; align-items:center;">
+                    <span style="color:#94a3b8; width: 70px;">${f.fecha || '--'}</span>
+                    <span style="font-family:monospace; color:#d1d5db; flex-grow:1; text-align:center;">${f.label}</span>
+                    <b style="color:#fff; width: 80px; text-align:right;">$${Math.round(f.monto).toLocaleString()}</b>
+                </div>
+            `).join('')}
+        </div>
+    `;
 };
     // --- FUNCIONES DE APOYO DEL MOTOR IA ---
     function parseFecha(s) { 
