@@ -81,7 +81,22 @@
     <button class="btn" style="background:#636e72" onclick="window.location.href='index.html'">🔙 SALIR</button>    
     </div>
     </div>
+	
 
+<!-- NUEVO PANEL DE CONCILIACIÓN INTEGRADO -->
+<div id="panel-conciliacion" style="background:#ffffff; border:2px solid #1a2a6c; padding:20px; margin-bottom:20px; border-radius:12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+    <h3 style="margin:0 0 15px 0; color: #1a2a6c;">🔍 Conciliación Maestra</h3>
+    <div style="display:flex; gap:10px; margin-bottom:15px;">
+        <input type="text" id="cuit-conciliar" placeholder="CUIT Obra Social" style="padding:8px; width:150px; border:1px solid #ccc; border-radius:5px;">
+        <button onclick="prepararConciliacion()" style="background:#1a2a6c; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer;">1. Cargar Facturas</button>
+    </div>
+    
+    <div id="lista-ajuste-editable" style="max-height:300px; overflow-y:auto; border:1px solid #eee; padding:10px; background:#fafafa; border-radius:5px;"></div>
+
+    <div id="controles-conciliacion" style="margin-top:15px; border-top:1px solid #ccc; padding-top:10px; display:none;">
+        <button onclick="ejecutarConciliacionFinal()" style="background:#27ae60; color:white; border:none; padding:12px 25px; border-radius:5px; font-weight:bold; cursor:pointer;">Confirmar y Guardar todo en Firebase</button>
+    </div>
+	</div>
     <div class="drop-zone" id="dropZone">
     📄 ARRASTRÁ ACÁ EL PDF DE AFIP
     <br><small>(Lee Paciente, O.S., Monto, Nro. Factura y Fecha)</small>
@@ -1020,6 +1035,127 @@ async function vincularNC(idFactura) {
     
     alert(`✅ Factura vinculada a la NC ${nroNC}`);
     renderizarTodo();
+}	
+// --- 1. PREPARACIÓN (Incluye Resumen y Distribución) ---
+function prepararConciliacion() {
+    const cuit = document.getElementById('cuit-conciliar').value;
+    const contenedor = document.getElementById('lista-ajuste-editable');
+    document.getElementById('controles-conciliacion').style.display = 'block';
+
+    contenedor.innerHTML = `
+        <div style="margin-bottom:10px; background:#f0f7ff; padding:10px; border-radius:5px;">
+            <input type="number" id="monto-banco" placeholder="Monto total en banco" style="padding:5px; width:200px;" oninput="actualizarResumen()">
+            <button onclick="distribuirMonto()" style="background:#3498db; color:white; border:none; padding:5px 10px; cursor:pointer;">Distribuir Monto</button>
+<button onclick="autoSeleccionarPorMonto()" style="background:#2ecc71; color:white; border:none; padding:5px 10px; cursor:pointer;">Auto-Seleccionar</button>
+        </div>
+        <div id="resumen-conciliacion" style="margin-bottom:10px; font-weight:bold; color:#2c3e50;"></div>
+        <div style="display:flex; font-weight:bold; border-bottom:1px solid #ddd; padding:5px; font-size:11px; align-items:center;">
+            <span style="width:20px;">✓</span><span style="flex:2;">Factura</span><span style="flex:1;">Pago</span>
+            <span style="flex:1;">Ret. GS</span><span style="flex:1;">Ret. IIBB</span>
+        </div>`;
+
+    Object.keys(facturas).forEach(id => {
+        const f = facturas[id];
+        const saldo = Math.max(0, (f.netoCalc || 0) - (cobros[id]?.monto_cobrado || 0) - (f.retGS_manual || 0) - (f.retIIBB_manual || 0));
+        
+        if (f.receptor_cuit?.includes(cuit) && saldo > 0.5) {
+            const esSAEI = (f.modulo || "").toUpperCase() === "SAEI";
+            contenedor.innerHTML += `
+                <div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" 
+                     style="display:flex; gap:5px; padding:5px; border-bottom:1px solid #eee; align-items:center;">
+                    <input type="checkbox" class="check-conciliar" checked onchange="actualizarResumen()">
+                    <span style="flex:2;">${f.nro_comp}</span>
+                    <input type="number" class="edit-cobro" value="0" style="flex:1; width:60px;" oninput="actualizarResumen()">
+                    <input type="number" class="edit-ret-gs" value="0" style="flex:1; width:60px;">
+                    <input type="number" class="edit-ret-iibb" value="0" style="flex:1; width:60px;">
+                </div>`;
+        }
+    });
+}
+
+// --- 2. FUNCIONES DE AYUDA (Indispensables) ---
+function actualizarResumen() {
+    const totalBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
+    const filas = Array.from(document.querySelectorAll('.fila-ajuste')).filter(f => f.querySelector('.check-conciliar').checked);
+    const totalConciliado = filas.reduce((sum, f) => sum + (parseFloat(f.querySelector('.edit-cobro').value) || 0), 0);
+    
+    document.getElementById('resumen-conciliacion').innerHTML = 
+        `Diferencia vs Banco: $${(totalBanco - totalConciliado).toFixed(2)}`;
+}
+
+function distribuirMonto() {
+    const montoTotal = parseFloat(document.getElementById('monto-banco').value) || 0;
+    const filas = Array.from(document.querySelectorAll('.fila-ajuste')).filter(f => f.querySelector('.check-conciliar').checked);
+    if (filas.length === 0) return;
+    const montoPorFactura = montoTotal / filas.length;
+    filas.forEach(f => f.querySelector('.edit-cobro').value = montoPorFactura.toFixed(2));
+    actualizarResumen();
+}
+function autoSeleccionarPorMonto() {
+    const montoBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
+    const filas = Array.from(document.querySelectorAll('.fila-ajuste'));
+    
+    // Ordenamos las filas por saldo (de mayor a menor para ir rápido)
+    filas.sort((a, b) => parseFloat(b.dataset.saldo) - parseFloat(a.dataset.saldo));
+    
+    let acumulado = 0;
+    
+    filas.forEach(fila => {
+        const checkbox = fila.querySelector('.check-conciliar');
+        const saldo = parseFloat(fila.dataset.saldo);
+        
+        // Si el acumulado + este saldo no se pasa del banco, lo tildamos
+        if (acumulado + saldo <= montoBanco + 100) { // Tolerancia de 100 pesos
+            checkbox.checked = true;
+            fila.querySelector('.edit-cobro').value = saldo.toFixed(2);
+            acumulado += saldo;
+        } else {
+            checkbox.checked = false;
+            fila.querySelector('.edit-cobro').value = "0";
+        }
+    });
+    
+    actualizarResumen();
+    alert("¡Listo! Seleccioné automáticamente las facturas que cubren el monto.");
+}
+// --- 3. GUARDADO FINAL ---
+async function ejecutarConciliacionFinal() {
+    const filasAProcesar = Array.from(document.querySelectorAll('.fila-ajuste')).filter(f => f.querySelector('.check-conciliar').checked);
+    if (filasAProcesar.length === 0) return alert("Selecciona al menos una factura.");
+    if(!confirm(`¿Conciliar ${filasAProcesar.length} facturas?`)) return;
+
+    const promesas = filasAProcesar.map(async (f) => {
+        const id = f.dataset.id;
+        const raiz = (f.dataset.tipo === 'SAEI') ? 'facturas_emitidas_saei' : 'facturas_emitidas';
+        
+        const cobro = parseFloat(f.querySelector('.edit-cobro').value) || 0;
+        const retGS = parseFloat(f.querySelector('.edit-ret-gs').value) || 0;
+        const retIIBB = parseFloat(f.querySelector('.edit-ret-iibb').value) || 0;
+
+        const snapFac = await db.ref(`${raiz}/${id}`).once('value');
+        const facActual = snapFac.val() || {};
+        await db.ref(`${raiz}/${id}`).update({
+            retGS_manual: (facActual.retGS_manual || 0) + retGS,
+            retIIBB_manual: (facActual.retIIBB_manual || 0) + retIIBB
+        });
+
+        const snapCob = await db.ref(`cobranzas/${id}`).once('value');
+        const previo = snapCob.exists() ? snapCob.val() : { monto_cobrado: 0 };
+        await db.ref(`cobranzas/${id}`).update({
+            fecha_pago: new Date().toISOString().slice(0, 10),
+            monto_cobrado: (previo.monto_cobrado || 0) + cobro
+        });
+    });
+
+    await Promise.all(promesas);
+    await db.ref('log_conciliaciones').push({
+        fecha: new Date().toISOString(),
+        facturas_procesadas: filasAProcesar.length,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+
+    alert("Conciliación realizada.");
+    renderizarTodo();
 }	
 </script>
 </body>
