@@ -1282,27 +1282,8 @@ function mostrarSelector(opciones, montoBanco) {
      let listaDetallada = op.lista.map(f => {
             const pvNc = f.element.querySelector('span[style*="monospace"]').innerText;
             
-            let fStr = f.fecha.toString().trim();
-            let fechaFormateada = "";
-
-            // Si es el formato largo (YYYYMMDD)
-            if (fStr.length === 8) {
-                fechaFormateada = `${fStr.substring(6,8)}/${fStr.substring(4,6)}/${fStr.substring(0,4)}`;
-            } 
-            // Si es el formato corto (ej: 772026 para 7/7/2026 o 1572026 para 15/7/2026)
-            else if (fStr.length >= 6) {
-                const anio = fStr.slice(-4);
-                const resto = fStr.slice(0, -4);
-                
-                // Si el resto tiene 3 caracteres (ej 772 -> 7/7), el día es el primero.
-                // Si el resto tiene 4 caracteres (ej 1572 -> 15/7), el día son los dos primeros.
-                const dia = resto.length === 3 ? resto.slice(0, 1) : resto.slice(0, 2);
-                const mes = resto.length === 3 ? resto.slice(1) : resto.slice(2);
-                
-                fechaFormateada = `${dia}/${mes}/${anio}`;
-            } else {
-                fechaFormateada = fStr;
-            }
+            
+            const fechaFormateada = formatearFechaEmision(f.fecha.toString());
             
             const modulo = f.element.dataset.modulo || "S/D";
             const paciente = f.element.dataset.paciente || "S/D";
