@@ -1286,51 +1286,60 @@ async function ejecutarConciliacionFinal(uid, periodo) { // Recibimos uid y peri
     renderizarTodo();
 }
 async function detectarPagosPendientes() {
-    console.log("🚀 Iniciando búsqueda profunda...");
+    console.log("🔍 [DEBUG] Buscando pagos pendientes...");
     const contenedor = document.getElementById('contenedor-avisos');
-    if (!contenedor) return;
+    if (!contenedor) {
+        console.error("❌ [DEBUG] Error: No existe el elemento con ID 'contenedor-avisos'");
+        return;
+    }
     contenedor.innerHTML = "";
 
     const periodoMinimo = "2026-07"; 
 
     try {
-        // 1. Obtenemos los meses
         const snapshot = await db.ref('contabilidad').once('value');
         
+        if (!snapshot.exists()) {
+            console.warn("⚠️ [DEBUG] La rama 'contabilidad' está vacía.");
+            return;
+        }
+
+        let cont = 0;
         snapshot.forEach(mesNode => {
-            const nombreMes = mesNode.key; // "2026-07"
-            
-            // Si el nombre del nodo no es un periodo, lo ignoramos
+            const nombreMes = mesNode.key;
+            console.log(`📂 [DEBUG] Revisando nodo: ${nombreMes}`);
+
             if (nombreMes < periodoMinimo) return;
 
-            // 2. Iteramos sobre los movimientos dentro de ese mes
             mesNode.forEach(movNode => {
                 const mov = movNode.val();
                 const docId = movNode.key;
 
-                // Ahora sí, aquí están los datos reales del movimiento
-                const esPendiente = (mov.procesado_cobranzas !== true) && 
-                                    (mov.cuit_cliente && mov.monto);
+                // Debug detallado de cada registro
+                const esProcesado = mov.procesado_cobranzas === true;
+                const tieneDatos = (mov.cuit_cliente && mov.monto);
+                
+                console.log(`   📄 [DEBUG] Movimiento ${docId}: Procesado=${esProcesado}, TieneDatos=${!!tieneDatos}`);
 
-                if (esPendiente) {
-                    const cuitMatch = mov.descripcion ? mov.descripcion.match(/\b\d{11}\b/) : null;
-                    const cuit = cuitMatch ? cuitMatch[0] : null;
-
-                    if (cuit) {
-                        crearAvisoEnPantalla({
-                            cuit: cuit,
-                            monto: mov.monto,
-                            fecha: mov.fecha,
-                            uid: docId, 
-							periodo: nombreMes,
-                            desc: mov.descripcion
-                        });
-                    }
+                if (!esProcesado && tieneDatos) {
+                    console.log(`   ✅ [DEBUG] ¡ENCONTRADO PENDIENTE! ${docId}`);
+                    crearAvisoEnPantalla({
+                        cuit: mov.cuit_cliente,
+                        monto: mov.monto,
+                        fecha: mov.fecha,
+                        uid: docId,
+                        periodo: nombreMes,
+                        desc: mov.descripcion
+                    });
+                    cont++;
                 }
             });
         });
+
+        console.log(`🏁 [DEBUG] Finalizado. Total encontrados: ${cont}`);
+
     } catch (error) {
-        console.error("❌ Error:", error);
+        console.error("❌ [DEBUG] Error fatal en Firebase:", error);
     }
 }
 function crearAvisoEnPantalla(info) {
