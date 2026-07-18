@@ -188,7 +188,7 @@
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
     }
-	const API_URL = "https://dominguito-san-juan.vercel.app";
+	
     const auth = firebase.auth();
 
 	let facturas = {}; 
@@ -1275,30 +1275,36 @@ async function ejecutarConciliacionFinal() {
 async function detectarPagosPendientes() {
     const contenedor = document.getElementById('contenedor-avisos');
     if (!contenedor) return;
-	contenedor.innerHTML = "";
-    const res = await fetch(`${API_URL}/api/contabilidad`);
-    const data = await res.json();
-    
-    // 2. Filtramos: que tengan cuit, que tengan monto y que no estén procesados
-    const pendientes = data.pendientes.filter(p => p.cuit_cliente && p.monto && !p.procesado_cobranzas);
 
-    pendientes.forEach(mov => {
-        // Acá usamos el Regex para sacar el CUIT del choclo de texto
-        const cuitMatch = mov.descripcion.match(/\b\d{11}\b/);
-        const cuit = cuitMatch ? cuitMatch[0] : null;
+    contenedor.innerHTML = "";
 
-        if (cuit) {
-            crearAvisoEnPantalla({
-                cuit: cuit,
-                monto: mov.monto,
-                fecha: mov.fecha,
-                uid: mov.id_firebase,
-                desc: mov.descripcion
-            });
-        }
-    });
+    try {
+        
+        const snapshot = await db.collection('contabilidad').where('procesado_cobranzas', '==', false).get();
+
+        snapshot.forEach(doc => {
+            const mov = doc.data();
+            
+            // Verificamos que tenga los datos necesarios
+            if (mov.cuit_cliente && mov.monto) {
+                const cuitMatch = mov.descripcion.match(/\b\d{11}\b/);
+                const cuit = cuitMatch ? cuitMatch[0] : null;
+
+                if (cuit) {
+                    crearAvisoEnPantalla({
+                        cuit: cuit,
+                        monto: mov.monto,
+                        fecha: mov.fecha,
+                        uid: doc.id, // ID de Firebase
+                        desc: mov.descripcion
+                    });
+                }
+            }
+        });
+    } catch (error) {
+        console.error("Error leyendo Firebase:", error);
+    }
 }
-
 function crearAvisoEnPantalla(info) {
     const contenedor = document.getElementById('contenedor-avisos'); // Un div vacío arriba de tu tabla
     contenedor.innerHTML += `
