@@ -1162,50 +1162,57 @@ function autoSeleccionarPorMonto() {
     const montoBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
     const filas = Array.from(document.querySelectorAll('.fila-ajuste'));
     
-    // Mapeo de facturas con saldo > 0 e incluyendo fecha
+    // 1. Mapeo inicial
     const facturas = filas.map(f => ({
         id: f.dataset.id,
         saldo: parseFloat(f.dataset.saldo) || 0,
-        // Convertimos la fecha a número (YYYYMMDD) para comparar
         fecha: parseInt(f.dataset.fecha || "99999999"), 
         element: f
     })).filter(f => f.saldo > 0);
 
+    // 2. ORDENAR DE MAYOR A MENOR (Clave para la poda)
+    facturas.sort((a, b) => b.saldo - a.saldo);
+
     let combinaciones = [];
     
-    // Función recursiva optimizada para grupos de hasta 10 facturas
+    // 3. RECURSIVA CON PODA MATEMÁTICA
     function buscarCombinaciones(index, actualSuma, actualLista) {
+        // PODA: Si ya nos pasamos del monto + 5 de tolerancia, cortamos
+        if (actualSuma > montoBanco + 5) return;
+        
         if (actualLista.length > 0) {
-            combinaciones.push({ lista: actualLista, suma: actualSuma });
+            combinaciones.push({ lista: [...actualLista], suma: actualSuma });
         }
         
         if (index >= facturas.length || actualLista.length >= 10) return;
 
         for (let i = index; i < facturas.length; i++) {
-            buscarCombinaciones(i + 1, actualSuma + facturas[i].saldo, [...actualLista, facturas[i]]);
+            const saldoFactura = facturas[i].saldo;
+            
+            // PODA: Saltear si supera el monto
+            if (actualSuma + saldoFactura > montoBanco + 5) continue;
+            
+            // PODA: Si la factura más grande restante no entra, las siguientes tampoco
+            if (i > index && saldoFactura > montoBanco - actualSuma + 5) break;
+            
+            buscarCombinaciones(i + 1, actualSuma + saldoFactura, [...actualLista, facturas[i]]);
         }
     }
 
     buscarCombinaciones(0, 0, []);
 
-    // ORDENAMIENTO INTELIGENTE: Diferencia primero, Antigüedad después
+    // 4. ORDENAMIENTO DE RESULTADOS
     combinaciones.sort((a, b) => {
         const diffA = Math.abs(montoBanco - a.suma);
         const diffB = Math.abs(montoBanco - b.suma);
-        
-        // Tolerancia de 1 peso para considerar "empate" en la suma
-        if (Math.abs(diffA - diffB) > 1) {
-            return diffA - diffB; // Prioriza la menor diferencia
-        }
-        
-        // Si la suma es casi igual, prioriza la combinación con la factura más vieja
+        if (Math.abs(diffA - diffB) > 1) return diffA - diffB;
         const fechaMinA = Math.min(...a.lista.map(f => f.fecha));
         const fechaMinB = Math.min(...b.lista.map(f => f.fecha));
-        return fechaMinA - fechaMinB; // Menor número = Fecha más vieja
+        return fechaMinA - fechaMinB;
     });
 
-    const top5 = combinaciones.slice(0, 5);
-    mostrarSelector(top5, montoBanco);
+    // Mostramos las mejores 10 opciones
+    mostrarSelector(combinaciones.slice(0, 10), montoBanco);
 }
 function mostrarSelector(opciones, montoBanco) {
     if (opciones.length === 0) {
@@ -1213,21 +1220,28 @@ function mostrarSelector(opciones, montoBanco) {
         return;
     }
 
+    // Aumentamos a 10 opciones para tener más margen
+    const mostrar = opciones.slice(0, 10);
+    
     let mensaje = `He encontrado las mejores combinaciones (priorizando facturas viejas):\n\n`;
     
-    opciones.forEach((op, index) => {
+    mostrar.forEach((op, index) => {
         const diferencia = montoBanco - op.suma;
-        const fechaMasVieja = Math.min(...op.lista.map(f => f.fecha));
+        
+        // --- TRANSFORMACIÓN VISUAL DE LA FECHA ---
+        const fechaNum = Math.min(...op.lista.map(f => f.fecha)).toString();
+        const formatoFecha = `${fechaNum.substring(6,8)}/${fechaNum.substring(4,6)}/${fechaNum.substring(2,4)}`;
+        
         const numerosFacturas = op.lista.map(f => {
             return f.element.querySelector('span[style*="monospace"]').innerText;
         }).join(', ');
 
         mensaje += `${index + 1}) Suma: $${op.suma.toFixed(2)} | Dif: $${diferencia.toFixed(2)}\n`;
         mensaje += `   Facturas: ${numerosFacturas}\n`;
-        mensaje += `   Fecha más vieja: ${fechaMasVieja}\n\n`;
+        mensaje += `   Más antigua: ${formatoFecha}\n\n`;
     });
     
-    const seleccion = prompt(mensaje + "Elegí el número de opción (1 al 5) o Cancelar:");
+    const seleccion = prompt(mensaje + "Elegí el número de opción (1 al 10) o Cancelar:");
     
     if (seleccion !== null && opciones[seleccion - 1]) {
         aplicarCombinacion(opciones[seleccion - 1]);
