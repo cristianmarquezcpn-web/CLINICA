@@ -1280,33 +1280,24 @@ function mostrarSelector(opciones, montoBanco) {
         
         // 2. Usamos el dataset del elemento HTML para leer módulo y paciente correctamente
         let listaDetallada = op.lista.map(f => {
-            const pvNc = f.element.querySelector('span[style*="monospace"]').innerText;
-            
-            let fStr = f.fecha.toString();
-            let fechaFormateada = "";
+    const pvNc = f.element.querySelector('span[style*="monospace"]').innerText;
+    
+    // DIAGNÓSTICO: Vamos a ver qué trae f.fecha exactamente en la consola
+    console.log("Valor de f.fecha:", f.fecha); 
+    
+    // Si f.fecha es un objeto o tiene algo raro, lo forzamos a string limpio
+    let fStr = String(f.fecha).trim();
+    let fechaFormateada = "";
 
-            // Lógica unificada para manejar / o -
-            if (fStr.includes('/') || fStr.includes('-')) {
-                // Separamos por / o por - usando una expresión regular
-                const partes = fStr.split(/[\/\-]/);
-                
-                // Si viene YYYY-MM-DD (2025-11-04)
-                if (partes[0].length === 4) {
-                    fechaFormateada = `${partes[2].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[0]}`;
-                } 
-                // Si viene D/M/YYYY o DD/MM/YYYY (9/4/2026)
-                else {
-                    fechaFormateada = `${partes[0].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[2]}`;
-                }
-            } else {
-                fechaFormateada = fStr; 
-            }
-            
-            const modulo = f.element.dataset.modulo || "S/D";
-            const paciente = f.element.dataset.paciente || "S/D";
-            
-            return `<li style="margin-bottom:4px;">${pvNc} | <b>${fechaFormateada}</b> | <b>${modulo}</b> | ${paciente}</li>`;
-        }).join('');
+    // Si detectamos que el dato YA VIENE MAL de Firebase (ej: "26/20/0077")
+    // vamos a imprimirlo tal cual para ver si es problema de carga
+    fechaFormateada = fStr; 
+    
+    const modulo = f.element.dataset.modulo || "S/D";
+    const paciente = f.element.dataset.paciente || "S/D";
+    
+    return `<li style="margin-bottom:4px;">${pvNc} | <b>${fechaFormateada}</b> | <b>${modulo}</b> | ${paciente}</li>`;
+	}).join('');
 
         html += `<div style="border:1px solid #ddd; padding:12px; margin-bottom:12px; border-radius:5px; background:#fafafa;">
                     <button onclick="aplicarYLimpiar(${index})" style="padding:6px 12px; cursor:pointer; background:#27ae60; color:white; border:none; border-radius:4px; margin-right:10px;">Elegir Opción ${index + 1}</button>
