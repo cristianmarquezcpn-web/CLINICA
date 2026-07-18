@@ -1278,12 +1278,23 @@ function mostrarSelector(opciones, montoBanco) {
     mostrar.forEach((op, index) => {
         const diff = (montoBanco - op.suma).toFixed(2);
         
-        // 2. Usamos el dataset del elemento HTML para leer módulo y paciente correctamente
-     let listaDetallada = op.lista.map(f => {
+        let listaDetallada = op.lista.map(f => {
             const pvNc = f.element.querySelector('span[style*="monospace"]').innerText;
             
-            
-            const fechaFormateada = formatearFechaEmision(f.fecha.toString());
+            // --- CÓDIGO DE TU FUNCIÓN LOCALIZADO ---
+            const fRaw = f.fecha.toString();
+            let fechaFormateada = fRaw;
+
+            if (fRaw.includes('-')) {
+                const partes = fRaw.split('-');
+                if (partes[0].length === 4) {
+                    fechaFormateada = `${partes[2].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[0]}`;
+                }
+            } else if (fRaw.includes('/')) {
+                const partes = fRaw.split('/');
+                fechaFormateada = `${partes[0].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[2]}`;
+            }
+            // ----------------------------------------
             
             const modulo = f.element.dataset.modulo || "S/D";
             const paciente = f.element.dataset.paciente || "S/D";
