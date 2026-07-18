@@ -1079,9 +1079,9 @@ function prepararConciliacion(cuitForzado = null) {
         const retGS = parseFloat(f.retGS_manual || 0);
         const retIIBB = parseFloat(f.retIIBB_manual || 0);
         const cuitFactura = (f.receptor_cuit || "").replace(/\D/g, '');
-        
-        const totalAplicado = yaCobrado + retGS + retIIBB;
-        const saldoPendiente = Math.max(0, totalBruto - totalAplicado);
+        const montoDebito = parseFloat(cobroData.monto_debito || 0);
+        const totalAplicado = yaCobrado + retGS + retIIBB + montoDebito;
+		const saldoPendiente = totalBruto - totalAplicado;
         
         if (cuitFactura === cuitInput && saldoPendiente > 0.5) {
             const esSAEI = (f.modulo || "").toUpperCase() === "SAEI";
