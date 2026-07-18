@@ -1162,21 +1162,22 @@ function autoSeleccionarPorMonto() {
     const montoBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
     const filas = Array.from(document.querySelectorAll('.fila-ajuste'));
     
-    // 1. Mapeo inicial
-    const facturas = filas.map(f => ({
+    // Mapeo inicial de facturas
+    const facturasRaw = filas.map(f => ({
         id: f.dataset.id,
         saldo: parseFloat(f.dataset.saldo) || 0,
         fecha: parseInt(f.dataset.fecha || "99999999"), 
         element: f
     })).filter(f => f.saldo > 0);
 
-    // 2. ORDENAR DE MAYOR A MENOR (Clave para la poda)
-    facturas.sort((a, b) => b.saldo - a.saldo);
-
-    let combinaciones = [];
+    // Llamamos al buscador optimizado
+    const opciones = buscarMejoresCombinaciones(facturasRaw, montoBanco);
     
-    // 3. RECURSIVA CON PODA MATEMÁTICA
-  function buscarMejoresCombinaciones(facturasRaw, montoBanco) {
+    // Mostramos el selector con los resultados
+    mostrarSelector(opciones, montoBanco);
+}
+
+function buscarMejoresCombinaciones(facturasRaw, montoBanco) {
     const facturas = facturasRaw
         .filter(f => f.saldo <= montoBanco + 1)
         .map(f => ({ ...f, saldo: Math.round(f.saldo * 100) / 100 }))
@@ -1190,7 +1191,6 @@ function autoSeleccionarPorMonto() {
     const sumaPrefijo = new Array(n + 1).fill(0);
     for (let i = 0; i < n; i++) sumaPrefijo[i + 1] = sumaPrefijo[i] + facturas[i].saldo;
 
-    // --- AQUÍ ESTÁ EL CAMBIO: GUARDAMOS UN ARRAY DE 10 ---
     let topOpciones = []; 
 
     function buscar(index, actualSuma, actualLista, cantidadFacturas) {
@@ -1199,7 +1199,6 @@ function autoSeleccionarPorMonto() {
         if (cantidadFacturas > 0) {
             const diferencia = montoBanco - actualSuma;
             if (diferencia >= -TOLERANCIA) {
-                // Guardamos la combinación actual
                 topOpciones.push({
                     lista: [...actualLista],
                     suma: actualSuma,
@@ -1207,7 +1206,6 @@ function autoSeleccionarPorMonto() {
                     fecha: Math.min(...actualLista.map(f => f.fecha))
                 });
                 
-                // Mantenemos solo las 10 mejores (ordenadas por menor diferencia, luego antigüedad)
                 topOpciones.sort((a, b) => Math.abs(a.diferencia) - Math.abs(b.diferencia) || a.fecha - b.fecha);
                 if (topOpciones.length > 10) topOpciones.pop();
             }
@@ -1215,7 +1213,6 @@ function autoSeleccionarPorMonto() {
         
         if (index >= n || cantidadFacturas >= MAXFACTURAS) return;
         
-        // Poda: Cota superior
         const k = Math.min(n - index, MAXFACTURAS - cantidadFacturas);
         if (actualSuma + (sumaPrefijo[index + k] - sumaPrefijo[index]) < montoBanco * 0.95) return;
         
@@ -1226,7 +1223,6 @@ function autoSeleccionarPorMonto() {
                 while (i < n && facturas[i].saldo === saldo) i++;
                 continue;
             }
-            // Poda: Cota inferior
             if (i < n - 1 && actualSuma + saldo + (sumaPrefijo[n] - sumaPrefijo[i + 1]) < montoBanco * 0.95) {
                 i++; continue;
             }
@@ -1237,29 +1233,23 @@ function autoSeleccionarPorMonto() {
     }
     
     buscar(0, 0, [], 0);
-    return topOpciones; // Devuelve el array de hasta 10 opciones
-} 
+    return topOpciones;
+}
+
 function mostrarSelector(opciones, montoBanco) {
     if (opciones.length === 0) {
         alert("No se encontraron combinaciones posibles.");
         return;
     }
 
-    // Usamos las opciones recibidas (que ya vienen del nuevo buscador)
     const mostrar = opciones.slice(0, 10);
-    
     let mensaje = `He encontrado las mejores combinaciones (priorizando facturas viejas):\n\n`;
     
     mostrar.forEach((op, index) => {
-        // La diferencia ya viene calculada en el objeto o la calculamos aquí
         const diferencia = montoBanco - op.suma;
-        
-        // --- TRANSFORMACIÓN VISUAL DE LA FECHA ---
-        // Aseguramos que fecha sea string para aplicar el substring
         const fechaNum = Math.min(...op.lista.map(f => f.fecha)).toString();
         const formatoFecha = `${fechaNum.substring(6,8)}/${fechaNum.substring(4,6)}/${fechaNum.substring(2,4)}`;
         
-        // Extracción de números (asumiendo que 'op.lista' contiene los objetos factura con 'element')
         const numerosFacturas = op.lista.map(f => {
             return f.element.querySelector('span[style*="monospace"]').innerText;
         }).join(', ');
@@ -1271,7 +1261,6 @@ function mostrarSelector(opciones, montoBanco) {
     
     const seleccion = prompt(mensaje + "Elegí el número de opción (1 al 10) o Cancelar:");
     
-    // Aplicamos la opción elegida
     if (seleccion !== null && opciones[seleccion - 1]) {
         aplicarCombinacion(opciones[seleccion - 1]);
     }
