@@ -190,7 +190,7 @@ if (!firebase.apps.length) {
     }
 	
     const auth = firebase.auth();
-
+	let uidPagoActual = null;
 	let facturas = {}; 
 	let cobros = {};
     const db = firebase.database(); 
@@ -1238,6 +1238,7 @@ function aplicarCombinacion(combinacion) {
 }
 // --- 3. GUARDADO FINAL ---
 async function ejecutarConciliacionFinal() {
+	const uid = uidPagoActual;
     const filasAProcesar = Array.from(document.querySelectorAll('.fila-ajuste')).filter(f => f.querySelector('.check-conciliar').checked);
     if (filasAProcesar.length === 0) return alert("Selecciona al menos una factura.");
     
@@ -1267,9 +1268,15 @@ async function ejecutarConciliacionFinal() {
             monto_cobrado: (previo.monto_cobrado || 0) + cobro
         });
     });
-
+	if (uid) {
+        await db.collection('contabilidad').doc(uid).update({
+            procesado_cobranzas: true
+        });
+        console.log("¡Pago marcado como procesado!");
+    }
     await Promise.all(promesas);
     alert("¡Conciliación exitosa!");
+	detectarPagosPendientes();
     renderizarTodo();
 }
 async function detectarPagosPendientes() {
@@ -1313,27 +1320,19 @@ function crearAvisoEnPantalla(info) {
                 <strong>💡 Nuevo pago detectado:</strong> ${info.desc.split('|')[1].trim()} 
                 <br>Monto: $${info.monto.toLocaleString()} | Fecha: ${info.fecha}
             </div>
-            <button onclick="cargarAsistente('${info.cuit}', ${info.monto}, '${info.fecha}')" 
+            <button onclick="cargarAsistente('${info.cuit}', ${info.monto}, '${info.fecha}','${info.uid}')" 
                     style="background:white; color:var(--p); border:none; padding:8px; cursor:pointer; font-weight:bold;">
                 ASIGNAR AHORA
             </button>
         </div>
     `;
 }
-window.cargarAsistente = (cuit, monto, fecha) => {
-    // 1. Rellena el CUIT y dispara la búsqueda
-    document.getElementById('cuit-conciliar').value = cuit;
-    
-    // 2. Pre-rellena el monto para el Auto-Seleccionar
-    document.getElementById('monto-banco').value = monto;
-    
-    // 3. Dispara tu función original que busca las facturas
-    prepararConciliacion(); 
-    
-    // 4. (Opcional) Si tenés un campo de fecha para el cobro:
-    // document.getElementById('fecha-pago').value = fecha;
-    
-    alert("✅ CUIT y Monto cargados. ¡Dale al botón 'Auto-Seleccionar' y listo!");
+window.cargarAsistente = (cuit, monto, fecha, uid) => {
+    uidPagoActual = uid; // Ahora sí, guarda el ID correctamente
+    document.getElementById('cuit-conciliar').value = cuit;
+    document.getElementById('monto-banco').value = monto;
+    prepararConciliacion();
+    alert("✅ CUIT y Monto cargados. ¡Dale al botón 'Auto-Seleccionar' y listo!");
 };
 document.addEventListener('DOMContentLoaded', () => {
     detectarPagosPendientes();
