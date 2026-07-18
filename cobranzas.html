@@ -1089,17 +1089,23 @@ function prepararConciliacion(cuitForzado = null) {
             const nc = String(f.nro_comp || 0).padStart(8, '0');
             const fechaFormateada = f.fecha_emision.toString().replace(/-/g, '').replace(/\//g, '');
             
-            contenedor.innerHTML += `
-            <div class="fila-ajuste" data-id="${id}" data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" 
-                 data-saldo="${saldoPendiente}" data-fecha="${fechaFormateada}"
-                 style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
-                <input type="checkbox" class="check-conciliar" onchange="manejarSeleccion(this)">
-                <span style="flex:2; font-family:monospace; font-weight:bold;">${pv}-${nc}</span>
-                <span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
-                <input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-                <input type="number" class="edit-ret-gs" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-                <input type="number" class="edit-ret-iibb" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-            </div>`;
+          contenedor.innerHTML += `
+        	 <div class="fila-ajuste" 
+             data-id="${id}" 
+             data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" 
+             data-saldo="${saldoPendiente}" 
+             data-fecha="${fechaFormateada}"
+             data-paciente="${f.id_paciente || 'S/D'}" 
+             data-modulo="${f.modulo || 'S/D'}"
+             style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
+             
+            <input type="checkbox" class="check-conciliar" onchange="manejarSeleccion(this)">
+            <span style="flex:2; font-family:monospace; font-weight:bold;">${pv}-${nc}</span>
+            <span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
+            <input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+            <input type="number" class="edit-ret-gs" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+            <input type="number" class="edit-ret-iibb" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+        </div>`;
         }
     });
 }
@@ -1186,7 +1192,9 @@ function autoSeleccionarPorMonto() {
         id: f.dataset.id,
         saldo: parseFloat(f.dataset.saldo) || 0,
         fecha: parseInt(f.dataset.fecha || "99999999"), 
-        element: f
+        element: f,
+		id_paciente: f.dataset.paciente || "", 
+    	modulo: f.dataset.modulo || ""
     })).filter(f => f.saldo > 0);
 
     // Llamamos al buscador optimizado
@@ -1250,13 +1258,18 @@ function buscarMejoresCombinaciones(facturasRaw, montoBanco) {
     return topOpciones;
 }
 function mostrarSelector(opciones, montoBanco) {
+    if (opciones.length === 0) {
+        alert("No se encontraron combinaciones posibles.");
+        return;
+    }
+
     const mostrar = opciones.slice(0, 10);
     
-    // Crear el overlay
+    // 1. Crear el overlay con ID único para poder eliminarlo sin errores
     const overlay = document.createElement('div');
+    overlay.id = "modal-combinaciones"; 
     overlay.style = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center;";
     
-    // Crear la ventana modal
     const modal = document.createElement('div');
     modal.style = "width:80%; max-height:80%; background:white; padding:20px; border-radius:10px; overflow-y:auto; box-shadow:0 0 20px rgba(0,0,0,0.3);";
     
@@ -1265,17 +1278,16 @@ function mostrarSelector(opciones, montoBanco) {
     mostrar.forEach((op, index) => {
         const diff = (montoBanco - op.suma).toFixed(2);
         
-        // Detalle de cada factura en esta combinación
+        // 2. Usamos el dataset del elemento HTML para leer módulo y paciente correctamente
         let listaDetallada = op.lista.map(f => {
             const pvNc = f.element.querySelector('span[style*="monospace"]').innerText;
             const fecha = f.fecha.toString();
             const fechaFormateada = `${fecha.substring(6,8)}/${fecha.substring(4,6)}/${fecha.substring(0,4)}`;
             
-            // Accedemos a los datos que ya tienes en el objeto factura
-            const modulo = f.modulo || "S/M"; 
-            const paciente = f.id_paciente || "S/P";
+            const modulo = f.element.dataset.modulo || "S/D";
+            const paciente = f.element.dataset.paciente || "S/D";
             
-            return `<li style="margin-bottom:4px;">${pvNc} | <b>${fechaFormateada}</b> | <span style="background:#e8f4fd; padding:1px 4px; border-radius:3px;">${modulo}</span> | ${paciente}</li>`;
+            return `<li style="margin-bottom:4px;">${pvNc} | <b>${fechaFormateada}</b> | <b>${modulo}</b> | ${paciente}</li>`;
         }).join('');
 
         html += `<div style="border:1px solid #ddd; padding:12px; margin-bottom:12px; border-radius:5px; background:#fafafa;">
@@ -1285,19 +1297,20 @@ function mostrarSelector(opciones, montoBanco) {
                  </div>`;
     });
     
-    modal.innerHTML = html + `<button onclick="this.parentElement.parentElement.remove()" style="padding:8px 16px; cursor:pointer; background:#7f8c8d; color:white; border:none; border-radius:4px;">Cerrar</button>`;
+    // Botón cerrar que busca el ID único
+    modal.innerHTML = html + `<button onclick="document.getElementById('modal-combinaciones').remove()" style="padding:8px 16px; cursor:pointer; background:#7f8c8d; color:white; border:none; border-radius:4px;">Cerrar</button>`;
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
     
     window.opcionesGlobales = opciones;
 }
 
-// Función auxiliar para aplicar la elegida
+// 3. Función auxiliar segura
 window.aplicarYLimpiar = function(idx) {
     aplicarCombinacion(window.opcionesGlobales[idx]);
-    document.querySelector('div[style*="position:fixed"]').remove();
+    const modal = document.getElementById('modal-combinaciones');
+    if (modal) modal.remove();
 };
-
 function aplicarCombinacion(combinacion) {
     document.querySelectorAll('.fila-ajuste').forEach(f => {
         f.querySelector('.check-conciliar').checked = false;
