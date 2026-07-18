@@ -1279,25 +1279,36 @@ function mostrarSelector(opciones, montoBanco) {
         const diff = (montoBanco - op.suma).toFixed(2);
         
         // 2. Usamos el dataset del elemento HTML para leer módulo y paciente correctamente
-        let listaDetallada = op.lista.map(f => {
-    const pvNc = f.element.querySelector('span[style*="monospace"]').innerText;
-    
-    // DIAGNÓSTICO: Vamos a ver qué trae f.fecha exactamente en la consola
-    console.log("Valor de f.fecha:", f.fecha); 
-    
-    // Si f.fecha es un objeto o tiene algo raro, lo forzamos a string limpio
-    let fStr = String(f.fecha).trim();
-    let fechaFormateada = "";
+     let listaDetallada = op.lista.map(f => {
+            const pvNc = f.element.querySelector('span[style*="monospace"]').innerText;
+            
+            let fStr = f.fecha.toString().trim();
+            let fechaFormateada = "";
 
-    // Si detectamos que el dato YA VIENE MAL de Firebase (ej: "26/20/0077")
-    // vamos a imprimirlo tal cual para ver si es problema de carga
-    fechaFormateada = fStr; 
-    
-    const modulo = f.element.dataset.modulo || "S/D";
-    const paciente = f.element.dataset.paciente || "S/D";
-    
-    return `<li style="margin-bottom:4px;">${pvNc} | <b>${fechaFormateada}</b> | <b>${modulo}</b> | ${paciente}</li>`;
-	}).join('');
+            // Si es el formato largo (YYYYMMDD)
+            if (fStr.length === 8) {
+                fechaFormateada = `${fStr.substring(6,8)}/${fStr.substring(4,6)}/${fStr.substring(0,4)}`;
+            } 
+            // Si es el formato corto (ej: 772026 para 7/7/2026 o 1572026 para 15/7/2026)
+            else if (fStr.length >= 6) {
+                const anio = fStr.slice(-4);
+                const resto = fStr.slice(0, -4);
+                
+                // Si el resto tiene 3 caracteres (ej 772 -> 7/7), el día es el primero.
+                // Si el resto tiene 4 caracteres (ej 1572 -> 15/7), el día son los dos primeros.
+                const dia = resto.length === 3 ? resto.slice(0, 1) : resto.slice(0, 2);
+                const mes = resto.length === 3 ? resto.slice(1) : resto.slice(2);
+                
+                fechaFormateada = `${dia}/${mes}/${anio}`;
+            } else {
+                fechaFormateada = fStr;
+            }
+            
+            const modulo = f.element.dataset.modulo || "S/D";
+            const paciente = f.element.dataset.paciente || "S/D";
+            
+            return `<li style="margin-bottom:4px;">${pvNc} | <b>${fechaFormateada}</b> | <b>${modulo}</b> | ${paciente}</li>`;
+        }).join('');
 
         html += `<div style="border:1px solid #ddd; padding:12px; margin-bottom:12px; border-radius:5px; background:#fafafa;">
                     <button onclick="aplicarYLimpiar(${index})" style="padding:6px 12px; cursor:pointer; background:#27ae60; color:white; border:none; border-radius:4px; margin-right:10px;">Elegir Opción ${index + 1}</button>
