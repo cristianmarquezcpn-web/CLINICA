@@ -1263,6 +1263,25 @@ function mostrarSelector(opciones, montoBanco) {
         return;
     }
 
+    // --- FUNCIÓN LOCAL (PRIVADA DEL SELECTOR) ---
+    function formatearFechaInterna(fechaRaw) {
+        const fStr = String(fechaRaw);
+        if (!fStr) return 'S/D';
+        
+        if (fStr.includes('-')) {
+            const partes = fStr.split('-');
+            if (partes[0].length === 4) {
+                return `${partes[2].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[0]}`;
+            }
+        }
+        if (fStr.includes('/')) {
+            const partes = fStr.split('/');
+            return `${partes[0].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[2]}`;
+        }
+        return fStr;
+    }
+    // ----------------------------------------------
+
     const mostrar = opciones.slice(0, 10);
     
     const overlay = document.createElement('div');
@@ -1280,32 +1299,8 @@ function mostrarSelector(opciones, montoBanco) {
         let listaDetallada = op.lista.map(f => {
             const pvNc = f.element.querySelector('span[style*="monospace"]').innerText;
             
-            // --- LÓGICA UNIFICADA Y CORREGIDA ---
-            let fRaw = f.fecha.toString().trim();
-            let fechaFormateada = fRaw;
-
-            // 1. Caso con guiones (YYYY-MM-DD)
-            if (fRaw.includes('-')) {
-                const partes = fRaw.split('-');
-                if (partes[0].length === 4) {
-                    fechaFormateada = `${partes[2].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[0]}`;
-                }
-            } 
-            // 2. Caso con barras (D/M/YYYY o DD/MM/YYYY)
-            else if (fRaw.includes('/')) {
-                const partes = fRaw.split('/');
-                fechaFormateada = `${partes[0].padStart(2, '0')}/${partes[1].padStart(2, '0')}/${partes[2]}`;
-            } 
-            // 3. Caso numérico "pegado" (ej: 1472026 -> 14/07/2026)
-            else if (/^\d+$/.test(fRaw) && fRaw.length >= 6) {
-                const anio = fRaw.slice(-4);
-                const resto = fRaw.slice(0, -4);
-                // Si el resto tiene 3 dígitos (ej: 772 -> 7/7) o 4 (ej: 1472 -> 14/7)
-                const dia = resto.length === 3 ? resto.slice(0, 1) : resto.slice(0, 2);
-                const mes = resto.length === 3 ? resto.slice(1) : resto.slice(2);
-                fechaFormateada = `${dia.padStart(2, '0')}/${mes.padStart(2, '0')}/${anio}`;
-            }
-            
+            // Usamos la función interna que acabamos de definir
+            const fechaFormateada = formatearFechaInterna(f.fecha);
             
             const modulo = f.element.dataset.modulo || "S/D";
             const paciente = f.element.dataset.paciente || "S/D";
@@ -1326,12 +1321,6 @@ function mostrarSelector(opciones, montoBanco) {
     
     window.opcionesGlobales = opciones;
 }
-// 3. Función auxiliar segura
-window.aplicarYLimpiar = function(idx) {
-    aplicarCombinacion(window.opcionesGlobales[idx]);
-    const modal = document.getElementById('modal-combinaciones');
-    if (modal) modal.remove();
-};
 function aplicarCombinacion(combinacion) {
     document.querySelectorAll('.fila-ajuste').forEach(f => {
         f.querySelector('.check-conciliar').checked = false;
