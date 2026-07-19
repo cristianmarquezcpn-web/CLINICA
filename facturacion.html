@@ -1902,6 +1902,7 @@ window.aFormatoTabla = (f) => {
     const p = f.split('-');
     return `${p[2]}/${p[1]}/${p[0]}`;
 };
+
 window.abrirModalValidacion = function() {
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("Selecciona al menos un paciente");
@@ -1909,14 +1910,14 @@ window.abrirModalValidacion = function() {
     window.datosParaConfirmar = [];
     let html = "";
     
-    seleccionados.forEach(ck => {
+    // Agregamos un INDEX (0, 1, 2...) para que los IDs no se repitan si el paciente es el mismo
+    seleccionados.forEach((ck, index) => {
         const fila = ck.closest('tr');
-        const id = ck.getAttribute('data-id');
+        const id = ck.getAttribute('data-id'); // Es el nombre, lo usamos solo para mostrar
         
-        // --- DIAGNÓSTICO ---
         const inputDesde = fila.querySelector('input.f-desde');
-        console.log(`[DEBUG ID: ${id}] Input f-desde hallado:`, inputDesde ? inputDesde.value : "¡NO ENCONTRADO!");
-        // -------------------
+        const inputHasta = fila.querySelector('input.f-hasta');
+        const inputVto = fila.querySelector('input.f-vto');
         
         const v = {
             id: id,
@@ -1928,79 +1929,81 @@ window.abrirModalValidacion = function() {
             exento: fila.querySelector('.exento-edit').value,
             ali: fila.querySelector('.sel-ali').value,
             fDesde: window.aFormatoDate(inputDesde ? inputDesde.value : ""),
-            fHasta: window.aFormatoDate(fila.querySelector('input.f-hasta')?.value || ""),
-            fVto: window.aFormatoDate(fila.querySelector('input.f-vto')?.value || ""),
+            fHasta: window.aFormatoDate(inputHasta ? inputHasta.value : ""),
+            fVto: window.aFormatoDate(inputVto ? inputVto.value : ""),
             detalle: fila.querySelector('.det-val').value
         };
 
-        window.datosParaConfirmar.push({datos: v, fila: fila});
+        // Guardamos el index en lugar del id
+        window.datosParaConfirmar.push({datos: v, fila: fila, idx: index});
         
+        // Usamos el index en los IDs de los inputs para evitar duplicados
         html += `
         <div style="border:1px solid #ddd; padding:10px; margin-bottom:15px; border-radius:5px; background:#fdfdfd;">
             <b style="color:var(--azul);">${v.rs} (${id})</b>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:5px;">
-                <label>Tipo: <input type="text" value="${v.tipo}" id="mTipo_${id}"></label>
-                <label>CUIT: <input type="text" value="${v.cuit}" id="mCuit_${id}"></label>
-                <label>R.Social: <input type="text" value="${v.rs}" id="mRs_${id}"></label>
-                <label>Domicilio: <input type="text" value="${v.dom}" id="mDom_${id}"></label>
-                <label>Desde: <input type="date" value="${v.fDesde}" id="mDesde_${id}"></label>
-                <label>Hasta: <input type="date" value="${v.fHasta}" id="mHasta_${id}"></label>
-                <label>Vto: <input type="date" value="${v.fVto}" id="mVto_${id}"></label>
+                <label>Tipo: <input type="text" value="${v.tipo}" id="mTipo_${index}"></label>
+                <label>CUIT: <input type="text" value="${v.cuit}" id="mCuit_${index}"></label>
+                <label>R.Social: <input type="text" value="${v.rs}" id="mRs_${index}"></label>
+                <label>Domicilio: <input type="text" value="${v.dom}" id="mDom_${index}"></label>
+                <label>Desde: <input type="date" value="${v.fDesde}" id="mDesde_${index}"></label>
+                <label>Hasta: <input type="date" value="${v.fHasta}" id="mHasta_${index}"></label>
+                <label>Vto: <input type="date" value="${v.fVto}" id="mVto_${index}"></label>
                 <label>Alicuota: 
-                    <select id="mAli_${id}">
+                    <select id="mAli_${index}">
                         <option value="0" ${v.ali==0?'selected':''}>Exento</option>
                         <option value="10.5" ${v.ali==10.5?'selected':''}>10.5%</option>
                         <option value="21" ${v.ali==21?'selected':''}>21%</option>
                     </select>
                 </label>
-                <label>Neto: <input type="number" value="${v.neto}" id="mNeto_${id}"></label>
-                <label>Exento: <input type="number" value="${v.exento}" id="mExento_${id}"></label>
+                <label>Neto: <input type="number" value="${v.neto}" id="mNeto_${index}"></label>
+                <label>Exento: <input type="number" value="${v.exento}" id="mExento_${index}"></label>
             </div>
             <label style="display:block; margin-top:5px;">Detalle:</label>
-            <textarea id="mDet_${id}" style="width:100%; height:40px;">${v.detalle}</textarea>
+            <textarea id="mDet_${index}" style="width:100%; height:40px;">${v.detalle}</textarea>
         </div>`;
     });
     
     document.getElementById('modalContent').innerHTML = html;
     document.getElementById('modalConfirmacion').style.display = 'block';
 };
-window.confirmarEnvioAFIP = async function() {
-    // 1. Deshabilitar botón para evitar doble click
-    const btn = event.target;
-    btn.disabled = true;
 
-    // 2. Actualizar tabla
+window.confirmarEnvioAFIP = async function(event) {
+    // 1. Deshabilitar botón para evitar doble click
+    const btn = event ? event.target : document.getElementById('btnConfirmarModal');
+    if(btn) btn.disabled = true;
+
+    // 2. Actualizar tabla buscando por el INDEX
     window.datosParaConfirmar.forEach(item => {
-        const id = item.datos.id;
+        const index = item.idx; // Recuperamos el index
         const fila = item.fila;
         
-        fila.querySelector('.sel-tipo').value = document.getElementById(`mTipo_${id}`).value;
-        fila.querySelector('.cuit-val').value = document.getElementById(`mCuit_${id}`).value;
-        fila.querySelector('.rs-val').value = document.getElementById(`mRs_${id}`).value;
-        fila.querySelector('.dom-val').value = document.getElementById(`mDom_${id}`).value;
-        fila.querySelector('.neto-edit').value = document.getElementById(`mNeto_${id}`).value;
-        fila.querySelector('.exento-edit').value = document.getElementById(`mExento_${id}`).value;
-        fila.querySelector('.sel-ali').value = document.getElementById(`mAli_${id}`).value;
+        fila.querySelector('.sel-tipo').value = document.getElementById(`mTipo_${index}`).value;
+        fila.querySelector('.cuit-val').value = document.getElementById(`mCuit_${index}`).value;
+        fila.querySelector('.rs-val').value = document.getElementById(`mRs_${index}`).value;
+        fila.querySelector('.dom-val').value = document.getElementById(`mDom_${index}`).value;
+        fila.querySelector('.neto-edit').value = document.getElementById(`mNeto_${index}`).value;
+        fila.querySelector('.exento-edit').value = document.getElementById(`mExento_${index}`).value;
+        fila.querySelector('.sel-ali').value = document.getElementById(`mAli_${index}`).value;
         
-        fila.querySelector('input.f-desde').value = window.aFormatoTabla(document.getElementById(`mDesde_${id}`).value);
-        fila.querySelector('input.f-hasta').value = window.aFormatoTabla(document.getElementById(`mHasta_${id}`).value);
-        fila.querySelector('input.f-vto').value = window.aFormatoTabla(document.getElementById(`mVto_${id}`).value);
+        fila.querySelector('input.f-desde').value = window.aFormatoTabla(document.getElementById(`mDesde_${index}`).value);
+        fila.querySelector('input.f-hasta').value = window.aFormatoTabla(document.getElementById(`mHasta_${index}`).value);
+        fila.querySelector('input.f-vto').value = window.aFormatoTabla(document.getElementById(`mVto_${index}`).value);
         
-        fila.querySelector('.det-val').value = document.getElementById(`mDet_${id}`).value;
+        fila.querySelector('.det-val').value = document.getElementById(`mDet_${index}`).value;
         window.recalcularTotales(fila.querySelector('.neto-edit'));
         
-        // 3. DESMARCAR EL CHECKBOX AQUÍ MISMO para que enviarAFIP_WS no los vuelva a tomar
-        fila.querySelector('.ck').checked = false;
+        
     });
     
     document.getElementById('modalConfirmacion').style.display = 'none';
     
-    // 4. Procesar envío
+    // 3. Procesar envío (viaja a la cola de facturación)
     await enviarAFIP_WS(); 
     
-    btn.disabled = false;
+    if(btn) btn.disabled = false;
     window.datosParaConfirmar = []; // Limpiar memoria
-};		
+};	
 </script>
 </body>
 </html>
