@@ -1921,12 +1921,17 @@ window.abrirModalValidacion = function() {
         const fila = ck.closest('tr');
         const id = ck.getAttribute('data-id');
         
-        // 1. Definimos las variables primero
-        const vDesdeRaw = fila.querySelector('.col-desde')?.innerText || "";
-		const vHastaRaw = fila.querySelector('.col-hasta')?.innerText || "";
-		const vVtoRaw = fila.querySelector('.col-vto')?.innerText || "";
+        // 1. Obtener valores crudos (probamos celda, si no, input)
+        const vDesdeRaw = fila.querySelector('.col-desde')?.innerText || fila.querySelector('input.f-desde')?.value || "";
+        const vHastaRaw = fila.querySelector('.col-hasta')?.innerText || fila.querySelector('input.f-hasta')?.value || "";
+        const vVtoRaw = fila.querySelector('.col-vto')?.innerText || fila.querySelector('input.f-vto')?.value || "";
         
-        // 2. Ahora sí, el log
+        // 2. Formatear
+        const vDesdeFormateado = window.aFormatoDate(vDesdeRaw);
+        const vHastaFormateado = window.aFormatoDate(vHastaRaw);
+        const vVtoFormateado = window.aFormatoDate(vVtoRaw);
+        
+        // 3. Log ahora sí funciona porque las variables ya existen
         console.log(`Debug ID: ${id} | Crudo: "${vDesdeRaw}" | Formateado: "${vDesdeFormateado}"`);
 
         const v = {
@@ -1939,8 +1944,8 @@ window.abrirModalValidacion = function() {
             exento: fila.querySelector('.exento-edit').value,
             ali: fila.querySelector('.sel-ali').value,
             fDesde: vDesdeFormateado,
-            fHasta: window.aFormatoDate(fila.querySelector('input.f-hasta').value),
-            fVto: window.aFormatoDate(fila.querySelector('input.f-vto').value),
+            fHasta: vHastaFormateado,
+            fVto: vVtoFormateado,
             detalle: fila.querySelector('.det-val').value
         };
 
