@@ -1909,12 +1909,11 @@ window.aFormatoTabla = (f) => {
     const p = f.split('-');
     return `${p[2]}/${p[1]}/${p[0]}`;
 };
-
 window.abrirModalValidacion = function() {
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("Selecciona al menos un paciente");
     
-    // Capturamos los valores del encabezado (la "tablita" de arriba)
+    // Capturamos del encabezado
     const valDesde = document.getElementById('per_desde').value;
     const valHasta = document.getElementById('per_hasta').value;
     const valVto = document.getElementById('vto_pago').value;
@@ -1935,10 +1934,6 @@ window.abrirModalValidacion = function() {
             neto: fila.querySelector('.neto-edit').value,
             exento: fila.querySelector('.exento-edit').value,
             ali: fila.querySelector('.sel-ali').value,
-            // Asignamos las fechas capturadas del encabezado
-            fDesde: valDesde,
-            fHasta: valHasta,
-            fVto: valVto,
             detalle: fila.querySelector('.det-val').value
         };
 
@@ -1952,9 +1947,9 @@ window.abrirModalValidacion = function() {
                 <label>CUIT: <input type="text" value="${v.cuit}" id="mCuit_${index}"></label>
                 <label>R.Social: <input type="text" value="${v.rs}" id="mRs_${index}"></label>
                 <label>Domicilio: <input type="text" value="${v.dom}" id="mDom_${index}"></label>
-                <label>Desde: <input type="date" value="${v.fDesde}" id="mDesde_${index}"></label>
-                <label>Hasta: <input type="date" value="${v.fHasta}" id="mHasta_${index}"></label>
-                <label>Vto: <input type="date" value="${v.fVto}" id="mVto_${index}"></label>
+                <label>Desde: <input type="date" id="mDesde_${index}"></label>
+                <label>Hasta: <input type="date" id="mHasta_${index}"></label>
+                <label>Vto: <input type="date" id="mVto_${index}"></label>
                 <label>Alicuota: 
                     <select id="mAli_${index}">
                         <option value="0" ${v.ali==0?'selected':''}>Exento</option>
@@ -1972,6 +1967,13 @@ window.abrirModalValidacion = function() {
     
     document.getElementById('modalContent').innerHTML = html;
     document.getElementById('modalConfirmacion').style.display = 'block';
+
+    // --- CARGA DIRECTA POST-RENDER ---
+    seleccionados.forEach((ck, index) => {
+        document.getElementById(`mDesde_${index}`).value = valDesde;
+        document.getElementById(`mHasta_${index}`).value = valHasta;
+        document.getElementById(`mVto_${index}`).value = valVto;
+    });
 };
 
 window.confirmarEnvioAFIP = async function(event) {
