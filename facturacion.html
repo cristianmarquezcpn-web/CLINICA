@@ -1892,11 +1892,18 @@ if (typeof auth !== 'undefined') {
     });
 }
 window.aFormatoDate = (f) => {
-    if (!f || !f.includes('/')) return f;
-    const p = f.split('/');
-    return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+    // Si ya es un formato Date (yyyy-mm-dd), lo devolvemos tal cual
+    if (!f || f.includes('-')) return f; 
+    
+    // Si viene en formato dd/mm/aaaa (o dd-mm-aaaa)
+    const p = f.split(/[\/\-]/); // Divide tanto por / como por -
+    if (p.length === 3) {
+        // Aseguramos que sea formato dd/mm/aaaa
+        // p[0] es dia, p[1] es mes, p[2] es año
+        return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+    }
+    return f;
 };
-
 window.aFormatoTabla = (f) => {
     if (!f || !f.includes('-')) return f;
     const p = f.split('-');
@@ -1918,7 +1925,9 @@ window.abrirModalValidacion = function() {
         const inputDesde = fila.querySelector('input.f-desde');
         const inputHasta = fila.querySelector('input.f-hasta');
         const inputVto = fila.querySelector('input.f-vto');
-        
+        console.log(`Debug ID: ${id} | Crudo: "${vDesdeRaw}" | Formateado: "${vDesdeFormateado}"`);
+		const vDesdeRaw = fila.querySelector('input.f-desde').value;
+		const vDesdeFormateado = window.aFormatoDate(vDesdeRaw);
         const v = {
             id: id,
             tipo: fila.querySelector('.sel-tipo').value,
@@ -1928,9 +1937,9 @@ window.abrirModalValidacion = function() {
             neto: fila.querySelector('.neto-edit').value,
             exento: fila.querySelector('.exento-edit').value,
             ali: fila.querySelector('.sel-ali').value,
-            fDesde: window.aFormatoDate(inputDesde ? inputDesde.value : ""),
-            fHasta: window.aFormatoDate(inputHasta ? inputHasta.value : ""),
-            fVto: window.aFormatoDate(inputVto ? inputVto.value : ""),
+            fDesde: vDesdeFormateado,
+    		fHasta: window.aFormatoDate(fila.querySelector('input.f-hasta').value),
+    		fVto: window.aFormatoDate(fila.querySelector('input.f-vto').value),
             detalle: fila.querySelector('.det-val').value
         };
 
