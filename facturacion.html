@@ -1891,7 +1891,7 @@ if (typeof auth !== 'undefined') {
         }
     });
 }
-// --- FUNCIONES DE AYUDA (Colócalas al principio de tu script) ---
+
 const aFormatoDate = (f) => { // Convierte dd/mm/aaaa a yyyy-mm-dd
     if (!f || !f.includes('/')) return f;
     const p = f.split('/');
@@ -1904,7 +1904,7 @@ const aFormatoTabla = (f) => { // Convierte yyyy-mm-dd a dd/mm/aaaa
     return `${p[2]}/${p[1]}/${p[0]}`;
 };
 
-// --- TU FUNCIÓN MODIFICADA ---
+
 window.abrirModalValidacion = function() {
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("Selecciona al menos un paciente");
@@ -1924,20 +1924,41 @@ window.abrirModalValidacion = function() {
             neto: fila.querySelector('.neto-edit').value,
             exento: fila.querySelector('.exento-edit').value,
             ali: fila.querySelector('.sel-ali').value,
-            // AQUÍ APLICAMOS LA CONVERSIÓN PARA QUE EL INPUT DATE LO VEA
+            
             fDesde: aFormatoDate(fila.querySelector('.f-desde').value),
             fHasta: aFormatoDate(fila.querySelector('.f-hasta').value),
             fVto: aFormatoDate(fila.querySelector('.f-vto').value),
             detalle: fila.querySelector('.det-val').value
         };
-
         window.datosParaConfirmar.push({datos: v, fila: fila});
-        
-        html += `... (tu HTML sigue igual) ...`;
+        html += `
+        <div style="border:1px solid #ddd; padding:10px; margin-bottom:15px; border-radius:5px; background:#fdfdfd;">
+            <b style="color:var(--azul);">${v.rs} (${id})</b>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:5px;">
+                <label>Tipo: <input type="text" value="${v.tipo}" id="mTipo_${id}"></label>
+                <label>CUIT: <input type="text" value="${v.cuit}" id="mCuit_${id}"></label>
+                <label>R.Social: <input type="text" value="${v.rs}" id="mRs_${id}"></label>
+                <label>Domicilio: <input type="text" value="${v.dom}" id="mDom_${id}"></label>
+                <label>Desde: <input type="date" value="${v.fDesde}" id="mDesde_${id}"></label>
+                <label>Hasta: <input type="date" value="${v.fHasta}" id="mHasta_${id}"></label>
+                <label>Vto: <input type="date" value="${v.fVto}" id="mVto_${id}"></label>
+                <label>Alicuota: 
+                    <select id="mAli_${id}">
+                        <option value="0" ${v.ali==0?'selected':''}>Exento</option>
+                        <option value="10.5" ${v.ali==10.5?'selected':''}>10.5%</option>
+                        <option value="21" ${v.ali==21?'selected':''}>21%</option>
+                    </select>
+                </label>
+                <label>Neto: <input type="number" value="${v.neto}" id="mNeto_${id}"></label>
+                <label>Exento: <input type="number" value="${v.exento}" id="mExento_${id}"></label>
+            </div>
+            <label style="display:block; margin-top:5px;">Detalle:</label>
+            <textarea id="mDet_${id}" style="width:100%; height:40px;">${v.detalle}</textarea>
+        </div>`;
     });
-    
     document.getElementById('modalContent').innerHTML = html;
     document.getElementById('modalConfirmacion').style.display = 'block';
+
 };
 
 window.confirmarEnvioAFIP = async function() {
@@ -1963,7 +1984,7 @@ window.confirmarEnvioAFIP = async function() {
     });
     
     document.getElementById('modalConfirmacion').style.display = 'none';
-    await enviarAFIP_WS(); // Tu función original queda 100% intacta
+    await enviarAFIP_WS(); 
 };
 </script>
 </body>
