@@ -1979,22 +1979,22 @@ window.confirmarEnvioAFIP = async function(event) {
     const btn = event ? event.target : document.getElementById('btnConfirmarModal');
     if(btn) btn.disabled = true;
 
-    // 1. ACTUALIZACIÓN FORZADA EN TABLA
+    // 1. Tomamos el primer paciente seleccionado para actualizar el encabezado
+    // (Asumimos que si editaste el modal, esas son las fechas que quieres para todos)
+    const primerIndex = window.datosParaConfirmar[0].idx;
+    const nuevaDesde = document.getElementById(`mDesde_${primerIndex}`).value;
+    const nuevaHasta = document.getElementById(`mHasta_${primerIndex}`).value;
+    const nuevaVto = document.getElementById(`mVto_${primerIndex}`).value;
+
+    // 2. ACTUALIZAMOS EL ENCABEZADO (La fuente de la verdad para enviarAFIP_WS)
+    document.getElementById('per_desde').value = nuevaDesde;
+    document.getElementById('per_hasta').value = nuevaHasta;
+    document.getElementById('vto_pago').value = nuevaVto;
+
+    // 3. Actualizamos los otros datos en la tabla (si es necesario)
     window.datosParaConfirmar.forEach(item => {
         const index = item.idx;
         const fila = item.fila;
-        
-        // Obtenemos los valores editados en el MODAL (esto ya lo tenías bien)
-        const vDesde = document.getElementById(`mDesde_${index}`).value;
-        const vHasta = document.getElementById(`mHasta_${index}`).value;
-        const vVto = document.getElementById(`mVto_${index}`).value;
-        
-        // Actualizamos los INPUT HIDDEN de la tabla
-        fila.querySelector('input.f-desde').value = window.aFormatoTabla(vDesde);
-        fila.querySelector('input.f-hasta').value = window.aFormatoTabla(vHasta);
-        fila.querySelector('input.f-vto').value = window.aFormatoTabla(vVto);
-        
-        // Actualizamos los demás campos
         fila.querySelector('.sel-tipo').value = document.getElementById(`mTipo_${index}`).value;
         fila.querySelector('.cuit-val').value = document.getElementById(`mCuit_${index}`).value;
         fila.querySelector('.rs-val').value = document.getElementById(`mRs_${index}`).value;
@@ -2003,16 +2003,16 @@ window.confirmarEnvioAFIP = async function(event) {
         fila.querySelector('.exento-edit').value = document.getElementById(`mExento_${index}`).value;
         fila.querySelector('.sel-ali').value = document.getElementById(`mAli_${index}`).value;
         fila.querySelector('.det-val').value = document.getElementById(`mDet_${index}`).value;
-        
         window.recalcularTotales(fila.querySelector('.neto-edit'));
     });
     
     document.getElementById('modalConfirmacion').style.display = 'none';
     
+    // 4. Ahora sí, al ejecutar esto, leerá los campos del encabezado ya corregidos
     await enviarAFIP_WS(); 
     
     if(btn) btn.disabled = false;
-    window.datosParaConfirmar = []; 
+    window.datosParaConfirmar = [];
 };
 </script>
 </body>
