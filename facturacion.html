@@ -1891,20 +1891,17 @@ if (typeof auth !== 'undefined') {
         }
     });
 }
-
-const aFormatoDate = (f) => { // Convierte dd/mm/aaaa a yyyy-mm-dd
+window.aFormatoDate = (f) => {
     if (!f || !f.includes('/')) return f;
     const p = f.split('/');
     return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
 };
 
-const aFormatoTabla = (f) => { // Convierte yyyy-mm-dd a dd/mm/aaaa
+window.aFormatoTabla = (f) => {
     if (!f || !f.includes('-')) return f;
     const p = f.split('-');
     return `${p[2]}/${p[1]}/${p[0]}`;
 };
-
-
 window.abrirModalValidacion = function() {
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("Selecciona al menos un paciente");
@@ -1915,6 +1912,8 @@ window.abrirModalValidacion = function() {
     seleccionados.forEach(ck => {
         const fila = ck.closest('tr');
         const id = ck.getAttribute('data-id');
+        
+        // Buscamos específicamente en los inputs hidden
         const v = {
             id: id,
             tipo: fila.querySelector('.sel-tipo').value,
@@ -1924,13 +1923,14 @@ window.abrirModalValidacion = function() {
             neto: fila.querySelector('.neto-edit').value,
             exento: fila.querySelector('.exento-edit').value,
             ali: fila.querySelector('.sel-ali').value,
-            
-            fDesde: aFormatoDate(fila.querySelector('.f-desde').value),
-            fHasta: aFormatoDate(fila.querySelector('.f-hasta').value),
-            fVto: aFormatoDate(fila.querySelector('.f-vto').value),
+            fDesde: window.aFormatoDate(fila.querySelector('input.f-desde').value),
+            fHasta: window.aFormatoDate(fila.querySelector('input.f-hasta').value),
+            fVto: window.aFormatoDate(fila.querySelector('input.f-vto').value),
             detalle: fila.querySelector('.det-val').value
         };
+
         window.datosParaConfirmar.push({datos: v, fila: fila});
+        
         html += `
         <div style="border:1px solid #ddd; padding:10px; margin-bottom:15px; border-radius:5px; background:#fdfdfd;">
             <b style="color:var(--azul);">${v.rs} (${id})</b>
@@ -1956,11 +1956,10 @@ window.abrirModalValidacion = function() {
             <textarea id="mDet_${id}" style="width:100%; height:40px;">${v.detalle}</textarea>
         </div>`;
     });
+    
     document.getElementById('modalContent').innerHTML = html;
     document.getElementById('modalConfirmacion').style.display = 'block';
-
 };
-
 window.confirmarEnvioAFIP = async function() {
     window.datosParaConfirmar.forEach(item => {
         const id = item.datos.id;
@@ -1974,10 +1973,10 @@ window.confirmarEnvioAFIP = async function() {
         fila.querySelector('.exento-edit').value = document.getElementById(`mExento_${id}`).value;
         fila.querySelector('.sel-ali').value = document.getElementById(`mAli_${id}`).value;
         
-        // AQUÍ RECONVERTIMOS PARA QUE LA TABLA QUEDE CON EL FORMATO QUE AFIP ESPERA
-        fila.querySelector('.f-desde').value = aFormatoTabla(document.getElementById(`mDesde_${id}`).value);
-        fila.querySelector('.f-hasta').value = aFormatoTabla(document.getElementById(`mHasta_${id}`).value);
-        fila.querySelector('.f-vto').value = aFormatoTabla(document.getElementById(`mVto_${id}`).value);
+        // Escribimos de vuelta en los inputs hidden originales
+        fila.querySelector('input.f-desde').value = window.aFormatoTabla(document.getElementById(`mDesde_${id}`).value);
+        fila.querySelector('input.f-hasta').value = window.aFormatoTabla(document.getElementById(`mHasta_${id}`).value);
+        fila.querySelector('input.f-vto').value = window.aFormatoTabla(document.getElementById(`mVto_${id}`).value);
         
         fila.querySelector('.det-val').value = document.getElementById(`mDet_${id}`).value;
         window.recalcularTotales(fila.querySelector('.neto-edit'));
