@@ -1975,17 +1975,26 @@ window.abrirModalValidacion = function() {
         document.getElementById(`mVto_${index}`).value = valVto;
     });
 };
-
 window.confirmarEnvioAFIP = async function(event) {
-    // 1. Deshabilitar botón para evitar doble click
     const btn = event ? event.target : document.getElementById('btnConfirmarModal');
     if(btn) btn.disabled = true;
 
-    // 2. Actualizar tabla buscando por el INDEX
+    // 1. ACTUALIZACIÓN FORZADA EN TABLA
     window.datosParaConfirmar.forEach(item => {
-        const index = item.idx; // Recuperamos el index
+        const index = item.idx;
         const fila = item.fila;
         
+        // Obtenemos los valores editados en el MODAL (esto ya lo tenías bien)
+        const vDesde = document.getElementById(`mDesde_${index}`).value;
+        const vHasta = document.getElementById(`mHasta_${index}`).value;
+        const vVto = document.getElementById(`mVto_${index}`).value;
+        
+        // Actualizamos los INPUT HIDDEN de la tabla
+        fila.querySelector('input.f-desde').value = window.aFormatoTabla(vDesde);
+        fila.querySelector('input.f-hasta').value = window.aFormatoTabla(vHasta);
+        fila.querySelector('input.f-vto').value = window.aFormatoTabla(vVto);
+        
+        // Actualizamos los demás campos
         fila.querySelector('.sel-tipo').value = document.getElementById(`mTipo_${index}`).value;
         fila.querySelector('.cuit-val').value = document.getElementById(`mCuit_${index}`).value;
         fila.querySelector('.rs-val').value = document.getElementById(`mRs_${index}`).value;
@@ -1993,25 +2002,18 @@ window.confirmarEnvioAFIP = async function(event) {
         fila.querySelector('.neto-edit').value = document.getElementById(`mNeto_${index}`).value;
         fila.querySelector('.exento-edit').value = document.getElementById(`mExento_${index}`).value;
         fila.querySelector('.sel-ali').value = document.getElementById(`mAli_${index}`).value;
-        
-        fila.querySelector('input.f-desde').value = window.aFormatoTabla(document.getElementById(`mDesde_${index}`).value);
-        fila.querySelector('input.f-hasta').value = window.aFormatoTabla(document.getElementById(`mHasta_${index}`).value);
-        fila.querySelector('input.f-vto').value = window.aFormatoTabla(document.getElementById(`mVto_${index}`).value);
-        
         fila.querySelector('.det-val').value = document.getElementById(`mDet_${index}`).value;
+        
         window.recalcularTotales(fila.querySelector('.neto-edit'));
-        
-        
     });
     
     document.getElementById('modalConfirmacion').style.display = 'none';
     
-    // 3. Procesar envío (viaja a la cola de facturación)
     await enviarAFIP_WS(); 
     
     if(btn) btn.disabled = false;
-    window.datosParaConfirmar = []; // Limpiar memoria
-};	
+    window.datosParaConfirmar = []; 
+};
 </script>
 </body>
 </html>
