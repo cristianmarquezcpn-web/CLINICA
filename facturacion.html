@@ -1917,17 +1917,17 @@ window.abrirModalValidacion = function() {
     window.datosParaConfirmar = [];
     let html = "";
     
-    // Agregamos un INDEX (0, 1, 2...) para que los IDs no se repitan si el paciente es el mismo
     seleccionados.forEach((ck, index) => {
         const fila = ck.closest('tr');
-        const id = ck.getAttribute('data-id'); // Es el nombre, lo usamos solo para mostrar
+        const id = ck.getAttribute('data-id');
         
-        const inputDesde = fila.querySelector('input.f-desde');
-        const inputHasta = fila.querySelector('input.f-hasta');
-        const inputVto = fila.querySelector('input.f-vto');
+        // 1. Definimos las variables primero
+        const vDesdeRaw = fila.querySelector('input.f-desde').value;
+        const vDesdeFormateado = window.aFormatoDate(vDesdeRaw);
+        
+        // 2. Ahora sí, el log
         console.log(`Debug ID: ${id} | Crudo: "${vDesdeRaw}" | Formateado: "${vDesdeFormateado}"`);
-		const vDesdeRaw = fila.querySelector('input.f-desde').value;
-		const vDesdeFormateado = window.aFormatoDate(vDesdeRaw);
+
         const v = {
             id: id,
             tipo: fila.querySelector('.sel-tipo').value,
@@ -1938,15 +1938,13 @@ window.abrirModalValidacion = function() {
             exento: fila.querySelector('.exento-edit').value,
             ali: fila.querySelector('.sel-ali').value,
             fDesde: vDesdeFormateado,
-    		fHasta: window.aFormatoDate(fila.querySelector('input.f-hasta').value),
-    		fVto: window.aFormatoDate(fila.querySelector('input.f-vto').value),
+            fHasta: window.aFormatoDate(fila.querySelector('input.f-hasta').value),
+            fVto: window.aFormatoDate(fila.querySelector('input.f-vto').value),
             detalle: fila.querySelector('.det-val').value
         };
 
-        // Guardamos el index en lugar del id
         window.datosParaConfirmar.push({datos: v, fila: fila, idx: index});
         
-        // Usamos el index en los IDs de los inputs para evitar duplicados
         html += `
         <div style="border:1px solid #ddd; padding:10px; margin-bottom:15px; border-radius:5px; background:#fdfdfd;">
             <b style="color:var(--azul);">${v.rs} (${id})</b>
