@@ -1913,7 +1913,11 @@ window.abrirModalValidacion = function() {
         const fila = ck.closest('tr');
         const id = ck.getAttribute('data-id');
         
-        // Buscamos específicamente en los inputs hidden
+        // --- DIAGNÓSTICO ---
+        const inputDesde = fila.querySelector('input.f-desde');
+        console.log(`[DEBUG ID: ${id}] Input f-desde hallado:`, inputDesde ? inputDesde.value : "¡NO ENCONTRADO!");
+        // -------------------
+        
         const v = {
             id: id,
             tipo: fila.querySelector('.sel-tipo').value,
@@ -1923,9 +1927,9 @@ window.abrirModalValidacion = function() {
             neto: fila.querySelector('.neto-edit').value,
             exento: fila.querySelector('.exento-edit').value,
             ali: fila.querySelector('.sel-ali').value,
-            fDesde: window.aFormatoDate(fila.querySelector('input.f-desde').value),
-            fHasta: window.aFormatoDate(fila.querySelector('input.f-hasta').value),
-            fVto: window.aFormatoDate(fila.querySelector('input.f-vto').value),
+            fDesde: window.aFormatoDate(inputDesde ? inputDesde.value : ""),
+            fHasta: window.aFormatoDate(fila.querySelector('input.f-hasta')?.value || ""),
+            fVto: window.aFormatoDate(fila.querySelector('input.f-vto')?.value || ""),
             detalle: fila.querySelector('.det-val').value
         };
 
@@ -1961,6 +1965,11 @@ window.abrirModalValidacion = function() {
     document.getElementById('modalConfirmacion').style.display = 'block';
 };
 window.confirmarEnvioAFIP = async function() {
+    // 1. Deshabilitar botón para evitar doble click
+    const btn = event.target;
+    btn.disabled = true;
+
+    // 2. Actualizar tabla
     window.datosParaConfirmar.forEach(item => {
         const id = item.datos.id;
         const fila = item.fila;
@@ -1973,18 +1982,25 @@ window.confirmarEnvioAFIP = async function() {
         fila.querySelector('.exento-edit').value = document.getElementById(`mExento_${id}`).value;
         fila.querySelector('.sel-ali').value = document.getElementById(`mAli_${id}`).value;
         
-        // Escribimos de vuelta en los inputs hidden originales
         fila.querySelector('input.f-desde').value = window.aFormatoTabla(document.getElementById(`mDesde_${id}`).value);
         fila.querySelector('input.f-hasta').value = window.aFormatoTabla(document.getElementById(`mHasta_${id}`).value);
         fila.querySelector('input.f-vto').value = window.aFormatoTabla(document.getElementById(`mVto_${id}`).value);
         
         fila.querySelector('.det-val').value = document.getElementById(`mDet_${id}`).value;
         window.recalcularTotales(fila.querySelector('.neto-edit'));
+        
+        // 3. DESMARCAR EL CHECKBOX AQUÍ MISMO para que enviarAFIP_WS no los vuelva a tomar
+        fila.querySelector('.ck').checked = false;
     });
     
     document.getElementById('modalConfirmacion').style.display = 'none';
+    
+    // 4. Procesar envío
     await enviarAFIP_WS(); 
-};
+    
+    btn.disabled = false;
+    window.datosParaConfirmar = []; // Limpiar memoria
+};		
 </script>
 </body>
 </html>
