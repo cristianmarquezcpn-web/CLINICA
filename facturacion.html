@@ -1922,8 +1922,9 @@ window.abrirModalValidacion = function() {
         const id = ck.getAttribute('data-id');
         
         // 1. Definimos las variables primero
-        const vDesdeRaw = fila.querySelector('input.f-desde').value;
-        const vDesdeFormateado = window.aFormatoDate(vDesdeRaw);
+        const vDesdeRaw = fila.querySelector('.col-desde')?.innerText || "";
+		const vHastaRaw = fila.querySelector('.col-hasta')?.innerText || "";
+		const vVtoRaw = fila.querySelector('.col-vto')?.innerText || "";
         
         // 2. Ahora sí, el log
         console.log(`Debug ID: ${id} | Crudo: "${vDesdeRaw}" | Formateado: "${vDesdeFormateado}"`);
