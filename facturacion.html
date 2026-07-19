@@ -121,7 +121,7 @@
         <button class="btn-filtro" onclick="filtrarPor('CET')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">CET</button>
         <button class="btn-filtro" onclick="filtrarPor('REHAB')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">REHAB</button>
         <button class="btn" onclick="window.limpiarFiltros()" style="background:#666; font-size:10px; margin-left:10px;">Limpiar ×</button>
-        <button class="btn" style="background:var(--azul); margin-left:auto" onclick="enviarAFIP_WS()">🚀 FACTURAR</button>
+        <button class="btn" style="background:var(--azul); margin-left:auto" onclick="abrirModalValidacion()">🚀 FACTURAR</button>
     </div>
 
     <table id="tabla-facturas">
@@ -143,6 +143,16 @@
         <tbody id="tabla-body"></tbody>
     </table>
 </div>
+<div id="modalConfirmacion" style="display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.6);">
+    <div style="background:#fff; margin:5% auto; padding:20px; width:90%; max-width:600px; border-radius:8px; max-height:80vh; overflow-y:auto;">
+        <h3 style="color:var(--azul);">Confirmar Facturación</h3>
+        <div id="modalContent"></div>
+        <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+            <button onclick="document.getElementById('modalConfirmacion').style.display='none'" style="background:#e74c3c; color:white; padding:10px; border:none; cursor:pointer;">Cancelar</button>
+            <button onclick="window.confirmarEnvioAFIP()" style="background:#2ecc71; color:white; padding:10px; border:none; cursor:pointer;">Confirmar y Enviar</button>
+        </div>
+    </div>
+</div>	
 	<script>
 let filtroActual = 'TODOS'; 
 
@@ -1881,7 +1891,89 @@ if (typeof auth !== 'undefined') {
         }
     });
 }
+window.abrirModalValidacion = function() {
+    const seleccionados = document.querySelectorAll('.ck:checked');
+    if (seleccionados.length === 0) return alert("Selecciona al menos un paciente");
+    
+    window.datosParaConfirmar = [];
+    let html = "";
+    
+    seleccionados.forEach(ck => {
+        const fila = ck.closest('tr');
+        const id = ck.getAttribute('data-id');
+        const v = {
+            id: id,
+            tipo: fila.querySelector('.sel-tipo').value,
+            cuit: fila.querySelector('.cuit-val').value,
+            rs: fila.querySelector('.rs-val').value,
+            dom: fila.querySelector('.dom-val').value,
+            neto: fila.querySelector('.neto-edit').value,
+            exento: fila.querySelector('.exento-edit').value,
+            ali: fila.querySelector('.sel-ali').value,
+            fDesde: fila.querySelector('.f-desde').value,
+            fHasta: fila.querySelector('.f-hasta').value,
+            fVto: fila.querySelector('.f-vto').value,
+            detalle: fila.querySelector('.det-val').value
+        };
 
+        window.datosParaConfirmar.push({datos: v, fila: fila});
+        
+        html += `
+        <div style="border:1px solid #ddd; padding:10px; margin-bottom:15px; border-radius:5px; background:#fdfdfd;">
+            <b style="color:var(--azul);">${v.rs} (${id})</b>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:5px;">
+                <label>Tipo: <input type="text" value="${v.tipo}" id="mTipo_${id}"></label>
+                <label>CUIT: <input type="text" value="${v.cuit}" id="mCuit_${id}"></label>
+                <label>R.Social: <input type="text" value="${v.rs}" id="mRs_${id}"></label>
+                <label>Domicilio: <input type="text" value="${v.dom}" id="mDom_${id}"></label>
+                <label>Desde: <input type="date" value="${v.fDesde}" id="mDesde_${id}"></label>
+                <label>Hasta: <input type="date" value="${v.fHasta}" id="mHasta_${id}"></label>
+                <label>Vto: <input type="date" value="${v.fVto}" id="mVto_${id}"></label>
+                <label>Alicuota: 
+                    <select id="mAli_${id}">
+                        <option value="0" ${v.ali==0?'selected':''}>Exento</option>
+                        <option value="10.5" ${v.ali==10.5?'selected':''}>10.5%</option>
+                        <option value="21" ${v.ali==21?'selected':''}>21%</option>
+                    </select>
+                </label>
+                <label>Neto: <input type="number" value="${v.neto}" id="mNeto_${id}"></label>
+                <label>Exento: <input type="number" value="${v.exento}" id="mExento_${id}"></label>
+            </div>
+            <label style="display:block; margin-top:5px;">Detalle:</label>
+            <textarea id="mDet_${id}" style="width:100%; height:40px;">${v.detalle}</textarea>
+        </div>`;
+    });
+    
+    document.getElementById('modalContent').innerHTML = html;
+    document.getElementById('modalConfirmacion').style.display = 'block';
+};
+
+window.confirmarEnvioAFIP = async function() {
+    // Sincronizar datos del modal a la tabla
+    window.datosParaConfirmar.forEach(item => {
+        const id = item.datos.id;
+        const fila = item.fila;
+        
+        fila.querySelector('.sel-tipo').value = document.getElementById(`mTipo_${id}`).value;
+        fila.querySelector('.cuit-val').value = document.getElementById(`mCuit_${id}`).value;
+        fila.querySelector('.rs-val').value = document.getElementById(`mRs_${id}`).value;
+        fila.querySelector('.dom-val').value = document.getElementById(`mDom_${id}`).value;
+        fila.querySelector('.neto-edit').value = document.getElementById(`mNeto_${id}`).value;
+        fila.querySelector('.exento-edit').value = document.getElementById(`mExento_${id}`).value;
+        fila.querySelector('.sel-ali').value = document.getElementById(`mAli_${id}`).value;
+        fila.querySelector('.f-desde').value = document.getElementById(`mDesde_${id}`).value;
+        fila.querySelector('.f-hasta').value = document.getElementById(`mHasta_${id}`).value;
+        fila.querySelector('.f-vto').value = document.getElementById(`mVto_${id}`).value;
+        fila.querySelector('.det-val').value = document.getElementById(`mDet_${id}`).value;
+        
+        window.recalcularTotales(fila.querySelector('.neto-edit'));
+    });
+    
+    document.getElementById('modalConfirmacion').style.display = 'none';
+    
+    // Llamar a tu función de envío original
+    await enviarAFIP_WS();
+};
 </script>
 </body>
 </html>
