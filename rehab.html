@@ -353,9 +353,13 @@
     function render() {
         const t = document.getElementById('tablero'); if(!t) return;
         
-        // --- NUEVO: Cabecera con 10 consultorios y sus nombres ---
+        // Consultorios que están inhabilitados hoy
+        const inhos = (restriccionesConsultorios[diaAct] || []);
+
+        // 1. Cabecera: solo dibuja los consultorios que NO están inhabilitados hoy
         let htmlCabecera = '<div class="cell h-cell">H</div>';
         for(let i=1; i<=11; i++) {
+            if (inhos.includes(i)) continue; // Se saltea el consultorio cerrado
             htmlCabecera += `<div class="cell h-cell" title="${nombresC[i]}">C${i}<br><span style="font-size:6px; font-weight:normal">${nombresC[i]}</span></div>`;
         }
         t.innerHTML = htmlCabecera;
@@ -364,10 +368,8 @@
         horas.forEach(h => {
             t.innerHTML += `<div class="cell h-cell">${h}</div>`;
             for(let i=1; i<=11; i++) {
-				if (inhabilitados[diaAct] && inhabilitados[diaAct].includes(i)) {
-                    t.innerHTML += `<div class="cell" style="background:#1a252f; opacity:0.3; cursor:not-allowed;">-</div>`;
-                    continue;
-                }
+                if (inhos.includes(i)) continue; // Se saltea la celda de la hora para este consultorio
+
                 const n = (db[diaAct] && db[diaAct][`${h}-${i}`]) || "";
                 let cl = "";
                 if(n && pacs[n] && pacs[n].cud) {
@@ -378,7 +380,6 @@
             }
         });
     }
-
     function abrir(n) { 
         if(!n || !pacs[n]) return; nF = n; const p = pacs[n]; tempFiles = {}; 
         document.getElementById('m-titulo').innerText = n; 
@@ -639,21 +640,28 @@ function borradoMasivoTurnos() {
     
     function renderMapa() {
         document.getElementById('dia-txt').innerText = diaAct;
-        const h = document.getElementById('h-mapa'); h.innerHTML = "<th>Hora</th>";
-        // --- NUEVO: Encabezado mapa 10 consultorios ---
-        for(let i=1; i<=11; i++) h.innerHTML += `<th style="font-size:7px" title="${nombresC[i]}">C${i}</th>`;
-        const b = document.getElementById('b-mapa'); b.innerHTML = "";
+        const inhos = (restriccionesConsultorios[diaAct] || []);
+
+        const h = document.getElementById('h-mapa'); 
+        let htmlH = "<th>Hora</th>";
+        for(let i=1; i<=11; i++) {
+            if (inhos.includes(i)) continue;
+            htmlH += `<th style="font-size:7px" title="${nombresC[i]}">C${i}</th>`;
+        }
+        h.innerHTML = htmlH;
+
+        const b = document.getElementById('b-mapa'); 
+        b.innerHTML = "";
+        
         horas.forEach(hr => {
             let row = `<tr><td>${hr}</td>`;
             for(let i=1; i<=11; i++) {
-				if (inhabilitados[diaAct] && inhabilitados[diaAct].includes(i)) {
-                    row += `<td style="background:#1a252f; color:#7f8c8d; font-weight:bold;">-</td>`;
-                    continue;
-                }
+                if (inhos.includes(i)) continue;
                 let ocu = (db[diaAct] && db[diaAct][`${hr}-${i}`]);
                 row += `<td class="${ocu?'m-ocupado':'m-libre'}">${ocu?'OCU':'LIB'}</td>`;
             }
-            row += `</tr>`; b.innerHTML += row;
+            row += `</tr>`; 
+            b.innerHTML += row;
         });
     }
 
