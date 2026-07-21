@@ -626,7 +626,7 @@ function borradoMasivoTurnos() {
         document.getElementById('dia-txt').innerText = diaAct;
         const h = document.getElementById('h-mapa'); h.innerHTML = "<th>Hora</th>";
         // --- NUEVO: Encabezado mapa 10 consultorios ---
-        for(let i=1; i<=10; i++) h.innerHTML += `<th style="font-size:7px" title="${nombresC[i]}">C${i}</th>`;
+        for(let i=1; i<=11; i++) h.innerHTML += `<th style="font-size:7px" title="${nombresC[i]}">C${i}</th>`;
         const b = document.getElementById('b-mapa'); b.innerHTML = "";
         horas.forEach(hr => {
             let row = `<tr><td>${hr}</td>`;
