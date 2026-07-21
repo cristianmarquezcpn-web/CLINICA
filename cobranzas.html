@@ -1474,7 +1474,7 @@ async function detectarPagosPendientes() {
                 
                 pendientesRef.forEach(movNode => {
                     const mov = movNode.val();
-                    
+                    if (mov.procesado_cobranzas === true) return;
                     // 1. Extraer CUIT de la descripción (busca secuencia de 11 números)
                     const regexCuit = /(30|33)\d{9}/; 
 					const cuitExtraido = mov.descripcion ? (mov.descripcion.match(regexCuit) ? mov.descripcion.match(regexCuit)[0] : "SIN CUIT") : "SIN CUIT";
