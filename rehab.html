@@ -243,6 +243,10 @@
     
     <button class="btn" style="background:black; color:white; width:100%" onclick="cerrarReset()">CANCELAR</button>
 </div>
+<div style="display:flex; justify-content:flex-end; gap:5px; margin-bottom:5px;">
+    <button onclick="cambiarZoom(0.1)" style="padding:2px 8px; cursor:pointer;">+</button>
+    <button onclick="cambiarZoom(-0.1)" style="padding:2px 8px; cursor:pointer;">-</button>
+</div>	
 <style>
     /* Efecto para que la ventana de Alta de Nuevo Paciente cobre vida */
     #modal-masivo {
@@ -724,6 +728,29 @@ function generarFilas(t, s) {
         });
         hSel.innerHTML = html || '<option>OCUPADO</option>';
     }
+	function actualizarConsultoriosExtra() {
+        const d = document.getElementById('ex-dia').value;
+        const cSel = document.getElementById('ex-cons');
+        if(!d || !cSel) return;
+        
+        const inhos = restriccionesConsultorios[d] || [];
+        let opciones = "";
+        for(let j = 1; j <= 11; j++) {
+            if(inhos.includes(j)) continue;
+            opciones += `<option value="${j}">C${j} - ${nombresC[j]}</option>`;
+        }
+        cSel.innerHTML = opciones;
+        actualizarHorasLibresExtra();
+    }
+	let zoomActual = 1;
+    function cambiarZoom(cuanto) {
+        zoomActual = Math.max(0.6, Math.min(1.5, zoomActual + cuanto));
+        const tablero = document.getElementById('tablero');
+        if(tablero) {
+            tablero.style.transform = `scale(${zoomActual})`;
+            tablero.style.transformOrigin = 'top left';
+        }
+    }
     function eliminarPaciente() {
         if(!confirm("¿Borrar definitivamente a " + nF + "?")) return;
         dias.forEach(d => { if(db[d]) Object.keys(db[d]).forEach(k => { if(db[d][k] === nF) delete db[d][k]; }); });
@@ -885,7 +912,7 @@ function generarFilas(t, s) {
     function actualizarHorasLibresExtra() {
         const d = document.getElementById('ex-dia').value, c = document.getElementById('ex-cons').value, hSel = document.getElementById('ex-hora');
         if(!d || !c) return;
-		if (restriccionesConsultorios[d] && restriccionesConsultorios[d].includes(Number(c))) {
+        if (restriccionesConsultorios[d] && restriccionesConsultorios[d].includes(Number(c))) {
             hSel.innerHTML = '<option value="">NO DISPONIBLE ESTE DÍA</option>';
             return;
         }
