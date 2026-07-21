@@ -78,9 +78,9 @@
 	
     </div>
 </div>
-
 <div class="main-wrapper">
-    <div>
+    
+    <div id="contenedor-turnero" style="width: 100%; display: block; transform-origin: top left; transition: transform 0.15s ease;">
         <div class="card">
             <div style="display:flex; gap:3px; margin-bottom:10px">
                 <button onclick="setDia('Lunes')" class="btn" style="background:var(--azul); flex:1">LUN</button>
@@ -90,14 +90,15 @@
                 <button onclick="setDia('Viernes')" class="btn" style="background:var(--azul); flex:1">VIE</button>
             </div>
             
-		<div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px; background:#e8f4fc; padding:6px; border-radius:6px; border:1px solid var(--azul);">
-    <span style="font-size:11px; font-weight:bold; align-self:center; color:var(--azul);">ZOOM TURNERO:</span>
-    <button class="btn" style="padding:4px 12px; background:var(--azul); color:white; cursor:pointer;" onclick="cambiarZoom(0.2)">🔍 + GRANDE</button>
-    <button class="btn" style="padding:4px 12px; background:var(--oscuro); color:white; cursor:pointer;" onclick="cambiarZoom(-0.2)">🔍 - CHICO</button>
-		</div>
+            <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:8px; background:#e8f4fc; padding:6px; border-radius:6px; border:1px solid var(--azul);">
+                <span style="font-size:11px; font-weight:bold; align-self:center; color:var(--azul);">ZOOM TURNERO:</span>
+                <button class="btn" style="padding:4px 12px; background:var(--azul); color:white; cursor:pointer;" onclick="cambiarZoom(0.2)">🔍 + GRANDE</button>
+                <button class="btn" style="padding:4px 12px; background:var(--oscuro); color:white; cursor:pointer;" onclick="cambiarZoom(-0.2)">🔍 - CHICO</button>
+            </div>
+            
             <div class="grid-11" id="tablero"></div>
             
-            <h4 style="margin: 15px 0 5px 0">🗺️ CONSULTOR DE DISPONIBILIDAD (<span id="dia-txt">Lunes</span>)</h4>
+            <h4 style="margin: 15px 0 5px 0">MAPA CONSULTOR DE DISPONIBILIDAD (<span id="dia-txt">Lunes</span>)</h4>
             <div style="overflow-x: auto;">
                 <table class="tabla-dispo">
                     <thead><tr id="h-mapa"><th>Hora</th></tr></thead>
