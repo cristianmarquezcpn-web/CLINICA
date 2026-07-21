@@ -349,13 +349,12 @@
 
     function abrirMasivo() { document.getElementById('modal-masivo').style.display='block'; document.getElementById('overlay').style.display='block'; }
     function actualizarEdad(f, id) { if(!f) return; const hoy = new Date(); const nac = new Date(f); let e = hoy.getFullYear() - nac.getFullYear(); if (hoy.getMonth() < nac.getMonth() || (hoy.getMonth() === nac.getMonth() && hoy.getDate() < nac.getDate())) e--; document.getElementById(id).value = e; }
-
-    function render() {
+	function render() {
         const t = document.getElementById('tablero'); if(!t) return;
         
         const inhos = (restriccionesConsultorios[diaAct] || []);
 
-        // 1. Acumulamos la cabecera
+        // 1. Cabecera
         let htmlCompleto = '<div class="cell h-cell">H</div>';
         for(let i=1; i<=11; i++) {
             if (inhos.includes(i)) continue;
@@ -364,9 +363,12 @@
 
         const hoy = new Date();
         
-        // 2. Acumulamos las filas y celdas hora por hora
+        // 2. Filas por hora
         horas.forEach(h => {
+            // Imprimimos la celda de la hora de inicio de fila
             htmlCompleto += `<div class="cell h-cell">${h}</div>`;
+            
+            // Imprimimos únicamente las celdas de los consultorios habilitados para este día
             for(let i=1; i<=11; i++) {
                 if (inhos.includes(i)) continue;
 
@@ -380,9 +382,9 @@
             }
         });
 
-        // 3. Insertamos todo de un solo golpe al DOM
         t.innerHTML = htmlCompleto;
     }
+    
     function abrir(n) { 
         if(!n || !pacs[n]) return; nF = n; const p = pacs[n]; tempFiles = {}; 
         document.getElementById('m-titulo').innerText = n; 
@@ -554,7 +556,7 @@ function borradoMasivoTurnos() {
         const filas = contenedor.querySelectorAll('#area-f .fr');
         let error = false;
         filas.forEach(f => {
-            const d = f.querySelector('.d').value, h = f.querySelector('.h').value, e = f.querySelector('.e').value;
+            const d = f.querySelector('.d').value, h = f.querySelector('.h').value, e = Number(f.querySelector('.e').value);
 			if (restriccionesConsultorios[d] && restriccionesConsultorios[d].includes(e)) {
                 alert(`¡ERROR! El consultorio C${e} no está habilitado los días ${d}.`);
                 error = true;
