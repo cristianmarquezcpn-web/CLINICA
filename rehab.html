@@ -353,8 +353,11 @@
         const t = document.getElementById('tablero'); if(!t) return;
         
         const inhos = (restriccionesConsultorios[diaAct] || []);
+        
+        // Calculamos cuántas columnas visibles hay (la de la Hora + los consultorios habilitados)
+        const columnasVisibles = 1 + (11 - inhos.length);
+        t.style.gridTemplateColumns = `repeat(${columnasVisibles}, minmax(0, 1fr))`;
 
-        // 1. Cabecera
         let htmlCompleto = '<div class="cell h-cell">H</div>';
         for(let i=1; i<=11; i++) {
             if (inhos.includes(i)) continue;
@@ -363,12 +366,8 @@
 
         const hoy = new Date();
         
-        // 2. Filas por hora
         horas.forEach(h => {
-            // Imprimimos la celda de la hora de inicio de fila
             htmlCompleto += `<div class="cell h-cell">${h}</div>`;
-            
-            // Imprimimos únicamente las celdas de los consultorios habilitados para este día
             for(let i=1; i<=11; i++) {
                 if (inhos.includes(i)) continue;
 
@@ -669,9 +668,7 @@ function borradoMasivoTurnos() {
             b.innerHTML += row;
         });
     }
-
-    function generarFilas(t, s) { 
-        // Lógica para que agarre el select del modal o el normal
+function generarFilas(t, s) { 
         let selectElement = document.getElementById(s);
         let areaF = document.getElementById(t);
         
@@ -680,23 +677,53 @@ function borradoMasivoTurnos() {
             areaF = document.getElementById('modal-alta').querySelector('#' + t);
         }
 
-        const cant = selectElement.value; a = areaF; a.innerHTML = ""; 
+        const cant = selectElement.value; let a = areaF; a.innerHTML = ""; 
         for(let i=0; i<cant; i++) {
             a.innerHTML += `<div class="fr" style="display:flex; gap:2px; margin-top:3px">
-                <select class="d" onchange="actualizarFiltroRegistro(this)">${dias.map(d => `<option>${d}</option>`).join('')}</select>
-                <select class="e" onchange="actualizarFiltroRegistro(this)">${Array.from({length:11},(_,j)=> `<option value="${j+1}">C${j+1} - ${nombresC[j+1]}</option>`).join('')}</select>
+                <select class="d" onchange="actualizarConsultoriosFila(this)">${dias.map(d => `<option>${d}</option>`).join('')}</select>
+                <select class="e" onchange="actualizarFiltroRegistro(this)"></select>
                 <select class="h">${horas.map(h => `<option value="${h}">${h}</option>`).join('')}</select>
             </div>`; 
-            actualizarFiltroRegistro(a.lastElementChild.querySelector('.d'));
+            
+            // Disparamos la actualización inicial de la fila recién creada
+            actualizarConsultoriosFila(a.lastElementChild.querySelector('.d'));
         }
     }
 
-    function actualizarFiltroRegistro(el) {
-        const fila = el.closest('.fr'); const d = fila.querySelector('.d').value; const c = fila.querySelector('.e').value; const hSel = fila.querySelector('.h');
-        let html = ""; horas.forEach(h => { if (!(db[d] && db[d][`${h}-${c}`])) html += `<option value="${h}">${h}</option>`; });
-        hSel.innerHTML = html || '<option>OCUPADO</option>';
+    function actualizarConsultoriosFila(el) {
+        const fila = el.closest('.fr');
+        const diaSeleccionado = fila.querySelector('.d').value;
+        const selectCons = fila.querySelector('.e');
+        const inhos = restriccionesConsultorios[diaSeleccionado] || [];
+
+        let opciones = "";
+        for(let j = 1; j <= 11; j++) {
+            if(inhos.includes(j)) continue; // Oculta los inhabilitados de este día
+            opciones += `<option value="${j}">C${j} - ${nombresC[j]}</option>`;
+        }
+        selectCons.innerHTML = opciones;
+        
+        // Actualizamos las horas disponibles para el primer consultorio resultante
+        actualizarFiltroRegistro(selectCons);
     }
 
+    function actualizarFiltroRegistro(el) {
+        const fila = el.closest('.fr'); 
+        const d = fila.querySelector('.d').value; 
+        const c = fila.querySelector('.e').value; 
+        const hSel = fila.querySelector('.h');
+        
+        if(!c) {
+            hSel.innerHTML = '<option>SIN CONSULTORIO</option>';
+            return;
+        }
+
+        let html = ""; 
+        horas.forEach(h => { 
+            if (!(db[d] && db[d][`${h}-${c}`])) html += `<option value="${h}">${h}</option>`; 
+        });
+        hSel.innerHTML = html || '<option>OCUPADO</option>';
+    }
     function eliminarPaciente() {
         if(!confirm("¿Borrar definitivamente a " + nF + "?")) return;
         dias.forEach(d => { if(db[d]) Object.keys(db[d]).forEach(k => { if(db[d][k] === nF) delete db[d][k]; }); });
