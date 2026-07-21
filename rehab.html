@@ -353,22 +353,22 @@
     function render() {
         const t = document.getElementById('tablero'); if(!t) return;
         
-        // Consultorios que están inhabilitados hoy
         const inhos = (restriccionesConsultorios[diaAct] || []);
 
-        // 1. Cabecera: solo dibuja los consultorios que NO están inhabilitados hoy
-        let htmlCabecera = '<div class="cell h-cell">H</div>';
+        // 1. Acumulamos la cabecera
+        let htmlCompleto = '<div class="cell h-cell">H</div>';
         for(let i=1; i<=11; i++) {
-            if (inhos.includes(i)) continue; // Se saltea el consultorio cerrado
-            htmlCabecera += `<div class="cell h-cell" title="${nombresC[i]}">C${i}<br><span style="font-size:6px; font-weight:normal">${nombresC[i]}</span></div>`;
+            if (inhos.includes(i)) continue;
+            htmlCompleto += `<div class="cell h-cell" title="${nombresC[i]}">C${i}<br><span style="font-size:6px; font-weight:normal">${nombresC[i]}</span></div>`;
         }
-        t.innerHTML = htmlCabecera;
 
         const hoy = new Date();
+        
+        // 2. Acumulamos las filas y celdas hora por hora
         horas.forEach(h => {
-            t.innerHTML += `<div class="cell h-cell">${h}</div>`;
+            htmlCompleto += `<div class="cell h-cell">${h}</div>`;
             for(let i=1; i<=11; i++) {
-                if (inhos.includes(i)) continue; // Se saltea la celda de la hora para este consultorio
+                if (inhos.includes(i)) continue;
 
                 const n = (db[diaAct] && db[diaAct][`${h}-${i}`]) || "";
                 let cl = "";
@@ -376,9 +376,12 @@
                     const d = (new Date(pacs[n].cud) - hoy) / 86400000;
                     if(d <= 30) cl = "vence-30"; else if(d <= 60) cl = "vence-60";
                 }
-                t.innerHTML += `<div class="cell ${n?'paciente-celda':''} ${cl}" onclick="abrir('${n}')">${n}</div>`;
+                htmlCompleto += `<div class="cell ${n?'paciente-celda':''} ${cl}" onclick="abrir('${n}')">${n}</div>`;
             }
         });
+
+        // 3. Insertamos todo de un solo golpe al DOM
+        t.innerHTML = htmlCompleto;
     }
     function abrir(n) { 
         if(!n || !pacs[n]) return; nF = n; const p = pacs[n]; tempFiles = {}; 
@@ -552,7 +555,7 @@ function borradoMasivoTurnos() {
         let error = false;
         filas.forEach(f => {
             const d = f.querySelector('.d').value, h = f.querySelector('.h').value, e = f.querySelector('.e').value;
-			if (inhabilitados[d] && inhabilitados[d].includes(Number(e))) {
+			if (restriccionesConsultorios[d] && restriccionesConsultorios[d].includes(e)) {
                 alert(`¡ERROR! El consultorio C${e} no está habilitado los días ${d}.`);
                 error = true;
                 return;
@@ -853,7 +856,7 @@ function borradoMasivoTurnos() {
     function actualizarHorasLibresExtra() {
         const d = document.getElementById('ex-dia').value, c = document.getElementById('ex-cons').value, hSel = document.getElementById('ex-hora');
         if(!d || !c) return;
-		if (inhabilitados[d] && inhabilitados[d].includes(Number(c))) {
+		if (restriccionesConsultorios[d] && restriccionesConsultorios[d].includes(Number(c))) {
             hSel.innerHTML = '<option value="">NO DISPONIBLE ESTE DÍA</option>';
             return;
         }
