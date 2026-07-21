@@ -20,7 +20,7 @@
         /* MEJORA VISUAL DEL TABLERO PARA 10 CONSULTORIOS */
         .grid-11 { 
             display: grid; 
-            grid-template-columns: 60px repeat(11, minmax(90px, 1fr)); 
+            grid-template-columns: 50px repeat(11, minmax(75px, 1fr)); 
             gap: 1px; 
             background: #ddd; 
             border-radius: 8px; 
@@ -349,7 +349,7 @@
         
         // --- NUEVO: Cabecera con 10 consultorios y sus nombres ---
         let htmlCabecera = '<div class="cell h-cell">H</div>';
-        for(let i=1; i<=10; i++) {
+        for(let i=1; i<=11; i++) {
             htmlCabecera += `<div class="cell h-cell" title="${nombresC[i]}">C${i}<br><span style="font-size:6px; font-weight:normal">${nombresC[i]}</span></div>`;
         }
         t.innerHTML = htmlCabecera;
