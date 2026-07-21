@@ -1500,8 +1500,9 @@ async function detectarPagosPendientes() {
 function crearAvisoEnPantalla(info) {
     const contenedor = document.getElementById('contenedor-avisos');
     const divAviso = document.createElement('div');
+    divAviso.id = `aviso-${info.uid}`; 
     
-    // CSS SÓLIDO Y PROFESIONAL
+   
     divAviso.style.cssText = `
         background-color: #2c3e50 !important; 
         color: #ffffff !important; 
@@ -1520,28 +1521,26 @@ function crearAvisoEnPantalla(info) {
             <strong style="font-size: 1.1em;">💡 ${info.desc ? info.desc.split('|')[1]?.trim() : 'Sin descripción'}</strong> 
             <br><span style="opacity: 0.8;">Monto: $${info.monto.toLocaleString()} | Fecha: ${info.fecha}</span>
         </div>
-        <button id="btn-descartar-${info.uid}" style="background:#7f8c8d; color:white; border:none; padding:10px; cursor:pointer; border-radius:4px;">✖</button>
-		<button id="btn-conciliar-${info.uid}" style="background:#e74c3c; color:white; border:none; padding:10px 20px; cursor:pointer; font-weight:bold; border-radius:4px;">
-            ASIGNAR PAGO
-        </button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <button id="btn-descartar-${info.uid}" style="background:#7f8c8d; color:white; border:none; padding:10px; cursor:pointer; border-radius:4px;">✖</button>
+            <button id="btn-conciliar-${info.uid}" style="background:#e74c3c; color:white; border:none; padding:10px 20px; cursor:pointer; font-weight:bold; border-radius:4px;">
+                ASIGNAR PAGO
+            </button>
+        </div>
     `;
-    
     contenedor.appendChild(divAviso);
-    
-    // EL CAMBIO IMPORTANTE PARA QUE ABRA EL MODAL Y NO CONCILIE SOLO:
+    divAviso.querySelector(`#btn-descartar-${info.uid}`).onclick = () => {
+        descartarAviso(info.uid, info.periodo);
+    };
     divAviso.querySelector(`#btn-conciliar-${info.uid}`).onclick = () => {
-		divAviso.remove();
+        divAviso.remove();
         const cuitLimpio = info.cuit.replace(/\D/g, ''); 
-    window.cargarAsistente(cuitLimpio, info.monto, info.fecha, info.uid);
+        window.cargarAsistente(cuitLimpio, info.monto, info.fecha, info.uid);
     };
 }
 window.cargarAsistente = (cuit, monto, fecha, uid) => {
     uidPagoActual = uid; 
-
-    // 1. Llamamos a la función pasando el CUIT directamente
     prepararConciliacion(cuit);
-
-    // 2. Damos un respiro mínimo para asignar el monto (que sí es un campo que ya existe en el HTML creado)
     setTimeout(() => {
         const inputMonto = document.getElementById('monto-banco');
         if (inputMonto) {
@@ -1555,6 +1554,18 @@ window.cargarAsistente = (cuit, monto, fecha, uid) => {
 document.addEventListener('DOMContentLoaded', () => {
     detectarPagosPendientes();
 });
+function descartarAviso(uid, periodo) {
+    
+    const avisoCard = document.getElementById(`aviso-${uid}`);
+    if (avisoCard) {
+        avisoCard.remove();
+    }
+    db.ref('contabilidad/' + periodo + '/pendientes/' + uid).update({
+        procesado_cobranzas: true
+    }).catch(error => {
+        console.error("Error al descartar en la base de datos:", error);
+    });
+}
 </script>
 </body>
 </html>      
