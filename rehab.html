@@ -90,6 +90,10 @@
                 <button onclick="setDia('Viernes')" class="btn" style="background:var(--azul); flex:1">VIE</button>
             </div>
             
+		<div style="display:flex; justify-content:flex-end; gap:5px; margin-bottom:5px;">
+    	<button onclick="cambiarZoom(0.1)" style="padding:2px 8px; cursor:pointer;">+</button>
+    	<button onclick="cambiarZoom(-0.1)" style="padding:2px 8px; cursor:pointer;">-</button>
+		</div>
             <div class="grid-11" id="tablero"></div>
             
             <h4 style="margin: 15px 0 5px 0">🗺️ CONSULTOR DE DISPONIBILIDAD (<span id="dia-txt">Lunes</span>)</h4>
@@ -242,10 +246,6 @@
     <button class="btn" style="background:var(--rojo); width:100%; margin-bottom:10px; font-size:10px" onclick="borradoMasivoTurnos()">💣 BORRAR TODO EL TURNERO</button>
     
     <button class="btn" style="background:black; color:white; width:100%" onclick="cerrarReset()">CANCELAR</button>
-</div>
-<div style="display:flex; justify-content:flex-end; gap:5px; margin-bottom:5px;">
-    <button onclick="cambiarZoom(0.1)" style="padding:2px 8px; cursor:pointer;">+</button>
-    <button onclick="cambiarZoom(-0.1)" style="padding:2px 8px; cursor:pointer;">-</button>
 </div>	
 <style>
     /* Efecto para que la ventana de Alta de Nuevo Paciente cobre vida */
