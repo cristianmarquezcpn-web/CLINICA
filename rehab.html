@@ -291,7 +291,13 @@
         10: "T.O 2",
 		11: "Psicología 3"
     };
-
+	const restriccionesConsultorios = {
+        'Lunes': [3, 4],
+        'Martes': [10, 11],
+        'Miércoles': [], // Todos habilitados
+        'Jueves': [10, 11],
+        'Viernes': [1, 4, 10, 11]
+    };
     const legajosDef = [ {id:'asistF', n:'ASISTENCIA', s:'As'}, {id:'infMenF', n:'INF MENSUAL', s:'Im'}, {id:'infoF', n:'INF SEM', s:'Is'}, {id:'pmF', n:'P.M', s:'Pm'}, {id:'rhcF', n:'RHC', s:'Rh'}, {id:'confF', n:'CONF', s:'Cf'}, {id:'iiieF', n:'I.I/I.E', s:'Ii'}, {id:'planF', n:'TRABAJO', s:'Pl'}, {id:'presuF', n:'PRESUPUESTO', s:'Pr'}, {id:'otroDoc', n:'OTROS', s:'O'}, {id:'cudDoc', n:'CUD', s:'C'} ];
     const legajosSAEI = [ {id:'actaF', n:'ACTA', s:'Ac'}, {id:'certifF', n:'CERTIFICADO', s:'Ce'}, {id:'otrosF', n:'OTROS SAEI', s:'Ot'} ];
     
@@ -357,7 +363,11 @@
         const hoy = new Date();
         horas.forEach(h => {
             t.innerHTML += `<div class="cell h-cell">${h}</div>`;
-            for(let i=1; i<=11; i++) { // Bucle hasta 10
+            for(let i=1; i<=11; i++) {
+				if (inhabilitados[diaAct] && inhabilitados[diaAct].includes(i)) {
+                    t.innerHTML += `<div class="cell" style="background:#1a252f; opacity:0.3; cursor:not-allowed;">-</div>`;
+                    continue;
+                }
                 const n = (db[diaAct] && db[diaAct][`${h}-${i}`]) || "";
                 let cl = "";
                 if(n && pacs[n] && pacs[n].cud) {
@@ -541,6 +551,11 @@ function borradoMasivoTurnos() {
         let error = false;
         filas.forEach(f => {
             const d = f.querySelector('.d').value, h = f.querySelector('.h').value, e = f.querySelector('.e').value;
+			if (inhabilitados[d] && inhabilitados[d].includes(Number(e))) {
+                alert(`¡ERROR! El consultorio C${e} no está habilitado los días ${d}.`);
+                error = true;
+                return;
+            }
             if(db[d] && db[d][`${h}-${e}`] && db[d][`${h}-${e}`] !== nom) { alert("¡ERROR! El turno " + h + " en C" + e + " ya está ocupado."); error = true; }
         });
         if(error) return;
@@ -631,6 +646,10 @@ function borradoMasivoTurnos() {
         horas.forEach(hr => {
             let row = `<tr><td>${hr}</td>`;
             for(let i=1; i<=11; i++) {
+				if (inhabilitados[diaAct] && inhabilitados[diaAct].includes(i)) {
+                    row += `<td style="background:#1a252f; color:#7f8c8d; font-weight:bold;">-</td>`;
+                    continue;
+                }
                 let ocu = (db[diaAct] && db[diaAct][`${hr}-${i}`]);
                 row += `<td class="${ocu?'m-ocupado':'m-libre'}">${ocu?'OCU':'LIB'}</td>`;
             }
@@ -826,6 +845,10 @@ function borradoMasivoTurnos() {
     function actualizarHorasLibresExtra() {
         const d = document.getElementById('ex-dia').value, c = document.getElementById('ex-cons').value, hSel = document.getElementById('ex-hora');
         if(!d || !c) return;
+		if (inhabilitados[d] && inhabilitados[d].includes(Number(c))) {
+            hSel.innerHTML = '<option value="">NO DISPONIBLE ESTE DÍA</option>';
+            return;
+        }
         let opciones = ""; horas.forEach(h => { if (!(db[d] && db[d][`${h}-${c}`])) opciones += `<option value="${h}">${h}</option>`; });
         hSel.innerHTML = opciones || '<option value="">SIN HORAS</option>';
     }
