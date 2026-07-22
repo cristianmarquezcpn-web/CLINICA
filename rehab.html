@@ -125,7 +125,20 @@
             <button class="btn" style="background:var(--verde); width:100%; margin-top:10px" onclick="registrar()">GUARDAR</button>
         </div>
     </div>
-    
+    <div id="modal-agenda-general" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:none; justify-content:center; align-items:center;">
+    <div style="width:90%; max-width:1000px; max-height:85vh; background:white; padding:20px; border-radius:10px; display:flex; flex-direction:column; box-shadow:0 0 20px rgba(0,0,0,0.3);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h2 style="margin:0;">📅 Agenda General de Terapias y Consultorios</h2>
+            <button onclick="cerrarAgendaGeneral()" style="background:#e74c3c; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">✖ Cerrar</button>
+        </div>
+        
+        <input type="text" id="filtro-agenda-general" placeholder="🔍 Filtrar por paciente, consultorio o terapia..." oninput="filtrarAgendaGeneral()" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ccc; border-radius:6px; font-size:14px; box-sizing:border-box;">
+        
+        <div id="contenedor-lista-agenda" style="overflow-y:auto; flex-grow:1; border:1px solid #eee; border-radius:6px; padding:10px; background:#fafafa;">
+            
+        </div>
+    </div>
+</div>
     <div>
         <div class="card">
             <h3>📂 FICHERO</h3>
@@ -985,6 +998,71 @@ function generarFilas(t, s) {
 function cerrarModal() { 
         cerrar(); 
     }
+function abrirAgendaGeneral() {
+    const modal = document.getElementById('modal-agenda-general');
+    if (modal) {
+        modal.style.display = 'flex';
+        renderizarAgendaGeneral('');
+    }
+}
+
+function cerrarAgendaGeneral() {
+    const modal = document.getElementById('modal-agenda-general');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function filtrarAgendaGeneral() {
+    const texto = document.getElementById('filtro-agenda-general').value.toLowerCase();
+    renderizarAgendaGeneral(texto);
+}
+
+function renderizarAgendaGeneral(filtro = '') {
+    const contenedor = document.getElementById('contenedor-lista-agenda');
+    contenedor.innerHTML = "";
+
+    if (typeof pacs === 'undefined' || Object.keys(pacs).length === 0) {
+        contenedor.innerHTML = "<p style='text-align:center; color:#777;'>No hay pacientes cargados.</p>";
+        return;
+    }
+
+    let htmlAcumulado = "";
+
+    Object.keys(pacs).sort().forEach(nombrePaciente => {
+        const p = pacs[nombrePaciente];
+        const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+        
+        let resumenDias = [];
+        let textoBusquedaCompleto = nombrePaciente.toLowerCase();
+
+        diasSemana.forEach(dia => {
+            if (p.horarios && p.horarios[dia] && p.horarios[dia].length > 0) {
+                p.horarios[dia].forEach(h => {
+                    const consultorio = h.consultorio || 'S/C';
+                    const terapia = h.terapia || 'S/T';
+                    const hora = h.hora || '';
+                    
+                    textoBusquedaCompleto += ` ${dia} ${consultorio} ${terapia} ${hora}`.toLowerCase();
+                    resumenDias.push(`<b>${dia.substring(0,3)}</b>: ${hora} (${terapia} - ${consultorio})`);
+                });
+            }
+        });
+
+        if (filtro === "" || textoBusquedaCompleto.includes(filtro)) {
+            const detalleDiasStr = resumenDias.length > 0 ? resumenDias.join(' | ') : '<span style="color:#999;">Sin turnos asignados</span>';
+            
+            htmlAcumulado += `
+                <div style="background:white; border:1px solid #ddd; padding:12px; margin-bottom:10px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="font-size:15px; font-weight:bold; color:var(--azul); margin-bottom:6px;">👤 ${nombrePaciente}</div>
+                    <div style="font-size:12px; color:#444; line-height:1.5;">${detalleDiasStr}</div>
+                </div>
+            `;
+        }
+    });
+
+    contenedor.innerHTML = htmlAcumulado || "<p style='text-align:center; color:#777;'>No se encontraron coincidencias.</p>";
+}	
 function liberarFormularioAlta() {
         const titulos = document.querySelectorAll('h3');
         let contenedorAlta = null;
