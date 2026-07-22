@@ -125,21 +125,7 @@
             <button class="btn" style="background:var(--verde); width:100%; margin-top:10px" onclick="registrar()">GUARDAR</button>
         </div>
     </div>
-    <div id="modal-agenda-general" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:none; justify-content:center; align-items:center;">
-    <div style="width:90%; max-width:1000px; max-height:85vh; background:white; padding:20px; border-radius:10px; display:flex; flex-direction:column; box-shadow:0 0 20px rgba(0,0,0,0.3);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-            <h2 style="margin:0;">📅 Agenda General de Terapias y Consultorios</h2>
-            <button onclick="cerrarAgendaGeneral()" style="background:#e74c3c; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">✖ Cerrar</button>
-        </div>
-        
-        <input type="text" id="filtro-agenda-general" placeholder="🔍 Filtrar por paciente, consultorio o terapia..." oninput="filtrarAgendaGeneral()" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ccc; border-radius:6px; font-size:14px; box-sizing:border-box;">
-        
-        <div id="contenedor-lista-agenda" style="overflow-y:auto; flex-grow:1; border:1px solid #eee; border-radius:6px; padding:10px; background:#fafafa;">
-            
-        </div>
-    </div>
-</div>
-    <div>
+        <div>
         <div class="card">
             <h3>📂 FICHERO</h3>
             <input type="text" id="search" placeholder="Buscar..." onkeyup="renderLista()">
@@ -261,7 +247,22 @@
     <button class="btn" style="background:var(--rojo); width:100%; margin-bottom:10px; font-size:10px" onclick="borradoMasivoTurnos()">💣 BORRAR TODO EL TURNERO</button>
     
     <button class="btn" style="background:black; color:white; width:100%" onclick="cerrarReset()">CANCELAR</button>
-</div>	
+</div>
+<div id="modal-agenda-general" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:none; justify-content:center; align-items:center;">
+    <div style="width:90%; max-width:1000px; max-height:85vh; background:white; padding:20px; border-radius:10px; display:flex; flex-direction:column; box-shadow:0 0 20px rgba(0,0,0,0.3);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h2 style="margin:0;">📅 Agenda General de Terapias y Consultorios</h2>
+            <button onclick="cerrarAgendaGeneral()" style="background:#e74c3c; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">✖ Cerrar</button>
+        </div>
+        
+        <input type="text" id="filtro-agenda-general" placeholder="🔍 Filtrar por paciente, consultorio o terapia..." oninput="filtrarAgendaGeneral()" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ccc; border-radius:6px; font-size:14px; box-sizing:border-box;">
+        
+        <div id="contenedor-lista-agenda" style="overflow-y:auto; flex-grow:1; border:1px solid #eee; border-radius:6px; padding:10px; background:#fafafa;">
+            
+        </div>
+    </div>
+</div>
+	
 <style>
     /* Efecto para que la ventana de Alta de Nuevo Paciente cobre vida */
     #modal-masivo {
@@ -527,31 +528,60 @@ async function prepararBorradoIndividual() {
     const dia = prompt("¿Día? (Ej: Lunes, Martes, Miércoles...)");
     if(!dia) return;
     
-    const cons = prompt("¿Consultorio? (Ej: 1)");
+    const cons = String(prompt("¿Consultorio? (Ej: 1)")).trim();
     if(!cons) return;
     
     let hora = prompt("¿Hora? (Ej: 13:00 o 13)");
     if(!hora) return;
 
-    // Ajuste de formato: "13" -> "13:00"
+    // Normalizar hora (ej: "13" -> "13:00")
     if (!hora.includes(':')) {
         hora = hora + ":00";
     }
 
-    // ARMAMOS LA CLAVE EXACTA: "13:00-1"
-    const claveFirebase = `${hora}-${cons}`;
+    if(confirm(`¿Borrar el turno del ${dia} a las ${hora} (Cons ${cons})?`)) {
+        let encontrado = false;
 
-    if(confirm(`¿Borrar a ${dia} a las ${hora} (Cons ${cons})?`)) {
         try {
-            // RUTA CORREGIDA: Entramos directo de 'dia' a 'claveFirebase'
-            // Quitamos el .child(cons) intermedio porque no existe como carpeta
-            await database.child('turnos').child(dia).child(claveFirebase).set(null);
-            
-            alert("✅ Borrado exitoso: " + claveFirebase);
-            location.reload();
+            // Recorremos todos los pacientes en memoria (pacs)
+            for (let nombrePaciente in pacs) {
+                const paciente = pacs[nombrePaciente];
+                
+                // Verificamos si tiene horarios cargados para ese día
+                if (paciente.horarios && paciente.horarios[dia]) {
+                    // Filtramos los turnos para quitar el que coincida exactamente
+                    const horariosFiltrados = paciente.horarios[dia].filter(h => {
+                        const coincideCons = String(h.consultorio).trim() === cons;
+                        const coincideHora = String(h.hora).trim() === hora;
+                        
+                        if (coincideCons && coincideHora) {
+                            encontrado = true;
+                            return false; // Este lo removemos del array
+                        }
+                        return true; // Los demás se quedan
+                    });
+
+                    // Si encontramos coincidencia en este paciente, actualizamos Firebase
+                    if (encontrado) {
+                        paciente.horarios[dia] = horariosFiltrados;
+                        
+                        // Guardamos el cambio directamente en la ruta del paciente en Firebase
+                        await database.child('pacientes').child(nombrePaciente).set(paciente);
+                        
+                        alert(`✅ Turno borrado con éxito al paciente: ${nombrePaciente}`);
+                        location.reload();
+                        return;
+                    }
+                }
+            }
+
+            if (!encontrado) {
+                alert("❌ No se encontró ningún turno registrado con esos datos exactos.");
+            }
+
         } catch(e) {
             console.error(e);
-            alert("Error: " + e.message);
+            alert("Error al intentar borrar: " + e.message);
         }
     }
 }
