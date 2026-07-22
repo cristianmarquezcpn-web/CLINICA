@@ -1059,23 +1059,30 @@ function renderizarAgendaGeneral(filtro = '') {
     }
 
     let htmlAcumulado = "";
+    const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
 
     Object.keys(pacs).sort().forEach(nombrePaciente => {
         const p = pacs[nombrePaciente];
-        const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
-        
         let resumenDias = [];
         let textoBusquedaCompleto = nombrePaciente.toLowerCase();
 
+        // Buscamos los turnos de este paciente recorriendo el objeto global 'db'
         diasSemana.forEach(dia => {
-            if (p.horarios && p.horarios[dia] && p.horarios[dia].length > 0) {
-                p.horarios[dia].forEach(h => {
-                    const consultorio = h.consultorio || 'S/C';
-                    const terapia = h.terapia || 'S/T';
-                    const hora = h.hora || '';
-                    
-                    textoBusquedaCompleto += ` ${dia} ${consultorio} ${terapia} ${hora}`.toLowerCase();
-                    resumenDias.push(`<b>${dia.substring(0,3)}</b>: ${hora} (${terapia} - ${consultorio})`);
+            if (db && db[dia]) {
+                Object.keys(db[dia]).forEach(claveHoraCons => {
+                    // Si el turno en este día y consultorio pertenece a este paciente
+                    if (db[dia][claveHoraCons] === nombrePaciente) {
+                        // claveHoraCons viene en formato "Hora-Consultorio", ej: "08:00-1"
+                        const partes = claveHoraCons.split('-');
+                        const hora = partes[0] || '';
+                        const consultorioNum = partes[1] || '';
+                        
+                        // Obtenemos el nombre del consultorio (ej: "C1 - Psicopedagogía 1")
+                        const nombreCons = (typeof nombresC !== 'undefined' && nombresC[consultorioNum]) ? `C${consultorioNum} - ${nombresC[consultorioNum]}` : `C${consultorioNum}`;
+
+                        textoBusquedaCompleto += ` ${dia} ${hora} ${nombreCons}`.toLowerCase();
+                        resumenDias.push(`<b>${dia.substring(0,3)}</b>: ${hora} (${nombreCons})`);
+                    }
                 });
             }
         });
@@ -1093,7 +1100,7 @@ function renderizarAgendaGeneral(filtro = '') {
     });
 
     contenedor.innerHTML = htmlAcumulado || "<p style='text-align:center; color:#777;'>No se encontraron coincidencias.</p>";
-}	
+}
 function liberarFormularioAlta() {
         const titulos = document.querySelectorAll('h3');
         let contenedorAlta = null;
