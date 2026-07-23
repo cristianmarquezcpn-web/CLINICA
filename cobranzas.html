@@ -1035,7 +1035,7 @@ async function vincularNC(idFactura) {
     renderizarTodo();
 }	
 // --- 1. PREPARACIÓN Y RENDERIZADO DE TABLA ---
-function prepararConciliacion(cuitForzado = null) {
+function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPendiente = null) {
     const cuitInput = (cuitForzado || document.getElementById('cuit-conciliar').value || "").replace(/\D/g, '');
     const contenedor = document.getElementById('lista-ajuste-editable');
     
@@ -1054,6 +1054,9 @@ function prepararConciliacion(cuitForzado = null) {
             <input type="number" id="monto-banco" placeholder="Monto total en banco" style="padding:8px; width:200px; border:1px solid #ced4da; border-radius:4px;" oninput="actualizarResumen()">
             <button onclick="distribuirMonto()" style="background:#3498db; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold;">Distribuir</button>
             <button onclick="autoSeleccionarPorMonto()" style="background:#27ae60; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold;">Auto-Seleccionar</button>
+            
+            <!-- Botón de ejecución final inyectándole el uid y periodo correspondientes -->
+            <button onclick="ejecutarConciliacionFinal('${uidPendiente || uidPagoActual}', '${periodoPendiente || periodoActual}')" style="background:#2ecc71; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold; margin-left:10px;">Confirmar Conciliación</button>
         </div>
         <div id="resumen-conciliacion" style="margin-bottom:10px; font-size:16px; font-weight:bold; color:#2c3e50; padding:10px; background:#e9ecef; border-radius:5px;"></div>
         <div style="display:flex; font-weight:bold; background:#34495e; color:white; padding:10px; font-size:12px; border-radius:5px 5px 0 0; text-transform:uppercase;">
@@ -1081,31 +1084,32 @@ function prepararConciliacion(cuitForzado = null) {
         const cuitFactura = (f.receptor_cuit || "").replace(/\D/g, '');
         const montoDebito = parseFloat(cobroData.monto_debito || 0);
         const totalAplicado = yaCobrado + retGS + retIIBB + montoDebito;
-		const saldoPendiente = totalBruto - totalAplicado;
+        const netoReal = totalBruto - retGS - retIIBB - montoDebito;
+        const saldoPendiente = netoReal - yaCobrado;
         
         if (cuitFactura === cuitInput && saldoPendiente > 0.5) {
-            const esSAEI = (f.modulo || "").toUpperCase() === "SAEI";
-            const pv = String(f.punto_venta || 0).padStart(5, '0');
+            const pvNum = parseInt(f.punto_venta || 0);
+            const pvStr = String(pvNum).padStart(5, '0');
             const nc = String(f.nro_comp || 0).padStart(8, '0');
             const fechaFormateada = f.fecha_emision.toString().replace(/-/g, '').replace(/\//g, '');
             
-          contenedor.innerHTML += `
-        	 <div class="fila-ajuste" 
-             data-id="${id}" 
-             data-tipo="${esSAEI ? 'SAEI' : 'NORMAL'}" 
-             data-saldo="${saldoPendiente}" 
-             data-fecha="${fechaFormateada}"
-             data-paciente="${f.id_paciente || 'S/D'}" 
-             data-modulo="${f.modulo || 'S/D'}"
-             style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
-             
-            <input type="checkbox" class="check-conciliar" onchange="manejarSeleccion(this)">
-            <span style="flex:2; font-family:monospace; font-weight:bold;">${pv}-${nc}</span>
-            <span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
-            <input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-            <input type="number" class="edit-ret-gs" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-            <input type="number" class="edit-ret-iibb" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-        </div>`;
+            contenedor.innerHTML += `
+             <div class="fila-ajuste" 
+               data-id="${id}" 
+               data-pv="${pvNum}" 
+               data-modulo="${f.modulo || 'S/D'}"
+               data-saldo="${saldoPendiente}" 
+               data-fecha="${fechaFormateada}"
+               data-paciente="${f.id_paciente || 'S/D'}" 
+               style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
+               
+                <input type="checkbox" class="check-conciliar" onchange="manejarSeleccion(this)">
+                <span style="flex:2; font-family:monospace; font-weight:bold;">${pvStr}-${nc}</span>
+                <span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
+                <input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+                <input type="number" class="edit-ret-gs" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+                <input type="number" class="edit-ret-iibb" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+            </div>`;
         }
     });
 }
@@ -1383,6 +1387,13 @@ function procesarSeleccion(index) {
 }	
 // --- 3. GUARDADO FINAL ---
 async function ejecutarConciliacionFinal(uid, periodo) {
+    // Validación de seguridad por si no llegan los parámetros de la ruta
+    if (!uid || !periodo) {
+        console.error("❌ Error: Faltan el UID o el Período para procesar la conciliación.");
+        alert("Error interno: No se pudo identificar el período o el pago actual.");
+        return;
+    }
+
     const filasAProcesar = Array.from(document.querySelectorAll('.fila-ajuste')).filter(f => f.querySelector('.check-conciliar').checked);
     if (filasAProcesar.length === 0) return alert("Selecciona al menos una factura.");
 
@@ -1407,7 +1418,7 @@ async function ejecutarConciliacionFinal(uid, periodo) {
     const yy = partes[2].length === 2 ? `20${partes[2]}` : partes[2];
     
     const fechaPagoFinal = `${yy}-${mm}-${dd}`;
-    const mesCobroIndex = `${yy}-${mm}`; // Mejor así para el índice
+    const mesCobroIndex = `${yy}-${mm}`;
 
     // 4. Lista de facturas para confirmación
     const listadoFacturas = filasAProcesar.map(f => {
@@ -1417,10 +1428,21 @@ async function ejecutarConciliacionFinal(uid, periodo) {
     const fechaVisual = `${dd}/${mm}/${yy.substring(2)}`;
     
     if (!confirm(`¿Conciliar ${filasAProcesar.length} factura(s): [${listadoFacturas}] con fecha ${fechaVisual}?`)) return;
+
     // 5. Procesar
     const promesas = filasAProcesar.map(async (f) => {
         const id = f.dataset.id;
-        const raiz = (f.dataset.tipo === 'SAEI') ? 'facturas_emitidas_saei' : 'facturas_emitidas';
+        
+        // --- REGLA EXACTA DE PUNTO DE VENTA Y MÓDULO ---
+        const pvNum = parseInt(f.dataset.pv || f.dataset.puntoVenta || 1);
+        const moduloNormalizado = (f.dataset.modulo || "").toUpperCase().trim();
+
+        let raiz = 'facturas_emitidas';
+        if (pvNum === 5 && moduloNormalizado === 'SAEI') {
+            raiz = 'facturas_emitidas_saei';
+        }
+        // ----------------------------------------------
+
         const cobro = parseFloat(f.querySelector('.edit-cobro').value) || 0;
         const retGS = parseFloat(f.querySelector('.edit-ret-gs').value) || 0;
         const retIIBB = parseFloat(f.querySelector('.edit-ret-iibb').value) || 0;
@@ -1444,6 +1466,7 @@ async function ejecutarConciliacionFinal(uid, periodo) {
 
     await Promise.all(promesas);
 
+    // Acá ahora sí impactará correctamente porque 'periodo' y 'uid' viajan seguros
     await db.ref('contabilidad/' + periodo + '/pendientes/' + uid).update({
         procesado_cobranzas: true
     });
