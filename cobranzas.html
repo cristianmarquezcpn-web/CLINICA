@@ -1084,11 +1084,17 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
         const cobroData = cobros[id] || {};
         const totalBruto = parseFloat(f.total || 0); 
         const yaCobrado = parseFloat(cobroData.monto_cobrado || 0);
+        const retGsAnterior = parseFloat(f.retGS_manual || 0);
+        const retIibbAnterior = parseFloat(f.retIIBB_manual || 0);
         const cuitFactura = (f.receptor_cuit || "").replace(/\D/g, '');
         
-        const saldoCobroPendiente = totalBruto - yaCobrado;
+        // Saldo pendiente real descontando cobros y retenciones previas
+        const saldoCobroPendiente = totalBruto - (yaCobrado + retGsAnterior + retIibbAnterior);
         
-        if (cuitFactura === cuitInput && saldoCobroPendiente > 0.5) {
+        // Si ya está totalmente cobrada/retenida, la descartamos
+        if (saldoCobroPendiente <= 0.5) return;
+
+        if (cuitFactura === cuitInput) {
             const pvNum = parseInt(f.punto_venta || 0);
             const pvStr = String(pvNum).padStart(5, '0');
             const nc = String(f.nro_comp || 0).padStart(8, '0');
@@ -1114,13 +1120,14 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
         }
     });
 }
+
 function manejarSeleccion(checkbox) {
     const fila = checkbox.closest('.fila-ajuste');
     const inputPago = fila.querySelector('.edit-cobro');
     const saldoPendiente = parseFloat(fila.dataset.saldo) || 0;
 
     if (checkbox.checked) {
-        // Al marcar, pone directamente el saldo neto pendiente en el input de cobro
+        // Al marcar, trae exactamente lo que falta cobrar de la factura (sin retenciones previas)
         inputPago.value = saldoPendiente.toFixed(2);
     } else {
         // Al desmarcar, limpia los valores
