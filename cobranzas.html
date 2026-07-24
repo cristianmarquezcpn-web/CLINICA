@@ -1052,7 +1052,6 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
 
     document.getElementById('controles-conciliacion').style.display = 'block';
     
-    // Recuperamos la interpolación segura con periodoActual para evitar el ReferenceError
     const periodoFinal = periodoPendiente || (typeof periodoActual !== 'undefined' ? periodoActual : '');
     const uidFinal = uidPendiente || (typeof uidPagoActual !== 'undefined' ? uidPagoActual : '');
 
@@ -1065,13 +1064,15 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
             <button onclick="ejecutarConciliacionFinal('${uidFinal}', '${periodoFinal}')" style="background:#2ecc71; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold; margin-left:10px;">Confirmar Conciliación</button>
         </div>
         <div id="resumen-conciliacion" style="margin-bottom:10px; font-size:15px; font-weight:bold; color:#2c3e50; padding:10px; background:#e9ecef; border-radius:5px;"></div>
-        <div style="display:flex; font-weight:bold; background:#34495e; color:white; padding:10px; font-size:12px; border-radius:5px 5px 0 0; text-transform:uppercase;">
-            <span style="width:30px;">✓</span>
+        
+        <!-- ENCABEZADOS ALINEADOS CON FLEX PROPORCIONAL -->
+        <div style="display:flex; font-weight:bold; background:#34495e; color:white; padding:10px; font-size:12px; border-radius:5px 5px 0 0; text-transform:uppercase; align-items:center;">
+            <span style="width:30px; text-align:center;">✓</span>
             <span style="flex:2;">Factura (PV-Nro)</span>
-            <span style="flex:1;">Total Bruto</span>
-            <span style="flex:1;">Cobro Neto</span>
-            <span style="flex:1;">Ret. GS</span>
-            <span style="flex:1;">Ret. IIBB</span>
+            <span style="flex:1.5; text-align:right; padding-right:10px;">Total Factura</span>
+            <span style="flex:1.5;">Cobro Neto</span>
+            <span style="flex:1.2;">Ret. GS</span>
+            <span style="flex:1.2;">Ret. IIBB</span>
         </div>`;
 
     Object.keys(facturas).forEach(id => {
@@ -1103,12 +1104,12 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
                 data-paciente="${f.id_paciente || 'S/D'}" 
                 style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
                 
-                <input type="checkbox" class="check-conciliar" onchange="manejarSeleccion(this)">
+                <input type="checkbox" class="check-conciliar" onchange="manejarSeleccion(this)" style="width:30px;">
                 <span style="flex:2; font-family:monospace; font-weight:bold;">${pvStr}-${nc}</span>
-                <span style="flex:1; color:#27ae60; font-weight:bold;">$${totalBruto.toFixed(2)}</span>
-                <input type="number" class="edit-cobro" value="0" placeholder="Cobro neto" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-                <input type="number" class="edit-ret-gs" value="0" placeholder="Ret. GS" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-                <input type="number" class="edit-ret-iibb" value="0" placeholder="Ret. IIBB" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+                <span style="flex:1.5; text-align:right; padding-right:10px; color:#27ae60; font-weight:bold;">$${totalBruto.toFixed(2)}</span>
+                <input type="number" class="edit-cobro" value="0" placeholder="Cobro neto" oninput="actualizarResumen()" style="flex: 1.5; padding: 5px;">
+                <input type="number" class="edit-ret-gs" value="0" placeholder="Ret. GS" oninput="actualizarResumen()" style="flex: 1.2; padding: 5px;">
+                <input type="number" class="edit-ret-iibb" value="0" placeholder="Ret. IIBB" oninput="actualizarResumen()" style="flex: 1.2; padding: 5px;">
             </div>`;
         }
     });
@@ -1140,21 +1141,38 @@ function actualizarResumen() {
     
     let totalCobroNeto = 0;
     let totalRetenciones = 0;
+    let totalFacturadoSeleccionado = 0;
     
     filas.forEach(f => {
         const cobro = parseFloat(f.querySelector('.edit-cobro').value) || 0;
         const retGS = parseFloat(f.querySelector('.edit-ret-gs').value) || 0;
         const retIIBB = parseFloat(f.querySelector('.edit-ret-iibb').value) || 0;
         
+        // Extraemos el total bruto/factura desde el span correspondiente o dataset si lo prefieres
+        const textoTotalFactura = f.querySelector('span[style*="color:#27ae60"]').innerText.replace('$', '');
+        const totalFacturaFila = parseFloat(textoTotalFactura) || 0;
+        
         totalCobroNeto += cobro;
-        totalRetenciones += retGS + retIIBB;
+        totalRetenciones += (retGS + retIIBB);
+        totalFacturadoSeleccionado += totalFacturaFila;
     });
     
-    const diffCobro = totalBanco - totalCobroNeto;
+    // 1. Resta 1: Banco vs Cobro Neto
+    const diffBancoCobro = totalBanco - totalCobroNeto;
+    
+    // 2. Resta 2: Total Facturado vs (Cobro Neto + Retenciones)
+    const totalAplicadoFactura = totalCobroNeto + totalRetenciones;
+    const diffFacturaAplicado = totalFacturadoSeleccionado - totalAplicadoFactura;
     
     const div = document.getElementById('resumen-conciliacion');
-    div.innerHTML = `💵 Cobro Neto: $${totalCobroNeto.toFixed(2)} | 📊 Retenciones: $${totalRetenciones.toFixed(2)} | 🎯 Diferencia Banco vs Neto: $${diffCobro.toFixed(2)}`;
-    div.style.color = Math.abs(diffCobro) < 0.5 ? "#27ae60" : "#c0392b";
+    div.innerHTML = `
+        💵 Cobro Neto: $${totalCobroNeto.toFixed(2)} (Dif. Banco: $${diffBancoCobro.toFixed(2)})<br>
+        📊 Retenciones: $${totalRetenciones.toFixed(2)} | 🎯 Total Facturado: $${totalFacturadoSeleccionado.toFixed(2)} | Diferencia Factura vs Aplicado: $${diffFacturaAplicado.toFixed(2)}
+    `;
+    
+    // Color dinámico basado en si las diferencias cierran a cero (tolerancia de 50 centavos)
+    const todoEnOrden = Math.abs(diffBancoCobro) < 0.5 && Math.abs(diffFacturaAplicado) < 0.5;
+    div.style.color = todoEnOrden ? "#27ae60" : "#c0392b";
 }
 function distribuirMonto() {
     // 1. ¿Qué monto distribuimos?
