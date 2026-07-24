@@ -1117,22 +1117,23 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
 function manejarSeleccion(checkbox) {
     const fila = checkbox.closest('.fila-ajuste');
     const inputPago = fila.querySelector('.edit-cobro');
-    const saldoPendiente = parseFloat(fila.dataset.saldo);
+    const inputRetGS = fila.querySelector('.edit-ret-gs');
+    const inputRetIIBB = fila.querySelector('.edit-ret-iibb');
 
     if (checkbox.checked) {
-        // Al marcar, le damos el saldo completo como sugerencia inicial
+        // Al marcar, dejamos el input en 0 para que cargues el neto real a mano o por distribución
         if (parseFloat(inputPago.value) === 0) {
-            inputPago.value = saldoPendiente.toFixed(2);
+            inputPago.value = "0";
         }
     } else {
-        // Al desmarcar, limpiamos todo
+        // Al desmarcar, limpiamos todo por completo
         inputPago.value = "0";
-        fila.querySelector('.edit-ret-gs').value = "0";
-        fila.querySelector('.edit-ret-iibb').value = "0";
+        inputRetGS.value = "0";
+        inputRetIIBB.value = "0";
     }
     
     actualizarResumen();
-}	
+}
 // --- 2. FUNCIONES DE AYUDA ---
 function actualizarResumen() {
     const totalBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
