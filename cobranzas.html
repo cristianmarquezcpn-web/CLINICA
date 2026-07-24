@@ -1052,8 +1052,8 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
 
     document.getElementById('controles-conciliacion').style.display = 'block';
     
-    const periodoFinal = periodoPendiente || (typeof periodoActual !== 'undefined' ? periodoActual : '');
-    const uidFinal = uidPendiente || (typeof uidPagoActual !== 'undefined' ? uidPagoActual : '');
+    const periodoFinal = periodoPendiente || (typeof periodoActual !== 'undefined' ? periodoActual : '') || document.getElementById('periodo-actual')?.value || '';
+    const uidFinal = uidPendiente || (typeof uidPagoActual !== 'undefined' ? uidPagoActual : '') || '';
 
     contenedor.innerHTML = `
         <div style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #dee2e6;">
