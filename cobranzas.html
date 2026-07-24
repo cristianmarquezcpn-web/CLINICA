@@ -1117,19 +1117,16 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
 function manejarSeleccion(checkbox) {
     const fila = checkbox.closest('.fila-ajuste');
     const inputPago = fila.querySelector('.edit-cobro');
-    const inputRetGS = fila.querySelector('.edit-ret-gs');
-    const inputRetIIBB = fila.querySelector('.edit-ret-iibb');
+    const saldoPendiente = parseFloat(fila.dataset.saldo) || 0;
 
     if (checkbox.checked) {
-        // Al marcar, dejamos el input en 0 para que cargues el neto real a mano o por distribución
-        if (parseFloat(inputPago.value) === 0) {
-            inputPago.value = "0";
-        }
+        // Al marcar, pone directamente el saldo neto pendiente en el input de cobro
+        inputPago.value = saldoPendiente.toFixed(2);
     } else {
-        // Al desmarcar, limpiamos todo por completo
+        // Al desmarcar, limpia los valores
         inputPago.value = "0";
-        inputRetGS.value = "0";
-        inputRetIIBB.value = "0";
+        fila.querySelector('.edit-ret-gs').value = "0";
+        fila.querySelector('.edit-ret-iibb').value = "0";
     }
     
     actualizarResumen();
