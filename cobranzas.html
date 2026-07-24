@@ -1058,15 +1058,14 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
             <button onclick="distribuirMonto()" style="background:#3498db; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold;">Distribuir</button>
             <button onclick="autoSeleccionarPorMonto()" style="background:#27ae60; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold;">Auto-Seleccionar</button>
             
-            <!-- Botón de ejecución final inyectándole el uid y periodo correspondientes -->
             <button onclick="ejecutarConciliacionFinal('${uidPendiente || uidPagoActual}', '${periodoPendiente || periodoActual}')" style="background:#2ecc71; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold; margin-left:10px;">Confirmar Conciliación</button>
         </div>
-        <div id="resumen-conciliacion" style="margin-bottom:10px; font-size:16px; font-weight:bold; color:#2c3e50; padding:10px; background:#e9ecef; border-radius:5px;"></div>
+        <div id="resumen-conciliacion" style="margin-bottom:10px; font-size:15px; font-weight:bold; color:#2c3e50; padding:10px; background:#e9ecef; border-radius:5px;"></div>
         <div style="display:flex; font-weight:bold; background:#34495e; color:white; padding:10px; font-size:12px; border-radius:5px 5px 0 0; text-transform:uppercase;">
             <span style="width:30px;">✓</span>
             <span style="flex:2;">Factura (PV-Nro)</span>
-            <span style="flex:1;">Saldo Neto</span>
-            <span style="flex:1;">Pago</span>
+            <span style="flex:1;">Total Bruto</span>
+            <span style="flex:1;">Cobro Neto</span>
             <span style="flex:1;">Ret. GS</span>
             <span style="flex:1;">Ret. IIBB</span>
         </div>`;
@@ -1074,10 +1073,8 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
     Object.keys(facturas).forEach(id => {
         const f = facturas[id];
         
-        // --- BLINDAJE TESORERÍA: Ignorar NC y facturas vinculadas ---
         const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp || "").toUpperCase().includes('NC'));
         if (esNC || f.id_nc_vinculada) return; 
-        // -----------------------------------------------------------
 
         const cobroData = cobros[id] || {};
         const totalBruto = parseFloat(f.total || 0); 
@@ -1086,11 +1083,11 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
         const retIIBB = parseFloat(f.retIIBB_manual || 0);
         const cuitFactura = (f.receptor_cuit || "").replace(/\D/g, '');
         const montoDebito = parseFloat(cobroData.monto_debito || 0);
-        const totalAplicado = yaCobrado + retGS + retIIBB + montoDebito;
-        const netoReal = totalBruto - retGS - retIIBB - montoDebito;
-        const saldoPendiente = netoReal - yaCobrado;
         
-        if (cuitFactura === cuitInput && saldoPendiente > 0.5) {
+        // Saldo bruto/neto pendiente de cobro efectivo
+        const saldoCobroPendiente = totalBruto - yaCobrado;
+        
+        if (cuitFactura === cuitInput && saldoCobroPendiente > 0.5) {
             const pvNum = parseInt(f.punto_venta || 0);
             const pvStr = String(pvNum).padStart(5, '0');
             const nc = String(f.nro_comp || 0).padStart(8, '0');
@@ -1098,20 +1095,20 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
             
             contenedor.innerHTML += `
              <div class="fila-ajuste" 
-               data-id="${id}" 
-               data-pv="${pvNum}" 
-               data-modulo="${f.modulo || 'S/D'}"
-               data-saldo="${saldoPendiente}" 
-               data-fecha="${fechaFormateada}"
-               data-paciente="${f.id_paciente || 'S/D'}" 
-               style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
-               
+                data-id="${id}" 
+                data-pv="${pvNum}" 
+                data-modulo="${f.modulo || 'S/D'}"
+                data-saldo="${saldoCobroPendiente}" 
+                data-fecha="${fechaFormateada}"
+                data-paciente="${f.id_paciente || 'S/D'}" 
+                style="display:flex; gap:5px; padding:10px; border-bottom:1px solid #eee; align-items:center; background:white;">
+                
                 <input type="checkbox" class="check-conciliar" onchange="manejarSeleccion(this)">
                 <span style="flex:2; font-family:monospace; font-weight:bold;">${pvStr}-${nc}</span>
-                <span style="flex:1; color:#27ae60; font-weight:bold;">$${saldoPendiente.toFixed(2)}</span>
-                <input type="number" class="edit-cobro" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-                <input type="number" class="edit-ret-gs" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
-                <input type="number" class="edit-ret-iibb" value="0" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+                <span style="flex:1; color:#27ae60; font-weight:bold;">$${totalBruto.toFixed(2)}</span>
+                <input type="number" class="edit-cobro" value="0" placeholder="Cobro neto" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+                <input type="number" class="edit-ret-gs" value="0" placeholder="Ret. GS" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
+                <input type="number" class="edit-ret-iibb" value="0" placeholder="Ret. IIBB" oninput="actualizarResumen()" style="flex: 1; padding: 5px;">
             </div>`;
         }
     });
@@ -1139,22 +1136,25 @@ function manejarSeleccion(checkbox) {
 function actualizarResumen() {
     const totalBanco = parseFloat(document.getElementById('monto-banco').value) || 0;
     
-    // Filtramos solo las filas chequeadas
     const filas = Array.from(document.querySelectorAll('.fila-ajuste')).filter(f => f.querySelector('.check-conciliar').checked);
     
-    // Sumamos TODO: Cobro + Retención GS + Retención IIBB
-    const totalConciliado = filas.reduce((sum, f) => {
+    let totalCobroNeto = 0;
+    let totalRetenciones = 0;
+    
+    filas.forEach(f => {
         const cobro = parseFloat(f.querySelector('.edit-cobro').value) || 0;
         const retGS = parseFloat(f.querySelector('.edit-ret-gs').value) || 0;
         const retIIBB = parseFloat(f.querySelector('.edit-ret-iibb').value) || 0;
-        return sum + cobro + retGS + retIIBB;
-    }, 0);
+        
+        totalCobroNeto += cobro;
+        totalRetenciones += retGS + retIIBB;
+    });
     
-    const diff = totalBanco - totalConciliado;
+    const diffCobro = totalBanco - totalCobroNeto;
     
     const div = document.getElementById('resumen-conciliacion');
-    div.innerHTML = `Total Conciliado: $${totalConciliado.toFixed(2)} | Diferencia: $${diff.toFixed(2)}`;
-    div.style.color = Math.abs(diff) < 0.5 ? "#27ae60" : "#c0392b";
+    div.innerHTML = `💵 Cobro Neto: $${totalCobroNeto.toFixed(2)} | 📊 Retenciones: $${totalRetenciones.toFixed(2)} | 🎯 Diferencia Banco vs Neto: $${diffCobro.toFixed(2)}`;
+    div.style.color = Math.abs(diffCobro) < 0.5 ? "#27ae60" : "#c0392b";
 }
 function distribuirMonto() {
     // 1. ¿Qué monto distribuimos?
@@ -1210,9 +1210,7 @@ function autoSeleccionarPorMonto() {
     // Mostramos el selector con los resultados
     mostrarSelector(opciones, montoBanco);
 }
-
 function buscarMejoresCombinaciones(facturasRaw, montoBanco) {
-    // FASE 1: Filtrado más amplio (ahora aceptamos facturas hasta el monto + retenciones estimadas)
     const facturas = facturasRaw
         .filter(f => f.saldo > 0)
         .map(f => ({ ...f, saldo: Math.round(f.saldo * 100) / 100 }))
@@ -1223,18 +1221,15 @@ function buscarMejoresCombinaciones(facturasRaw, montoBanco) {
     const n = facturas.length;
     const MAXFACTURAS = 10;
     
-    // SUMA PREFIJO para podas rápidas
     const sumaPrefijo = new Array(n + 1).fill(0);
     for (let i = 0; i < n; i++) sumaPrefijo[i + 1] = sumaPrefijo[i] + facturas[i].saldo;
 
     let topOpciones = []; 
 
     function buscar(index, actualSuma, actualLista, cantidadFacturas) {
-        // Evaluar cada combinación encontrada como una opción válida
         if (cantidadFacturas > 0) {
             const diferencia = montoBanco - actualSuma;
             
-            // Guardamos la opción siempre, porque ahora nos interesa la "menor diferencia"
             topOpciones.push({
                 lista: [...actualLista],
                 suma: actualSuma,
@@ -1242,20 +1237,17 @@ function buscarMejoresCombinaciones(facturasRaw, montoBanco) {
                 fecha: Math.min(...actualLista.map(f => f.fecha))
             });
             
-            // Mantenemos solo las 10 mejores ordenadas por la diferencia ABSOLUTA (cercanía)
             topOpciones.sort((a, b) => Math.abs(a.diferencia) - Math.abs(b.diferencia));
             if (topOpciones.length > 10) topOpciones.pop();
         }
         
         if (index >= n || cantidadFacturas >= MAXFACTURAS) return;
         
-        // PODA RELAJADA: Solo cortamos si ni sumando todo lo restante llegamos al 80% del monto
         const k = Math.min(n - index, MAXFACTURAS - cantidadFacturas);
         if (actualSuma + (sumaPrefijo[index + k] - sumaPrefijo[index]) < montoBanco * 0.8) return;
         
         let i = index;
         while (i < n) {
-            // Buscamos todas las combinaciones posibles sin restringir por "match perfecto"
             buscar(i + 1, actualSuma + facturas[i].saldo, [...actualLista, facturas[i]], cantidadFacturas + 1);
             i++;
         }
