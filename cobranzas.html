@@ -1052,13 +1052,17 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
 
     document.getElementById('controles-conciliacion').style.display = 'block';
     
+    // Recuperamos la interpolación segura con periodoActual para evitar el ReferenceError
+    const periodoFinal = periodoPendiente || (typeof periodoActual !== 'undefined' ? periodoActual : '');
+    const uidFinal = uidPendiente || (typeof uidPagoActual !== 'undefined' ? uidPagoActual : '');
+
     contenedor.innerHTML = `
         <div style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #dee2e6;">
             <input type="number" id="monto-banco" placeholder="Monto total en banco" style="padding:8px; width:200px; border:1px solid #ced4da; border-radius:4px;" oninput="actualizarResumen()">
             <button onclick="distribuirMonto()" style="background:#3498db; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold;">Distribuir</button>
             <button onclick="autoSeleccionarPorMonto()" style="background:#27ae60; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold;">Auto-Seleccionar</button>
             
-            <button onclick="ejecutarConciliacionFinal('${uidPendiente || uidPagoActual}', '${periodoPendiente || periodoActual}')" style="background:#2ecc71; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold; margin-left:10px;">Confirmar Conciliación</button>
+            <button onclick="ejecutarConciliacionFinal('${uidFinal}', '${periodoFinal}')" style="background:#2ecc71; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold; margin-left:10px;">Confirmar Conciliación</button>
         </div>
         <div id="resumen-conciliacion" style="margin-bottom:10px; font-size:15px; font-weight:bold; color:#2c3e50; padding:10px; background:#e9ecef; border-radius:5px;"></div>
         <div style="display:flex; font-weight:bold; background:#34495e; color:white; padding:10px; font-size:12px; border-radius:5px 5px 0 0; text-transform:uppercase;">
@@ -1079,12 +1083,8 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
         const cobroData = cobros[id] || {};
         const totalBruto = parseFloat(f.total || 0); 
         const yaCobrado = parseFloat(cobroData.monto_cobrado || 0);
-        const retGS = parseFloat(f.retGS_manual || 0);
-        const retIIBB = parseFloat(f.retIIBB_manual || 0);
         const cuitFactura = (f.receptor_cuit || "").replace(/\D/g, '');
-        const montoDebito = parseFloat(cobroData.monto_debito || 0);
         
-        // Saldo bruto/neto pendiente de cobro efectivo
         const saldoCobroPendiente = totalBruto - yaCobrado;
         
         if (cuitFactura === cuitInput && saldoCobroPendiente > 0.5) {
