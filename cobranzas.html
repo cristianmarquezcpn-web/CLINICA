@@ -1403,11 +1403,13 @@ function procesarSeleccion(index) {
     const modal = document.getElementById('modal-combinaciones');
     if (modal) modal.remove();
 }	
+
 // --- 3. GUARDADO FINAL ---
-function ejecutarConciliacionFinal(uidParam, periodoParam) {
-    const uidFinal = uidParam || (typeof uidPagoActual !== 'undefined' ? uidPagoActual : '') || window.uidPagoSeleccionado || '';
-    const periodoFinal = periodoParam || (typeof periodoActual !== 'undefined' ? periodoActual : '') || document.getElementById('periodo-actual')?.value || '';
-    // Validación de seguridad por si no llegan los parámetros de la ruta
+async function ejecutarConciliacionFinal(uidParam, periodoParam) {
+    const uid = uidParam || (typeof uidPagoActual !== 'undefined' ? uidPagoActual : '') || window.uidPagoSeleccionado || '';
+    const periodo = periodoParam || (typeof periodoActual !== 'undefined' ? periodoActual : '') || document.getElementById('periodo-actual')?.value || '';
+
+    // Validación corregida con los nombres reales de las variables
     if (!uid || !periodo) {
         console.error("❌ Error: Faltan el UID o el Período para procesar la conciliación.");
         alert("Error interno: No se pudo identificar el período o el pago actual.");
@@ -1486,7 +1488,6 @@ function ejecutarConciliacionFinal(uidParam, periodoParam) {
 
     await Promise.all(promesas);
 
-    // Acá ahora sí impactará correctamente porque 'periodo' y 'uid' viajan seguros
     await db.ref('contabilidad/' + periodo + '/pendientes/' + uid).update({
         procesado_cobranzas: true
     });
