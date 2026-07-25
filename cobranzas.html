@@ -1587,6 +1587,7 @@ function crearAvisoEnPantalla(info) {
         const cuitLimpio = info.cuit.replace(/\D/g, ''); 
         window.cargarAsistente(cuitLimpio, info.monto, info.fecha, info.uid, info.periodo); 
     };
+}	
 window.cargarAsistente = (cuit, monto, fecha, uid, periodo) => {
     uidPagoActual = uid; 
     periodoActual = periodo; // Aseguramos que viaje el período
