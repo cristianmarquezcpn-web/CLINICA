@@ -1582,20 +1582,19 @@ function crearAvisoEnPantalla(info) {
     divAviso.querySelector(`#btn-descartar-${info.uid}`).onclick = () => {
         descartarAviso(info.uid, info.periodo);
     };
-    divAviso.querySelector(`#btn-conciliar-${info.uid}`).onclick = () => {
+   divAviso.querySelector(`#btn-conciliar-${info.uid}`).onclick = () => {
         divAviso.remove();
         const cuitLimpio = info.cuit.replace(/\D/g, ''); 
-        window.cargarAsistente(cuitLimpio, info.monto, info.fecha, info.uid);
+        window.cargarAsistente(cuitLimpio, info.monto, info.fecha, info.uid, info.periodo); 
     };
-}
-window.cargarAsistente = (cuit, monto, fecha, uid) => {
+window.cargarAsistente = (cuit, monto, fecha, uid, periodo) => {
     uidPagoActual = uid; 
-    prepararConciliacion(cuit);
+    periodoActual = periodo; // Aseguramos que viaje el período
+    prepararConciliacion(cuit, uid, periodo); // <-- ACÁ LE PASAMOS LOS TRES PARÁMETROS
     setTimeout(() => {
         const inputMonto = document.getElementById('monto-banco');
         if (inputMonto) {
             inputMonto.value = monto;
-            // Opcional: llamamos a actualizarResumen si quieres que calcule solo
             if (typeof actualizarResumen === 'function') actualizarResumen();
         }
         alert("✅ Datos cargados correctamente.");
