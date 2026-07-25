@@ -1052,8 +1052,15 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
 
     document.getElementById('controles-conciliacion').style.display = 'block';
     
+    // Mantenemos exactamente tus nombres de variables originales
     const periodoFinal = periodoPendiente || (typeof periodoActual !== 'undefined' ? periodoActual : '') || document.getElementById('periodo-actual')?.value || document.getElementById('select-periodo')?.value || '';
     const uidFinal = uidPendiente || (typeof uidPagoActual !== 'undefined' ? uidPagoActual : '') || window.uidPagoSeleccionado || '';
+
+    // Guardamos los valores directamente en el contenedor para que la función final los lea sin drama
+    if (contenedor) {
+        contenedor.dataset.uid = uidFinal;
+        contenedor.dataset.periodo = periodoFinal;
+    }
 
     contenedor.innerHTML = `
         <div style="margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #dee2e6;">
@@ -1061,7 +1068,7 @@ function prepararConciliacion(cuitForzado = null, uidPendiente = null, periodoPe
             <button onclick="distribuirMonto()" style="background:#3498db; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold;">Distribuir</button>
             <button onclick="autoSeleccionarPorMonto()" style="background:#27ae60; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold;">Auto-Seleccionar</button>
             
-            <button onclick="ejecutarConciliacionFinal()" style="background:#2ecc71; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold; margin-left:10px;">Confirmar Conciliación</button>
+            <button onclick="ejecutarConciliacionFinal('${uidFinal}', '${periodoFinal}')" style="background:#2ecc71; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-weight:bold; margin-left:10px;">Confirmar Conciliación</button>
         </div>
         <div id="resumen-conciliacion" style="margin-bottom:10px; font-size:15px; font-weight:bold; color:#2c3e50; padding:10px; background:#e9ecef; border-radius:5px;"></div>
         
@@ -1406,9 +1413,10 @@ function procesarSeleccion(index) {
 
 // --- 3. GUARDADO FINAL ---
 async function ejecutarConciliacionFinal(uidParam, periodoParam) {
-    const uid = uidParam || (typeof uidPagoActual !== 'undefined' ? uidPagoActual : '') || window.uidPagoSeleccionado || '';
-    const periodo = periodoParam || (typeof periodoActual !== 'undefined' ? periodoActual : '') || document.getElementById('periodo-actual')?.value || '';
-
+    const contenedor = document.getElementById('lista-ajuste-editable');
+    
+    const uid = uidParam || (typeof uidPagoActual !== 'undefined' ? uidPagoActual : '') || window.uidPagoSeleccionado || contenedor?.dataset?.uid || '';
+    const periodo = periodoParam || (typeof periodoActual !== 'undefined' ? periodoActual : '') || document.getElementById('periodo-actual')?.value || contenedor?.dataset?.periodo || '';
     // Validación corregida con los nombres reales de las variables
     if (!uid || !periodo) {
         console.error("❌ Error: Faltan el UID o el Período para procesar la conciliación.");
