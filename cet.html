@@ -118,6 +118,7 @@
             <input type="text" id="p-padre" placeholder="Nombre Padre/Tutor">
             <input type="text" id="p-tel" placeholder="WhatsApp Padre/Tutor">
             <input type="text" id="p-os" placeholder="Obra Social">
+            <input type="text" id="p-diag" placeholder="Diagnóstico">
             <label>Turno y Sala:</label>
             <div style="display:flex; gap:5px">
                 <select id="p-turno" style="flex:1"><option value="manana">Mañana</option><option value="tarde">Tarde</option><option value="vespertino">Vespertino</option></select>
@@ -274,7 +275,7 @@
         document.getElementById('ed-dni').value = p.dni||""; 
         document.getElementById('ed-nac').value = p.nac||"";
         document.getElementById('ed-edad').value = p.edad||""; 
-        
+        document.getElementById('ed-diag').value = p.diag || "";
         // CORRECCIÓN 1: Agregar Padre, Turno y Sala en Legajo
         document.getElementById('ed-padre').value = p.padre||""; 
         document.getElementById('ed-tel').value = p.tel||""; 
@@ -341,7 +342,8 @@
             padre: document.getElementById('ed-padre').value,
             tel: document.getElementById('ed-tel').value, 
             os: document.getElementById('ed-os').value, 
-            cud: document.getElementById('ed-cud').value, 
+            cud: document.getElementById('ed-cud').value,
+            diag: document.getElementById('ed-diag').value,
             audit: document.getElementById('ed-audit').value,
             turno: document.getElementById('ed-turno').value,
             sala: document.getElementById('ed-sala').value
@@ -431,7 +433,8 @@
             padre: document.getElementById('p-padre').value || "",
             tel: document.getElementById('p-tel').value || "", 
             os: document.getElementById('p-os').value.toUpperCase() || "", 
-            cud: document.getElementById('p-cud').value || "", 
+            cud: document.getElementById('p-cud').value || "",
+            diag: document.getElementById('p-diag').value || "",
             turno: t, 
             sala: s, 
             fila: filaLibre, 
@@ -448,6 +451,7 @@
                 document.getElementById('p-padre').value = "";
                 document.getElementById('p-tel').value = "";
                 document.getElementById('p-os').value = "";
+                document.getElementById('p-diag').value = "";
             })
             .catch(error => {
                 console.error("Error Firebase:", error);
