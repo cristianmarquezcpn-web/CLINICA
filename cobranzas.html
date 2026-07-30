@@ -363,14 +363,17 @@ if (!firebase.apps.length) {
 		// Aquí aplicamos la lógica: si es NC O si tiene un ID de NC vinculada, el saldo es 0
 		const estaAnuladaPorNC = !!f.id_nc_vinculada;
 		const saldo = (esNC || estaAnuladaPorNC) ? 0 : Math.max(0, f.netoCalc - pagado - debito); 
-        
+        if (!esNC && !estaAnuladaPorNC) {
+            globalFacturadoNeto += f.netoCalc;
+            globalCobradoEfectivo += pagado;
+        }
         const os = f.receptor_nombre || "SIN O.S.";
         if (!agrupadoOS[os]) agrupadoOS[os] = { filas: [], totalPendienteOS: 0, moraMax: 0, fechaMasVieja: new Date(2100,0,1) };
 
         const fEmi = parseFecha(f.fecha_emision);
         const mora = (esNC || saldo <= 0.5) ? 0 : Math.floor((hoy - fEmi) / 86400000);
         const estaPagada = esNC || saldo <= 0.5;
-
+		
         // Filtro de "Solo Pendientes"
         const verSoloPendientes = document.getElementById('filtroSoloPendientes').checked;
         if (verSoloPendientes && estaPagada) return;
