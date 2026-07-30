@@ -140,11 +140,13 @@
             <div id="incidenciaMod" style="padding-top: 10px;"></div>
         </div>
 
-        <div class="card" style="background: var(--dark); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-            <h3 style="color: #bdc3c7; border: none; margin: 0;">🔮 Cash Flow Pendiente</h3>
-            <h1 id="cashFlowNeto" style="font-size: 42px; margin: 10px 0; color: #2ecc71;">$ 0</h1>
-            <p style="font-size: 12px; color: #95a5a6; margin:0;">Total Neto a Cobrar Real</p>
-        </div>
+    <div class="card" style="background: var(--dark); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+    <h3 style="color: #bdc3c7; border: none; margin: 0;">🔮 Cash Flow Pendiente</h3>
+    <h1 id="cashFlowNeto" style="font-size: 42px; margin: 10px 0; color: #2ecc71;">$ 0</h1>
+    <!-- NUEVO: Elemento donde el script inyectará el porcentaje de cobro -->
+    <small id="porcentajeCobro" style="font-size: 13px; color: #3498db; margin-bottom: 5px; font-weight: 600;">Efectivizado: 0%</small>
+    <p style="font-size: 12px; color: #95a5a6; margin:0;">Total Neto a Cobrar Real</p>
+</div>
     </div>
 
     <div class="card" style="padding: 0; overflow: hidden;">
@@ -267,6 +269,8 @@ if (!firebase.apps.length) {
     let modulosNeto = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
     let statsJineteo = {};
     let globalPendiente = 0;
+	let globalFacturadoNeto = 0; 
+    let globalCobradoEfectivo = 0;	
 
     // FUNCIÓN INTERNA AUXILIAR: Estandariza la fecha visual a DD/MM/AAAA sin importar cómo venga de Firebase
     function formatearFechaEmision(fechaRaw) {
@@ -540,7 +544,18 @@ if (!firebase.apps.length) {
             <span class="tag-mod">${m}</span> <strong style="color:#333">$${modulosNeto[m].toLocaleString('es-AR')}</strong></div>`;
     }
     divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
+    
+    // --- ACTUALIZACIÓN DE LA TARJETA (CASH FLOW + PORCENTAJE DE COBRO DINÁMICO) ---
     document.getElementById('cashFlowNeto').innerText = `$ ${globalPendiente.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+    
+    // Calculamos el porcentaje de cobro en base a los filtros actuales
+    const porcentajeCobro = globalFacturadoNeto > 0 ? (globalCobradoEfectivo / globalFacturadoNeto) * 100 : 0;
+    
+    // Si agregaste el elemento pequeño con id 'porcentajeCobro' en tu HTML, se actualizará solo:
+    const elemPorcentaje = document.getElementById('porcentajeCobro');
+    if (elemPorcentaje) {
+        elemPorcentaje.innerText = `Efectivizado: ${porcentajeCobro.toFixed(1)}%`;
+    }
 }
     // --- 4. ACCIONES (COBROS, EDICIÓN, CARGA) ---
     async function registrarCobroFull(id, saldoActual) {
