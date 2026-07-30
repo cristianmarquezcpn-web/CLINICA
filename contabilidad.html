@@ -411,10 +411,10 @@ window.renderizarPantalla = function(data) {
     // 1. Renderizar Bancos
     const grilla = document.getElementById('grilla-bancos');
     if (grilla) {
-        grilla.innerHTML = "";
+        let htmlBancos = "";
         if (data.bancos) {
             for (const [banco, valores] of Object.entries(data.bancos)) {
-                grilla.innerHTML += `
+                htmlBancos += `
                     <div class="tarjeta-banco" style="border-left-color: ${banco === 'BANCOGALICIA' ? 'var(--p)' : 'var(--ac)'}">
                         <div class="banco-meta">
                             <span class="banco-nombre">${banco.replace('BANCO', 'BANCO ')}</span>
@@ -429,18 +429,16 @@ window.renderizarPantalla = function(data) {
                 `;
             }
         }
+        grilla.innerHTML = htmlBancos;
     }
 
     // 2. Renderizar Transacciones Pendientes
     const tbodyPendientes = document.getElementById('tabla-pendientes');
     if (tbodyPendientes) {
-        tbodyPendientes.innerHTML = "";
         if (!data.pendientes || data.pendientes.length === 0) {
             tbodyPendientes.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--texto-secundario); padding: 20px;">🎉 Sin movimientos pendientes.</td></tr>`;
         } else {
-            // 1. Sanear fechas y ordenar (Banco -> Fecha)
             const pendientesOrdenados = data.pendientes.map(m => {
-                // Forzamos año 4 dígitos (si viene 26, ponemos 2026)
                 let [d, m_mes, a] = m.fecha.split(/[./]/);
                 if (a.length === 2) a = '20' + a;
                 return { ...m, fechaISO: `${a}-${m_mes.padStart(2,'0')}-${d.padStart(2,'0')}` };
@@ -449,10 +447,11 @@ window.renderizarPantalla = function(data) {
                 return new Date(a.fechaISO) - new Date(b.fechaISO);
             });
 
+            let htmlPendientes = "";
             pendientesOrdenados.forEach((mov) => {
                 const isProcesado = mov.procesado === true;
                 const uid = mov.id_firebase; 
-                tbodyPendientes.innerHTML += `
+                htmlPendientes += `
                     <tr style="vertical-align: middle;">
                         <td>${mov.fechaISO.split('-').reverse().join('/')}</td>
                         <td><span style="font-size:10px; background:rgba(255,255,255,0.05); padding:4px; border-radius:4px;">${mov.banco_origen}</span></td>
@@ -481,50 +480,49 @@ window.renderizarPantalla = function(data) {
                     </tr>
                 `;
             });
+            tbodyPendientes.innerHTML = htmlPendientes;
         }
     }
 
-  // 3. Renderizar Libro Diario
-const tbodyDiario = document.getElementById('tabla-diario');
-if (tbodyDiario) {
-    tbodyDiario.innerHTML = "";
-    if (!data.diario || data.diario.length === 0) {
-        // Colspan ajustado a 7 porque ahora tenemos 7 columnas
-        tbodyDiario.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No se registran asientos.</td></tr>`;
-    } else {
-        data.diario.forEach((asiento) => {
-            if (asiento.asientos) {
-                asiento.asientos.forEach((linea, lIdx) => {
-                    const catSafe = asiento.categoria ? String(asiento.categoria).replace(/'/g, "\\'") : '';
-                    const botonAccion = lIdx === 0 ? `<button title="Editar asiento" style="background:transparent; border:none; color:var(--p); cursor:pointer;" onclick="editarAsiento('${asiento.id_origen || ''}', '${data.periodo}', '${catSafe}')">✎</button>` : '';
-                    
-                    // Solo mostramos el checkbox en la primera fila del asiento
-                    const checkboxHtml = lIdx === 0 ? `<input type="checkbox" class="selector-asiento" value="${asiento.id_origen}">` : '';
+    // 3. Renderizar Libro Diario
+    const tbodyDiario = document.getElementById('tabla-diario');
+    if (tbodyDiario) {
+        if (!data.diario || data.diario.length === 0) {
+            tbodyDiario.innerHTML = `<tr><td colspan="7" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No se registran asientos.</td></tr>`;
+        } else {
+            let htmlDiario = "";
+            data.diario.forEach((asiento) => {
+                if (asiento.asientos) {
+                    asiento.asientos.forEach((linea, lIdx) => {
+                        const catSafe = asiento.categoria ? String(asiento.categoria).replace(/'/g, "\\'") : '';
+                        const botonAccion = lIdx === 0 ? `<button title="Editar asiento" style="background:transparent; border:none; color:var(--p); cursor:pointer;" onclick="editarAsiento('${asiento.id_origen || ''}', '${data.periodo}', '${catSafe}')">✎</button>` : '';
+                        const checkboxHtml = lIdx === 0 ? `<input type="checkbox" class="selector-asiento" value="${asiento.id_origen}">` : '';
 
-                    tbodyDiario.innerHTML += `
-                        <tr style="${lIdx === 0 ? 'border-top: 2px solid rgba(255,255,255,0.1);' : ''}">
-                            <td style="text-align:center;">${checkboxHtml}</td>
-                            <td style="width: 10%;">${lIdx === 0 ? asiento.fecha : ''}</td>
-                            <td style="width: 25%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${asiento.descripcion || ''}">${lIdx === 0 ? (asiento.descripcion || '') : ''}</td>
-                            <td style="width: 25%; color: var(--ac);">${linea.cuenta} <span style="color: var(--texto-secundario); font-size:10px;">(${linea.codigo})</span></td>
-                            <td style="width: 15%; text-align: right;" class="monto-ingreso">${linea.debe > 0 ? '$ ' + linea.debe.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '-'}</td>
-                            <td style="width: 15%; text-align: right;" class="monto-egreso">${linea.haber > 0 ? '$ ' + linea.haber.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '-'}</td>
-                            <td style="width: 5%; text-align:center;">${botonAccion}</td>
-                        </tr>
-                    `;
-                });
-            }
-        });
+                        htmlDiario += `
+                            <tr style="${lIdx === 0 ? 'border-top: 2px solid rgba(255,255,255,0.1);' : ''}">
+                                <td style="text-align:center;">${checkboxHtml}</td>
+                                <td style="width: 10%;">${lIdx === 0 ? asiento.fecha : ''}</td>
+                                <td style="width: 25%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${asiento.descripcion || ''}">${lIdx === 0 ? (asiento.descripcion || '') : ''}</td>
+                                <td style="width: 25%; color: var(--ac);">${linea.cuenta} <span style="color: var(--texto-secundario); font-size:10px;">(${linea.codigo})</span></td>
+                                <td style="width: 15%; text-align: right;" class="monto-ingreso">${linea.debe > 0 ? '$ ' + linea.debe.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '-'}</td>
+                                <td style="width: 15%; text-align: right;" class="monto-egreso">${linea.haber > 0 ? '$ ' + linea.haber.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '-'}</td>
+                                <td style="width: 5%; text-align:center;">${botonAccion}</td>
+                            </tr>
+                        `;
+                    });
+                }
+            });
+            tbodyDiario.innerHTML = htmlDiario;
+        }
     }
-}
 
     // 4. Renderizar Libro Mayor
     const tbodyMayor = document.getElementById('tabla-mayor');
     if (tbodyMayor) {
-        tbodyMayor.innerHTML = "";
         if (!data.mayor || data.mayor.length === 0) {
             tbodyMayor.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--texto-secundario); padding: 20px;">No hay acumulados.</td></tr>`;
         } else {
+            let htmlMayor = "";
             data.mayor.forEach((cuenta, idx) => {
                 const saldo = cuenta.saldo || 0.0;
                 let codigoFormateado = cuenta.codigo;
@@ -532,33 +530,38 @@ if (tbodyDiario) {
                     codigoFormateado = codigoFormateado.replace(/(\d{1})(\d{1})(\d+)/, '$1.$2.$3');
                 }
 
-                tbodyMayor.innerHTML += `
+                let htmlMovimientos = "";
+                if (cuenta.movimientos) {
+                    htmlMovimientos = cuenta.movimientos.map(m => `
+                        <div style="display:grid; grid-template-columns: 100px 1fr 100px 100px; font-size:11px; padding:4px; border-bottom:1px solid #222;">
+                            <span>${m.fecha}</span>
+                            <span>${m.descripcion}</span>
+                            <span class="monto-ingreso" style="text-align:right;">${m.debe > 0 ? '$ ' + m.debe.toLocaleString() : '-'}</span>
+                            <span class="monto-egreso" style="text-align:right;">${m.haber > 0 ? '$ ' + m.haber.toLocaleString() : '-'}</span>
+                        </div>
+                    `).join('');
+                }
+
+                htmlMayor += `
                     <tr onclick="document.getElementById('det_${idx}').classList.toggle('hidden')" style="cursor:pointer; background: rgba(255,255,255,0.02);">
                         <td style="font-family: monospace;">${codigoFormateado}</td>
                         <td style="font-weight: 600;" class="color-ac">${cuenta.nombre}</td>
-                        <td colspan="2" style="font-size:10px; color:var(--a);">CLICK PARA VER ${cuenta.movimientos.length} MOVIMIENTOS</td>
+                        <td colspan="2" style="font-size:10px; color:var(--a);">CLICK PARA VER ${cuenta.movimientos ? cuenta.movimientos.length : 0} MOVIMIENTOS</td>
                         <td style="font-weight: 700;" class="${saldo >= 0 ? 'monto-ingreso' : 'monto-egreso'}">$ ${saldo.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
                     </tr>
                     <tr id="det_${idx}" class="hidden">
                         <td colspan="5" style="padding:0;">
                             <div style="background: rgba(0,0,0,0.2); padding: 10px;">
-                                ${cuenta.movimientos.map(m => `
-                                    <div style="display:grid; grid-template-columns: 100px 1fr 100px 100px; font-size:11px; padding:4px; border-bottom:1px solid #222;">
-                                        <span>${m.fecha}</span>
-                                        <span>${m.descripcion}</span>
-                                        <span class="monto-ingreso" style="text-align:right;">${m.debe > 0 ? '$ ' + m.debe.toLocaleString() : '-'}</span>
-                                        <span class="monto-egreso" style="text-align:right;">${m.haber > 0 ? '$ ' + m.haber.toLocaleString() : '-'}</span>
-                                    </div>
-                                `).join('')}
+                                ${htmlMovimientos}
                             </div>
                         </td>
                     </tr>
                 `;
             });
+            tbodyMayor.innerHTML = htmlMayor;
         }
     }
-};
-        
+};        
         // Funciones de Filtrado
         function filtrarTablaPendientes() {
             const textoBusqueda = document.getElementById('filtroTexto').value.toUpperCase();
