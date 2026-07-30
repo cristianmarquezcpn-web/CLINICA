@@ -1244,15 +1244,16 @@ function buscarMejoresCombinaciones(facturasRaw, montoBanco) {
     if (facturas.length === 0) return [];
 
     const n = facturas.length;
-    const MAXFACTURAS = 10;
+    // Eliminamos el límite fijo de 10 facturas para permitir agrupar muchas si es necesario, 
+    // pero usamos una poda estricta en el bucle para que la PC no sufra.
     
     const sumaPrefijo = new Array(n + 1).fill(0);
     for (let i = 0; i < n; i++) sumaPrefijo[i + 1] = sumaPrefijo[i] + facturas[i].saldo;
 
-    let topOpciones = []; 
+    let topOpciones = [];  
 
-    function buscar(index, actualSuma, actualLista, cantidadFacturas) {
-        if (cantidadFacturas > 0) {
+    function buscar(index, actualSuma, actualLista) {
+        if (actualLista.length > 0) {
             const diferencia = montoBanco - actualSuma;
             
             topOpciones.push({
@@ -1266,19 +1267,26 @@ function buscarMejoresCombinaciones(facturasRaw, montoBanco) {
             if (topOpciones.length > 10) topOpciones.pop();
         }
         
-        if (index >= n || cantidadFacturas >= MAXFACTURAS) return;
+        if (index >= n) return;
         
-        const k = Math.min(n - index, MAXFACTURAS - cantidadFacturas);
-        if (actualSuma + (sumaPrefijo[index + k] - sumaPrefijo[index]) < montoBanco * 0.8) return;
+        // 1. Poda superior: Si la suma actual ya superó por más del 10% el monto del banco, cortamos esta rama.
+        if (actualSuma > montoBanco * 1.10) return;
+        
+        // 2. Poda anticipada con suma prefija: Si sumando todo lo que queda en la lista 
+        // ni siquiera alcanzamos el 75% del banco, esta combinación no sirve y la descartamos.
+        if (actualSuma + (sumaPrefijo[n] - sumaPrefijo[index]) < montoBanco * 0.75) return;
         
         let i = index;
         while (i < n) {
-            buscar(i + 1, actualSuma + facturas[i].saldo, [...actualLista, facturas[i]], cantidadFacturas + 1);
+            // Solo avanzamos si agregar la siguiente factura no rompe el límite superior
+            if (actualSuma + facturas[i].saldo <= montoBanco * 1.10) {
+                buscar(i + 1, actualSuma + facturas[i].saldo, [...actualLista, facturas[i]]);
+            }
             i++;
         }
     }
     
-    buscar(0, 0, [], 0);
+    buscar(0, 0, []);
     return topOpciones;
 }
 function mostrarSelector(opciones, montoBanco) {
