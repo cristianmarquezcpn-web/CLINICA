@@ -121,6 +121,11 @@
             <input type="text" id="p-os" placeholder="Obra Social">
             <label>CUD Vence:</label><input type="date" id="p-cud">
 			<input type="text" id="p-diag" placeholder="Diagnóstico">
+			<label style="font-size: 11px; margin-top: 5px; display: block;">Autorizado por O.S:</label>
+            <div style="display:flex; gap:5px; align-items:center;">
+                <span style="font-size:10px;">Desde:</span><input type="date" id="p-cob-desde" style="flex:1">
+                <span style="font-size:10px;">Hasta:</span><input type="date" id="p-cob-hasta" style="flex:1">
+            </div>
             <select id="p-mod" onchange="generarFilas('area-f', 'p-mod')"><option value="0">Sesiones...</option><option value="3">3 Sesiones</option><option value="5">5 Sesiones</option></select>
             <div id="area-f"></div>
             <button class="btn" style="background:var(--verde); width:100%; margin-top:10px" onclick="registrar()">GUARDAR</button>
@@ -168,6 +173,11 @@
             </div>
             <label>OS:</label><input type="text" id="ed-os">
             <label>CUD Vence:</label><input type="date" id="ed-cud">
+			<label style="margin-top: 5px; display: block;">Autorizado por O.S:</label>
+            <div style="display:flex; gap:5px; align-items:center;">
+                <span style="font-size:10px;">Desde:</span><input type="date" id="ed-cob-desde" style="flex:1">
+                <span style="font-size:10px;">Hasta:</span><input type="date" id="ed-cob-hasta" style="flex:1">
+            </div>
 			<label>Diagnóstico:</label><input type="text" id="ed-diag">
             <label>AUDITORÍA:</label><select id="ed-audit"><option value="P">P (A)</option><option value="A">A (F)</option><option value="AC">AC (P)</option></select>
         </div>
@@ -417,6 +427,8 @@
         document.getElementById('ed-audit').value = p.audit||"P"; 
         document.getElementById('ed-pres').value = p.pres||"MIS";
 		document.getElementById('ed-diag').value = p.diag||"";
+		document.getElementById('ed-cob-desde').value = p.cobertura_desde || "";
+        document.getElementById('ed-cob-hasta').value = p.cobertura_hasta || "";
         document.getElementById('m-foto').src = p.foto || ""; 
         const g = document.getElementById('f-grid-main'); g.innerHTML = ""; 
         legajosDef.forEach(l => { 
@@ -474,7 +486,19 @@
     if(!nF) return;
     const btn = document.querySelector('button[onclick="guardarCambios()"]');
     btn.disabled = true; btn.innerText = "⏳ SUBIENDO...";
-    let up = { dni: document.getElementById('ed-dni').value, nac: document.getElementById('ed-nac').value, edad: document.getElementById('ed-edad').value, pres: document.getElementById('ed-pres').value, tel: document.getElementById('ed-tel').value, os: document.getElementById('ed-os').value, cud: document.getElementById('ed-cud').value, audit: document.getElementById('ed-audit').value, diag: document.getElementById('ed-diag').value }; 
+    let up = { 
+        dni: document.getElementById('ed-dni').value, 
+        nac: document.getElementById('ed-nac').value, 
+        edad: document.getElementById('ed-edad').value, 
+        pres: document.getElementById('ed-pres').value, 
+        tel: document.getElementById('ed-tel').value, 
+        os: document.getElementById('ed-os').value, 
+        cud: document.getElementById('ed-cud').value, 
+        audit: document.getElementById('ed-audit').value, 
+        diag: document.getElementById('ed-diag').value,
+        cobertura_desde: document.getElementById('ed-cob-desde').value,
+        cobertura_hasta: document.getElementById('ed-cob-hasta').value
+    };
     
     for (let key in tempFiles) {
         if (tempFiles[key] && tempFiles[key].toString().startsWith('data:')) {
@@ -623,7 +647,9 @@ function borradoMasivoTurnos() {
             os: contenedor.querySelector('#p-os').value, 
             cud: contenedor.querySelector('#p-cud').value, 
             diag: contenedor.querySelector('#p-diag').value,
-			audit: 'P' 
+			audit: 'P',
+			cobertura_desde: contenedor.querySelector('#p-cob-desde')?.value || "",
+            cobertura_hasta: contenedor.querySelector('#p-cob-hasta')?.value || ""
         };
         filas.forEach(f => { const d = f.querySelector('.d').value, h = f.querySelector('.h').value, e = f.querySelector('.e').value; if(!db[d]) db[d] = {}; db[d][`${h}-${e}`] = nom; });
         
