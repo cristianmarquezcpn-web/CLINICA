@@ -1918,6 +1918,13 @@ window.abrirModalValidacion = function() {
     const valDesde = document.getElementById('per_desde').value;
     const valHasta = document.getElementById('per_hasta').value;
     const valVto = document.getElementById('vto_pago').value;
+	const pacienteDB = (window.dataFull || []).find(p => (p.id || p.id_db) === id);
+    const cobDesde = pacienteDB && pacienteDB.cobertura_desde ? pacienteDB.cobertura_desde : '';
+    const cobHasta = pacienteDB && pacienteDB.cobertura_hasta ? pacienteDB.cobertura_hasta : '';
+
+    // Formateamos para mostrar lindo (de YYYY-MM-DD a DD/MM/YYYY) si existe
+    const cobDesdeFmt = cobDesde ? cobDesde.split('-').reverse().join('/') : 'S/F';
+    const cobHastaFmt = cobHasta ? cobHasta.split('-').reverse().join('/') : 'S/F';
 
     window.datosParaConfirmar = [];
     let html = "";
@@ -1935,7 +1942,9 @@ window.abrirModalValidacion = function() {
             neto: fila.querySelector('.neto-edit').value,
             exento: fila.querySelector('.exento-edit').value,
             ali: fila.querySelector('.sel-ali').value,
-            detalle: fila.querySelector('.det-val').value
+            detalle: fila.querySelector('.det-val').value,
+			cobDesde: cobDesde,
+            cobHasta: cobHasta
         };
 
         window.datosParaConfirmar.push({datos: v, fila: fila, idx: index});
@@ -1943,6 +1952,7 @@ window.abrirModalValidacion = function() {
         html += `
         <div style="border:1px solid #ddd; padding:10px; margin-bottom:15px; border-radius:5px; background:#fdfdfd;">
             <b style="color:var(--azul);">${v.rs} (${id})</b>
+            <div style="font-size:11px; color:#555; margin-top:2px;">📅 Aut. O.S: <b>${cobDesdeFmt}</b> al <b>${cobHastaFmt}</b></div>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:5px;">
                 <label>Tipo: <input type="text" value="${v.tipo}" id="mTipo_${index}"></label>
                 <label>CUIT: <input type="text" value="${v.cuit}" id="mCuit_${index}"></label>
