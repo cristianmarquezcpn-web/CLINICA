@@ -125,6 +125,11 @@
                 <select id="p-sala" style="flex:1"><option value="1">Sala 1</option><option value="2">Sala 2</option><option value="3">Sala 3</option><option value="4">Sala 4</option></select>
             </div>
             <label>CUD Vence:</label><input type="date" id="p-cud">
+            <label style="font-size: 11px; margin-top: 5px; display: block;">Autorizado por O.S:</label>
+            <div style="display:flex; gap:5px; align-items:center;">
+            <span style="font-size:10px;">Desde:</span><input type="date" id="p-cob-desde" style="flex:1">
+            <span style="font-size:10px;">Hasta:</span><input type="date" id="p-cob-hasta" style="flex:1">
+            </div>
             <button class="btn" style="background:var(--verde); width:100%; margin-top:10px" onclick="registrar()">GUARDAR EN SISTEMA</button>
         </div>
 
@@ -171,6 +176,11 @@
             <label>OS:</label><input type="text" id="ed-os">
             <label>Diagnóstico:</label><input type="text" id="ed-diag">
             <label>CUD Vence:</label><input type="date" id="ed-cud">
+            <label style="margin-top: 5px; display: block;">Autorizado por O.S:</label>
+            <div style="display:flex; gap:5px; align-items:center;">
+            <span style="font-size:10px;">Desde:</span><input type="date" id="ed-cob-desde" style="flex:1">
+            <span style="font-size:10px;">Hasta:</span><input type="date" id="ed-cob-hasta" style="flex:1">
+            </div>
             <label>Turno y Sala:</label>
             <div style="display:flex; gap:2px">
                 <select id="ed-turno"><option value="manana">Mañana</option><option value="tarde">Tarde</option><option value="vespertino">Vespertino</option></select>
@@ -284,7 +294,9 @@
         document.getElementById('ed-cud').value = p.cud||""; 
         document.getElementById('ed-turno').value = p.turno||"manana"; 
         document.getElementById('ed-sala').value = p.sala||"1"; 
-        document.getElementById('ed-audit').value = p.audit||"P"; 
+        document.getElementById('ed-audit').value = p.audit||"P";
+        document.getElementById('ed-cob-desde').value = p.cobertura_desde || "";
+        document.getElementById('ed-cob-hasta').value = p.cobertura_hasta || "";
         document.getElementById('m-foto').src = p.foto || ""; 
         
         const g = document.getElementById('f-grid-main'); g.innerHTML = "";
@@ -347,7 +359,9 @@
             diag: document.getElementById('ed-diag').value,
             audit: document.getElementById('ed-audit').value,
             turno: document.getElementById('ed-turno').value,
-            sala: document.getElementById('ed-sala').value
+            sala: document.getElementById('ed-sala').value,
+            cobertura_desde: document.getElementById('ed-cob-desde').value,
+            cobertura_hasta: document.getElementById('ed-cob-hasta').value
         };
 
         // Si cambiamos el turno o sala desde el legajo, busca fila libre nueva
@@ -439,7 +453,9 @@
             turno: t, 
             sala: s, 
             fila: filaLibre, 
-            audit: 'P' 
+            audit: 'P',
+            cobertura_desde: document.getElementById('p-cob-desde')?.value || "",
+            cobertura_hasta: document.getElementById('p-cob-hasta')?.value || ""
         };
 
         // 4. GUARDADO CORRECTO: Usamos .child(nom).update() para no borrar a los demás
@@ -453,6 +469,8 @@
                 document.getElementById('p-tel').value = "";
                 document.getElementById('p-os').value = "";
                 document.getElementById('p-diag').value = "";
+                document.getElementById('p-cob-desde').value = "";
+                document.getElementById('p-cob-hasta').value = "";
             })
             .catch(error => {
                 console.error("Error Firebase:", error);
