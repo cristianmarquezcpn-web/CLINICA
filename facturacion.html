@@ -2408,6 +2408,9 @@ function actualizarPacientesCheckbox() {
 // ============================================================
 // PROCESAMIENTO CON BÚSQUEDA CRUZADA DE ÚLTIMA FACTURA Y COPIA FIEL
 // ============================================================
+// ============================================================
+// PROCESAMIENTO CON EXTRACCIÓN FIEL DIRECTA DE FACTURAS EMITIDAS
+// ============================================================
 async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
     const [anioEmision, mesEmision] = filtros.periodo.split('-');
     
@@ -2446,7 +2449,7 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
 
     let ultimoComp = 0;
     Object.values(facturasEmitidas).forEach(f => {
-        const c = parseInt(f.nrocomp || f.numero || 0);
+        const c = parseInt(f.nrocomp || f.numero || f.nro_comp || 0);
         if (c > ultimoComp) ultimoComp = c;
     });
 
@@ -2457,18 +2460,22 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
     for (const modulo of filtros.modulos) {
         if (modulo === 'SAEI') continue;
 
-        for (const [idPaciente, p] of Object.entries(todosPacientes[modulo] || {})) {
+        const pacientesModulo = todosPacientes[modulo] || {};
+
+        for (const [idPaciente, p] of Object.entries(pacientesModulo)) {
             const nombrePaciente = (p.nombre || idPaciente).trim();
 
-            if (!filtros.pacientes.includes(nombrePaciente)) continue;
+            if (filtros.pacientes && filtros.pacientes.length > 0 && !filtros.pacientes.includes(nombrePaciente)) continue;
+
             const osPaciente = (p.os || '').trim().toUpperCase();
-            if (!filtros.os.includes(osPaciente)) continue;
+            if (filtros.os && filtros.os.length > 0 && !filtros.os.includes(osPaciente)) continue;
 
             const asist = p.asistF_link || '';
             if (!asist || asist.toUpperCase() === 'NO' || asist.length < 5) continue;
 
             const ya = Object.values(facturasEmitidas).some(f => {
-                if (f.id_paciente !== idPaciente && f.id_paciente_db !== idPaciente && f.idpaciente !== idPaciente && f.idpacientedb !== idPaciente) return false;
+                const fIdPac = f.id_paciente || f.id_paciente_db || f.idpaciente || f.idpacientedb || '';
+                if (fIdPac !== idPaciente && fIdPac !== nombrePaciente) return false;
                 const fEmision = f.fecha_emision || f.fechaemision;
                 if (!fEmision) return false;
                 const parts = fEmision.includes('/') ? fEmision.split('/') : fEmision.split('-');
@@ -2479,14 +2486,17 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             });
             if (ya) continue;
 
-            const osNombre = osPaciente;
-            const osData = osConfig[osNombre] || {};
-
-            // OBTENCIÓN DEL DETALLE DESDE EL ID ALMACENADO EN ultima_factura
             const idUltimaFactura = p.ultima_factura || p.ultimafactura || '';
             let facturaAnteriorObj = typeof idUltimaFactura === 'object' ? idUltimaFactura : (facturasEmitidas[idUltimaFactura] || {});
+            
             const detAnteriorOriginal = (facturaAnteriorObj.detalle || facturaAnteriorObj.descripcion || facturaAnteriorObj.concepto || '').trim();
             const detAnterior = detAnteriorOriginal.toUpperCase();
+
+            // Extracción directa de datos fiscales desde la última factura emitida para evitar duplicados y errores
+            const osNombre = facturaAnteriorObj.receptor_nombre || facturaAnteriorObj.rs || osPaciente;
+            const cuit = facturaAnteriorObj.receptor_cuit || facturaAnteriorObj.cuit || '';
+            const dom = facturaAnteriorObj.receptor_domicilio || facturaAnteriorObj.domicilio || 'SAN JUAN';
+            const condIVA = facturaAnteriorObj.receptor_condicion_iva || facturaAnteriorObj.condicion_iva || 'EXENTO';
 
             let montoBase = 0;
             let prestacion = modulo;
@@ -2542,10 +2552,8 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             }
 
             let detalleNuevo = '';
-            const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
-            const baseFmt = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-            // Copia fiel del detalle anterior cambiando únicamente el mes y el año prestacional
+            
+            // Reemplazo inteligente respetando el formato exacto de la última factura original
             if (detAnteriorOriginal.length > 10) {
                 detalleNuevo = detAnteriorOriginal;
                 for (const mAnt of MESESCFO) {
@@ -2556,6 +2564,7 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 }
                 detalleNuevo = detalleNuevo.replace(/202[5-6]/g, anioFacturar);
             } else {
+                const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
                 if (tieneDependencia) {
                     const depFmt = montoDependencia.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     const totFmt = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2564,7 +2573,7 @@ PERÍODO PRESTACIONAL: ${nombreMes} ${anioFacturar}
 ${prestacion}
 C/DEPEND.S/F.I.M. RESOL ${resolucionAplicada}
 BENEF. ${nombrePaciente.toUpperCase()}${dniTxt}
-VALOR PRESTACION:       $ ${baseFmt}
+VALOR PRESTACION:       $ ${montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 VALOR DEPENDENCIA:      $ ${depFmt}
 VALOR TOTAL:              $ ${totFmt}`;
                 } else {
@@ -2575,13 +2584,10 @@ RESOL. ${resolucionAplicada}`;
                 }
             }
 
-            const cuit = osData.cuit || p.obra_social_cuit || p.obrasocialcuit || '';
-            const dom = osData.domicilio || p.obra_social_domicilio || p.obrasocialdomicilio || 'SAN JUAN';
-            const condIVA = osData.condicion_iva || osData.condicioniva || 'EXENTO';
-            const tipo = condIVA === 'IVA Responsable Inscripto' ? '1' : '6';
-            const ali = condIVA === 'IVA Responsable Inscripto' ? 21 : 0;
-            const neto = condIVA === 'IVA Responsable Inscripto' ? Math.round((montoTotal / 1.21) * 100) / 100 : 0;
-            const exento = condIVA === 'IVA Responsable Inscripto' ? 0 : montoTotal;
+            const tipo = (condIVA.includes('Inscripto') || condIVA === '1') ? '1' : '6';
+            const ali = tipo === '1' ? 21 : 0;
+            const neto = tipo === '1' ? Math.round((montoTotal / 1.21) * 100) / 100 : 0;
+            const exento = tipo === '1' ? 0 : montoTotal;
             const cobDesde = p.cobertura_desde || p.coberturadesde || '';
             const cobHasta = p.cobertura_hasta || p.coberturahasta || '';
 
