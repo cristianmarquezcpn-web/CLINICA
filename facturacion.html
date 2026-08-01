@@ -1920,18 +1920,17 @@ window.abrirModalValidacion = function() {
     const valVto = document.getElementById('vto_pago').value;
 	const cobDesde = pacienteDB && pacienteDB.cobertura_desde ? pacienteDB.cobertura_desde : '';
     const cobHasta = pacienteDB && pacienteDB.cobertura_hasta ? pacienteDB.cobertura_hasta : '';
-
-    // Formateamos para mostrar lindo (de YYYY-MM-DD a DD/MM/YYYY) si existe
-	const pacienteDB = (window.dataFull || []).find(p => (p.id || p.id_db) === id);
-    const cobDesdeFmt = cobDesde ? cobDesde.split('-').reverse().join('/') : 'S/F';
-    const cobHastaFmt = cobHasta ? cobHasta.split('-').reverse().join('/') : 'S/F';
-
     window.datosParaConfirmar = [];
     let html = "";
     
     seleccionados.forEach((ck, index) => {
         const fila = ck.closest('tr');
         const id = ck.getAttribute('data-id');
+		const pacienteDB = (window.dataFull || []).find(p => (p.id || p.id_db) === id);
+        const cobDesde = pacienteDB && pacienteDB.cobertura_desde ? pacienteDB.cobertura_desde : '';
+        const cobHasta = pacienteDB && pacienteDB.cobertura_hasta ? pacienteDB.cobertura_hasta : '';
+		const cobDesdeFmt = cobDesde ? cobDesde.split('-').reverse().join('/') : 'S/F';
+        const cobHastaFmt = cobHasta ? cobHasta.split('-').reverse().join('/') : 'S/F';
         
         const v = {
             id: id,
