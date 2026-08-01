@@ -2051,10 +2051,9 @@ actualizarPacientesCheckbox();
 // 2. MODIFICACIÓN DEL MODAL CON EDICIÓN DE NOMENCLADOR Y BOTONES DE OS
 function abrirModalCFO(lote, nombreMes, anio, adv) {
 const ultimoDia = new Date(anio, MESESCFO.indexOf(nombreMes) + 1, 0);
-const desde = ${anio}-${String(MESESCFO.indexOf(nombreMes)+1).padStart(2,'0')}-01;
+const desde = `${anio}-${String(MESESCFO.indexOf(nombreMes)+1).padStart(2,'0')}-01`;
 const hasta = ultimoDia.toISOString().split('T')[0];
 const vto = hasta;
-
 ['perdesde','perhasta','vtopago'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = id === 'perdesde' ? desde : id === 'perhasta' ? hasta : vto;
@@ -2289,9 +2288,9 @@ alert(`✅ Valores y Resolución ${resolucion} aplicados correctamente a ${actua
 };
 
 window.recalcularItemModal = function(i) {
-const ali = parseFloat(document.getElementById(mAli${i}).value) || 0;
-const netoEl = document.getElementById(mNeto${i});
-const exentoEl = document.getElementById(mExento${i});
+const ali = parseFloat(document.getElementById(`mAli${i}`).value) || 0;
+const netoEl = document.getElementById(`mNeto${i}`);
+const exentoEl = document.getElementById(`mExento${i}`);
 
 let valorTotal = parseFloat(netoEl.value) + parseFloat(exentoEl.value);
 if (!valorTotal) valorTotal = parseFloat(exentoEl.value) || parseFloat(netoEl.value) || 0;
@@ -2306,12 +2305,11 @@ if (ali > 0) {
 
 sincronizarMontosModal(i);
 };
-
 window.sincronizarMontosModal = function(i) {
 const neto = parseFloat(document.getElementById(mNeto${i}).value) || 0;
 const exento = parseFloat(document.getElementById(mExento${i}).value) || 0;
 const total = neto + exento;
-const lbl = document.getElementById(lblMontoItem${i});
+const lbl = document.getElementById(`lblMontoItem${i}`);
 if (lbl) lbl.innerText = total.toLocaleString('es-AR');
 
 let nuevoTotalGeneral = 0;
