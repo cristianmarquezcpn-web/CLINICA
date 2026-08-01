@@ -121,7 +121,8 @@
         <button class="btn-filtro" onclick="filtrarPor('CET')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">CET</button>
         <button class="btn-filtro" onclick="filtrarPor('REHAB')" style="flex:1; font-size:9px; padding:6px; background:#f9f9f9; border-radius:4px; border:1px solid #ccc;">REHAB</button>
         <button class="btn" onclick="window.limpiarFiltros()" style="background:#666; font-size:10px; margin-left:10px;">Limpiar ×</button>
-        <button class="btn" style="background:var(--azul); margin-left:auto" onclick="abrirModalValidacion()">🚀 FACTURAR</button>
+        <button class="btn" style="background: linear-gradient(135deg, #8e44ad, #6c3483); color: white; font-weight: bold; margin-left: auto; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);" onclick="mostrarPanelFiltros()">☕ LOTE MASIVO</button>
+		<button class="btn" style="background:var(--azul); margin-left:auto" onclick="abrirModalValidacion()">🚀 FACTURAR</button>
     </div>
 
     <table id="tabla-facturas">
@@ -2023,6 +2024,720 @@ window.confirmarEnvioAFIP = async function(event) {
     if(btn) btn.disabled = false;
     window.datosParaConfirmar = [];
 };
+// ============================================================
+// CFO TITANIUM v3 — PREPARADOR DE LOTES CON GESTIÓN DE NOMENCLADOR Y DEPENDENCIA
+// ============================================================
+
+const MESESCFO = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+                  'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+
+// ============================================================
+// ENTRY POINTS
+// ============================================================
+window.prepararLoteCFO = async function() {
+    await mostrarPanelFiltros();
+};
+
+window.abrirAdminNomenclador = async function() {
+    let nomenclador = {};
+    try {
+        const snap = await db.ref('config/nomenclador').once('value');
+        nomenclador = snap.val() || {};
+    } catch(e) {
+        console.error("Error al leer nomenclador:", e);
+    }
+
+    if (Object.keys(nomenclador).length === 0) {
+        nomenclador = {
+            "CENTRO DE DÍA - JORNADA DOBLE": { "base": 1037014.61, "desc": "Centro de Día - Jornada Doble", "resolucion": "13/2026" },
+            "CENTRO DE DÍA - JORNADA SIMPLE": { "base": 551687.35, "desc": "Centro de Día - Jornada Simple", "resolucion": "13/2026" },
+            "CENTRO EDUCATIVO TERAPEUTICO - JORNADA DOBLE": { "base": 1164888.93, "desc": "Centro Educativo Terapeutico - Jornada Doble", "resolucion": "13/2026" },
+            "CENTRO EDUCATIVO TERAPEUTICO - JORNADA SIMPLE": { "base": 636172.98, "desc": "Centro Educativo Terapeutico - Jornada Simple", "resolucion": "13/2026" },
+            "MÓDULO DE APOYO A LA INTEGRACIÓN ESCOLAR (SAIE)": { "base": 712801.63, "desc": "Módulo de Apoyo a la Integración Escolar (SAIE)", "resolucion": "13/2026" },
+            "REHABILITACION - MÓDULO INTEGRAL INTENSIVO": { "base": 170221.02, "desc": "Rehabilitacion - Módulo Integral Intensivo", "resolucion": "13/2026" },
+            "REHABILITACIÓN - MÓDULO INTEGRAL SIMPLE": { "base": 102389.51, "desc": "Rehabilitación - Módulo Integral Simple", "resolucion": "13/2026" }
+        };
+    }
+
+    const modalId = 'modalAdminNomenclador';
+    document.getElementById(modalId)?.remove();
+
+    let filasHtml = '';
+    for (const [key, val] of Object.entries(nomenclador)) {
+        const montoBase = val.base || val.monto || 0;
+        const descripcion = val.desc || key;
+        const resolucionVal = val.resolucion || '13/2026';
+        filasHtml += `
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px; background:#f9f9f9; padding:8px; border-radius:5px;">
+                <div style="flex:2;">
+                    <strong style="font-size:12px; color:#333;">${key}</strong>
+                    <div style="font-size:10px; color:#666;">${descripcion}</div>
+                </div>
+                <div style="flex:1;">
+                    <input type="number" step="0.01" id="nom_val_${key}" value="${montoBase}" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px;" placeholder="Monto">
+                </div>
+                <div style="flex:1;">
+                    <input type="text" id="nom_res_${key}" value="${resolucionVal}" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px;" placeholder="Resolución">
+                </div>
+            </div>
+        `;
+    }
+
+    const modal = document.createElement('div');
+    modal.id = modalId;
+    modal.innerHTML = `
+        <div style="position:fixed;top:0;left:0;width:100%;height:100%;
+                    background:rgba(0,0,0,0.6);z-index:10005;display:flex;
+                    align-items:center;justify-content:center;">
+          <div style="background:white;border-radius:12px;padding:25px;width:650px;
+                      max-width:95%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+
+            <h3 style="margin:0 0 5px 0;color:#2c3e50;">⚙️ Actualizar Nomenclador y Resoluciones</h3>
+            <p style="font-size:12px;color:#666;margin-top:0;">Modificá los valores y la resolución. Se aplicarán de forma dinámica en el próximo lote.</p>
+
+            <div style="overflow-y:auto;flex:1;padding-right:5px;margin-bottom:15px;">
+                ${filasHtml}
+            </div>
+
+            <div style="display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #eee;padding-top:15px;">
+                <button onclick="document.getElementById('${modalId}').remove()"
+                        style="padding:10px 20px;border:1px solid #ccc;border-radius:5px;background:#eee;cursor:pointer;">
+                    CANCELAR
+                </button>
+                <button id="btnGuardarNom"
+                        style="padding:10px 20px;border:none;border-radius:5px;
+                               background:linear-gradient(135deg,#2980b9,#2c3e50);
+                               color:white;font-weight:bold;cursor:pointer;">
+                    💾 GUARDAR CAMBIOS
+                </button>
+            </div>
+
+          </div>
+        </div>`;
+
+    document.body.appendChild(modal);
+
+    document.getElementById('btnGuardarNom').addEventListener('click', async function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.textContent = '⏳ GUARDANDO...';
+
+        try {
+            const nuevoNomenclador = {};
+            for (const key of Object.keys(nomenclador)) {
+                const inputVal = document.getElementById(`nom_val_${key}`);
+                const inputRes = document.getElementById(`nom_res_${key}`);
+                const valorNumerico = parseFloat(inputVal ? inputVal.value : 0) || 0;
+                const resolucionTexto = inputRes ? inputRes.value.trim() : '13/2026';
+                
+                nuevoNomenclador[key] = {
+                    base: valorNumerico,
+                    desc: nomenclador[key].desc || key,
+                    resolucion: resolucionTexto
+                };
+            }
+
+            await db.ref('config/nomenclador').set(nuevoNomenclador);
+
+            alert("✅ ¡Nomenclador actualizado con éxito!");
+            document.getElementById(modalId).remove();
+        } catch(e) {
+            console.error("Error al guardar nomenclador:", e);
+            alert("❌ Error al guardar: " + e.message);
+            btn.disabled = false;
+            btn.textContent = '💾 GUARDAR CAMBIOS';
+        }
+    });
+};
+// ============================================================
+// PANEL DE FILTROS CON SELECCIÓN MÚLTIPLE (CHECKBOXES)
+// ============================================================
+async function mostrarPanelFiltros() {
+    const hoy = new Date();
+    const mesDefecto = hoy.getMonth();
+    const anioDefecto = hoy.getFullYear();
+
+    const [snapCD, snapCET, snapREHAB, snapSAEI, snapOS] = await Promise.all([
+        db.ref('cd/pacientes').once('value'),
+        db.ref('cet/pacientes').once('value'),
+        db.ref('rehab/pacientes').once('value'),
+        db.ref('saei/pacientes').once('value'),
+        db.ref('config/obras_sociales').once('value')
+    ]);
+
+    const todosPacientes = {
+        CD: snapCD.val() || {},
+        CET: snapCET.val() || {},
+        REHAB: snapREHAB.val() || {},
+        SAEI: snapSAEI.val() || {}
+    };
+
+    const osSet = new Set();
+    Object.values(todosPacientes).forEach(pacs => {
+        Object.values(pacs).forEach(p => {
+            const os = (p.os || '').trim();
+            if (os) osSet.add(os);
+        });
+    });
+    const listaOS = Array.from(osSet).sort();
+
+    const panelId = 'panelFiltrosCFO';
+    document.getElementById(panelId)?.remove();
+
+    const panel = document.createElement('div');
+    panel.id = panelId;
+    panel.innerHTML = `
+    <div style="position:fixed;top:0;left:0;width:100%;height:100%;
+                background:rgba(0,0,0,0.6);z-index:10000;display:flex;
+                align-items:center;justify-content:center;">
+      <div style="background:white;border-radius:12px;padding:25px;width:550px;
+                  max-width:95%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+
+        <h3 style="margin:0 0 15px 0;color:#6c3483;">🎯 PREPARAR LOTE DE FACTURACIÓN (MULTI-SELECCIÓN)</h3>
+
+        <div style="overflow-y:auto;flex:1;padding-right:5px;display:flex;flex-direction:column;gap:15px;">
+
+          <!-- MÓDULOS -->
+          <div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <label style="font-weight:bold;font-size:13px;color:#333;">📦 MÓDULOS</label>
+              <button type="button" onclick="document.querySelectorAll('.chkMod').forEach(c=>c.checked=true); actualizarPacientesCheckbox();" style="font-size:10px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;">Marcar Todos</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="CD" checked onchange="actualizarPacientesCheckbox()"> CD</label>
+              <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="CET" checked onchange="actualizarPacientesCheckbox()"> CET</label>
+              <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="REHAB" checked onchange="actualizarPacientesCheckbox()"> REHAB</label>
+              <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="SAEI" checked onchange="actualizarPacientesCheckbox()"> SAEI</label>
+            </div>
+          </div>
+
+          <!-- OBRAS SOCIALES -->
+          <div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;max-height:150px;overflow-y:auto;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <label style="font-weight:bold;font-size:13px;color:#333;">🏥 OBRAS SOCIALES</label>
+              <button type="button" onclick="document.querySelectorAll('.chkOS').forEach(c=>c.checked=true); actualizarPacientesCheckbox();" style="font-size:10px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;">Marcar Todas</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              ${listaOS.map(os => `<label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkOS" value="${os}" checked onchange="actualizarPacientesCheckbox()"> ${os}</label>`).join('')}
+            </div>
+          </div>
+
+          <!-- PACIENTES -->
+          <div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;max-height:150px;overflow-y:auto;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <label style="font-weight:bold;font-size:13px;color:#333;">👤 PACIENTES</label>
+              <button type="button" onclick="document.querySelectorAll('.chkPac').forEach(c=>c.checked=true);" style="font-size:10px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;">Marcar Todos</button>
+            </div>
+            <div id="contenedorPacientesCheckbox" style="display:flex;flex-direction:column;gap:5px;">
+              <!-- Se llena dinámicamente -->
+            </div>
+          </div>
+
+          <!-- PERÍODO -->
+          <div>
+            <label style="font-weight:bold;font-size:13px;color:#333;">📅 PERÍODO</label>
+            <input type="month" id="filtroPeriodo"
+                   value="${anioDefecto}-${String(mesDefecto+1).padStart(2,'0')}"
+                   style="width:100%;padding:8px;border-radius:5px;border:1px solid #ccc;margin-top:5px;">
+          </div>
+
+        </div>
+
+        <div style="margin-top:15px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #eee;padding-top:15px;">
+          <button onclick="document.getElementById('${panelId}').remove()"
+                  style="padding:10px 20px;border:1px solid #ccc;border-radius:5px;background:#eee;cursor:pointer;">
+            CANCELAR
+          </button>
+          <button id="btnEjecutarLote"
+                  style="padding:10px 20px;border:none;border-radius:5px;
+                         background:linear-gradient(135deg,#8e44ad,#6c3483);
+                         color:white;font-weight:bold;cursor:pointer;">
+            🔍 BUSCAR Y PREPARAR
+          </button>
+        </div>
+
+      </div>
+    </div>`;
+    document.body.appendChild(panel);
+
+    // Guardar referencia global temporal para los checkboxes de pacientes
+    window._todosPacientesCache = todosPacientes;
+    actualizarPacientesCheckbox();
+
+    document.getElementById('btnEjecutarLote').addEventListener('click', async function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.textContent = '⏳ LEYENDO...';
+        try {
+            const modulosSeleccionados = Array.from(document.querySelectorAll('.chkMod:checked')).map(c => c.value);
+            const osSeleccionadas = Array.from(document.querySelectorAll('.chkOS:checked')).map(c => c.value);
+            const pacientesSeleccionados = Array.from(document.querySelectorAll('.chkPac:checked')).map(c => c.value);
+
+            await ejecutarLoteMulti({
+                modulos: modulosSeleccionados,
+                os: osSeleccionadas,
+                pacientes: pacientesSeleccionados,
+                periodo: document.getElementById('filtroPeriodo').value
+            }, todosPacientes, snapOS.val() || {});
+            
+            document.getElementById(panelId).remove();
+        } catch(e) {
+            console.error("❌ CFO:", e);
+            alert("❌ Error: " + e.message);
+            btn.disabled = false;
+            btn.textContent = '🔍 BUSCAR Y PREPARAR';
+        }
+    });
+}
+
+function actualizarPacientesCheckbox() {
+    const todosPacientes = window._todosPacientesCache || {};
+    const modulosSeleccionados = Array.from(document.querySelectorAll('.chkMod:checked')).map(c => c.value);
+    const osSeleccionadas = Array.from(document.querySelectorAll('.chkOS:checked')).map(c => c.value);
+
+    const contenedor = document.getElementById('contenedorPacientesCheckbox');
+    if (!contenedor) return;
+
+    const pacientesMap = new Map();
+    modulosSeleccionados.forEach(mod => {
+        Object.values(todosPacientes[mod] || {}).forEach(p => {
+            const nombre = (p.nombre || '').trim();
+            const os = (p.os || '').trim();
+            if (nombre && (osSeleccionadas.length === 0 || osSeleccionadas.includes(os))) {
+                pacientesMap.set(nombre, true);
+            }
+        });
+    });
+
+    const nombresOrdenados = Array.from(pacientesMap.keys()).sort();
+    contenedor.innerHTML = nombresOrdenados.length === 0 
+        ? '<span style="font-size:11px;color:#888;">No hay pacientes con los filtros actual.</span>'
+        : nombresOrdenados.map(n => `<label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkPac" value="${n}" checked> ${n}</label>`).join('');
+}
+
+// ============================================================
+// EJECUTAR LOTE MULTI-SELECCIÓN CON SOPORTE DE DEPENDENCIA
+// ============================================================
+async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
+    const [anioStr, mesStr] = filtros.periodo.split('-');
+    const anioFacturar = parseInt(anioStr);
+    const mesFacturar = parseInt(mesStr) - 1;
+    const nombreMes = MESESCFO[mesFacturar];
+
+    let nomenclador = {};
+    try {
+        const snap = await db.ref('config/nomenclador').once('value');
+        nomenclador = snap.val() || {};
+    } catch(e) {}
+
+    const [snapFac, snapFacSaei] = await Promise.all([
+        db.ref('facturas_emitidas').once('value'),
+        db.ref('facturas_emitidas_saei').once('value')
+    ]);
+    const facturasEmitidas = { ...(snapFac.val() || {}), ...(snapFacSaei.val() || {}) };
+
+    let ultimoComp = 0;
+    Object.values(facturasEmitidas).forEach(f => {
+        const c = parseInt(f.nrocomp || f.numero || 0);
+        if (c > ultimoComp) ultimoComp = c;
+    });
+
+    const lote = [];
+    const adv = [];
+    const proc = new Set();
+
+    for (const modulo of filtros.modulos) {
+        for (const [idPaciente, p] of Object.entries(todosPacientes[modulo] || {})) {
+            const nombrePaciente = (p.nombre || idPaciente).trim();
+
+            if (!filtros.pacientes.includes(nombrePaciente)) continue;
+            const osPaciente = (p.os || '').trim();
+            if (!filtros.os.includes(osPaciente)) continue;
+
+            const asist = p.asistFlink || '';
+            if (!asist || asist === 'no' || asist === 'NO' || asist.length < 5) continue;
+
+            const clave = `${idPaciente}${modulo}`;
+            if (proc.has(clave)) continue;
+
+            const ya = Object.values(facturasEmitidas).some(f => {
+                if (f.id_paciente !== idPaciente && f.id_pacientedb !== idPaciente && f.idpaciente !== idPaciente && f.idpacientedb !== idPaciente) return false;
+                const fechaEmision = f.fecha_emision || f.fechaemision;
+                if (!fechaEmision) return false;
+                const parts = fechaEmision.includes('/') ? fechaEmision.split('/') : fechaEmision.split('-');
+                if (parts.length < 3) return false;
+                const mf = parseInt(parts[1]);
+                const af = parts[0].length === 4 ? parseInt(parts[0]) : parseInt(parts[2]);
+                return mf === mesFacturar + 1 && af === anioFacturar && !!(f.cae || f.CAE);
+            });
+            if (ya) continue;
+
+            const osNombre = osPaciente.toUpperCase();
+            const osData = osConfig[osNombre] || {};
+
+            const uf = p.ultima_factura || p.ultimafactura || {};
+            const detAnterior = (uf.concepto || uf.descripcion || uf.detalle || '').toUpperCase();
+
+            let prestacion = modulo;
+            let montoBase = 0;
+            let resolucionAplicada = '13/2026';
+
+            for (const [claveNom, val] of Object.entries(nomenclador)) {
+                if (detAnterior.includes(claveNom)) {
+                    prestacion = val.desc || claveNom;
+                    montoBase = val.base || val.monto || 0;
+                    resolucionAplicada = val.resolucion || '13/2026';
+                    break;
+                }
+            }
+            if (!montoBase && nomenclador[modulo]) {
+                montoBase = nomenclador[modulo].base || nomenclador[modulo].monto || 0;
+                resolucionAplicada = nomenclador[modulo].resolucion || '13/2026';
+                prestacion = nomenclador[modulo].desc || modulo;
+            }
+
+            const tieneDependencia = detAnterior.includes('DEPEND') || p.dependencia === true || p.conDependencia === true;
+            
+            let montoDependencia = 0;
+            let montoTotal = montoBase;
+
+            if (tieneDependencia) {
+                montoDependencia = Math.round((montoBase * 0.35) * 100) / 100;
+                montoTotal = Math.round((montoBase + montoDependencia) * 100) / 100;
+            }
+
+            let detalleNuevo = '';
+            const detalleViejoBase = uf.detalle || uf.descripcion || '';
+            
+            if (detalleViejoBase) {
+                detalleNuevo = actualizarDetalleQuirurgico(detalleViejoBase, nombreMes, anioFacturar, resolucionAplicada, montoBase, tieneDependencia, montoDependencia, montoTotal);
+            } else {
+                const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
+                const baseFmt = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                
+                if (tieneDependencia) {
+                    const depFmt = montoDependencia.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    const totFmt = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    detalleNuevo = `PRESTADOR: ESENCIAL S.R.L.\nPERIODO: ${nombreMes} ${anioFacturar}\n${prestacion.toUpperCase()}\nC/DEPEND.S/F.I.M. RESOL ${resolucionAplicada}\nBENEF. ${nombrePaciente.toUpperCase()}${dniTxt}\nVALOR PRESTACION:        ${baseFmt}\nVALOR DEPENDENCIA:       ${depFmt}\nVALOR TOTAL:             ${totFmt}\n`;
+                } else {
+                    detalleNuevo = `${nombrePaciente.toUpperCase()}${dniTxt}\nPERÍODO: ${nombreMes} ${anioFacturar}\n${prestacion.toUpperCase()}\nRESOL. ${resolucionAplicada}\nVALOR PRESTACION:  $ ${baseFmt}`;
+                }
+            }
+
+            const cuit = osData.cuit || p.obra_social_cuit || p.obrasocialcuit || '';
+            const dom = osData.domicilio || p.obra_social_domicilio || p.obrasocialdomicilio || 'SAN JUAN';
+            const condIVA = osData.condicion_iva || osData.condicioniva || 'EXENTO';
+            const tipo = condIVA === 'IVA Responsable Inscripto' ? '1' : '6';
+            const ali = condIVA === 'IVA Responsable Inscripto' ? 21 : 0;
+            const neto = condIVA === 'IVA Responsable Inscripto' ? Math.round((montoTotal / 1.21) * 100) / 100 : 0;
+            const exento = condIVA === 'IVA Responsable Inscripto' ? 0 : montoTotal;
+            const cobDesde = p.cobertura_desde || p.coberturadesde || '';
+            const cobHasta = p.cobertura_hasta || p.coberturahasta || '';
+
+            if (!cuit || cuit.length < 10) {
+                adv.push({ paciente: nombrePaciente, msg: '⚠️ CUIT faltante o inválido' });
+            }
+
+            lote.push({
+                id: idPaciente,
+                tipo, cuit, rs: osNombre, dom, neto, exento, ali,
+                detalle: detalleNuevo,
+                cobDesde, cobHasta,
+                modulo, prestacion, monto: montoTotal, nombrePaciente,
+                nroComp: ++ultimoComp
+            });
+            proc.add(clave);
+        }
+    }
+
+    if (!lote.length) {
+        alert(`⚠️ Sin pacientes para facturar con las combinaciones seleccionadas.`);
+        return;
+    }
+
+    abrirModalCFO(lote, nombreMes, anioFacturar, adv);
+}
+// ============================================================
+// EJECUTAR LOTE CON SOPORTE DE DEPENDENCIA
+// ============================================================
+async function ejecutarLote(filtros, todosPacientes, osConfig) {
+    const [anioStr, mesStr] = filtros.periodo.split('-');
+    const anioFacturar = parseInt(anioStr);
+    const mesFacturar = parseInt(mesStr) - 1;
+    const nombreMes = MESESCFO[mesFacturar];
+
+    const modulos = filtros.modulo === 'TODOS' ? ['CD','CET','REHAB','SAEI'] : [filtros.modulo];
+
+    let nomenclador = {};
+    try {
+        const snap = await db.ref('config/nomenclador').once('value');
+        nomenclador = snap.val() || {};
+    } catch(e) {}
+
+    const [snapFac, snapFacSaei] = await Promise.all([
+        db.ref('facturas_emitidas').once('value'),
+        db.ref('facturas_emitidas_saei').once('value')
+    ]);
+    const facturasEmitidas = { ...(snapFac.val() || {}), ...(snapFacSaei.val() || {}) };
+
+    let ultimoComp = 0;
+    Object.values(facturasEmitidas).forEach(f => {
+        const c = parseInt(f.nrocomp || f.numero || 0);
+        if (c > ultimoComp) ultimoComp = c;
+    });
+
+    const lote = [];
+    const adv = [];
+    const proc = new Set();
+
+    for (const modulo of modulos) {
+        for (const [idPaciente, p] of Object.entries(todosPacientes[modulo] || {})) {
+            const nombrePaciente = (p.nombre || idPaciente).trim();
+
+            if (filtros.paciente !== 'TODOS' && nombrePaciente !== filtros.paciente) continue;
+            const osPaciente = (p.os || '').trim();
+            if (filtros.os !== 'TODAS' && osPaciente.toUpperCase() !== filtros.os.toUpperCase()) continue;
+
+            const asist = p.asistFlink || '';
+            if (!asist || asist === 'no' || asist === 'NO' || asist.length < 5) continue;
+
+            const clave = `${idPaciente}${modulo}`;
+            if (proc.has(clave)) continue;
+
+            const ya = Object.values(facturasEmitidas).some(f => {
+                if (f.id_paciente !== idPaciente && f.id_pacientedb !== idPaciente && f.idpaciente !== idPaciente && f.idpacientedb !== idPaciente) return false;
+                const fechaEmision = f.fecha_emision || f.fechaemision;
+                if (!fechaEmision) return false;
+                const parts = fechaEmision.includes('/') ? fechaEmision.split('/') : fechaEmision.split('-');
+                if (parts.length < 3) return false;
+                const mf = parseInt(parts[1]);
+                const af = parts[0].length === 4 ? parseInt(parts[0]) : parseInt(parts[2]);
+                return mf === mesFacturar + 1 && af === anioFacturar && !!(f.cae || f.CAE);
+            });
+            if (ya) continue;
+
+            const osNombre = osPaciente.toUpperCase();
+            const osData = osConfig[osNombre] || {};
+
+            const uf = p.ultima_factura || p.ultimafactura || {};
+            const detAnterior = (uf.concepto || uf.descripcion || uf.detalle || '').toUpperCase();
+
+            let prestacion = modulo;
+            let montoBase = 0;
+            let resolucionAplicada = '13/2026';
+
+            // Buscar coincidencia en el nomenclador
+            for (const [claveNom, val] of Object.entries(nomenclador)) {
+                if (detAnterior.includes(claveNom)) {
+                    prestacion = val.desc || claveNom;
+                    montoBase = val.base || val.monto || 0;
+                    resolucionAplicada = val.resolucion || '13/2026';
+                    break;
+                }
+            }
+            if (!montoBase && nomenclador[modulo]) {
+                montoBase = nomenclador[modulo].base || nomenclador[modulo].monto || 0;
+                resolucionAplicada = nomenclador[modulo].resolucion || '13/2026';
+                prestacion = nomenclador[modulo].desc || modulo;
+            }
+
+            // DETECTAR SI TIENE DEPENDENCIA (por el detalle anterior o campo en el paciente)
+            const tieneDependencia = detAnterior.includes('DEPEND') || p.dependencia === true || p.conDependencia === true;
+            
+            let montoDependencia = 0;
+            let montoTotal = montoBase;
+
+            if (tieneDependencia) {
+                montoDependencia = Math.round((montoBase * 0.35) * 100) / 100;
+                montoTotal = Math.round((montoBase + montoDependencia) * 100) / 100;
+            }
+
+            let detalleNuevo = '';
+            const detalleViejoBase = uf.detalle || uf.descripcion || '';
+            
+            if (detalleViejoBase) {
+                detalleNuevo = actualizarDetalleQuirurgico(detalleViejoBase, nombreMes, anioFacturar, resolucionAplicada, montoBase, tieneDependencia, montoDependencia, montoTotal);
+            } else {
+                const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
+                const baseFmt = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                
+                if (tieneDependencia) {
+                    const depFmt = montoDependencia.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    const totFmt = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    detalleNuevo = `PRESTADOR: ESENCIAL S.R.L.\nPERIODO: ${nombreMes} ${anioFacturar}\n${prestacion.toUpperCase()}\nC/DEPEND.S/F.I.M. RESOL ${resolucionAplicada}\nBENEF. ${nombrePaciente.toUpperCase()}${dniTxt}\nVALOR PRESTACION:        ${baseFmt}\nVALOR DEPENDENCIA:       ${depFmt}\nVALOR TOTAL:             ${totFmt}\n`;
+                } else {
+                    detalleNuevo = `${nombrePaciente.toUpperCase()}${dniTxt}\nPERÍODO: ${nombreMes} ${anioFacturar}\n${prestacion.toUpperCase()}\nRESOL. ${resolucionAplicada}\nVALOR PRESTACION:  $ ${baseFmt}`;
+                }
+            }
+
+            const cuit = osData.cuit || p.obra_social_cuit || p.obrasocialcuit || '';
+            const dom = osData.domicilio || p.obra_social_domicilio || p.obrasocialdomicilio || 'SAN JUAN';
+            const condIVA = osData.condicion_iva || osData.condicioniva || 'EXENTO';
+            const tipo = condIVA === 'IVA Responsable Inscripto' ? '1' : '6';
+            const ali = condIVA === 'IVA Responsable Inscripto' ? 21 : 0;
+            const neto = condIVA === 'IVA Responsable Inscripto' ? Math.round((montoTotal / 1.21) * 100) / 100 : 0;
+            const exento = condIVA === 'IVA Responsable Inscripto' ? 0 : montoTotal; // ¡Aquí se inyecta la suma total en exento!
+            const cobDesde = p.cobertura_desde || p.coberturadesde || '';
+            const cobHasta = p.cobertura_hasta || p.coberturahasta || '';
+
+            if (!cuit || cuit.length < 10) {
+                adv.push({ paciente: nombrePaciente, msg: '⚠️ CUIT faltante o inválido' });
+            }
+
+            lote.push({
+                id: idPaciente,
+                tipo, cuit, rs: osNombre, dom, neto, exento, ali,
+                detalle: detalleNuevo,
+                cobDesde, cobHasta,
+                modulo, prestacion, monto: montoTotal, nombrePaciente,
+                nroComp: ++ultimoComp
+            });
+            proc.add(clave);
+        }
+    }
+
+    if (!lote.length) {
+        alert(`⚠️ Sin pacientes para facturar.\n\nPeríodo: ${nombreMes} ${anioFacturar}\nMódulo: ${filtros.modulo}\nOS: ${filtros.os}\nPaciente: ${filtros.paciente}`);
+        return;
+    }
+
+    abrirModalCFO(lote, nombreMes, anioFacturar, adv);
+}
+// ============================================================
+// ABRIR MODAL
+// ============================================================
+function abrirModalCFO(lote, nombreMes, anio, adv) {
+    const ultimoDia = new Date(anio, MESESCFO.indexOf(nombreMes) + 1, 0);
+    const desde = `${anio}-${String(MESESCFO.indexOf(nombreMes)+1).padStart(2,'0')}-01`;
+    const hasta = ultimoDia.toISOString().split('T')[0];
+    const vto = hasta;
+
+    ['perdesde','perhasta','vtopago'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = id === 'perdesde' ? desde : id === 'perhasta' ? hasta : vto;
+    });
+
+    let html = `
+    <div style="background:#f0f4ff;padding:12px;border-radius:8px;margin-bottom:15px;
+                border-left:5px solid #8e44ad;display:flex;justify-content:space-between;
+                align-items:center;flex-wrap:wrap;gap:10px;">
+      <div>
+        <b style="color:#6c3483;">🎯 LOTE PREPARADO — ${nombreMes} ${anio}</b><br>
+        <small>${lote.length} pacientes · Total general: <b>${lote.reduce((s,e)=>s+e.monto,0).toLocaleString('es-AR')} ARS</b></small>
+      </div>
+    </div>`;
+
+    if (adv.length) {
+        html += `<div style="background:#fff3e0;padding:8px 12px;border-radius:5px;margin-bottom:12px;border:1px solid #ff9800;font-size:12px;">
+          <b>⚠️ ADVERTENCIAS:</b><br>${adv.map(a => `• ${a.paciente}: ${a.msg}`).join('<br>')}</div>`;
+    }
+
+    lote.forEach((e, i) => {
+        const cobDesdeFmt = e.cobDesde ? e.cobDesde.split('-').reverse().join('/') : 'S/F';
+        const cobHastaFmt = e.cobHasta ? e.cobHasta.split('-').reverse().join('/') : 'S/F';
+
+        html += `
+        <div style="border:1px solid #ddd;padding:10px;margin-bottom:15px;border-radius:5px;background:#fdfdfd;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+            <b style="color:var(--azul);">${e.rs} (${e.nombrePaciente})</b>
+            <span style="font-size:12px;color:var(--azul);">📅 Cobertura: <b>${cobDesdeFmt}</b> al <b>${cobHastaFmt}</b></span>
+          </div>
+          <div style="font-size:11px;color:#888;margin-top:2px;">
+            ${e.modulo} | ${e.prestacion} | Total: ${e.monto.toLocaleString('es-AR')} ARS
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:5px;">
+            <label>Tipo: <input value="${e.tipo}" id="mTipo${i}"></label>
+            <label>CUIT: <input value="${e.cuit}" id="mCuit${i}" style="${!e.cuit||e.cuit.length<10?'border:2px solid red':''}"></label>
+            <label>R.Social: <input value="${e.rs}" id="mRs${i}"></label>
+            <label>Domicilio: <input value="${e.dom}" id="mDom${i}"></label>
+            <label>Desde: <input type="date" id="mDesde${i}"></label>
+            <label>Hasta: <input type="date" id="mHasta${i}"></label>
+            <label>Vto: <input type="date" id="mVto${i}"></label>
+            <label>Alicuota:
+              <select id="mAli${i}">
+                <option value="0" ${e.ali==0?'selected':''}>Exento</option>
+                <option value="10.5" ${e.ali==10.5?'selected':''}>10.5%</option>
+                <option value="21" ${e.ali==21?'selected':''}>21%</option>
+              </select>
+            </label>
+            <label>Neto: <input type="number" value="${e.neto}" id="mNeto${i}"></label>
+            <label>Exento: <input type="number" value="${e.exento}" id="mExento${i}"></label>
+          </div>
+          <label style="margin-top:5px;">Detalle:</label>
+          <textarea id="mDet${i}" style="width:100%;height:80px;">${e.detalle}</textarea>
+        </div>`;
+    });
+
+    document.getElementById('modalContent').innerHTML = html;
+
+    window.datosParaConfirmar = lote.map((e, i) => ({
+        datos: {
+            id: e.id, tipo: e.tipo, cuit: e.cuit, rs: e.rs, dom: e.dom,
+            neto: e.neto, exento: e.exento, ali: e.ali, detalle: e.detalle,
+            cobDesde: e.cobDesde, cobHasta: e.cobHasta
+        },
+        fila: null, idx: i
+    }));
+
+    window.dataFull = lote.map(e => ({
+        id: e.id, iddb: e.id, nombre: e.nombrePaciente, os: e.rs,
+        modulo: e.modulo, coberturadesde: e.cobDesde, coberturahasta: e.cobHasta
+    }));
+
+    setTimeout(() => {
+        lote.forEach((_, i) => {
+            ['mDesde','mHasta','mVto'].forEach((pref, j) => {
+                const el = document.getElementById(`${pref}${i}`);
+                if (el) el.value = [desde, hasta, vto][j];
+            });
+        });
+    }, 50);
+
+    document.getElementById('modalConfirmacion').style.display = 'block';
+}
+// ============================================================
+// FUNCIÓN DE ACTUALIZACIÓN QUIRÚRGICA CON DEPENDENCIA
+// ============================================================
+function actualizarDetalleQuirurgico(detalleViejo, nuevoMes, nuevoAnio, nuevaResolucion, montoBase, tieneDependencia, montoDependencia, montoTotal) {
+    let detalleModificado = detalleViejo;
+
+    // 1. Reemplazar el periodo
+    detalleModificado = detalleModificado.replace(/PERIODO:\s*[A-ZÁÉÍÓÚ]+\s*\d{4}/gi, `PERIODO: ${nuevoMes} ${nuevoAnio}`);
+    detalleModificado = detalleModificado.replace(/PERÍODO:\s*[A-ZÁÉÍÓÚ]+\s*\d{4}/gi, `PERÍODO: ${nuevoMes} ${nuevoAnio}`);
+
+    // 2. Reemplazar la resolución
+    detalleModificado = detalleModificado.replace(/RESOL[\.\s]*[\d\/]+/gi, `RESOL ${nuevaResolucion}`);
+
+    if (tieneDependencia) {
+        const baseFmt = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const depFmt = montoDependencia.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const totFmt = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        // Actualizar Valor Prestación
+        detalleModificado = detalleModificado.replace(/VALOR\s*PRESTACION:\s*[\d\.,]+/gi, `VALOR PRESTACION:        ${baseFmt}`);
+        detalleModificado = detalleModificado.replace(/VALOR\s*PRESTACIÓN:\s*[\d\.,]+/gi, `VALOR PRESTACIÓN:        ${baseFmt}`);
+
+        // Actualizar o inyectar Valor Dependencia
+        if (/VALOR\s*DEPENDENCIA:/i.test(detalleModificado)) {
+            detalleModificado = detalleModificado.replace(/VALOR\s*DEPENDENCIA:\s*[\d\.,]+/gi, `VALOR DEPENDENCIA:       ${depFmt}`);
+        } else {
+            detalleModificado += `VALOR DEPENDENCIA:       ${depFmt}\n`;
+        }
+
+        // Actualizar o inyectar Valor Total
+        if (/VALOR\s*TOTAL:/i.test(detalleModificado)) {
+            detalleModificado = detalleModificado.replace(/VALOR\s*TOTAL:\s*[\d\.,]+/gi, `VALOR TOTAL:             ${totFmt}`);
+        } else {
+            detalleModificado += `VALOR TOTAL:             ${totFmt}\n`;
+        }
+    } else {
+        const montoFormateado = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        detalleModificado = detalleModificado.replace(/VALOR\s*PRESTACION:\s*\$\s*[\d\.,]+/gi, `VALOR PRESTACION:  $ ${montoFormateado}`);
+        detalleModificado = detalleModificado.replace(/VALOR\s*PRESTACIÓN:\s*\$\s*[\d\.,]+/gi, `VALOR PRESTACIÓN:  $ ${montoFormateado}`);
+    }
+
+    return detalleModificado;
+}	
 </script>
 </body>
 </html>
