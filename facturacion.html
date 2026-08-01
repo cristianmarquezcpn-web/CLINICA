@@ -1918,12 +1918,11 @@ window.abrirModalValidacion = function() {
     const valDesde = document.getElementById('per_desde').value;
     const valHasta = document.getElementById('per_hasta').value;
     const valVto = document.getElementById('vto_pago').value;
-	const pacienteDB = (window.dataFull || []).find(p => (p.id || p.id_db) === id);
-    const cobDesde = pacienteDB && pacienteDB.cobertura_desde ? pacienteDB.cobertura_desde : '';
+	const cobDesde = pacienteDB && pacienteDB.cobertura_desde ? pacienteDB.cobertura_desde : '';
     const cobHasta = pacienteDB && pacienteDB.cobertura_hasta ? pacienteDB.cobertura_hasta : '';
 
     // Formateamos para mostrar lindo (de YYYY-MM-DD a DD/MM/YYYY) si existe
-	
+	const pacienteDB = (window.dataFull || []).find(p => (p.id || p.id_db) === id);
     const cobDesdeFmt = cobDesde ? cobDesde.split('-').reverse().join('/') : 'S/F';
     const cobHastaFmt = cobHasta ? cobHasta.split('-').reverse().join('/') : 'S/F';
 
