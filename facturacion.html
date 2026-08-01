@@ -2038,117 +2038,200 @@ window.prepararLoteCFO = async function() {
     await mostrarPanelFiltros();
 };
 
-window.abrirAdminNomenclador = async function() {
-    let nomenclador = {};
-    try {
-        const snap = await db.ref('config/nomenclador').once('value');
-        nomenclador = snap.val() || {};
-    } catch(e) {
-        console.error("Error al leer nomenclador:", e);
-    }
-
-    if (Object.keys(nomenclador).length === 0) {
-        nomenclador = {
-            "CENTRO DE DÍA - JORNADA DOBLE": { "base": 1037014.61, "desc": "Centro de Día - Jornada Doble", "resolucion": "13/2026" },
-            "CENTRO DE DÍA - JORNADA SIMPLE": { "base": 551687.35, "desc": "Centro de Día - Jornada Simple", "resolucion": "13/2026" },
-            "CENTRO EDUCATIVO TERAPEUTICO - JORNADA DOBLE": { "base": 1164888.93, "desc": "Centro Educativo Terapeutico - Jornada Doble", "resolucion": "13/2026" },
-            "CENTRO EDUCATIVO TERAPEUTICO - JORNADA SIMPLE": { "base": 636172.98, "desc": "Centro Educativo Terapeutico - Jornada Simple", "resolucion": "13/2026" },
-            "MÓDULO DE APOYO A LA INTEGRACIÓN ESCOLAR (SAIE)": { "base": 712801.63, "desc": "Módulo de Apoyo a la Integración Escolar (SAIE)", "resolucion": "13/2026" },
-            "REHABILITACION - MÓDULO INTEGRAL INTENSIVO": { "base": 170221.02, "desc": "Rehabilitacion - Módulo Integral Intensivo", "resolucion": "13/2026" },
-            "REHABILITACIÓN - MÓDULO INTEGRAL SIMPLE": { "base": 102389.51, "desc": "Rehabilitación - Módulo Integral Simple", "resolucion": "13/2026" }
-        };
-    }
-
-    const modalId = 'modalAdminNomenclador';
-    document.getElementById(modalId)?.remove();
-
-    let filasHtml = '';
-    for (const [key, val] of Object.entries(nomenclador)) {
-        const montoBase = val.base || val.monto || 0;
-        const descripcion = val.desc || key;
-        const resolucionVal = val.resolucion || '13/2026';
-        filasHtml += `
-            <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px; background:#f9f9f9; padding:8px; border-radius:5px;">
-                <div style="flex:2;">
-                    <strong style="font-size:12px; color:#333;">${key}</strong>
-                    <div style="font-size:10px; color:#666;">${descripcion}</div>
-                </div>
-                <div style="flex:1;">
-                    <input type="number" step="0.01" id="nom_val_${key}" value="${montoBase}" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px;" placeholder="Monto">
-                </div>
-                <div style="flex:1;">
-                    <input type="text" id="nom_res_${key}" value="${resolucionVal}" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px;" placeholder="Resolución">
-                </div>
-            </div>
-        `;
-    }
-
-    const modal = document.createElement('div');
-    modal.id = modalId;
-    modal.innerHTML = `
-        <div style="position:fixed;top:0;left:0;width:100%;height:100%;
-                    background:rgba(0,0,0,0.6);z-index:10005;display:flex;
-                    align-items:center;justify-content:center;">
-          <div style="background:white;border-radius:12px;padding:25px;width:650px;
-                      max-width:95%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
-
-            <h3 style="margin:0 0 5px 0;color:#2c3e50;">⚙️ Actualizar Nomenclador y Resoluciones</h3>
-            <p style="font-size:12px;color:#666;margin-top:0;">Modificá los valores y la resolución. Se aplicarán de forma dinámica en el próximo lote.</p>
-
-            <div style="overflow-y:auto;flex:1;padding-right:5px;margin-bottom:15px;">
-                ${filasHtml}
-            </div>
-
-            <div style="display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #eee;padding-top:15px;">
-                <button onclick="document.getElementById('${modalId}').remove()"
-                        style="padding:10px 20px;border:1px solid #ccc;border-radius:5px;background:#eee;cursor:pointer;">
-                    CANCELAR
-                </button>
-                <button id="btnGuardarNom"
-                        style="padding:10px 20px;border:none;border-radius:5px;
-                               background:linear-gradient(135deg,#2980b9,#2c3e50);
-                               color:white;font-weight:bold;cursor:pointer;">
-                    💾 GUARDAR CAMBIOS
-                </button>
-            </div>
-
-          </div>
-        </div>`;
-
-    document.body.appendChild(modal);
-
-    document.getElementById('btnGuardarNom').addEventListener('click', async function() {
-        const btn = this;
-        btn.disabled = true;
-        btn.textContent = '⏳ GUARDANDO...';
-
-        try {
-            const nuevoNomenclador = {};
-            for (const key of Object.keys(nomenclador)) {
-                const inputVal = document.getElementById(`nom_val_${key}`);
-                const inputRes = document.getElementById(`nom_res_${key}`);
-                const valorNumerico = parseFloat(inputVal ? inputVal.value : 0) || 0;
-                const resolucionTexto = inputRes ? inputRes.value.trim() : '13/2026';
-                
-                nuevoNomenclador[key] = {
-                    base: valorNumerico,
-                    desc: nomenclador[key].desc || key,
-                    resolucion: resolucionTexto
-                };
-            }
-
-            await db.ref('config/nomenclador').set(nuevoNomenclador);
-
-            alert("✅ ¡Nomenclador actualizado con éxito!");
-            document.getElementById(modalId).remove();
-        } catch(e) {
-            console.error("Error al guardar nomenclador:", e);
-            alert("❌ Error al guardar: " + e.message);
-            btn.disabled = false;
-            btn.textContent = '💾 GUARDAR CAMBIOS';
-        }
+// 1. FUNCIONES GLOBALES PARA MARCAR / DESMARCAR TODAS LAS OS
+window.marcarTodasOS = function(marcar) {
+    document.querySelectorAll('input[name="filtroOS"]').forEach(cb => {
+        cb.checked = marcar;
     });
 };
+
+// 2. MODIFICACIÓN DEL MODAL CON EDICIÓN DE NOMENCLADOR Y BOTONES DE OS
+function abrirModalCFO(lote, nombreMes, anio, adv) {
+    const ultimoDia = new Date(anio, MESESCFO.indexOf(nombreMes) + 1, 0);
+    const desde = `${anio}-${String(MESESCFO.indexOf(nombreMes)+1).padStart(2,'0')}-01`;
+    const hasta = ultimoDia.toISOString().split('T')[0];
+    const vto = hasta;
+
+    ['perdesde','perhasta','vtopago'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = id === 'perdesde' ? desde : id === 'perhasta' ? hasta : vto;
+    });
+
+    let html = `
+    <div style="background:#f0f4ff;padding:12px;border-radius:8px;margin-bottom:15px;
+                border-left:5px solid #8e44ad;display:flex;justify-content:space-between;
+                align-items:center;flex-wrap:wrap;gap:10px;">
+      <div>
+        <b style="color:#6c3483;">🎯 LOTE PREPARADO — ${nombreMes} ${anio}</b><br>
+        <small>${lote.length} pacientes · Total general: <b id="totalGeneralLote">${lote.reduce((s,e)=>s+e.monto,0).toLocaleString('es-AR')}</b> ARS</small>
+      </div>
+    </div>`;
+
+    // SECCIÓN PARA ACTUALIZAR VALORES DEL NOMENCLADOR / AGREGAR PRESTACIONES
+    html += `
+    <div style="border:1px dashed #8e44ad;padding:10px;margin-bottom:15px;border-radius:5px;background:#faf5ff;">
+        <b style="color:#6c3483;font-size:13px;">⚙️ Ajustar Nomenclador o Agregar Prestación (Ej. Particular)</b>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:6px;margin-top:8px;font-size:11px;align-items:end;">
+            <label>Clave / Prestación:<br><input type="text" id="inputNomClave" placeholder="EJ: PARTICULAR"></label>
+            <label>Monto Base ($):<br><input type="number" id="inputNomBase" placeholder="0.00"></label>
+            <label>Resolución:<br><input type="text" id="inputNomResol" value="13/2026"></label>
+            <label>Descripción Larga:<br><input type="text" id="inputNomDesc" placeholder="ATENCIÓN PARTICULAR"></label>
+            <button type="button" onclick="aplicarCambioNomencladorEnLote()" style="background:#8e44ad;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;">🔄 Aplicar al Lote</button>
+        </div>
+    </div>`;
+
+    if (adv.length) {
+        html += `<div style="background:#fff3e0;padding:8px 12px;border-radius:5px;margin-bottom:12px;border:1px solid #ff9800;font-size:12px;">
+          <b>⚠️ ADVERTENCIAS:</b><br>${adv.map(a => `• ${a.paciente}: ${a.msg}`).join('<br>')}</div>`;
+    }
+
+    lote.forEach((e, i) => {
+        const cobDesdeFmt = e.cobDesde ? e.cobDesde.split('-').reverse().join('/') : 'S/F';
+        const cobHastaFmt = e.cobHasta ? e.cobHasta.split('-').reverse().join('/') : 'S/F';
+
+        html += `
+        <div style="border:1px solid #ddd;padding:10px;margin-bottom:15px;border-radius:5px;background:#fdfdfd;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+            <b style="color:var(--azul);">${e.rs} (${e.nombrePaciente})</b>
+            <span style="font-size:12px;color:var(--azul);">📅 Cobertura: <b>${cobDesdeFmt}</b> al <b>${cobHastaFmt}</b></span>
+          </div>
+          <div style="font-size:11px;color:#888;margin-top:2px;">
+            ${e.modulo} | ${e.prestacion} | Total: <span id="lblMontoItem${i}">${e.monto.toLocaleString('es-AR')}</span> ARS
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:5px;">
+            <label>Tipo: <input value="${e.tipo}" id="mTipo${i}"></label>
+            <label>CUIT: <input value="${e.cuit}" id="mCuit${i}" style="${!e.cuit||e.cuit.length<10?'border:2px solid red':''}"></label>
+            <label>R.Social: <input value="${e.rs}" id="mRs${i}"></label>
+            <label>Domicilio: <input value="${e.dom}" id="mDom${i}"></label>
+            <label>Desde: <input type="date" id="mDesde${i}"></label>
+            <label>Hasta: <input type="date" id="mHasta${i}"></label>
+            <label>Vto: <input type="date" id="mVto${i}"></label>
+            <label>Alicuota:
+              <select id="mAli${i}" onchange="recalcularItemModal(${i})">
+                <option value="0" ${e.ali==0?'selected':''}>Exento</option>
+                <option value="10.5" ${e.ali==10.5?'selected':''}>10.5%</option>
+                <option value="21" ${e.ali==21?'selected':''}>21%</option>
+              </select>
+            </label>
+            <label>Neto: <input type="number" value="${e.neto}" id="mNeto${i}" oninput="sincronizarMontosModal(${i}, 'neto')"></label>
+            <label>Exento: <input type="number" value="${e.exento}" id="mExento${i}" oninput="sincronizarMontosModal(${i}, 'exento')"></label>
+          </div>
+          <label style="margin-top:5px;">Detalle:</label>
+          <textarea id="mDet${i}" style="width:100%;height:80px;">${e.detalle}</textarea>
+        </div>`;
+    });
+
+    document.getElementById('modalContent').innerHTML = html;
+
+    window.datosParaConfirmar = lote.map((e, i) => ({
+        datos: {
+            id: e.id, tipo: e.tipo, cuit: e.cuit, rs: e.rs, dom: e.dom,
+            neto: e.neto, exento: e.exento, ali: e.ali, detalle: e.detalle,
+            cobDesde: e.cobDesde, cobHasta: e.cobHasta
+        },
+        fila: null, idx: i
+    }));
+
+    window.dataFull = lote.map(e => ({
+        id: e.id, iddb: e.id, nombre: e.nombrePaciente, os: e.rs,
+        modulo: e.modulo, coberturadesde: e.cobDesde, coberturahasta: e.cobHasta
+    }));
+
+    setTimeout(() => {
+        lote.forEach((_, i) => {
+            ['mDesde','mHasta','mVto'].forEach((pref, j) => {
+                const el = document.getElementById(`${pref}${i}`);
+                if (el) el.value = [desde, hasta, vto][j];
+            });
+        });
+    }, 50);
+
+    document.getElementById('modalConfirmacion').style.display = 'block';
+}
+
+// 3. FUNCIONES AUXILIARES PARA ACTUALIZAR VALORES Y RECALCULAR EN VIVO EN EL MODAL
+window.aplicarCambioNomencladorEnLote = function() {
+    const clave = document.getElementById('inputNomClave').value.trim().toUpperCase();
+    const nuevoBase = parseFloat(document.getElementById('inputNomBase').value) || 0;
+    const resolucion = document.getElementById('inputNomResol').value.trim();
+    const descLarga = document.getElementById('inputNomDesc').value.trim().toUpperCase() || clave;
+
+    if (!clave || !nuevoBase) {
+        alert('⚠️ Ingresá una clave válida y un monto base.');
+        return;
+    }
+
+    if (!window.datosParaConfirmar) return;
+
+    window.datosParaConfirmar.forEach((item, i) => {
+        const detEl = document.getElementById(`mDet${i}`);
+        const netoEl = document.getElementById(`mNeto${i}`);
+        const exentoEl = document.getElementById(`mExento${i}`);
+        const aliEl = document.getElementById(`mAli${i}`);
+
+        if (!detEl) return;
+
+        const textoActual = detEl.value.toUpperCase();
+        if (textoActual.includes(clave) || item.datos.id) { // Aplica si coincide o de manera general si se desea
+            const ali = parseFloat(aliEl.value) || 0;
+            let neto = 0;
+            let exento = 0;
+
+            if (ali > 0) {
+                neto = Math.round((nuevoBase / (1 + (ali / 100))) * 100) / 100;
+                exento = 0;
+            } else {
+                neto = 0;
+                exento = nuevoBase;
+            }
+
+            netoEl.value = neto;
+            exentoEl.value = exento;
+
+            // Actualizar líneas de valor en el texto del detalle si existen
+            let detalleMod = detEl.value;
+            const baseFmt = nuevoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            if (/VALOR\s*PRESTACION:/i.test(detalleMod)) {
+                detalleMod = detalleMod.replace(/VALOR\s*PRESTACION:\s*[\$\s]*[\d\.,]+/gi, `VALOR PRESTACION:  $ ${baseFmt}`);
+            }
+            if (/RESOL[\.\s]*[\d\/]+/gi.test(detalleMod)) {
+                detalleMod = detalleMod.replace(/RESOL[\.\s]*[\d\/]+/gi, `RESOL. ${resolucion}`);
+            }
+
+            detEl.value = detalleMod;
+            document.getElementById(`lblMontoItem${i}`).innerText = nuevoBase.toLocaleString('es-AR');
+        }
+    });
+
+    alert(`✅ Prestación/Valores aplicados correctamente a los ítems del lote.`);
+};
+
+window.recalcularItemModal = function(i) {
+    const ali = parseFloat(document.getElementById(`mAli${i}`).value) || 0;
+    const netoEl = document.getElementById(`mNeto${i}`);
+    const exentoEl = document.getElementById(`mExento${i}`);
+
+    let valorTotal = parseFloat(netoEl.value) + parseFloat(exentoEl.value);
+    if (!valorTotal) valorTotal = parseFloat(exentoEl.value) || parseFloat(netoEl.value) || 0;
+
+    if (ali > 0) {
+        netoEl.value = Math.round((valorTotal / (1 + (ali / 100))) * 100) / 100;
+        exentoEl.value = 0;
+    } else {
+        netoEl.value = 0;
+        exentoEl.value = valorTotal;
+    }
+};
+
+window.sincronizarMontosModal = function(i, campo) {
+    const neto = parseFloat(document.getElementById(`mNeto${i}`).value) || 0;
+    const exento = parseFloat(document.getElementById(`mExento${i}`).value) || 0;
+    const total = neto + exento;
+    const lbl = document.getElementById(`lblMontoItem${i}`);
+    if (lbl) lbl.innerText = total.toLocaleString('es-AR');
+};
+
 // ============================================================
 // PANEL DE FILTROS CON SELECCIÓN MÚLTIPLE (CHECKBOXES)
 // ============================================================
@@ -2354,7 +2437,7 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const osPaciente = (p.os || '').trim();
             if (!filtros.os.includes(osPaciente)) continue;
 
-            const asist = p.asistFlink || '';
+            const asist = p.asistF_link || '';
             if (!asist || asist === 'no' || asist === 'NO' || asist.length < 5) continue;
 
             const clave = `${idPaciente}${modulo}`;
