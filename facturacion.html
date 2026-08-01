@@ -2025,7 +2025,7 @@ window.confirmarEnvioAFIP = async function(event) {
     window.datosParaConfirmar = [];
 };
 // ============================================================
-// CFO TITANIUM v3.1 — PREPARADOR DE LOTES CON GESTIÓN DE NOMENCLADOR Y DEPENDENCIA
+// CFO TITANIUM v3.2 — CORRECCIÓN DE NOMENCLADOR Y CARGA DE PACIENTES
 // ============================================================
 
 const MESESCFO = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
@@ -2075,7 +2075,7 @@ function abrirModalCFO(lote, nombreMes, anio, adv) {
     <div style="border:1px dashed #8e44ad;padding:10px;margin-bottom:15px;border-radius:5px;background:#faf5ff;">
         <b style="color:#6c3483;font-size:13px;">⚙️ Ajustar Nomenclador o Agregar Prestación (Ej. Particular)</b>
         <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:6px;margin-top:8px;font-size:11px;align-items:end;">
-            <label>Clave / Prestación:<br><input type="text" id="inputNomClave" placeholder="EJ: PARTICULAR"></label>
+            <label>Clave / Prestación:<br><input type="text" id="inputNomClave" placeholder="EJ: CD, CET, PARTICULAR"></label>
             <label>Monto Base ($):<br><input type="number" id="inputNomBase" placeholder="0.00"></label>
             <label>Resolución:<br><input type="text" id="inputNomResol" value="13/2026"></label>
             <label>Descripción Larga:<br><input type="text" id="inputNomDesc" placeholder="ATENCIÓN PARTICULAR"></label>
@@ -2116,18 +2116,16 @@ function abrirModalCFO(lote, nombreMes, anio, adv) {
                 <option value="21" ${e.ali==21?'selected':''}>21%</option>
               </select>
             </label>
-            <label>Neto: <input type="number" value="${e.neto}" id="mNeto${i}" oninput="sincronizarMontosModal(${i}, 'neto')"></label>
-            <label>Exento: <input type="number" value="${e.exento}" id="mExento${i}" oninput="sincronizarMontosModal(${i}, 'exento')"></label>
+            <label>Neto: <input type="number" value="${e.neto}" id="mNeto${i}" oninput="sincronizarMontosModal(${i})"></label>
+            <label>Exento: <input type="number" value="${e.exento}" id="mExento${i}" oninput="sincronizarMontosModal(${i})"></label>
           </div>
           <label style="margin-top:5px;">Detalle:</label>
           <textarea id="mDet${i}" style="width:100%;height:80px;">${e.detalle}</textarea>
         </div>`;
     });
 
-    // Verificación y aseguramiento del contenedor del modal principal
     let modalContent = document.getElementById('modalContent');
     if (!modalContent) {
-        // Si no existe el contenedor estándar, lo creamos dinámicamente o buscamos alternativas
         let modalGlobal = document.getElementById('modalConfirmacion');
         if (!modalGlobal) {
             modalGlobal = document.createElement('div');
@@ -2145,7 +2143,7 @@ function abrirModalCFO(lote, nombreMes, anio, adv) {
         datos: {
             id: e.id, tipo: e.tipo, cuit: e.cuit, rs: e.rs, dom: e.dom,
             neto: e.neto, exento: e.exento, ali: e.ali, detalle: e.detalle,
-            cobDesde: e.cobDesde, cobHasta: e.cobHasta
+            cobDesde: e.cobDesde, cobHasta: e.cobHasta, modulo: e.modulo
         },
         fila: null, idx: i
     }));
@@ -2173,20 +2171,18 @@ window.aplicarCambioNomencladorEnLote = function() {
     const claveInput = document.getElementById('inputNomClave');
     const nuevoBaseInput = document.getElementById('inputNomBase');
     const resolucionInput = document.getElementById('inputNomResol');
-    const descLargaInput = document.getElementById('inputNomDesc');
 
     if (!claveInput || !nuevoBaseInput) {
-        alert('⚠️ Error de interfaz: No se encontraron los campos del nomenclador.');
+        alert('⚠️ Error: No se encontraron los campos de ajuste.');
         return;
     }
 
     const clave = claveInput.value.trim().toUpperCase();
     const nuevoBase = parseFloat(nuevoBaseInput.value) || 0;
     const resolucion = resolucionInput ? resolucionInput.value.trim() : '13/2026';
-    const descLarga = descLargaInput ? (descLargaInput.value.trim().toUpperCase() || clave) : clave;
 
-    if (!clave || !nuevoBase) {
-        alert('⚠️ Ingresá una clave válida y un monto base.');
+    if (!nuevoBase) {
+        alert('⚠️ Ingresá un monto base válido.');
         return;
     }
 
@@ -2206,13 +2202,14 @@ window.aplicarCambioNomencladorEnLote = function() {
         if (!detEl) return;
 
         const textoActual = detEl.value.toUpperCase();
-        // Aplica si coincide la clave en el detalle, o si la clave coincide con el módulo/prestación, o de manera global si el input es general.
-        if (textoActual.includes(clave) || item.datos.id || true) { 
+        const moduloItem = (item.datos.modulo || '').toUpperCase();
+
+        // Condición flexible: si el campo clave está vacío, aplica a todo el lote. Si tiene texto, coincide con la clave escrita, el módulo, o el detalle.
+        const coincide = !clave || textoActual.includes(clave) || moduloItem.includes(clave) || item.datos.id.toUpperCase().includes(clave);
+
+        if (coincide) {
             const ali = aliEl ? (parseFloat(aliEl.value) || 0) : 0;
-            
-            // Verificamos si este ítem tiene dependencia guardada previamente en su estructura o texto
             const tieneDep = textoActual.includes('DEPEND');
-            let baseCalculo = nuevoBase;
             let montoDepCalc = 0;
             let montoTotCalc = nuevoBase;
 
@@ -2235,7 +2232,6 @@ window.aplicarCambioNomencladorEnLote = function() {
             if (netoEl) netoEl.value = neto;
             if (exentoEl) exentoEl.value = exento;
 
-            // Actualizar líneas de valor en el texto del detalle
             let detalleMod = detEl.value;
             const baseFmt = nuevoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             const depFmt = montoDepCalc.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2243,15 +2239,27 @@ window.aplicarCambioNomencladorEnLote = function() {
 
             if (/VALOR\s*PRESTACION:/i.test(detalleMod)) {
                 detalleMod = detalleMod.replace(/VALOR\s*PRESTACION:\s*[\$\s]*[\d\.,]+/gi, `VALOR PRESTACION:       ${baseFmt}`);
+            } else if (!tieneDep) {
+                detalleMod += `\nVALOR PRESTACION:  $ ${baseFmt}`;
             }
-            if (/VALOR\s*DEPENDENCIA:/i.test(detalleMod)) {
-                detalleMod = detalleMod.replace(/VALOR\s*DEPENDENCIA:\s*[\$\s]*[\d\.,]+/gi, `VALOR DEPENDENCIA:      ${depFmt}`);
+
+            if (tieneDep) {
+                if (/VALOR\s*DEPENDENCIA:/i.test(detalleMod)) {
+                    detalleMod = detalleMod.replace(/VALOR\s*DEPENDENCIA:\s*[\$\s]*[\d\.,]+/gi, `VALOR DEPENDENCIA:      ${depFmt}`);
+                } else {
+                    detalleMod += `\nVALOR DEPENDENCIA:      ${depFmt}`;
+                }
+                if (/VALOR\s*TOTAL:/i.test(detalleMod)) {
+                    detalleMod = detalleMod.replace(/VALOR\s*TOTAL:\s*[\$\s]*[\d\.,]+/gi, `VALOR TOTAL:            ${totFmt}`);
+                } else {
+                    detalleMod += `\nVALOR TOTAL:            ${totFmt}`;
+                }
             }
-            if (/VALOR\s*TOTAL:/i.test(detalleMod)) {
-                detalleMod = detalleMod.replace(/VALOR\s*TOTAL:\s*[\$\s]*[\d\.,]+/gi, `VALOR TOTAL:            ${totFmt}`);
-            }
+
             if (/RESOL[\.\s]*[\d\/]+/gi.test(detalleMod)) {
                 detalleMod = detalleMod.replace(/RESOL[\.\s]*[\d\/]+/gi, `RESOL. ${resolucion}`);
+            } else {
+                detalleMod += `\nRESOL. ${resolucion}`;
             }
 
             detEl.value = detalleMod;
@@ -2263,7 +2271,6 @@ window.aplicarCambioNomencladorEnLote = function() {
         }
     });
 
-    // Actualizar el total general visual del lote
     let nuevoTotalGeneral = 0;
     window.datosParaConfirmar.forEach((_, i) => {
         const netoEl = document.getElementById(`mNeto${i}`);
@@ -2278,7 +2285,7 @@ window.aplicarCambioNomencladorEnLote = function() {
         lblTotalGeneral.innerText = nuevoTotalGeneral.toLocaleString('es-AR');
     }
 
-    alert(`✅ Prestación/Valores aplicados correctamente a ${actualizadosCount} ítems del lote.`);
+    alert(`✅ Valores y Resolución ${resolucion} aplicados correctamente a ${actualizadosCount} ítems.`);
 };
 
 window.recalcularItemModal = function(i) {
@@ -2307,7 +2314,6 @@ window.sincronizarMontosModal = function(i) {
     const lbl = document.getElementById(`lblMontoItem${i}`);
     if (lbl) lbl.innerText = total.toLocaleString('es-AR');
 
-    // Actualizar también el total general de la cabecera
     let nuevoTotalGeneral = 0;
     if (window.datosParaConfirmar) {
         window.datosParaConfirmar.forEach((_, idx) => {
@@ -2325,20 +2331,27 @@ window.sincronizarMontosModal = function(i) {
 };
 
 // ============================================================
-// PANEL DE FILTROS CON SELECCIÓN MÚLTIPLE (CHECKBOXES)
+// PANEL DE FILTROS CON CARGA SEGURA DE PACIENTES
 // ============================================================
 async function mostrarPanelFiltros() {
     const hoy = new Date();
     const mesDefecto = hoy.getMonth();
     const anioDefecto = hoy.getFullYear();
 
-    const [snapCD, snapCET, snapREHAB, snapSAEI, snapOS] = await Promise.all([
-        db.ref('cd/pacientes').once('value'),
-        db.ref('cet/pacientes').once('value'),
-        db.ref('rehab/pacientes').once('value'),
-        db.ref('saei/pacientes').once('value'),
-        db.ref('config/obras_sociales').once('value')
-    ]);
+    let snapCD, snapCET, snapREHAB, snapSAEI, snapOS;
+    try {
+        [snapCD, snapCET, snapREHAB, snapSAEI, snapOS] = await Promise.all([
+            db.ref('cd/pacientes').once('value'),
+            db.ref('cet/pacientes').once('value'),
+            db.ref('rehab/pacientes').once('value'),
+            db.ref('saei/pacientes').once('value'),
+            db.ref('config/obras_sociales').once('value')
+        ]);
+    } catch(err) {
+        console.error("❌ Error al leer Firebase:", err);
+        alert("❌ Error al conectar con la base de datos para cargar pacientes.");
+        return;
+    }
 
     const todosPacientes = {
         CD: snapCD.val() || {},
@@ -2438,7 +2451,6 @@ async function mostrarPanelFiltros() {
     </div>`;
     document.body.appendChild(panel);
 
-    // Guardar referencia global temporal para los checkboxes de pacientes
     window._todosPacientesCache = todosPacientes;
     actualizarPacientesCheckbox();
 
