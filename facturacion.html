@@ -2025,7 +2025,8 @@ window.confirmarEnvioAFIP = async function(event) {
     window.datosParaConfirmar = [];
 };
 // ============================================================
-// CFO TITANIUM v3.5 — CORRECCIÓN DE UI Y NOMENCLADOR ESPECÍFICO
+// CFO TITANIUM v3.6 — CORRECCIÓN DE PERSISTENCIA, SAEI,
+// FILTROS, MÚLTIPLES PRESTACIONES Y RECUPERO DE DETALLE
 // ============================================================
 
 const MESESCFO = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
@@ -2187,14 +2188,15 @@ async function mostrarPanelFiltros() {
     const mesDefecto = hoy.getMonth(); 
     const anioDefecto = hoy.getFullYear();
 
-    let snapCD, snapCET, snapREHAB, snapSAEI, snapOS;
+    let snapCD, snapCET, snapREHAB, snapSAEI, snapOS, snapNom;
     try {
-        [snapCD, snapCET, snapREHAB, snapSAEI, snapOS] = await Promise.all([
+        [snapCD, snapCET, snapREHAB, snapSAEI, snapOS, snapNom] = await Promise.all([
             db.ref('cd/pacientes').once('value'),
             db.ref('cet/pacientes').once('value'),
             db.ref('rehab/pacientes').once('value'),
             db.ref('saei/pacientes').once('value'),
-            db.ref('config/obras_sociales').once('value')
+            db.ref('config/obras_sociales').once('value'),
+            db.ref('config/nomenclador').once('value')
         ]);
     } catch(err) {
         console.error("❌ Error al leer Firebase:", err);
@@ -2208,6 +2210,9 @@ async function mostrarPanelFiltros() {
         REHAB: snapREHAB.val() || {},
         SAEI: snapSAEI.val() || {}
     };
+
+    const nomencladorBD = snapNom.val() || {};
+    const cfgGuardada = nomencladorBD.config_manual || {};
 
     const osSet = new Set();
     Object.values(todosPacientes).forEach(pacs => {
@@ -2230,22 +2235,25 @@ async function mostrarPanelFiltros() {
       <div style="background:white;border-radius:12px;padding:20px;width:750px;
                   max-width:98%;height:92vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
 
-        <h3 style="margin:0 0 10px 0;color:#6c3483;">🎯 PREPARAR LOTE DE FACTURACIÓN</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="margin:0;color:#6c3483;">🎯 PREPARAR LOTE DE FACTURACIÓN</h3>
+            <button type="button" id="btnGuardarNom" style="padding:6px 12px;background:#27ae60;color:white;border:none;border-radius:4px;cursor:pointer;font-weight:bold;font-size:11px;">💾 Guardar Valores Nomenclador</button>
+        </div>
 
         <div style="overflow-y:auto;flex:1;padding-right:8px;display:flex;flex-direction:column;gap:15px;">
-          
+         
           <!-- CONFIGURACIÓN DE NOMENCLADOR ESPECÍFICO -->
           <div style="border:1px solid #8e44ad;padding:12px;border-radius:6px;background:#faf5ff;">
-            <b style="color:#6c3483;font-size:13px;">⚙️ Valores de Nomenclador (Dejar en blanco para usar base de datos)</b>
+            <b style="color:#6c3483;font-size:13px;">⚙️ Valores de Nomenclador (Configuración Específica)</b>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;font-size:11px;">
-                <label>Resolución Aplicable:<br><input type="text" id="filtroResolucion" value="13/2026" style="width:100%;padding:4px;"></label>
-                <label>SAEI (Apoyo Integración Escolar):<br><input type="number" id="nom_SAEI" placeholder="Monto SAEI" style="width:100%;padding:4px;"></label>
-                <label>Rehabilitación - Intensivo:<br><input type="number" id="nom_REHAB_INT" placeholder="Monto Rehab Intensivo" style="width:100%;padding:4px;"></label>
-                <label>Rehabilitación - Simple:<br><input type="number" id="nom_REHAB_SIM" placeholder="Monto Rehab Simple" style="width:100%;padding:4px;"></label>
-                <label>Centro de Día - Jornada Doble:<br><input type="number" id="nom_CD_DOB" placeholder="Monto CD Doble" style="width:100%;padding:4px;"></label>
-                <label>Centro de Día - Jornada Simple:<br><input type="number" id="nom_CD_SIM" placeholder="Monto CD Simple" style="width:100%;padding:4px;"></label>
-                <label>C.E.T. - Jornada Doble:<br><input type="number" id="nom_CET_DOB" placeholder="Monto CET Doble" style="width:100%;padding:4px;"></label>
-                <label>C.E.T. - Jornada Simple:<br><input type="number" id="nom_CET_SIM" placeholder="Monto CET Simple" style="width:100%;padding:4px;"></label>
+                <label>Resolución Aplicable:<br><input type="text" id="filtroResolucion" value="${cfgGuardada.resolucion || '13/2026'}" style="width:100%;padding:4px;"></label>
+                <label>SAEI (Módulo independiente - No facturable aquí):<br><input type="number" id="nom_SAEI" value="${cfgGuardada.SAEI || ''}" placeholder="Monto SAEI" style="width:100%;padding:4px;background:#f5f5f5;" disabled></label>
+                <label>Rehabilitación - Intensivo:<br><input type="number" id="nom_REHAB_INT" value="${cfgGuardada.REHAB_INT || ''}" placeholder="Monto Rehab Intensivo" style="width:100%;padding:4px;"></label>
+                <label>Rehabilitación - Simple:<br><input type="number" id="nom_REHAB_SIM" value="${cfgGuardada.REHAB_SIM || ''}" placeholder="Monto Rehab Simple" style="width:100%;padding:4px;"></label>
+                <label>Centro de Día - Jornada Doble:<br><input type="number" id="nom_CD_DOB" value="${cfgGuardada.CD_DOB || ''}" placeholder="Monto CD Doble" style="width:100%;padding:4px;"></label>
+                <label>Centro de Día - Jornada Simple:<br><input type="number" id="nom_CD_SIM" value="${cfgGuardada.CD_SIM || ''}" placeholder="Monto CD Simple" style="width:100%;padding:4px;"></label>
+                <label>C.E.T. - Jornada Doble:<br><input type="number" id="nom_CET_DOB" value="${cfgGuardada.CET_DOB || ''}" placeholder="Monto CET Doble" style="width:100%;padding:4px;"></label>
+                <label>C.E.T. - Jornada Simple:<br><input type="number" id="nom_CET_SIM" value="${cfgGuardada.CET_SIM || ''}" placeholder="Monto CET Simple" style="width:100%;padding:4px;"></label>
             </div>
           </div>
 
@@ -2259,12 +2267,12 @@ async function mostrarPanelFiltros() {
 
           <!-- MÓDULOS -->
           <div style="background:#f9f9f9;padding:10px;border-radius:8px;border:1px solid #ddd;">
-            <label style="font-weight:bold;font-size:12px;color:#333;display:block;margin-bottom:6px;">📦 MÓDULOS</label>
+            <label style="font-weight:bold;font-size:12px;color:#333;display:block;margin-bottom:6px;">📦 MÓDULOS (Nota: SAEI se gestiona en su propio módulo)</label>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
               <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="CD" checked onchange="actualizarPacientesCheckbox()"> CENTRO DE DÍA</label>
               <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="CET" checked onchange="actualizarPacientesCheckbox()"> CET</label>
               <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="REHAB" checked onchange="actualizarPacientesCheckbox()"> REHABILITACIÓN</label>
-              <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="SAEI" checked onchange="actualizarPacientesCheckbox()"> SAEI</label>
+              <label style="font-size:12px;cursor:pointer;color:#888;"><input type="checkbox" class="chkMod" value="SAEI" disabled> SAEI (Excluido)</label>
             </div>
           </div>
 
@@ -2286,7 +2294,10 @@ async function mostrarPanelFiltros() {
           <div style="background:#f9f9f9;padding:10px;border-radius:8px;border:1px solid #ddd;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
               <label style="font-weight:bold;font-size:12px;color:#333;">👤 PACIENTES HABILITADOS</label>
-              <button type="button" onclick="document.querySelectorAll('.chkPac').forEach(c=>c.checked=true);" style="font-size:11px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;">Marcar Todos</button>
+              <div>
+                <button type="button" onclick="document.querySelectorAll('.chkPac').forEach(c=>c.checked=true);" style="font-size:11px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;margin-right:8px;">Todos</button>
+                <button type="button" onclick="document.querySelectorAll('.chkPac').forEach(c=>c.checked=false);" style="font-size:11px;background:none;border:none;color:#c0392b;cursor:pointer;font-weight:bold;">Ninguno</button>
+              </div>
             </div>
             <div id="contenedorPacientesCheckbox" style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;border:1px solid #eee;padding:6px;background:white;border-radius:4px;"></div>
           </div>
@@ -2308,19 +2319,37 @@ async function mostrarPanelFiltros() {
     window._todosPacientesCache = todosPacientes;
     actualizarPacientesCheckbox();
 
+    document.getElementById('btnGuardarNom').addEventListener('click', async function() {
+        try {
+            const montosConfig = {
+                resolucion: document.getElementById('filtroResolucion').value,
+                REHAB_INT: parseFloat(document.getElementById('nom_REHAB_INT').value) || 0,
+                REHAB_SIM: parseFloat(document.getElementById('nom_REHAB_SIM').value) || 0,
+                CD_DOB: parseFloat(document.getElementById('nom_CD_DOB').value) || 0,
+                CD_SIM: parseFloat(document.getElementById('nom_CD_SIM').value) || 0,
+                CET_DOB: parseFloat(document.getElementById('nom_CET_DOB').value) || 0,
+                CET_SIM: parseFloat(document.getElementById('nom_CET_SIM').value) || 0
+            };
+            await db.ref('config/nomenclador/config_manual').set(montosConfig);
+            alert("✅ Valores de nomenclador guardados correctamente en Firebase.");
+        } catch(err) {
+            console.error("Error al guardar nomenclador:", err);
+            alert("❌ Error al guardar en Firebase.");
+        }
+    });
+
     document.getElementById('btnEjecutarLote').addEventListener('click', async function() {
         const btn = this;
         btn.disabled = true;
         btn.textContent = '⏳ PROCESANDO...';
         
         try {
-            const modulosSeleccionados = Array.from(document.querySelectorAll('.chkMod:checked')).map(c => c.value);
+            const modulosSeleccionados = Array.from(document.querySelectorAll('.chkMod:checked')).map(c => c.value).filter(m => m !== 'SAEI');
             const osSeleccionadas = Array.from(document.querySelectorAll('.chkOS:checked')).map(c => c.value.trim().toUpperCase());
             const pacientesSeleccionados = Array.from(document.querySelectorAll('.chkPac:checked')).map(c => c.value);
 
             const montosConfig = {
                 resolucion: document.getElementById('filtroResolucion').value,
-                SAEI: parseFloat(document.getElementById('nom_SAEI').value) || 0,
                 REHAB_INT: parseFloat(document.getElementById('nom_REHAB_INT').value) || 0,
                 REHAB_SIM: parseFloat(document.getElementById('nom_REHAB_SIM').value) || 0,
                 CD_DOB: parseFloat(document.getElementById('nom_CD_DOB').value) || 0,
@@ -2349,7 +2378,7 @@ async function mostrarPanelFiltros() {
 
 function actualizarPacientesCheckbox() {
     const todosPacientes = window._todosPacientesCache || {};
-    const modulosSeleccionados = Array.from(document.querySelectorAll('.chkMod:checked')).map(c => c.value);
+    const modulosSeleccionados = Array.from(document.querySelectorAll('.chkMod:checked')).map(c => c.value).filter(m => m !== 'SAEI');
     const osSeleccionadas = Array.from(document.querySelectorAll('.chkOS:checked')).map(c => c.value.trim().toUpperCase());
 
     const contenedor = document.getElementById('contenedorPacientesCheckbox');
@@ -2376,9 +2405,8 @@ function actualizarPacientesCheckbox() {
         ? '<span style="font-size:11px;color:#888;">No hay pacientes con los filtros actuales.</span>'
         : nombresOrdenados.map(n => `<label style="font-size:11px;cursor:pointer;"><input type="checkbox" class="chkPac" value="${n}" checked> ${n}</label>`).join('');
 }
-
 // ============================================================
-// PROCESAMIENTO CON DETECCIÓN EXACTA DE NOMENCLADOR
+// PROCESAMIENTO CON BÚSQUEDA CRUZADA DE ÚLTIMA FACTURA Y COPIA FIEL
 // ============================================================
 async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
     const [anioEmision, mesEmision] = filtros.periodo.split('-');
@@ -2424,10 +2452,11 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
 
     const lote = [];
     const adv = [];
-    const proc = new Set();
     const cfg = filtros.montosConfig;
 
     for (const modulo of filtros.modulos) {
+        if (modulo === 'SAEI') continue;
+
         for (const [idPaciente, p] of Object.entries(todosPacientes[modulo] || {})) {
             const nombrePaciente = (p.nombre || idPaciente).trim();
 
@@ -2438,11 +2467,8 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const asist = p.asistF_link || '';
             if (!asist || asist.toUpperCase() === 'NO' || asist.length < 5) continue;
 
-            const clave = `${idPaciente}${modulo}`;
-            if (proc.has(clave)) continue;
-
             const ya = Object.values(facturasEmitidas).some(f => {
-                if (f.id_paciente !== idPaciente && f.id_pacientedb !== idPaciente && f.idpaciente !== idPaciente && f.idpacientedb !== idPaciente) return false;
+                if (f.id_paciente !== idPaciente && f.id_paciente_db !== idPaciente && f.idpaciente !== idPaciente && f.idpacientedb !== idPaciente) return false;
                 const fEmision = f.fecha_emision || f.fechaemision;
                 if (!fEmision) return false;
                 const parts = fEmision.includes('/') ? fEmision.split('/') : fEmision.split('-');
@@ -2455,18 +2481,18 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
 
             const osNombre = osPaciente;
             const osData = osConfig[osNombre] || {};
-            const uf = p.ultima_factura || p.ultimafactura || {};
-            const detAnterior = (uf.concepto || uf.descripcion || uf.detalle || '').toUpperCase();
 
-            // Mapeo inteligente con los 7 nombres exactos requeridos
+            // OBTENCIÓN DEL DETALLE DESDE EL ID ALMACENADO EN ultima_factura
+            const idUltimaFactura = p.ultima_factura || p.ultimafactura || '';
+            let facturaAnteriorObj = typeof idUltimaFactura === 'object' ? idUltimaFactura : (facturasEmitidas[idUltimaFactura] || {});
+            const detAnteriorOriginal = (facturaAnteriorObj.detalle || facturaAnteriorObj.descripcion || facturaAnteriorObj.concepto || '').trim();
+            const detAnterior = detAnteriorOriginal.toUpperCase();
+
             let montoBase = 0;
             let prestacion = modulo;
             let resolucionAplicada = cfg.resolucion || '13/2026';
 
-            if (modulo === 'SAEI') {
-                montoBase = cfg.SAEI || 0;
-                prestacion = 'Módulo de Apoyo a la Integración Escolar (SAIE)';
-            } else if (modulo === 'REHAB') {
+            if (modulo === 'REHAB') {
                 if (detAnterior.includes('INTENSIVO')) {
                     montoBase = cfg.REHAB_INT || 0;
                     prestacion = 'Rehabilitación - Módulo Integral Intensivo';
@@ -2492,9 +2518,9 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 }
             }
 
-            // Fallback a Base de Datos si no se cargó el input manual
             if (!montoBase) {
                 for (const [claveNom, val] of Object.entries(nomencladorBD)) {
+                    if (claveNom === 'config_manual') continue;
                     if (detAnterior.includes(claveNom)) {
                         prestacion = val.desc || prestacion;
                         montoBase = val.base || val.monto || 0;
@@ -2516,27 +2542,37 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             }
 
             let detalleNuevo = '';
-            const nombreCompletoModulo = NOMBRES_MODULOS[modulo] || modulo;
             const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
             const baseFmt = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            
-            if (tieneDependencia) {
-                const depFmt = montoDependencia.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                const totFmt = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                detalleNuevo = `PRESTADOR: ESENCIAL S.R.L.
+
+            // Copia fiel del detalle anterior cambiando únicamente el mes y el año prestacional
+            if (detAnteriorOriginal.length > 10) {
+                detalleNuevo = detAnteriorOriginal;
+                for (const mAnt of MESESCFO) {
+                    if (detalleNuevo.includes(mAnt)) {
+                        detalleNuevo = detalleNuevo.replace(mAnt, nombreMes);
+                        break;
+                    }
+                }
+                detalleNuevo = detalleNuevo.replace(/202[5-6]/g, anioFacturar);
+            } else {
+                if (tieneDependencia) {
+                    const depFmt = montoDependencia.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    const totFmt = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    detalleNuevo = `PRESTADOR: ESENCIAL S.R.L.
 PERÍODO PRESTACIONAL: ${nombreMes} ${anioFacturar}
 ${prestacion}
 C/DEPEND.S/F.I.M. RESOL ${resolucionAplicada}
 BENEF. ${nombrePaciente.toUpperCase()}${dniTxt}
-VALOR PRESTACION:         $ ${baseFmt}
-VALOR DEPENDENCIA:        $ ${depFmt}
+VALOR PRESTACION:       $ ${baseFmt}
+VALOR DEPENDENCIA:      $ ${depFmt}
 VALOR TOTAL:              $ ${totFmt}`;
-            } else {
-                detalleNuevo = `${nombrePaciente.toUpperCase()}${dniTxt}
+                } else {
+                    detalleNuevo = `${nombrePaciente.toUpperCase()}${dniTxt}
 PERÍODO PRESTACIONAL: ${nombreMes} ${anioFacturar}
 ${prestacion}
-RESOL. ${resolucionAplicada}
-VALOR PRESTACION:  $ ${baseFmt}`;
+RESOL. ${resolucionAplicada}`;
+                }
             }
 
             const cuit = osData.cuit || p.obra_social_cuit || p.obrasocialcuit || '';
@@ -2561,7 +2597,6 @@ VALOR PRESTACION:  $ ${baseFmt}`;
                 modulo, prestacion, monto: montoTotal, nombrePaciente,
                 nroComp: ++ultimoComp
             });
-            proc.add(clave);
         }
     }
 
