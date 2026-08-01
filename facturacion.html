@@ -1918,8 +1918,6 @@ window.abrirModalValidacion = function() {
     const valDesde = document.getElementById('per_desde').value;
     const valHasta = document.getElementById('per_hasta').value;
     const valVto = document.getElementById('vto_pago').value;
-	const cobDesde = pacienteDB && pacienteDB.cobertura_desde ? pacienteDB.cobertura_desde : '';
-    const cobHasta = pacienteDB && pacienteDB.cobertura_hasta ? pacienteDB.cobertura_hasta : '';
     window.datosParaConfirmar = [];
     let html = "";
     
@@ -1931,6 +1929,8 @@ window.abrirModalValidacion = function() {
         const cobHasta = pacienteDB && pacienteDB.cobertura_hasta ? pacienteDB.cobertura_hasta : '';
 		const cobDesdeFmt = cobDesde ? cobDesde.split('-').reverse().join('/') : 'S/F';
         const cobHastaFmt = cobHasta ? cobHasta.split('-').reverse().join('/') : 'S/F';
+		const cobDesde = pacienteDB && pacienteDB.cobertura_desde ? pacienteDB.cobertura_desde : '';
+    	const cobHasta = pacienteDB && pacienteDB.cobertura_hasta ? pacienteDB.cobertura_hasta : '';
         
         const v = {
             id: id,
