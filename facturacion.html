@@ -2025,13 +2025,12 @@ window.confirmarEnvioAFIP = async function(event) {
     window.datosParaConfirmar = [];
 };
 // ============================================================
-// CFO TITANIUM v3.4 — CORRECCIÓN DE NOMENCLADOR Y CARGA DE PACIENTES
+// CFO TITANIUM v3.5 — CORRECCIÓN DE UI Y NOMENCLADOR ESPECÍFICO
 // ============================================================
 
 const MESESCFO = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
 'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 
-// Diccionario para expandir los nombres de los módulos en la factura
 const NOMBRES_MODULOS = {
     'CD': 'CENTRO DE DÍA',
     'CET': 'CENTRO EDUCATIVO TERAPÉUTICO',
@@ -2181,7 +2180,7 @@ window.sincronizarMontosModal = function(i) {
 };
 
 // ============================================================
-// PANEL DE FILTROS CON CARGA SEGURA Y AJUSTE PREVIO
+// PANEL DE FILTROS AMPLIADO Y NOMENCLADOR ESPECÍFICO
 // ============================================================
 async function mostrarPanelFiltros() {
     const hoy = new Date();
@@ -2227,38 +2226,41 @@ async function mostrarPanelFiltros() {
     panel.innerHTML = `
     <div style="position:fixed;top:0;left:0;width:100%;height:100%;
                 background:rgba(0,0,0,0.6);z-index:10000;display:flex;
-                align-items:center;justify-content:center;">
-      <div style="background:white;border-radius:12px;padding:25px;width:600px;
-                  max-width:95%;max-height:95vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+                align-items:center;justify-content:center;padding:10px;">
+      <div style="background:white;border-radius:12px;padding:20px;width:750px;
+                  max-width:98%;height:92vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
 
-        <h3 style="margin:0 0 15px 0;color:#6c3483;">🎯 PREPARAR LOTE DE FACTURACIÓN</h3>
+        <h3 style="margin:0 0 10px 0;color:#6c3483;">🎯 PREPARAR LOTE DE FACTURACIÓN</h3>
 
-        <div style="overflow-y:auto;flex:1;padding-right:5px;display:flex;flex-direction:column;gap:15px;">
+        <div style="overflow-y:auto;flex:1;padding-right:8px;display:flex;flex-direction:column;gap:15px;">
           
-          <!-- CONFIGURACIÓN DE NOMENCLADOR PREVIA -->
-          <div style="border:1px dashed #8e44ad;padding:12px;border-radius:5px;background:#faf5ff;">
-            <b style="color:#6c3483;font-size:13px;">⚙️ Configuración Global del Nomenclador (Aplicará a todos los marcados)</b>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;font-size:12px;">
-                <label>Monto Base Manual ($):<br><input type="number" id="filtroMontoBase" placeholder="Dejar vacío para usar BD" style="width:100%;"></label>
-                <label>Resolución Aplicable:<br><input type="text" id="filtroResolucion" value="13/2026" style="width:100%;"></label>
-                <label style="grid-column: span 2;">Descripción / Prestación Forzada:<br><input type="text" id="filtroPrestacion" placeholder="Ej: ATENCIÓN PARTICULAR (Vacío usa automático)" style="width:100%;"></label>
+          <!-- CONFIGURACIÓN DE NOMENCLADOR ESPECÍFICO -->
+          <div style="border:1px solid #8e44ad;padding:12px;border-radius:6px;background:#faf5ff;">
+            <b style="color:#6c3483;font-size:13px;">⚙️ Valores de Nomenclador (Dejar en blanco para usar base de datos)</b>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;font-size:11px;">
+                <label>Resolución Aplicable:<br><input type="text" id="filtroResolucion" value="13/2026" style="width:100%;padding:4px;"></label>
+                <label>SAEI (Apoyo Integración Escolar):<br><input type="number" id="nom_SAEI" placeholder="Monto SAEI" style="width:100%;padding:4px;"></label>
+                <label>Rehabilitación - Intensivo:<br><input type="number" id="nom_REHAB_INT" placeholder="Monto Rehab Intensivo" style="width:100%;padding:4px;"></label>
+                <label>Rehabilitación - Simple:<br><input type="number" id="nom_REHAB_SIM" placeholder="Monto Rehab Simple" style="width:100%;padding:4px;"></label>
+                <label>Centro de Día - Jornada Doble:<br><input type="number" id="nom_CD_DOB" placeholder="Monto CD Doble" style="width:100%;padding:4px;"></label>
+                <label>Centro de Día - Jornada Simple:<br><input type="number" id="nom_CD_SIM" placeholder="Monto CD Simple" style="width:100%;padding:4px;"></label>
+                <label>C.E.T. - Jornada Doble:<br><input type="number" id="nom_CET_DOB" placeholder="Monto CET Doble" style="width:100%;padding:4px;"></label>
+                <label>C.E.T. - Jornada Simple:<br><input type="number" id="nom_CET_SIM" placeholder="Monto CET Simple" style="width:100%;padding:4px;"></label>
             </div>
           </div>
 
           <!-- PERÍODO -->
-          <div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;">
-            <label style="font-weight:bold;font-size:13px;color:#333;">📅 PERÍODO DE EMISIÓN (Se facturará el mes anterior a este)</label>
+          <div style="background:#f9f9f9;padding:10px;border-radius:8px;border:1px solid #ddd;">
+            <label style="font-weight:bold;font-size:12px;color:#333;">📅 PERÍODO DE EMISIÓN (Se facturará el mes anterior)</label>
             <input type="month" id="filtroPeriodo"
                    value="${anioDefecto}-${String(mesDefecto+1).padStart(2,'0')}"
-                   style="width:100%;padding:8px;border-radius:5px;border:1px solid #ccc;margin-top:5px;">
+                   style="width:100%;padding:6px;border-radius:5px;border:1px solid #ccc;margin-top:4px;">
           </div>
 
           <!-- MÓDULOS -->
-          <div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <label style="font-weight:bold;font-size:13px;color:#333;">📦 MÓDULOS</label>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="background:#f9f9f9;padding:10px;border-radius:8px;border:1px solid #ddd;">
+            <label style="font-weight:bold;font-size:12px;color:#333;display:block;margin-bottom:6px;">📦 MÓDULOS</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
               <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="CD" checked onchange="actualizarPacientesCheckbox()"> CENTRO DE DÍA</label>
               <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="CET" checked onchange="actualizarPacientesCheckbox()"> CET</label>
               <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="REHAB" checked onchange="actualizarPacientesCheckbox()"> REHABILITACIÓN</label>
@@ -2266,36 +2268,36 @@ async function mostrarPanelFiltros() {
             </div>
           </div>
 
-          <!-- OBRAS SOCIALES -->
-          <div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;max-height:120px;overflow-y:auto;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <label style="font-weight:bold;font-size:13px;color:#333;">🏥 OBRAS SOCIALES</label>
+          <!-- OBRAS SOCIALES (AMPLIADO) -->
+          <div style="background:#f9f9f9;padding:10px;border-radius:8px;border:1px solid #ddd;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <label style="font-weight:bold;font-size:12px;color:#333;">🏥 OBRAS SOCIALES</label>
               <div>
-                <button type="button" onclick="marcarTodasOS(true)" style="font-size:10px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;margin-right:8px;">Todas</button>
-                <button type="button" onclick="marcarTodasOS(false)" style="font-size:10px;background:none;border:none;color:#c0392b;cursor:pointer;font-weight:bold;">Ninguna</button>
+                <button type="button" onclick="marcarTodasOS(true)" style="font-size:11px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;margin-right:8px;">Todas</button>
+                <button type="button" onclick="marcarTodasOS(false)" style="font-size:11px;background:none;border:none;color:#c0392b;cursor:pointer;font-weight:bold;">Ninguna</button>
               </div>
             </div>
-            <div style="display:flex;flex-direction:column;gap:5px;">
-              ${listaOS.map(os => `<label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkOS" value="${os}" checked onchange="actualizarPacientesCheckbox()"> ${os}</label>`).join('')}
+            <div style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;border:1px solid #eee;padding:6px;background:white;border-radius:4px;">
+              ${listaOS.map(os => `<label style="font-size:11px;cursor:pointer;"><input type="checkbox" class="chkOS" value="${os}" checked onchange="actualizarPacientesCheckbox()"> ${os}</label>`).join('')}
             </div>
           </div>
 
-          <!-- PACIENTES -->
-          <div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;max-height:150px;overflow-y:auto;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <label style="font-weight:bold;font-size:13px;color:#333;">👤 PACIENTES HABILITADOS</label>
-              <button type="button" onclick="document.querySelectorAll('.chkPac').forEach(c=>c.checked=true);" style="font-size:10px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;">Marcar Todos</button>
+          <!-- PACIENTES (AMPLIADO) -->
+          <div style="background:#f9f9f9;padding:10px;border-radius:8px;border:1px solid #ddd;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <label style="font-weight:bold;font-size:12px;color:#333;">👤 PACIENTES HABILITADOS</label>
+              <button type="button" onclick="document.querySelectorAll('.chkPac').forEach(c=>c.checked=true);" style="font-size:11px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;">Marcar Todos</button>
             </div>
-            <div id="contenedorPacientesCheckbox" style="display:flex;flex-direction:column;gap:5px;"></div>
+            <div id="contenedorPacientesCheckbox" style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;border:1px solid #eee;padding:6px;background:white;border-radius:4px;"></div>
           </div>
 
         </div>
 
-        <div style="margin-top:15px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #eee;padding-top:15px;">
+        <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #eee;padding-top:12px;">
           <button onclick="document.getElementById('${panelId}').remove()"
-                  style="padding:10px 20px;border:1px solid #ccc;border-radius:5px;background:#eee;cursor:pointer;">CANCELAR</button>
+                  style="padding:8px 16px;border:1px solid #ccc;border-radius:5px;background:#eee;cursor:pointer;font-weight:bold;">CANCELAR</button>
           <button id="btnEjecutarLote"
-                  style="padding:10px 20px;border:none;border-radius:5px;background:linear-gradient(135deg,#8e44ad,#6c3483);color:white;font-weight:bold;cursor:pointer;">
+                  style="padding:8px 16px;border:none;border-radius:5px;background:linear-gradient(135deg,#8e44ad,#6c3483);color:white;font-weight:bold;cursor:pointer;">
             🔍 GENERAR LOTE
           </button>
         </div>
@@ -2316,14 +2318,23 @@ async function mostrarPanelFiltros() {
             const osSeleccionadas = Array.from(document.querySelectorAll('.chkOS:checked')).map(c => c.value.trim().toUpperCase());
             const pacientesSeleccionados = Array.from(document.querySelectorAll('.chkPac:checked')).map(c => c.value);
 
+            const montosConfig = {
+                resolucion: document.getElementById('filtroResolucion').value,
+                SAEI: parseFloat(document.getElementById('nom_SAEI').value) || 0,
+                REHAB_INT: parseFloat(document.getElementById('nom_REHAB_INT').value) || 0,
+                REHAB_SIM: parseFloat(document.getElementById('nom_REHAB_SIM').value) || 0,
+                CD_DOB: parseFloat(document.getElementById('nom_CD_DOB').value) || 0,
+                CD_SIM: parseFloat(document.getElementById('nom_CD_SIM').value) || 0,
+                CET_DOB: parseFloat(document.getElementById('nom_CET_DOB').value) || 0,
+                CET_SIM: parseFloat(document.getElementById('nom_CET_SIM').value) || 0
+            };
+
             await ejecutarLoteMulti({
                 modulos: modulosSeleccionados,
                 os: osSeleccionadas,
                 pacientes: pacientesSeleccionados,
                 periodo: document.getElementById('filtroPeriodo').value,
-                nomencladorBaseManual: document.getElementById('filtroMontoBase').value,
-                resolucionManual: document.getElementById('filtroResolucion').value,
-                prestacionManual: document.getElementById('filtroPrestacion').value
+                montosConfig
             }, todosPacientes, snapOS.val() || {});
             
             document.getElementById(panelId).remove();
@@ -2363,17 +2374,15 @@ function actualizarPacientesCheckbox() {
 
     contenedor.innerHTML = nombresOrdenados.length === 0 
         ? '<span style="font-size:11px;color:#888;">No hay pacientes con los filtros actuales.</span>'
-        : nombresOrdenados.map(n => `<label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkPac" value="${n}" checked> ${n}</label>`).join('');
+        : nombresOrdenados.map(n => `<label style="font-size:11px;cursor:pointer;"><input type="checkbox" class="chkPac" value="${n}" checked> ${n}</label>`).join('');
 }
 
 // ============================================================
-// PROCESAMIENTO DEL LOTE MULTI-SELECCIÓN (CÁLCULO MES VENCIDO)
+// PROCESAMIENTO CON DETECCIÓN EXACTA DE NOMENCLADOR
 // ============================================================
 async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
-    // 1. CÁLCULO DE FECHAS Y PERÍODOS A MES VENCIDO
     const [anioEmision, mesEmision] = filtros.periodo.split('-');
     
-    // Si la emisión es Ej: 2026-07, la prestación será 2026-06 (Mes vencido)
     let fechaPrestacion = new Date(parseInt(anioEmision), parseInt(mesEmision) - 1, 1);
     fechaPrestacion.setMonth(fechaPrestacion.getMonth() - 1); 
     
@@ -2381,12 +2390,10 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
     const mesFacturar = fechaPrestacion.getMonth(); 
     const nombreMes = MESESCFO[mesFacturar];
 
-    // Cálculos para Períodos y Vencimientos en el Modal
     const primerDiaMesFormato = `${anioFacturar}-${String(mesFacturar+1).padStart(2,'0')}-01`;
     const ultimoDiaCalculado = new Date(anioFacturar, mesFacturar + 1, 0);
     const ultimoDiaMesFormato = ultimoDiaCalculado.toISOString().split('T')[0];
     
-    // Vencimiento estándar: Hoy + 15 días (o ajustarlo según tu preferencia comercial)
     let fechaVto = new Date();
     fechaVto.setDate(fechaVto.getDate() + 15);
     const vtoPagoFormato = fechaVto.toISOString().split('T')[0];
@@ -2397,10 +2404,10 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
         vto: vtoPagoFormato
     };
 
-    let nomenclador = {};
+    let nomencladorBD = {};
     try {
         const snap = await db.ref('config/nomenclador').once('value');
-        nomenclador = snap.val() || {};
+        nomencladorBD = snap.val() || {};
     } catch(e) {}
 
     const [snapFac, snapFacSaei] = await Promise.all([
@@ -2418,6 +2425,7 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
     const lote = [];
     const adv = [];
     const proc = new Set();
+    const cfg = filtros.montosConfig;
 
     for (const modulo of filtros.modulos) {
         for (const [idPaciente, p] of Object.entries(todosPacientes[modulo] || {})) {
@@ -2441,7 +2449,6 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 if (parts.length < 3) return false;
                 const mf = parseInt(parts[1]);
                 const af = parts[0].length === 4 ? parseInt(parts[0]) : parseInt(parts[2]);
-                // Validación para no facturar el mismo período prestacional dos veces
                 return mf === mesFacturar + 1 && af === anioFacturar && !!(f.cae || f.CAE);
             });
             if (ya) continue;
@@ -2451,30 +2458,55 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const uf = p.ultima_factura || p.ultimafactura || {};
             const detAnterior = (uf.concepto || uf.descripcion || uf.detalle || '').toUpperCase();
 
-            // 2. APLICACIÓN PRIORITARIA DE NOMENCLADOR (Manual de panel vs Automático)
-            let prestacion = filtros.prestacionManual || modulo;
-            let resolucionAplicada = filtros.resolucionManual || '13/2026';
-            let montoBase = parseFloat(filtros.nomencladorBaseManual) || 0;
+            // Mapeo inteligente con los 7 nombres exactos requeridos
+            let montoBase = 0;
+            let prestacion = modulo;
+            let resolucionAplicada = cfg.resolucion || '13/2026';
 
+            if (modulo === 'SAEI') {
+                montoBase = cfg.SAEI || 0;
+                prestacion = 'Módulo de Apoyo a la Integración Escolar (SAIE)';
+            } else if (modulo === 'REHAB') {
+                if (detAnterior.includes('INTENSIVO')) {
+                    montoBase = cfg.REHAB_INT || 0;
+                    prestacion = 'Rehabilitación - Módulo Integral Intensivo';
+                } else {
+                    montoBase = cfg.REHAB_SIM || 0;
+                    prestacion = 'Rehabilitación - Módulo Integral Simple';
+                }
+            } else if (modulo === 'CD') {
+                if (detAnterior.includes('DOBLE')) {
+                    montoBase = cfg.CD_DOB || 0;
+                    prestacion = 'Centro de Día - Jornada Doble';
+                } else {
+                    montoBase = cfg.CD_SIM || 0;
+                    prestacion = 'Centro de Día - Jornada Simple';
+                }
+            } else if (modulo === 'CET') {
+                if (detAnterior.includes('DOBLE')) {
+                    montoBase = cfg.CET_DOB || 0;
+                    prestacion = 'Centro Educativo Terapéutico - Jornada Doble';
+                } else {
+                    montoBase = cfg.CET_SIM || 0;
+                    prestacion = 'Centro Educativo Terapéutico - Jornada Simple';
+                }
+            }
+
+            // Fallback a Base de Datos si no se cargó el input manual
             if (!montoBase) {
-                // Caída al automático si no se ingresó nada manual en el panel
-                for (const [claveNom, val] of Object.entries(nomenclador)) {
+                for (const [claveNom, val] of Object.entries(nomencladorBD)) {
                     if (detAnterior.includes(claveNom)) {
-                        prestacion = val.desc || claveNom;
+                        prestacion = val.desc || prestacion;
                         montoBase = val.base || val.monto || 0;
-                        resolucionAplicada = val.resolucion || resolucionAplicada;
                         break;
                     }
                 }
-                if (!montoBase && nomenclador[modulo]) {
-                    montoBase = nomenclador[modulo].base || nomenclador[modulo].monto || 0;
-                    resolucionAplicada = nomenclador[modulo].resolucion || resolucionAplicada;
-                    prestacion = nomenclador[modulo].desc || modulo;
+                if (!montoBase && nomencladorBD[modulo]) {
+                    montoBase = nomencladorBD[modulo].base || nomencladorBD[modulo].monto || 0;
                 }
             }
 
             const tieneDependencia = detAnterior.includes('DEPEND') || p.dependencia === true || p.conDependencia === true;
-            
             let montoDependencia = 0;
             let montoTotal = montoBase;
 
@@ -2483,10 +2515,8 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 montoTotal = Math.round((montoBase + montoDependencia) * 100) / 100;
             }
 
-            // 3. ESTRUCTURACIÓN EXPLÍCITA DEL DETALLE
             let detalleNuevo = '';
             const nombreCompletoModulo = NOMBRES_MODULOS[modulo] || modulo;
-            const prestacionMostrar = filtros.prestacionManual ? filtros.prestacionManual.toUpperCase() : prestacion.toUpperCase();
             const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
             const baseFmt = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             
@@ -2495,7 +2525,7 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 const totFmt = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 detalleNuevo = `PRESTADOR: ESENCIAL S.R.L.
 PERÍODO PRESTACIONAL: ${nombreMes} ${anioFacturar}
-${nombreCompletoModulo} - ${prestacionMostrar}
+${prestacion}
 C/DEPEND.S/F.I.M. RESOL ${resolucionAplicada}
 BENEF. ${nombrePaciente.toUpperCase()}${dniTxt}
 VALOR PRESTACION:         $ ${baseFmt}
@@ -2504,7 +2534,7 @@ VALOR TOTAL:              $ ${totFmt}`;
             } else {
                 detalleNuevo = `${nombrePaciente.toUpperCase()}${dniTxt}
 PERÍODO PRESTACIONAL: ${nombreMes} ${anioFacturar}
-${nombreCompletoModulo} - ${prestacionMostrar}
+${prestacion}
 RESOL. ${resolucionAplicada}
 VALOR PRESTACION:  $ ${baseFmt}`;
             }
