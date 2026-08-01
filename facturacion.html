@@ -2025,11 +2025,19 @@ window.confirmarEnvioAFIP = async function(event) {
     window.datosParaConfirmar = [];
 };
 // ============================================================
-// CFO TITANIUM v3.3 — CORRECCIÓN DE NOMENCLADOR Y CARGA DE PACIENTES
+// CFO TITANIUM v3.4 — CORRECCIÓN DE NOMENCLADOR Y CARGA DE PACIENTES
 // ============================================================
 
 const MESESCFO = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
 'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+
+// Diccionario para expandir los nombres de los módulos en la factura
+const NOMBRES_MODULOS = {
+    'CD': 'CENTRO DE DÍA',
+    'CET': 'CENTRO EDUCATIVO TERAPÉUTICO',
+    'SAEI': 'SERVICIO DE APOYO A LA EDUCACIÓN INCLUSIVA (S.A.E.I.)',
+    'REHAB': 'REHABILITACIÓN'
+};
 
 // ============================================================
 // ENTRY POINTS
@@ -2038,7 +2046,6 @@ window.prepararLoteCFO = async function() {
     await mostrarPanelFiltros();
 };
 
-// 1. FUNCIONES GLOBALES PARA MARCAR / DESMARCAR TODAS LAS OS
 window.marcarTodasOS = function(marcar) {
     document.querySelectorAll('.chkOS').forEach(cb => {
         cb.checked = marcar;
@@ -2048,43 +2055,23 @@ window.marcarTodasOS = function(marcar) {
     }
 };
 
-// 2. MODIFICACIÓN DEL MODAL CON EDICIÓN DE NOMENCLADOR Y BOTONES DE OS
-function abrirModalCFO(lote, nombreMes, anio, adv) {
-    const ultimoDia = new Date(anio, MESESCFO.indexOf(nombreMes) + 1, 0);
-    const desde = `${anio}-${String(MESESCFO.indexOf(nombreMes)+1).padStart(2,'0')}-01`;
-    const hasta = ultimoDia.toISOString().split('T')[0];
-    const vto = hasta;
-    ['perdesde','perhasta','vtopago'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = id === 'perdesde' ? desde : id === 'perhasta' ? hasta : vto;
-    });
-
+// ============================================================
+// MODAL DE CONFIRMACIÓN FINAL
+// ============================================================
+function abrirModalCFO(lote, nombreMes, anio, adv, fechasCalc) {
     let html = `
     <div style="background:#f0f4ff;padding:12px;border-radius:8px;margin-bottom:15px;
                 border-left:5px solid #8e44ad;display:flex;justify-content:space-between;
                 align-items:center;flex-wrap:wrap;gap:10px;">
       <div>
-        <b style="color:#6c3483;">🎯 LOTE PREPARADO — ${nombreMes} ${anio}</b><br>
+        <b style="color:#6c3483;">🎯 LOTE PREPARADO — PERÍODO PRESTACIONAL: ${nombreMes} ${anio}</b><br>
         <small>${lote.length} pacientes · Total general: <b id="totalGeneralLote">${lote.reduce((s,e)=>s+e.monto,0).toLocaleString('es-AR')}</b> ARS</small>
       </div>
     </div>`;
 
-    // SECCIÓN PARA ACTUALIZAR VALORES DEL NOMENCLADOR / AGREGAR PRESTACIÓN
-    html += `
-    <div style="border:1px dashed #8e44ad;padding:10px;margin-bottom:15px;border-radius:5px;background:#faf5ff;">
-        <b style="color:#6c3483;font-size:13px;">⚙️ Ajustar Nomenclador o Agregar Prestación (Ej. Particular)</b>
-        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:6px;margin-top:8px;font-size:11px;align-items:end;">
-            <label>Clave / Prestación:<br><input type="text" id="inputNomClave" placeholder="EJ: CD, CET, PARTICULAR"></label>
-            <label>Monto Base ($):<br><input type="number" id="inputNomBase" placeholder="0.00"></label>
-            <label>Resolución:<br><input type="text" id="inputNomResol" value="13/2026"></label>
-            <label>Descripción Larga:<br><input type="text" id="inputNomDesc" placeholder="ATENCIÓN PARTICULAR"></label>
-            <button type="button" onclick="aplicarCambioNomencladorEnLote()" style="background:#8e44ad;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;">🔄 Aplicar al Lote</button>
-        </div>
-    </div>`;
-
     if (adv.length) {
         html += `<div style="background:#fff3e0;padding:8px 12px;border-radius:5px;margin-bottom:12px;border:1px solid #ff9800;font-size:12px;">
-          <b>⚠️ ADVERTENCIAS:</b><br>${adv.map(a => `• ${a.paciente}:${a.msg}`).join('<br>')}</div>`;
+          <b>⚠️ ADVERTENCIAS:</b><br>${adv.map(a => `• ${a.paciente}: ${a.msg}`).join('<br>')}</div>`;
     }
 
     lote.forEach((e, i) => {
@@ -2094,21 +2081,21 @@ function abrirModalCFO(lote, nombreMes, anio, adv) {
         html += `
         <div style="border:1px solid #ddd;padding:10px;margin-bottom:15px;border-radius:5px;background:#fdfdfd;">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
-            <b style="color:var(--azul);">${e.rs} (${e.nombrePaciente})</b>
-            <span style="font-size:12px;color:var(--azul);">📅 Cobertura: <b>${cobDesdeFmt}</b> al <b>${cobHastaFmt}</b></span>
+            <b style="color:#2c3e50;">${e.rs} (${e.nombrePaciente})</b>
+            <span style="font-size:12px;color:#2c3e50;">📅 Autorización: <b>${cobDesdeFmt}</b> al <b>${cobHastaFmt}</b></span>
           </div>
-          <div style="font-size:11px;color:#888;margin-top:2px;">
-            ${e.modulo} | ${e.prestacion} | Total: <span id="lblMontoItem${i}">${e.monto.toLocaleString('es-AR')}</span> ARS
+          <div style="font-size:11px;color:#888;margin-top:2px;font-weight:bold;">
+            MÓDULO: ${NOMBRES_MODULOS[e.modulo] || e.modulo} | Total: <span id="lblMontoItem${i}">${e.monto.toLocaleString('es-AR')}</span> ARS
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:5px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:5px;font-size:12px;">
             <label>Tipo: <input value="${e.tipo}" id="mTipo${i}"></label>
             <label>CUIT: <input value="${e.cuit}" id="mCuit${i}" style="${!e.cuit||e.cuit.length<10?'border:2px solid red':''}"></label>
             <label>R.Social: <input value="${e.rs}" id="mRs${i}"></label>
             <label>Domicilio: <input value="${e.dom}" id="mDom${i}"></label>
-            <label>Desde: <input type="date" id="mDesde${i}"></label>
-            <label>Hasta: <input type="date" id="mHasta${i}"></label>
-            <label>Vto: <input type="date" id="mVto${i}"></label>
-            <label>Alicuota:
+            <label>Período Desde: <input type="date" id="mDesde${i}" value="${fechasCalc.desde}"></label>
+            <label>Período Hasta: <input type="date" id="mHasta${i}" value="${fechasCalc.hasta}"></label>
+            <label>Vto. Pago: <input type="date" id="mVto${i}" value="${fechasCalc.vto}"></label>
+            <label>Alícuota:
               <select id="mAli${i}" onchange="recalcularItemModal(${i})">
                 <option value="0" ${e.ali==0?'selected':''}>Exento</option>
                 <option value="10.5" ${e.ali==10.5?'selected':''}>10.5%</option>
@@ -2118,8 +2105,8 @@ function abrirModalCFO(lote, nombreMes, anio, adv) {
             <label>Neto: <input type="number" value="${e.neto}" id="mNeto${i}" oninput="sincronizarMontosModal(${i})"></label>
             <label>Exento: <input type="number" value="${e.exento}" id="mExento${i}" oninput="sincronizarMontosModal(${i})"></label>
           </div>
-          <label style="margin-top:5px;">Detalle:</label>
-          <textarea id="mDet${i}" style="width:100%;height:80px;">${e.detalle}</textarea>
+          <label style="margin-top:5px;font-size:12px;font-weight:bold;">Detalle a Facturar:</label>
+          <textarea id="mDet${i}" style="width:100%;height:100px;font-family:monospace;font-size:11px;padding:5px;">${e.detalle}</textarea>
         </div>`;
     });
 
@@ -2130,7 +2117,7 @@ function abrirModalCFO(lote, nombreMes, anio, adv) {
             modalGlobal = document.createElement('div');
             modalGlobal.id = 'modalConfirmacion';
             modalGlobal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:20000;display:none;overflow-y:auto;padding:20px;';
-            modalGlobal.innerHTML = `<div style="background:white;max-width:800px;margin:30px auto;padding:20px;border-radius:8px;"><div id="modalContent"></div><div style="text-align:right;margin-top:15px;"><button onclick="document.getElementById('modalConfirmacion').style.display='none'" style="padding:8px 15px;">Cerrar</button></div></div>`;
+            modalGlobal.innerHTML = `<div style="background:white;max-width:800px;margin:30px auto;padding:20px;border-radius:8px;"><div id="modalContent"></div><div style="text-align:right;margin-top:15px;"><button onclick="document.getElementById('modalConfirmacion').style.display='none'" style="padding:8px 15px;background:#8e44ad;color:white;border:none;border-radius:4px;cursor:pointer;">Confirmar y Cerrar</button></div></div>`;
             document.body.appendChild(modalGlobal);
         }
         modalContent = document.getElementById('modalContent');
@@ -2142,150 +2129,15 @@ function abrirModalCFO(lote, nombreMes, anio, adv) {
         datos: {
             id: e.id, tipo: e.tipo, cuit: e.cuit, rs: e.rs, dom: e.dom,
             neto: e.neto, exento: e.exento, ali: e.ali, detalle: e.detalle,
-            cobDesde: e.cobDesde, cobHasta: e.cobHasta, modulo: e.modulo
+            cobDesde: e.cobDesde, cobHasta: e.cobHasta, modulo: e.modulo,
+            desdeFact: fechasCalc.desde, hastaFact: fechasCalc.hasta, vtoFact: fechasCalc.vto
         },
         fila: null, idx: i
     }));
 
-    window.dataFull = lote.map(e => ({
-        id: e.id, iddb: e.id, nombre: e.nombrePaciente, os: e.rs,
-        modulo: e.modulo, coberturadesde: e.cobDesde, coberturahasta: e.cobHasta
-    }));
-
-    setTimeout(() => {
-        lote.forEach((_, i) => {
-            ['mDesde','mHasta','mVto'].forEach((pref, j) => {
-                const el = document.getElementById(`${pref}${i}`);
-                if (el) el.value = [desde, hasta, vto][j];
-            });
-        });
-    }, 50);
-
     const modalConfirmacionEl = document.getElementById('modalConfirmacion');
     if (modalConfirmacionEl) modalConfirmacionEl.style.display = 'block';
 }
-
-// 3. FUNCIONES AUXILIARES PARA ACTUALIZAR VALORES Y RECALCULAR EN VIVO EN EL MODAL
-window.aplicarCambioNomencladorEnLote = function() {
-    const claveInput = document.getElementById('inputNomClave');
-    const nuevoBaseInput = document.getElementById('inputNomBase');
-    const resolucionInput = document.getElementById('inputNomResol');
-
-    if (!claveInput || !nuevoBaseInput) {
-        alert('⚠️ Error: No se encontraron los campos de ajuste.');
-        return;
-    }
-
-    const clave = claveInput.value.trim().toUpperCase();
-    const nuevoBase = parseFloat(nuevoBaseInput.value) || 0;
-    const resolucion = resolucionInput ? resolucionInput.value.trim() : '13/2026';
-
-    if (!nuevoBase) {
-        alert('⚠️ Ingresá un monto base válido.');
-        return;
-    }
-
-    if (!window.datosParaConfirmar) {
-        alert('⚠️ No hay datos en el lote para actualizar.');
-        return;
-    }
-
-    let actualizadosCount = 0;
-
-    window.datosParaConfirmar.forEach((item, i) => {
-        const detEl = document.getElementById(`mDet${i}`);
-        const netoEl = document.getElementById(`mNeto${i}`);
-        const exentoEl = document.getElementById(`mExento${i}`);
-        const aliEl = document.getElementById(`mAli${i}`);
-
-        if (!detEl) return;
-
-        const textoActual = detEl.value.toUpperCase();
-        const moduloItem = (item.datos.modulo || '').toUpperCase();
-
-        // Condición flexible: si el campo clave está vacío, aplica a todo el lote. Si tiene texto, coincide con la clave escrita, el módulo, o el detalle.
-        const coincide = !clave || textoActual.includes(clave) || moduloItem.includes(clave) || item.datos.id.toUpperCase().includes(clave);
-
-        if (coincide) {
-            const ali = aliEl ? (parseFloat(aliEl.value) || 0) : 0;
-            const tieneDep = textoActual.includes('DEPEND');
-            let montoDepCalc = 0;
-            let montoTotCalc = nuevoBase;
-
-            if (tieneDep) {
-                montoDepCalc = Math.round((nuevoBase * 0.35) * 100) / 100;
-                montoTotCalc = Math.round((nuevoBase + montoDepCalc) * 100) / 100;
-            }
-
-            let neto = 0;
-            let exento = 0;
-
-            if (ali > 0) {
-                neto = Math.round((montoTotCalc / (1 + (ali / 100))) * 100) / 100;
-                exento = 0;
-            } else {
-                neto = 0;
-                exento = montoTotCalc;
-            }
-
-            if (netoEl) netoEl.value = neto;
-            if (exentoEl) exentoEl.value = exento;
-
-            let detalleMod = detEl.value;
-            const baseFmt = nuevoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            const depFmt = montoDepCalc.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            const totFmt = montoTotCalc.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-            if (/VALOR\s*PRESTACION:/i.test(detalleMod)) {
-                detalleMod = detalleMod.replace(/VALOR\s*PRESTACION:\s*[\$\s]*[\d\.,]+/gi, `VALOR PRESTACION:        ${baseFmt}`);
-            } else if (!tieneDep) {
-                detalleMod += `\nVALOR PRESTACION:  $ ${baseFmt}`;
-            }
-
-            if (tieneDep) {
-                if (/VALOR\s*DEPENDENCIA:/i.test(detalleMod)) {
-                    detalleMod = detalleMod.replace(/VALOR\s*DEPENDENCIA:\s*[\$\s]*[\d\.,]+/gi, `VALOR DEPENDENCIA:       ${depFmt}`);
-                } else {
-                    detalleMod += `\nVALOR DEPENDENCIA:       ${depFmt}`;
-                }
-                if (/VALOR\s*TOTAL:/i.test(detalleMod)) {
-                    detalleMod = detalleMod.replace(/VALOR\s*TOTAL:\s*[\$\s]*[\d\.,]+/gi, `VALOR TOTAL:             ${totFmt}`);
-                } else {
-                    detalleMod += `\nVALOR TOTAL:             ${totFmt}`;
-                }
-            }
-
-            if (/RESOL[\.\s]*[\d\/]+/gi.test(detalleMod)) {
-                detalleMod = detalleMod.replace(/RESOL[\.\s]*[\d\/]+/gi, `RESOL. ${resolucion}`);
-            } else {
-                detalleMod += `\nRESOL. ${resolucion}`;
-            }
-
-            detEl.value = detalleMod;
-            
-            const lblMonto = document.getElementById(`lblMontoItem${i}`);
-            if (lblMonto) lblMonto.innerText = montoTotCalc.toLocaleString('es-AR');
-            
-            actualizadosCount++;
-        }
-    });
-
-    let nuevoTotalGeneral = 0;
-    window.datosParaConfirmar.forEach((_, i) => {
-        const netoEl = document.getElementById(`mNeto${i}`);
-        const exentoEl = document.getElementById(`mExento${i}`);
-        if (netoEl && exentoEl) {
-            nuevoTotalGeneral += (parseFloat(netoEl.value) || 0) + (parseFloat(exentoEl.value) || 0);
-        }
-    });
-
-    const lblTotalGeneral = document.getElementById('totalGeneralLote');
-    if (lblTotalGeneral) {
-        lblTotalGeneral.innerText = nuevoTotalGeneral.toLocaleString('es-AR');
-    }
-
-    alert(`✅ Valores y Resolución ${resolucion} aplicados correctamente a ${actualizadosCount} ítems.`);
-};
 
 window.recalcularItemModal = function(i) {
     const ali = parseFloat(document.getElementById(`mAli${i}`).value) || 0;
@@ -2302,7 +2154,6 @@ window.recalcularItemModal = function(i) {
         netoEl.value = 0;
         exentoEl.value = valorTotal;
     }
-
     sincronizarMontosModal(i);
 };
 
@@ -2330,11 +2181,11 @@ window.sincronizarMontosModal = function(i) {
 };
 
 // ============================================================
-// PANEL DE FILTROS CON CARGA SEGURA DE PACIENTES
+// PANEL DE FILTROS CON CARGA SEGURA Y AJUSTE PREVIO
 // ============================================================
 async function mostrarPanelFiltros() {
     const hoy = new Date();
-    const mesDefecto = hoy.getMonth();
+    const mesDefecto = hoy.getMonth(); 
     const anioDefecto = hoy.getFullYear();
 
     let snapCD, snapCET, snapREHAB, snapSAEI, snapOS;
@@ -2348,7 +2199,7 @@ async function mostrarPanelFiltros() {
         ]);
     } catch(err) {
         console.error("❌ Error al leer Firebase:", err);
-        alert("❌ Error al conectar con la base de datos para cargar pacientes.");
+        alert("❌ Error al conectar con la base de datos.");
         return;
     }
 
@@ -2362,7 +2213,7 @@ async function mostrarPanelFiltros() {
     const osSet = new Set();
     Object.values(todosPacientes).forEach(pacs => {
         Object.values(pacs).forEach(p => {
-            const os = (p.os || '').trim();
+            const os = (p.os || '').trim().toUpperCase();
             if (os) osSet.add(os);
         });
     });
@@ -2377,34 +2228,51 @@ async function mostrarPanelFiltros() {
     <div style="position:fixed;top:0;left:0;width:100%;height:100%;
                 background:rgba(0,0,0,0.6);z-index:10000;display:flex;
                 align-items:center;justify-content:center;">
-      <div style="background:white;border-radius:12px;padding:25px;width:550px;
-                  max-width:95%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+      <div style="background:white;border-radius:12px;padding:25px;width:600px;
+                  max-width:95%;max-height:95vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
 
-        <h3 style="margin:0 0 15px 0;color:#6c3483;">🎯 PREPARAR LOTE DE FACTURACIÓN (MULTI-SELECCIÓN)</h3>
+        <h3 style="margin:0 0 15px 0;color:#6c3483;">🎯 PREPARAR LOTE DE FACTURACIÓN</h3>
 
         <div style="overflow-y:auto;flex:1;padding-right:5px;display:flex;flex-direction:column;gap:15px;">
+          
+          <!-- CONFIGURACIÓN DE NOMENCLADOR PREVIA -->
+          <div style="border:1px dashed #8e44ad;padding:12px;border-radius:5px;background:#faf5ff;">
+            <b style="color:#6c3483;font-size:13px;">⚙️ Configuración Global del Nomenclador (Aplicará a todos los marcados)</b>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;font-size:12px;">
+                <label>Monto Base Manual ($):<br><input type="number" id="filtroMontoBase" placeholder="Dejar vacío para usar BD" style="width:100%;"></label>
+                <label>Resolución Aplicable:<br><input type="text" id="filtroResolucion" value="13/2026" style="width:100%;"></label>
+                <label style="grid-column: span 2;">Descripción / Prestación Forzada:<br><input type="text" id="filtroPrestacion" placeholder="Ej: ATENCIÓN PARTICULAR (Vacío usa automático)" style="width:100%;"></label>
+            </div>
+          </div>
+
+          <!-- PERÍODO -->
+          <div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;">
+            <label style="font-weight:bold;font-size:13px;color:#333;">📅 PERÍODO DE EMISIÓN (Se facturará el mes anterior a este)</label>
+            <input type="month" id="filtroPeriodo"
+                   value="${anioDefecto}-${String(mesDefecto+1).padStart(2,'0')}"
+                   style="width:100%;padding:8px;border-radius:5px;border:1px solid #ccc;margin-top:5px;">
+          </div>
 
           <!-- MÓDULOS -->
           <div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
               <label style="font-weight:bold;font-size:13px;color:#333;">📦 MÓDULOS</label>
-              <button type="button" onclick="document.querySelectorAll('.chkMod').forEach(c=>c.checked=true); actualizarPacientesCheckbox();" style="font-size:10px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;">Marcar Todos</button>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="CD" checked onchange="actualizarPacientesCheckbox()"> CD</label>
+              <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="CD" checked onchange="actualizarPacientesCheckbox()"> CENTRO DE DÍA</label>
               <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="CET" checked onchange="actualizarPacientesCheckbox()"> CET</label>
-              <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="REHAB" checked onchange="actualizarPacientesCheckbox()"> REHAB</label>
+              <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="REHAB" checked onchange="actualizarPacientesCheckbox()"> REHABILITACIÓN</label>
               <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="SAEI" checked onchange="actualizarPacientesCheckbox()"> SAEI</label>
             </div>
           </div>
 
           <!-- OBRAS SOCIALES -->
-          <div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;max-height:150px;overflow-y:auto;">
+          <div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;max-height:120px;overflow-y:auto;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
               <label style="font-weight:bold;font-size:13px;color:#333;">🏥 OBRAS SOCIALES</label>
               <div>
-                <button type="button" onclick="marcarTodasOS(true)" style="font-size:10px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;margin-right:8px;">Marcar Todas</button>
-                <button type="button" onclick="marcarTodasOS(false)" style="font-size:10px;background:none;border:none;color:#c0392b;cursor:pointer;font-weight:bold;">Desmarcar Todas</button>
+                <button type="button" onclick="marcarTodasOS(true)" style="font-size:10px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;margin-right:8px;">Todas</button>
+                <button type="button" onclick="marcarTodasOS(false)" style="font-size:10px;background:none;border:none;color:#c0392b;cursor:pointer;font-weight:bold;">Ninguna</button>
               </div>
             </div>
             <div style="display:flex;flex-direction:column;gap:5px;">
@@ -2415,37 +2283,22 @@ async function mostrarPanelFiltros() {
           <!-- PACIENTES -->
           <div style="background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid #ddd;max-height:150px;overflow-y:auto;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <label style="font-weight:bold;font-size:13px;color:#333;">👤 PACIENTES</label>
+              <label style="font-weight:bold;font-size:13px;color:#333;">👤 PACIENTES HABILITADOS</label>
               <button type="button" onclick="document.querySelectorAll('.chkPac').forEach(c=>c.checked=true);" style="font-size:10px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;">Marcar Todos</button>
             </div>
-            <div id="contenedorPacientesCheckbox" style="display:flex;flex-direction:column;gap:5px;">
-              <!-- Se llena dinámicamente -->
-            </div>
-          </div>
-
-          <!-- PERÍODO -->
-          <div>
-            <label style="font-weight:bold;font-size:13px;color:#333;">📅 PERÍODO</label>
-            <input type="month" id="filtroPeriodo"
-                   value="${anioDefecto}-${String(mesDefecto+1).padStart(2,'0')}"
-                   style="width:100%;padding:8px;border-radius:5px;border:1px solid #ccc;margin-top:5px;">
+            <div id="contenedorPacientesCheckbox" style="display:flex;flex-direction:column;gap:5px;"></div>
           </div>
 
         </div>
 
         <div style="margin-top:15px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #eee;padding-top:15px;">
           <button onclick="document.getElementById('${panelId}').remove()"
-                  style="padding:10px 20px;border:1px solid #ccc;border-radius:5px;background:#eee;cursor:pointer;">
-            CANCELAR
-          </button>
+                  style="padding:10px 20px;border:1px solid #ccc;border-radius:5px;background:#eee;cursor:pointer;">CANCELAR</button>
           <button id="btnEjecutarLote"
-                  style="padding:10px 20px;border:none;border-radius:5px;
-                         background:linear-gradient(135deg,#8e44ad,#6c3483);
-                         color:white;font-weight:bold;cursor:pointer;">
-            🔍 BUSCAR Y PREPARAR
+                  style="padding:10px 20px;border:none;border-radius:5px;background:linear-gradient(135deg,#8e44ad,#6c3483);color:white;font-weight:bold;cursor:pointer;">
+            🔍 GENERAR LOTE
           </button>
         </div>
-
       </div>
     </div>`;
     document.body.appendChild(panel);
@@ -2456,25 +2309,29 @@ async function mostrarPanelFiltros() {
     document.getElementById('btnEjecutarLote').addEventListener('click', async function() {
         const btn = this;
         btn.disabled = true;
-        btn.textContent = '⏳ LEYENDO...';
+        btn.textContent = '⏳ PROCESANDO...';
+        
         try {
             const modulosSeleccionados = Array.from(document.querySelectorAll('.chkMod:checked')).map(c => c.value);
-            const osSeleccionadas = Array.from(document.querySelectorAll('.chkOS:checked')).map(c => c.value);
+            const osSeleccionadas = Array.from(document.querySelectorAll('.chkOS:checked')).map(c => c.value.trim().toUpperCase());
             const pacientesSeleccionados = Array.from(document.querySelectorAll('.chkPac:checked')).map(c => c.value);
 
             await ejecutarLoteMulti({
                 modulos: modulosSeleccionados,
                 os: osSeleccionadas,
                 pacientes: pacientesSeleccionados,
-                periodo: document.getElementById('filtroPeriodo').value
+                periodo: document.getElementById('filtroPeriodo').value,
+                nomencladorBaseManual: document.getElementById('filtroMontoBase').value,
+                resolucionManual: document.getElementById('filtroResolucion').value,
+                prestacionManual: document.getElementById('filtroPrestacion').value
             }, todosPacientes, snapOS.val() || {});
             
             document.getElementById(panelId).remove();
         } catch(e) {
-            console.error("❌ CFO:", e);
+            console.error("❌ Error Generando Lote:", e);
             alert("❌ Error: " + e.message);
             btn.disabled = false;
-            btn.textContent = '🔍 BUSCAR Y PREPARAR';
+            btn.textContent = '🔍 GENERAR LOTE';
         }
     });
 }
@@ -2482,7 +2339,7 @@ async function mostrarPanelFiltros() {
 function actualizarPacientesCheckbox() {
     const todosPacientes = window._todosPacientesCache || {};
     const modulosSeleccionados = Array.from(document.querySelectorAll('.chkMod:checked')).map(c => c.value);
-    const osSeleccionadas = Array.from(document.querySelectorAll('.chkOS:checked')).map(c => c.value);
+    const osSeleccionadas = Array.from(document.querySelectorAll('.chkOS:checked')).map(c => c.value.trim().toUpperCase());
 
     const contenedor = document.getElementById('contenedorPacientesCheckbox');
     if (!contenedor) return;
@@ -2494,7 +2351,7 @@ function actualizarPacientesCheckbox() {
         Object.entries(pacientesMod).forEach(([idPac, p]) => {
             if (!p) return;
             const nombre = (idPac || p.nombre || '').trim();
-            const os = (p.os || p.obrasocial || '').trim();
+            const os = (p.os || p.obrasocial || '').trim().toUpperCase();
             
             if (nombre && (osSeleccionadas.length === 0 || osSeleccionadas.includes(os))) {
                 pacientesMap.set(nombre, true);
@@ -2510,13 +2367,35 @@ function actualizarPacientesCheckbox() {
 }
 
 // ============================================================
-// EJECUTAR LOTE MULTI-SELECCIÓN CON SOPORTE DE DEPENDENCIA
+// PROCESAMIENTO DEL LOTE MULTI-SELECCIÓN (CÁLCULO MES VENCIDO)
 // ============================================================
 async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
-    const [anioStr, mesStr] = filtros.periodo.split('-');
-    const anioFacturar = parseInt(anioStr);
-    const mesFacturar = parseInt(mesStr) - 1;
+    // 1. CÁLCULO DE FECHAS Y PERÍODOS A MES VENCIDO
+    const [anioEmision, mesEmision] = filtros.periodo.split('-');
+    
+    // Si la emisión es Ej: 2026-07, la prestación será 2026-06 (Mes vencido)
+    let fechaPrestacion = new Date(parseInt(anioEmision), parseInt(mesEmision) - 1, 1);
+    fechaPrestacion.setMonth(fechaPrestacion.getMonth() - 1); 
+    
+    const anioFacturar = fechaPrestacion.getFullYear();
+    const mesFacturar = fechaPrestacion.getMonth(); 
     const nombreMes = MESESCFO[mesFacturar];
+
+    // Cálculos para Períodos y Vencimientos en el Modal
+    const primerDiaMesFormato = `${anioFacturar}-${String(mesFacturar+1).padStart(2,'0')}-01`;
+    const ultimoDiaCalculado = new Date(anioFacturar, mesFacturar + 1, 0);
+    const ultimoDiaMesFormato = ultimoDiaCalculado.toISOString().split('T')[0];
+    
+    // Vencimiento estándar: Hoy + 15 días (o ajustarlo según tu preferencia comercial)
+    let fechaVto = new Date();
+    fechaVto.setDate(fechaVto.getDate() + 15);
+    const vtoPagoFormato = fechaVto.toISOString().split('T')[0];
+
+    const fechasCalculadas = {
+        desde: primerDiaMesFormato,
+        hasta: ultimoDiaMesFormato,
+        vto: vtoPagoFormato
+    };
 
     let nomenclador = {};
     try {
@@ -2545,49 +2424,53 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const nombrePaciente = (p.nombre || idPaciente).trim();
 
             if (!filtros.pacientes.includes(nombrePaciente)) continue;
-            const osPaciente = (p.os || '').trim();
+            const osPaciente = (p.os || '').trim().toUpperCase();
             if (!filtros.os.includes(osPaciente)) continue;
 
             const asist = p.asistF_link || '';
-            if (!asist || asist === 'no' || asist === 'NO' || asist.length < 5) continue;
+            if (!asist || asist.toUpperCase() === 'NO' || asist.length < 5) continue;
 
             const clave = `${idPaciente}${modulo}`;
             if (proc.has(clave)) continue;
 
             const ya = Object.values(facturasEmitidas).some(f => {
                 if (f.id_paciente !== idPaciente && f.id_pacientedb !== idPaciente && f.idpaciente !== idPaciente && f.idpacientedb !== idPaciente) return false;
-                const fechaEmision = f.fecha_emision || f.fechaemision;
-                if (!fechaEmision) return false;
-                const parts = fechaEmision.includes('/') ? fechaEmision.split('/') : fechaEmision.split('-');
+                const fEmision = f.fecha_emision || f.fechaemision;
+                if (!fEmision) return false;
+                const parts = fEmision.includes('/') ? fEmision.split('/') : fEmision.split('-');
                 if (parts.length < 3) return false;
                 const mf = parseInt(parts[1]);
                 const af = parts[0].length === 4 ? parseInt(parts[0]) : parseInt(parts[2]);
+                // Validación para no facturar el mismo período prestacional dos veces
                 return mf === mesFacturar + 1 && af === anioFacturar && !!(f.cae || f.CAE);
             });
             if (ya) continue;
 
-            const osNombre = osPaciente.toUpperCase();
+            const osNombre = osPaciente;
             const osData = osConfig[osNombre] || {};
-
             const uf = p.ultima_factura || p.ultimafactura || {};
             const detAnterior = (uf.concepto || uf.descripcion || uf.detalle || '').toUpperCase();
 
-            let prestacion = modulo;
-            let montoBase = 0;
-            let resolucionAplicada = '13/2026';
+            // 2. APLICACIÓN PRIORITARIA DE NOMENCLADOR (Manual de panel vs Automático)
+            let prestacion = filtros.prestacionManual || modulo;
+            let resolucionAplicada = filtros.resolucionManual || '13/2026';
+            let montoBase = parseFloat(filtros.nomencladorBaseManual) || 0;
 
-            for (const [claveNom, val] of Object.entries(nomenclador)) {
-                if (detAnterior.includes(claveNom)) {
-                    prestacion = val.desc || claveNom;
-                    montoBase = val.base || val.monto || 0;
-                    resolucionAplicada = val.resolucion || '13/2026';
-                    break;
+            if (!montoBase) {
+                // Caída al automático si no se ingresó nada manual en el panel
+                for (const [claveNom, val] of Object.entries(nomenclador)) {
+                    if (detAnterior.includes(claveNom)) {
+                        prestacion = val.desc || claveNom;
+                        montoBase = val.base || val.monto || 0;
+                        resolucionAplicada = val.resolucion || resolucionAplicada;
+                        break;
+                    }
                 }
-            }
-            if (!montoBase && nomenclador[modulo]) {
-                montoBase = nomenclador[modulo].base || nomenclador[modulo].monto || 0;
-                resolucionAplicada = nomenclador[modulo].resolucion || '13/2026';
-                prestacion = nomenclador[modulo].desc || modulo;
+                if (!montoBase && nomenclador[modulo]) {
+                    montoBase = nomenclador[modulo].base || nomenclador[modulo].monto || 0;
+                    resolucionAplicada = nomenclador[modulo].resolucion || resolucionAplicada;
+                    prestacion = nomenclador[modulo].desc || modulo;
+                }
             }
 
             const tieneDependencia = detAnterior.includes('DEPEND') || p.dependencia === true || p.conDependencia === true;
@@ -2600,22 +2483,30 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 montoTotal = Math.round((montoBase + montoDependencia) * 100) / 100;
             }
 
+            // 3. ESTRUCTURACIÓN EXPLÍCITA DEL DETALLE
             let detalleNuevo = '';
-            const detalleViejoBase = uf.detalle || uf.descripcion || '';
+            const nombreCompletoModulo = NOMBRES_MODULOS[modulo] || modulo;
+            const prestacionMostrar = filtros.prestacionManual ? filtros.prestacionManual.toUpperCase() : prestacion.toUpperCase();
+            const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
+            const baseFmt = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             
-            if (detalleViejoBase && typeof actualizarDetalleQuirurgico === 'function') {
-                detalleNuevo = actualizarDetalleQuirurgico(detalleViejoBase, nombreMes, anioFacturar, resolucionAplicada, montoBase, tieneDependencia, montoDependencia, montoTotal);
+            if (tieneDependencia) {
+                const depFmt = montoDependencia.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const totFmt = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                detalleNuevo = `PRESTADOR: ESENCIAL S.R.L.
+PERÍODO PRESTACIONAL: ${nombreMes} ${anioFacturar}
+${nombreCompletoModulo} - ${prestacionMostrar}
+C/DEPEND.S/F.I.M. RESOL ${resolucionAplicada}
+BENEF. ${nombrePaciente.toUpperCase()}${dniTxt}
+VALOR PRESTACION:         $ ${baseFmt}
+VALOR DEPENDENCIA:        $ ${depFmt}
+VALOR TOTAL:              $ ${totFmt}`;
             } else {
-                const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
-                const baseFmt = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                
-                if (tieneDependencia) {
-                    const depFmt = montoDependencia.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    const totFmt = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    detalleNuevo = `PRESTADOR: ESENCIAL S.R.L.\nPERIODO: ${nombreMes} ${anioFacturar}\n${prestacion.toUpperCase()}\nC/DEPEND.S/F.I.M. RESOL ${resolucionAplicada}\nBENEF. ${nombrePaciente.toUpperCase()}${dniTxt}\nVALOR PRESTACION:        ${baseFmt}\nVALOR DEPENDENCIA:        ${depFmt}\nVALOR TOTAL:              ${totFmt}\n`;
-                } else {
-                    detalleNuevo = `${nombrePaciente.toUpperCase()}${dniTxt}\nPERÍODO: ${nombreMes} ${anioFacturar}\n${prestacion.toUpperCase()}\nRESOL. ${resolucionAplicada}\nVALOR PRESTACION:  $ ${baseFmt}`;
-                }
+                detalleNuevo = `${nombrePaciente.toUpperCase()}${dniTxt}
+PERÍODO PRESTACIONAL: ${nombreMes} ${anioFacturar}
+${nombreCompletoModulo} - ${prestacionMostrar}
+RESOL. ${resolucionAplicada}
+VALOR PRESTACION:  $ ${baseFmt}`;
             }
 
             const cuit = osData.cuit || p.obra_social_cuit || p.obrasocialcuit || '';
@@ -2629,7 +2520,7 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const cobHasta = p.cobertura_hasta || p.coberturahasta || '';
 
             if (!cuit || cuit.length < 10) {
-                adv.push({ paciente: nombrePaciente, msg: '⚠️ CUIT faltante o inválido' });
+                adv.push({ paciente: nombrePaciente, msg: 'CUIT faltante o inválido en Obra Social' });
             }
 
             lote.push({
@@ -2645,11 +2536,11 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
     }
 
     if (!lote.length) {
-        alert(`⚠️ Sin pacientes para facturar con las combinaciones seleccionadas.`);
+        alert(`⚠️ Sin pacientes para facturar con las combinaciones seleccionadas para el mes prestacional ${nombreMes} ${anioFacturar}.`);
         return;
     }
 
-    abrirModalCFO(lote, nombreMes, anioFacturar, adv);
+    abrirModalCFO(lote, nombreMes, anioFacturar, adv, fechasCalculadas);
 }
 </script>
 </body>
