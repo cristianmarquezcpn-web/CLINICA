@@ -2479,7 +2479,6 @@ async function mostrarPanelFiltros() {
         }
     });
 }
-
 function actualizarPacientesCheckbox() {
     const todosPacientes = window._todosPacientesCache || {};
     const modulosSeleccionados = Array.from(document.querySelectorAll('.chkMod:checked')).map(c => c.value);
@@ -2489,10 +2488,15 @@ function actualizarPacientesCheckbox() {
     if (!contenedor) return;
 
     const pacientesMap = new Map();
+    
     modulosSeleccionados.forEach(mod => {
-        Object.values(todosPacientes[mod] || {}).forEach(p => {
-            const nombre = (p.nombre || '').trim();
-            const os = (p.os || '').trim();
+        const pacientesMod = todosPacientes[mod] || {};
+        // La clave del objeto (idPac) es el nombre del paciente en tu Firebase
+        Object.entries(pacientesMod).forEach(([idPac, p]) => {
+            if (!p) return;
+            const nombre = (idPac || p.nombre || '').trim();
+            const os = (p.os || p.obrasocial || '').trim();
+            
             if (nombre && (osSeleccionadas.length === 0 || osSeleccionadas.includes(os))) {
                 pacientesMap.set(nombre, true);
             }
@@ -2500,6 +2504,7 @@ function actualizarPacientesCheckbox() {
     });
 
     const nombresOrdenados = Array.from(pacientesMap.keys()).sort();
+    
     contenedor.innerHTML = nombresOrdenados.length === 0 
         ? '<span style="font-size:11px;color:#888;">No hay pacientes con los filtros actuales.</span>'
         : nombresOrdenados.map(n => `<label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkPac" value="${n}" checked> ${n}</label>`).join('');
