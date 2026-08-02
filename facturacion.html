@@ -2183,262 +2183,7 @@ window.sincronizarMontosModal = function(i) {
 // ============================================================
 // PANEL DE FILTROS AMPLIADO Y NOMENCLADOR ESPECÍFICO
 // ============================================================
-async function mostrarPanelFiltros() {
-    const hoy = new Date();
-    const mesDefecto = hoy.getMonth(); 
-    const anioDefecto = hoy.getFullYear();
-
-    let snapCD, snapCET, snapREHAB, snapSAEI, snapOS, snapNom;
-    try {
-        [snapCD, snapCET, snapREHAB, snapSAEI, snapOS, snapNom] = await Promise.all([
-            db.ref('cd/pacientes').once('value'),
-            db.ref('cet/pacientes').once('value'),
-            db.ref('rehab/pacientes').once('value'),
-            db.ref('saei/pacientes').once('value'),
-            db.ref('config/obras_sociales').once('value'),
-            db.ref('config/nomenclador').once('value')
-        ]);
-    } catch(err) {
-        console.error("❌ Error al leer Firebase:", err);
-        alert("❌ Error al conectar con la base de datos.");
-        return;
-    }
-
-    const todosPacientes = {
-        CD: snapCD.val() || {},
-        CET: snapCET.val() || {},
-        REHAB: snapREHAB.val() || {},
-        SAEI: snapSAEI.val() || {}
-    };
-
-    const nomencladorBD = snapNom.val() || {};
-    const cfgGuardada = nomencladorBD.config_manual || {};
-
-    const osSet = new Set();
-    Object.values(todosPacientes).forEach(pacs => {
-        Object.values(pacs).forEach(p => {
-            const os = (p.os || '').trim().toUpperCase();
-            if (os) osSet.add(os);
-        });
-    });
-    const listaOS = Array.from(osSet).sort();
-
-    const panelId = 'panelFiltrosCFO';
-    document.getElementById(panelId)?.remove();
-
-    const panel = document.createElement('div');
-    panel.id = panelId;
-    panel.innerHTML = `
-    <div style="position:fixed;top:0;left:0;width:100%;height:100%;
-                background:rgba(0,0,0,0.6);z-index:10000;display:flex;
-                align-items:center;justify-content:center;padding:10px;">
-      <div style="background:white;border-radius:12px;padding:20px;width:750px;
-                  max-width:98%;height:92vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
-
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <h3 style="margin:0;color:#6c3483;">🎯 PREPARAR LOTE DE FACTURACIÓN</h3>
-            <button type="button" id="btnGuardarNom" style="padding:6px 12px;background:#27ae60;color:white;border:none;border-radius:4px;cursor:pointer;font-weight:bold;font-size:11px;">💾 Guardar Valores Nomenclador</button>
-        </div>
-
-        <div style="overflow-y:auto;flex:1;padding-right:8px;display:flex;flex-direction:column;gap:15px;">
-         
-          <!-- CONFIGURACIÓN DE NOMENCLADOR ESPECÍFICO -->
-          <div style="border:1px solid #8e44ad;padding:12px;border-radius:6px;background:#faf5ff;">
-            <b style="color:#6c3483;font-size:13px;">⚙️ Valores de Nomenclador (Configuración Específica)</b>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;font-size:11px;">
-                <label>Resolución Aplicable:<br><input type="text" id="filtroResolucion" value="${cfgGuardada.resolucion || '13/2026'}" style="width:100%;padding:4px;"></label>
-                <label>SAEI (Módulo independiente - No facturable aquí):<br><input type="number" id="nom_SAEI" value="${cfgGuardada.SAEI || ''}" placeholder="Monto SAEI" style="width:100%;padding:4px;background:#f5f5f5;" disabled></label>
-                <label>Rehabilitación - Intensivo:<br><input type="number" id="nom_REHAB_INT" value="${cfgGuardada.REHAB_INT || ''}" placeholder="Monto Rehab Intensivo" style="width:100%;padding:4px;"></label>
-                <label>Rehabilitación - Simple:<br><input type="number" id="nom_REHAB_SIM" value="${cfgGuardada.REHAB_SIM || ''}" placeholder="Monto Rehab Simple" style="width:100%;padding:4px;"></label>
-                <label>Centro de Día - Jornada Doble:<br><input type="number" id="nom_CD_DOB" value="${cfgGuardada.CD_DOB || ''}" placeholder="Monto CD Doble" style="width:100%;padding:4px;"></label>
-                <label>Centro de Día - Jornada Simple:<br><input type="number" id="nom_CD_SIM" value="${cfgGuardada.CD_SIM || ''}" placeholder="Monto CD Simple" style="width:100%;padding:4px;"></label>
-                <label>C.E.T. - Jornada Doble:<br><input type="number" id="nom_CET_DOB" value="${cfgGuardada.CET_DOB || ''}" placeholder="Monto CET Doble" style="width:100%;padding:4px;"></label>
-                <label>C.E.T. - Jornada Simple:<br><input type="number" id="nom_CET_SIM" value="${cfgGuardada.CET_SIM || ''}" placeholder="Monto CET Simple" style="width:100%;padding:4px;"></label>
-            </div>
-          </div>
-
-          <!-- PERÍODO -->
-          <div style="background:#f9f9f9;padding:10px;border-radius:8px;border:1px solid #ddd;">
-            <label style="font-weight:bold;font-size:12px;color:#333;">📅 PERÍODO DE EMISIÓN (Se facturará el mes anterior)</label>
-            <input type="month" id="filtroPeriodo"
-                   value="${anioDefecto}-${String(mesDefecto+1).padStart(2,'0')}"
-                   style="width:100%;padding:6px;border-radius:5px;border:1px solid #ccc;margin-top:4px;">
-          </div>
-
-          <!-- MÓDULOS -->
-          <div style="background:#f9f9f9;padding:10px;border-radius:8px;border:1px solid #ddd;">
-            <label style="font-weight:bold;font-size:12px;color:#333;display:block;margin-bottom:6px;">📦 MÓDULOS (Nota: SAEI se gestiona en su propio módulo)</label>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-              <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="CD" checked onchange="actualizarPacientesCheckbox()"> CENTRO DE DÍA</label>
-              <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="CET" checked onchange="actualizarPacientesCheckbox()"> CET</label>
-              <label style="font-size:12px;cursor:pointer;"><input type="checkbox" class="chkMod" value="REHAB" checked onchange="actualizarPacientesCheckbox()"> REHABILITACIÓN</label>
-              <label style="font-size:12px;cursor:pointer;color:#888;"><input type="checkbox" class="chkMod" value="SAEI" disabled> SAEI (Excluido)</label>
-            </div>
-          </div>
-
-          <!-- OBRAS SOCIALES (CON BUSCADOR) -->
-          <div style="background:#f9f9f9;padding:10px;border-radius:8px;border:1px solid #ddd;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-              <label style="font-weight:bold;font-size:12px;color:#333;">🏥 OBRAS SOCIALES</label>
-              <div>
-                <button type="button" onclick="marcarTodasOS(true)" style="font-size:11px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;margin-right:8px;">Todas</button>
-                <button type="button" onclick="marcarTodasOS(false)" style="font-size:11px;background:none;border:none;color:#c0392b;cursor:pointer;font-weight:bold;">Ninguna</button>
-              </div>
-            </div>
-            <input type="text" id="buscadorOS" placeholder="🔍 Buscar obra social..." oninput="filtrarListaOS()" style="width:100%;padding:5px;margin-bottom:6px;border:1px solid #ccc;border-radius:4px;font-size:11px;">
-            <div id="contenedorOSCheckbox" style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;border:1px solid #eee;padding:6px;background:white;border-radius:4px;">
-              ${listaOS.map(os => `<label class="itemOS" data-nombre="${os}" style="font-size:11px;cursor:pointer;"><input type="checkbox" class="chkOS" value="${os}" checked onchange="actualizarPacientesCheckbox()"> ${os}</label>`).join('')}
-            </div>
-          </div>
-
-          <!-- PACIENTES (CON BUSCADOR) -->
-          <div style="background:#f9f9f9;padding:10px;border-radius:8px;border:1px solid #ddd;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-              <label style="font-weight:bold;font-size:12px;color:#333;">👤 PACIENTES HABILITADOS</label>
-              <div>
-                <button type="button" onclick="seleccionarPacientesVisibles(true)" style="font-size:11px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;margin-right:8px;">Todos</button>
-                <button type="button" onclick="seleccionarPacientesVisibles(false)" style="font-size:11px;background:none;border:none;color:#c0392b;cursor:pointer;font-weight:bold;">Ninguno</button>
-              </div>
-            </div>
-            <input type="text" id="buscadorPacientes" placeholder="🔍 Buscar paciente..." oninput="filtrarListaPacientes()" style="width:100%;padding:5px;margin-bottom:6px;border:1px solid #ccc;border-radius:4px;font-size:11px;">
-            <div id="contenedorPacientesCheckbox" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;border:1px solid #eee;padding:6px;background:white;border-radius:4px;"></div>
-          </div>
-
-        </div>
-
-        <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #eee;padding-top:12px;">
-          <button onclick="document.getElementById('${panelId}').remove()"
-                  style="padding:8px 16px;border:1px solid #ccc;border-radius:5px;background:#eee;cursor:pointer;font-weight:bold;">CANCELAR</button>
-          <button id="btnEjecutarLote"
-                  style="padding:8px 16px;border:none;border-radius:5px;background:linear-gradient(135deg,#8e44ad,#6c3483);color:white;font-weight:bold;cursor:pointer;">
-            🔍 GENERAR LOTE
-          </button>
-        </div>
-      </div>
-    </div>`;
-    document.body.appendChild(panel);
-
-    window._todosPacientesCache = todosPacientes;
-    actualizarPacientesCheckbox();
-
-    document.getElementById('btnGuardarNom').addEventListener('click', async function() {
-        try {
-            const montosConfig = {
-                resolucion: document.getElementById('filtroResolucion').value,
-                REHAB_INT: parseFloat(document.getElementById('nom_REHAB_INT').value) || 0,
-                REHAB_SIM: parseFloat(document.getElementById('nom_REHAB_SIM').value) || 0,
-                CD_DOB: parseFloat(document.getElementById('nom_CD_DOB').value) || 0,
-                CD_SIM: parseFloat(document.getElementById('nom_CD_SIM').value) || 0,
-                CET_DOB: parseFloat(document.getElementById('nom_CET_DOB').value) || 0,
-                CET_SIM: parseFloat(document.getElementById('nom_CET_SIM').value) || 0
-            };
-            await db.ref('config/nomenclador/config_manual').set(montosConfig);
-            alert("✅ Valores de nomenclador guardados correctamente en Firebase.");
-        } catch(err) {
-            console.error("Error al guardar nomenclador:", err);
-            alert("❌ Error al guardar en Firebase.");
-        }
-    });
-
-    document.getElementById('btnEjecutarLote').addEventListener('click', async function() {
-        const btn = this;
-        btn.disabled = true;
-        btn.textContent = '⏳ PROCESANDO...';
-        
-        try {
-            const modulosSeleccionados = Array.from(document.querySelectorAll('.chkMod:checked')).map(c => c.value).filter(m => m !== 'SAEI');
-            const osSeleccionadas = Array.from(document.querySelectorAll('.chkOS:checked')).map(c => c.value.trim().toUpperCase());
-            const pacientesSeleccionados = Array.from(document.querySelectorAll('.chkPac:checked')).map(c => c.value);
-
-            const montosConfig = {
-                resolucion: document.getElementById('filtroResolucion').value,
-                REHAB_INT: parseFloat(document.getElementById('nom_REHAB_INT').value) || 0,
-                REHAB_SIM: parseFloat(document.getElementById('nom_REHAB_SIM').value) || 0,
-                CD_DOB: parseFloat(document.getElementById('nom_CD_DOB').value) || 0,
-                CD_SIM: parseFloat(document.getElementById('nom_CD_SIM').value) || 0,
-                CET_DOB: parseFloat(document.getElementById('nom_CET_DOB').value) || 0,
-                CET_SIM: parseFloat(document.getElementById('nom_CET_SIM').value) || 0
-            };
-
-            await ejecutarLoteMulti({
-                modulos: modulosSeleccionados,
-                os: osSeleccionadas,
-                pacientes: pacientesSeleccionados,
-                periodo: document.getElementById('filtroPeriodo').value,
-                montosConfig
-            }, todosPacientes, snapOS.val() || {});
-            
-            document.getElementById(panelId).remove();
-        } catch(e) {
-            console.error("❌ Error Generando Lote:", e);
-            alert("❌ Error: " + e.message);
-            btn.disabled = false;
-            btn.textContent = '🔍 GENERAR LOTE';
-        }
-    });
-}
-
-// Funciones complementarias para los buscadores en tiempo real
-window.filtrarListaOS = function() {
-    const texto = document.getElementById('buscadorOS').value.toLowerCase();
-    document.querySelectorAll('.itemOS').forEach(item => {
-        const nombre = item.getAttribute('data-nombre').toLowerCase();
-        item.style.display = nombre.includes(texto) ? 'block' : 'none';
-    });
-};
-
-window.filtrarListaPacientes = function() {
-    const texto = document.getElementById('buscadorPacientes').value.toLowerCase();
-    document.querySelectorAll('.itemPac').forEach(item => {
-        const nombre = item.getAttribute('data-nombre').toLowerCase();
-        item.style.display = nombre.includes(texto) ? 'flex' : 'none';
-    });
-};
-
-window.seleccionarPacientesVisibles = function(marcar) {
-    document.querySelectorAll('.itemPac').forEach(item => {
-        if (item.style.display !== 'none') {
-            const chk = item.querySelector('.chkPac');
-            if (chk) chk.checked = marcar;
-        }
-    });
-};
-
-function actualizarPacientesCheckbox() {
-    const todosPacientes = window._todosPacientesCache || {};
-    const modulosSeleccionados = Array.from(document.querySelectorAll('.chkMod:checked')).map(c => c.value).filter(m => m !== 'SAEI');
-    const osSeleccionadas = Array.from(document.querySelectorAll('.chkOS:checked')).map(c => c.value.trim().toUpperCase());
-
-    const contenedor = document.getElementById('contenedorPacientesCheckbox');
-    if (!contenedor) return;
-
-    const pacientesMap = new Map();
-
-    modulosSeleccionados.forEach(mod => {
-        const pacientesMod = todosPacientes[mod] || {};
-        Object.entries(pacientesMod).forEach(([idPac, p]) => {
-            if (!p) return;
-            const nombre = (idPac || p.nombre || '').trim();
-            const os = (p.os || p.obrasocial || '').trim().toUpperCase();
-            
-            if (nombre && (osSeleccionadas.length === 0 || osSeleccionadas.includes(os))) {
-                pacientesMap.set(nombre, true);
-            }
-        });
-    });
-
-    const nombresOrdenados = Array.from(pacientesMap.keys()).sort();
-
-    contenedor.innerHTML = nombresOrdenados.length === 0 
-        ? '<span style="font-size:11px;color:#888;">No hay pacientes con los filtros actuales.</span>'
-        : nombresOrdenados.map(n => `<label class="itemPac" data-nombre="${n}" style="font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="chkPac" value="${n}" checked> ${n}</label>`).join('');
-
-    // Aplica el filtro de texto actual si el usuario ya estaba escribiendo algo en el buscador de pacientes
-    if (typeof filtrarListaPacientes === 'function') {
-        filtrarListaPacientes();
-    }
-}
-async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
+async function fixLoteMultiSolucionDefinitiva(filtros, todosPacientes, osConfig) {
     const [anioEmision, mesEmision] = filtros.periodo.split('-');
     
     let fechaPrestacion = new Date(parseInt(anioEmision), parseInt(mesEmision) - 1, 1);
@@ -2452,7 +2197,8 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
     const ultimoDiaCalculado = new Date(anioFacturar, mesFacturar + 1, 0);
     const ultimoDiaMesFormato = ultimoDiaCalculado.toISOString().split('T')[0];
     
-    let fechaVto = new Date(parseInt(anioEmision), parseInt(mesEmision) - 1 + 2, 5);
+    let fechaVto = new Date(parseInt(anioEmision), parseInt(mesEmision) - 1, 5);
+    fechaVto.setMonth(fechaVto.getMonth() + 2);
     const vtoPagoFormato = fechaVto.toISOString().split('T')[0];
 
     const fechasCalculadas = {
@@ -2497,7 +2243,19 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             if (!asist || asist.toUpperCase() === 'NO' || asist.length < 5) continue;
 
             const idUltimaFactura = p.ultima_factura || p.ultimafactura || '';
-            let facturaAnteriorObj = typeof idUltimaFactura === 'object' ? idUltimaFactura : (facturasEmitidas[idUltimaFactura] || {});
+            let facturaAnteriorObj = {};
+            
+            if (typeof idUltimaFactura === 'object' && idUltimaFactura !== null) {
+                facturaAnteriorObj = idUltimaFactura;
+            } else if (idUltimaFactura && facturasEmitidas[idUltimaFactura]) {
+                facturaAnteriorObj = facturasEmitidas[idUltimaFactura];
+            } else {
+                const encontradaPorId = Object.values(facturasEmitidas).find(f => {
+                    const fIdPac = f.id_paciente || f.id_paciente_db || f.idpaciente || f.idpacientedb || '';
+                    return fIdPac === idPaciente || fIdPac === nombrePaciente;
+                });
+                if (encontradaPorId) facturaAnteriorObj = encontradaPorId;
+            }
 
             const ya = Object.values(facturasEmitidas).some(f => {
                 const fIdPac = f.id_paciente || f.id_paciente_db || f.idpaciente || f.idpacientedb || '';
@@ -2523,7 +2281,21 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const cuit = facturaAnteriorObj.receptor_cuit || facturaAnteriorObj.cuit || '';
             const dom = facturaAnteriorObj.receptor_domicilio || facturaAnteriorObj.domicilio || 'SAN JUAN';
             const condIVA = facturaAnteriorObj.receptor_condicion_iva || facturaAnteriorObj.condicion_iva || 'EXENTO';
+            
             const tipoFacturaAnt = String(facturaAnteriorObj.tipo || facturaAnteriorObj.tipocomp || '6');
+            let tipo = tipoFacturaAnt;
+            let ali = 0;
+            let neto = 0;
+            let exento = 0;
+
+            if (tipo === '1') {
+                if (condIVA.toUpperCase().includes('EXENTO')) {
+                    ali = 0;
+                    neto = 0;
+                } else {
+                    ali = 21;
+                }
+            }
 
             let montoBase = 0;
             let prestacion = modulo;
@@ -2578,6 +2350,14 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 montoTotal = Math.round((montoBase + montoDependencia) * 100) / 100;
             }
 
+            if (tipo === '1' && ali > 0) {
+                neto = Math.round((montoTotal / 1.21) * 100) / 100;
+                exento = 0;
+            } else {
+                neto = 0;
+                exento = montoTotal;
+            }
+
             let detalleNuevo = '';
             
             if (detAnteriorOriginal.length > 10) {
@@ -2610,10 +2390,6 @@ RESOL. ${resolucionAplicada}`;
                 }
             }
 
-            const tipo = tipoFacturaAnt;
-            const ali = (tipo === '1' && !condIVA.toUpperCase().includes('EXENTO')) ? 21 : 0;
-            const neto = (tipo === '1' && ali > 0) ? Math.round((montoTotal / 1.21) * 100) / 100 : 0;
-            const exento = (tipo === '1' && ali > 0) ? 0 : montoTotal;
             const cobDesde = p.cobertura_desde || p.coberturadesde || '';
             const cobHasta = p.cobertura_hasta || p.coberturahasta || '';
 
