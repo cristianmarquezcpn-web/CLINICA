@@ -2464,22 +2464,39 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const asist = p.asistF_link || '';
             if (!asist || asist.toUpperCase() === 'NO' || asist.length < 5) continue;
 
-            const idUltimaFactura = p.ultima_factura || p.ultimafactura || '';
-            let facturaAnteriorObj = typeof idUltimaFactura === 'object' ? idUltimaFactura : (facturasEmitidas[idUltimaFactura] || {});
-			if (!facturaAnteriorObj || Object.keys(facturaAnteriorObj).length === 0) {
-                const todasFacturasArr = Object.values(facturasEmitidas);
-                // Buscamos la última factura que pertenezca a este paciente
-                const facturaEncontrada = todasFacturasArr.reverse().find(f => {
-                    const fIdPac = f.id_paciente || f.id_paciente_db || f.idpaciente || f.idpacientedb || '';
-                    return fIdPac === idPaciente || fIdPac === nombrePaciente;
-                });
+            // 🔥 RASTREO ROBUSTO: Busca directamente en facturas_emitidas por id_paciente si el puntero falla o es un objeto incompleto
+            let facturaAnteriorObj = {};
+            const todasFacturasArr = Object.entries(facturasEmitidas);
+            
+            // 1. Intentar buscar por el ID de factura si existe en el legajo
+            const idUltimaFactura = p.ultima_factura;
+            if (idUltimaFactura) {
+                if (typeof idUltimaFactura === 'string' && facturasEmitidas[idUltimaFactura]) {
+                    facturaAnteriorObj = facturasEmitidas[idUltimaFactura];
+                } else if (typeof idUltimaFactura === 'object' && idUltimaFactura.id && facturasEmitidas[idUltimaFactura.id]) {
+                    facturaAnteriorObj = facturasEmitidas[idUltimaFactura.id];
+                }
+            }
+
+            // 2. Si no se encontró, barrer toda la base de facturas buscando el id_paciente exacto (el nombre)
+            if (!facturaAnteriorObj || Object.keys(facturaAnteriorObj).length === 0) {
+                // Ordenamos o filtramos las facturas del paciente para agarrar la más reciente
+                let facturaEncontrada = null;
+                for (const [fKey, fVal] of todasFacturasArr) {
+                    const fIdPac = (fVal.id_paciente || '').trim().toUpperCase();
+                    if (fIdPac === nombrePaciente.toUpperCase()) {
+                        facturaEncontrada = fVal;
+                        // Como Firebase devuelve objetos, nos quedamos con la última encontrada o evaluamos por número de comprobante
+                    }
+                }
                 if (facturaEncontrada) {
                     facturaAnteriorObj = facturaEncontrada;
                 }
             }
+
             const ya = Object.values(facturasEmitidas).some(f => {
-                const fIdPac = f.id_paciente || f.id_paciente_db || f.idpaciente || f.idpacientedb || '';
-                if (fIdPac !== idPaciente && fIdPac !== nombrePaciente) return false;
+                const fIdPac = (f.id_paciente || f.id_paciente_db || f.idpaciente || f.idpacientedb || '').trim().toUpperCase();
+                if (fIdPac !== nombrePaciente.toUpperCase() && fIdPac !== idPaciente.toUpperCase()) return false;
                 
                 const fDesde = f.periodo_desde || f.desdeFact || f.desde_fact || f.fecha_desde || '';
                 if (fDesde) {
@@ -2489,7 +2506,7 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             });
             if (ya) continue;
 
-            const detAnteriorOriginal = (facturaAnteriorObj.detalle || facturaAnteriorObj.descripcion || facturaAnteriorObj.concepto || '').trim();
+            const detAnteriorOriginal = (facturaAnteriorObj.detalle || facturaAnteriorObj.descripcion || facturaAnteriorObj.concepto || p.detalle || '').trim();
             const detAnterior = detAnteriorOriginal.toUpperCase();
 
             const osConfigObj = osConfig[osPaciente] || {};
