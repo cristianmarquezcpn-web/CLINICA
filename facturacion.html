@@ -2464,11 +2464,9 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const asist = p.asistF_link || '';
             if (!asist || asist.toUpperCase() === 'NO' || asist.length < 5) continue;
 
-            // 🔥 RASTREO ROBUSTO: Busca directamente en facturas_emitidas por id_paciente si el puntero falla o es un objeto incompleto
             let facturaAnteriorObj = {};
             const todasFacturasArr = Object.entries(facturasEmitidas);
             
-            // 1. Intentar buscar por el ID de factura si existe en el legajo
             const idUltimaFactura = p.ultima_factura;
             if (idUltimaFactura) {
                 if (typeof idUltimaFactura === 'string' && facturasEmitidas[idUltimaFactura]) {
@@ -2478,15 +2476,12 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 }
             }
 
-            // 2. Si no se encontró, barrer toda la base de facturas buscando el id_paciente exacto (el nombre)
             if (!facturaAnteriorObj || Object.keys(facturaAnteriorObj).length === 0) {
-                // Ordenamos o filtramos las facturas del paciente para agarrar la más reciente
                 let facturaEncontrada = null;
                 for (const [fKey, fVal] of todasFacturasArr) {
                     const fIdPac = (fVal.id_paciente || '').trim().toUpperCase();
                     if (fIdPac === nombrePaciente.toUpperCase()) {
                         facturaEncontrada = fVal;
-                        // Como Firebase devuelve objetos, nos quedamos con la última encontrada o evaluamos por número de comprobante
                     }
                 }
                 if (facturaEncontrada) {
@@ -2509,12 +2504,16 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const detAnteriorOriginal = (facturaAnteriorObj.detalle || facturaAnteriorObj.descripcion || facturaAnteriorObj.concepto || p.detalle || '').trim();
             const detAnterior = detAnteriorOriginal.toUpperCase();
 
+            // Extracción estricta y limpia desde la factura anterior de Firebase
             const osConfigObj = osConfig[osPaciente] || {};
             const osNombre = facturaAnteriorObj.receptor_nombre || facturaAnteriorObj.rs || osConfigObj.nombre || osPaciente;
             const cuit = facturaAnteriorObj.receptor_cuit || facturaAnteriorObj.cuit || osConfigObj.cuit || '';
             const dom = facturaAnteriorObj.receptor_domicilio || facturaAnteriorObj.domicilio || osConfigObj.domicilio || 'SAN JUAN';
             const condIVA = facturaAnteriorObj.receptor_condicion_iva || facturaAnteriorObj.condicion_iva || osConfigObj.condicion_iva || 'EXENTO';
-            const tipoFacturaAnt = String(facturaAnteriorObj.tipo || facturaAnteriorObj.tipocomp || '6');
+            
+            // Corrección clave para leer tipo_comp (1 para Factura A, 6 para Factura B)
+            const tipoCompRaw = facturaAnteriorObj.tipo_comp || facturaAnteriorObj.tipocomp || facturaAnteriorObj.tipo || '6';
+            const tipo = String(tipoCompRaw);
 
             let montoBase = 0;
             let prestacion = modulo;
@@ -2573,6 +2572,11 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             
             if (detAnteriorOriginal.length > 10) {
                 detalleNuevo = detAnteriorOriginal;
+                
+                // Actualizar automáticamente los montos numéricos antiguos impresos en el texto de la descripción
+                const montoBaseFmtOld = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const montoTotalFmtOld = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                
                 for (const mAnt of MESESCFO) {
                     if (detalleNuevo.includes(mAnt)) {
                         detalleNuevo = detalleNuevo.replace(mAnt, nombreMes);
@@ -2581,6 +2585,10 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 }
                 detalleNuevo = detalleNuevo.replace(/202[5-6]/g, anioFacturar);
                 detalleNuevo = detalleNuevo.replace(/RESOL[\.\s]*[\d\/]+/g, `RESOL. ${resolucionAplicada}`);
+                
+                // Reemplazar montos viejos en el texto largo por los nuevos del nomenclador actual
+                detalleNuevo = detalleNuevo.replace(/VALOR PRESTACION[:\s]*\$?[\s\d\.,]+/gi, `VALOR PRESTACION: $ ${montoBaseFmtOld}`);
+                detalleNuevo = detalleNuevo.replace(/VALOR TOTAL[:\s]*\$?[\s\d\.,]+/gi, `VALOR TOTAL: $ ${montoTotalFmtOld}`);
             } else {
                 const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
                 if (tieneDependencia) {
@@ -2602,7 +2610,6 @@ RESOL. ${resolucionAplicada}`;
                 }
             }
 
-            const tipo = tipoFacturaAnt;
             const ali = (tipo === '1' && !condIVA.toUpperCase().includes('EXENTO')) ? 21 : 0;
             const neto = (tipo === '1' && ali > 0) ? Math.round((montoTotal / 1.21) * 100) / 100 : 0;
             const exento = (tipo === '1' && ali > 0) ? 0 : montoTotal;
