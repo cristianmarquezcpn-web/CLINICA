@@ -2447,6 +2447,8 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
     const lote = [];
     const adv = [];
     const cfg = filtros.montosConfig;
+    // Captura estricta de la resolución provista en la configuración de la pantalla
+    const resolucionAplicada = cfg.resolucion || cfg.nroResolucion || cfg.res || '1297/2026';
 
     for (const modulo of filtros.modulos) {
         if (modulo === 'SAEI') continue;
@@ -2504,20 +2506,17 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const detAnteriorOriginal = (facturaAnteriorObj.detalle || facturaAnteriorObj.descripcion || facturaAnteriorObj.concepto || p.detalle || '').trim();
             const detAnterior = detAnteriorOriginal.toUpperCase();
 
-            // Extracción estricta y limpia desde la factura anterior de Firebase
             const osConfigObj = osConfig[osPaciente] || {};
             const osNombre = facturaAnteriorObj.receptor_nombre || facturaAnteriorObj.rs || osConfigObj.nombre || osPaciente;
             const cuit = facturaAnteriorObj.receptor_cuit || facturaAnteriorObj.cuit || osConfigObj.cuit || '';
             const dom = facturaAnteriorObj.receptor_domicilio || facturaAnteriorObj.domicilio || osConfigObj.domicilio || 'SAN JUAN';
             const condIVA = facturaAnteriorObj.receptor_condicion_iva || facturaAnteriorObj.condicion_iva || osConfigObj.condicion_iva || 'EXENTO';
             
-            // Corrección clave para leer tipo_comp (1 para Factura A, 6 para Factura B)
             const tipoCompRaw = facturaAnteriorObj.tipo_comp || facturaAnteriorObj.tipocomp || facturaAnteriorObj.tipo || '6';
             const tipo = String(tipoCompRaw);
 
             let montoBase = 0;
             let prestacion = modulo;
-            let resolucionAplicada = cfg.resolucion || '13/2026';
 
             if (modulo === 'REHAB') {
                 if (detAnterior.includes('INTENSIVO')) {
@@ -2573,9 +2572,8 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             if (detAnteriorOriginal.length > 10) {
                 detalleNuevo = detAnteriorOriginal;
                 
-                // Actualizar automáticamente los montos numéricos antiguos impresos en el texto de la descripción
-                const montoBaseFmtOld = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                const montoTotalFmtOld = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const montoBaseFmtNew = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const montoTotalFmtNew = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 
                 for (const mAnt of MESESCFO) {
                     if (detalleNuevo.includes(mAnt)) {
@@ -2584,11 +2582,16 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                     }
                 }
                 detalleNuevo = detalleNuevo.replace(/202[5-6]/g, anioFacturar);
-                detalleNuevo = detalleNuevo.replace(/RESOL[\.\s]*[\d\/]+/g, `RESOL. ${resolucionAplicada}`);
                 
-                // Reemplazar montos viejos en el texto largo por los nuevos del nomenclador actual
-                detalleNuevo = detalleNuevo.replace(/VALOR PRESTACION[:\s]*\$?[\s\d\.,]+/gi, `VALOR PRESTACION: $ ${montoBaseFmtOld}`);
-                detalleNuevo = detalleNuevo.replace(/VALOR TOTAL[:\s]*\$?[\s\d\.,]+/gi, `VALOR TOTAL: $ ${montoTotalFmtOld}`);
+                // Reemplazo estricto y total de cualquier patrón de resolución previo por el nuevo de pantalla
+                detalleNuevo = detalleNuevo.replace(/RESOLUCIÓN[\.\s]*[\d\/]+/gi, `RESOLUCIÓN ${resolucionAplicada}`);
+                detalleNuevo = detalleNuevo.replace(/RESOL[\.\s]*[\d\/]+/gi, `RESOL. ${resolucionAplicada}`);
+                
+                // Actualizar montos dinámicos en los textos largos (capturando tanto VALOR PRESTACIÓN, VALOR TOTAL como VALOR:)
+                detalleNuevo = detalleNuevo.replace(/VALOR PRESTACIÓN[:\s]*\$?[\s\d\.,]+/gi, `VALOR PRESTACIÓN:     $ ${montoBaseFmtNew}`);
+                detalleNuevo = detalleNuevo.replace(/VALOR PRESTACION[:\s]*\$?[\s\d\.,]+/gi, `VALOR PRESTACIÓN:     $ ${montoBaseFmtNew}`);
+                detalleNuevo = detalleNuevo.replace(/VALOR TOTAL[:\s]*\$?[\s\d\.,]+/gi, `VALOR TOTAL:              $ ${montoTotalFmtNew}`);
+                detalleNuevo = detalleNuevo.replace(/VALOR[:\s]*\$?[\s\d\.,]+/gi, `VALOR: $ ${montoTotalFmtNew}`);
             } else {
                 const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
                 if (tieneDependencia) {
@@ -2599,7 +2602,7 @@ PERÍODO PRESTACIONAL: ${nombreMes} ${anioFacturar}
 ${prestacion}
 C/DEPEND.S/F.I.M. RESOL ${resolucionAplicada}
 BENEF. ${nombrePaciente.toUpperCase()}${dniTxt}
-VALOR PRESTACION:     $ ${montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+VALOR PRESTACIÓN:     $ ${montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 VALOR DEPENDENCIA:      $ ${depFmt}
 VALOR TOTAL:              $ ${totFmt}`;
                 } else {
@@ -2610,9 +2613,11 @@ RESOL. ${resolucionAplicada}`;
                 }
             }
 
-            const ali = (tipo === '1' && !condIVA.toUpperCase().includes('EXENTO')) ? 21 : 0;
-            const neto = (tipo === '1' && ali > 0) ? Math.round((montoTotal / 1.21) * 100) / 100 : 0;
-            const exento = (tipo === '1' && ali > 0) ? 0 : montoTotal;
+            // Forzar que aun siendo tipo 1 (Factura A), la operación sea exenta de IVA por tratarse de prestaciones médicas/discapacidad
+            const ali = 0;
+            const neto = 0;
+            const exento = montoTotal;
+
             const cobDesde = p.cobertura_desde || p.coberturadesde || '';
             const cobHasta = p.cobertura_hasta || p.coberturahasta || '';
 
