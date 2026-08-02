@@ -2415,6 +2415,15 @@ RESOL. ${resolucionAplicada}`;
 
     abrirModalCFO(lote, nombreMes, anioFacturar, adv, fechasCalculadas);
 }
+window.mostrarPanelFiltros = function() {
+    const panel = document.getElementById('panelFiltros') || document.getElementById('modalFiltros') || document.getElementById('filtrosContainer');
+    if (panel) {
+        panel.style.display = 'block';
+        panel.classList.remove('d-none');
+    } else {
+        console.error("No se encontró el elemento del panel de filtros en el DOM.");
+    }
+};		
 </script>
 </body>
 </html>
