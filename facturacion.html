@@ -2276,7 +2276,7 @@ async function mostrarPanelFiltros() {
             </div>
           </div>
 
-          <!-- OBRAS SOCIALES (AMPLIADO) -->
+          <!-- OBRAS SOCIALES (CON BUSCADOR) -->
           <div style="background:#f9f9f9;padding:10px;border-radius:8px;border:1px solid #ddd;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
               <label style="font-weight:bold;font-size:12px;color:#333;">🏥 OBRAS SOCIALES</label>
@@ -2285,21 +2285,23 @@ async function mostrarPanelFiltros() {
                 <button type="button" onclick="marcarTodasOS(false)" style="font-size:11px;background:none;border:none;color:#c0392b;cursor:pointer;font-weight:bold;">Ninguna</button>
               </div>
             </div>
-            <div style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;border:1px solid #eee;padding:6px;background:white;border-radius:4px;">
-              ${listaOS.map(os => `<label style="font-size:11px;cursor:pointer;"><input type="checkbox" class="chkOS" value="${os}" checked onchange="actualizarPacientesCheckbox()"> ${os}</label>`).join('')}
+            <input type="text" id="buscadorOS" placeholder="🔍 Buscar obra social..." oninput="filtrarListaOS()" style="width:100%;padding:5px;margin-bottom:6px;border:1px solid #ccc;border-radius:4px;font-size:11px;">
+            <div id="contenedorOSCheckbox" style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;border:1px solid #eee;padding:6px;background:white;border-radius:4px;">
+              ${listaOS.map(os => `<label class="itemOS" data-nombre="${os}" style="font-size:11px;cursor:pointer;"><input type="checkbox" class="chkOS" value="${os}" checked onchange="actualizarPacientesCheckbox()"> ${os}</label>`).join('')}
             </div>
           </div>
 
-          <!-- PACIENTES (AMPLIADO) -->
+          <!-- PACIENTES (CON BUSCADOR) -->
           <div style="background:#f9f9f9;padding:10px;border-radius:8px;border:1px solid #ddd;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
               <label style="font-weight:bold;font-size:12px;color:#333;">👤 PACIENTES HABILITADOS</label>
               <div>
-                <button type="button" onclick="document.querySelectorAll('.chkPac').forEach(c=>c.checked=true);" style="font-size:11px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;margin-right:8px;">Todos</button>
-                <button type="button" onclick="document.querySelectorAll('.chkPac').forEach(c=>c.checked=false);" style="font-size:11px;background:none;border:none;color:#c0392b;cursor:pointer;font-weight:bold;">Ninguno</button>
+                <button type="button" onclick="seleccionarPacientesVisibles(true)" style="font-size:11px;background:none;border:none;color:#8e44ad;cursor:pointer;font-weight:bold;margin-right:8px;">Todos</button>
+                <button type="button" onclick="seleccionarPacientesVisibles(false)" style="font-size:11px;background:none;border:none;color:#c0392b;cursor:pointer;font-weight:bold;">Ninguno</button>
               </div>
             </div>
-            <div id="contenedorPacientesCheckbox" style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;border:1px solid #eee;padding:6px;background:white;border-radius:4px;"></div>
+            <input type="text" id="buscadorPacientes" placeholder="🔍 Buscar paciente..." oninput="filtrarListaPacientes()" style="width:100%;padding:5px;margin-bottom:6px;border:1px solid #ccc;border-radius:4px;font-size:11px;">
+            <div id="contenedorPacientesCheckbox" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;border:1px solid #eee;padding:6px;background:white;border-radius:4px;"></div>
           </div>
 
         </div>
@@ -2376,6 +2378,32 @@ async function mostrarPanelFiltros() {
     });
 }
 
+// Funciones complementarias para los buscadores en tiempo real
+window.filtrarListaOS = function() {
+    const texto = document.getElementById('buscadorOS').value.toLowerCase();
+    document.querySelectorAll('.itemOS').forEach(item => {
+        const nombre = item.getAttribute('data-nombre').toLowerCase();
+        item.style.display = nombre.includes(texto) ? 'block' : 'none';
+    });
+};
+
+window.filtrarListaPacientes = function() {
+    const texto = document.getElementById('buscadorPacientes').value.toLowerCase();
+    document.querySelectorAll('.itemPac').forEach(item => {
+        const nombre = item.getAttribute('data-nombre').toLowerCase();
+        item.style.display = nombre.includes(texto) ? 'flex' : 'none';
+    });
+};
+
+window.seleccionarPacientesVisibles = function(marcar) {
+    document.querySelectorAll('.itemPac').forEach(item => {
+        if (item.style.display !== 'none') {
+            const chk = item.querySelector('.chkPac');
+            if (chk) chk.checked = marcar;
+        }
+    });
+};
+
 function actualizarPacientesCheckbox() {
     const todosPacientes = window._todosPacientesCache || {};
     const modulosSeleccionados = Array.from(document.querySelectorAll('.chkMod:checked')).map(c => c.value).filter(m => m !== 'SAEI');
@@ -2403,14 +2431,13 @@ function actualizarPacientesCheckbox() {
 
     contenedor.innerHTML = nombresOrdenados.length === 0 
         ? '<span style="font-size:11px;color:#888;">No hay pacientes con los filtros actuales.</span>'
-        : nombresOrdenados.map(n => `<label style="font-size:11px;cursor:pointer;"><input type="checkbox" class="chkPac" value="${n}" checked> ${n}</label>`).join('');
+        : nombresOrdenados.map(n => `<label class="itemPac" data-nombre="${n}" style="font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="chkPac" value="${n}" checked> ${n}</label>`).join('');
+
+    // Aplica el filtro de texto actual si el usuario ya estaba escribiendo algo en el buscador de pacientes
+    if (typeof filtrarListaPacientes === 'function') {
+        filtrarListaPacientes();
+    }
 }
-// ============================================================
-// PROCESAMIENTO CON BÚSQUEDA CRUZADA DE ÚLTIMA FACTURA Y COPIA FIEL
-// ============================================================
-// ============================================================
-// PROCESAMIENTO CON EXTRACCIÓN FIEL DIRECTA DE FACTURAS EMITIDAS
-// ============================================================
 async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
     const [anioEmision, mesEmision] = filtros.periodo.split('-');
     
@@ -2425,8 +2452,7 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
     const ultimoDiaCalculado = new Date(anioFacturar, mesFacturar + 1, 0);
     const ultimoDiaMesFormato = ultimoDiaCalculado.toISOString().split('T')[0];
     
-    let fechaVto = new Date();
-    fechaVto.setDate(fechaVto.getDate() + 15);
+    let fechaVto = new Date(parseInt(anioEmision), parseInt(mesEmision) - 1 + 2, 5);
     const vtoPagoFormato = fechaVto.toISOString().split('T')[0];
 
     const fechasCalculadas = {
@@ -2441,11 +2467,8 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
         nomencladorBD = snap.val() || {};
     } catch(e) {}
 
-    const [snapFac, snapFacSaei] = await Promise.all([
-        db.ref('facturas_emitidas').once('value'),
-        db.ref('facturas_emitidas_saei').once('value')
-    ]);
-    const facturasEmitidas = { ...(snapFac.val() || {}), ...(snapFacSaei.val() || {}) };
+    const snapFac = await db.ref('facturas_emitidas').once('value');
+    const facturasEmitidas = snapFac.val() || {};
 
     let ultimoComp = 0;
     Object.values(facturasEmitidas).forEach(f => {
@@ -2473,10 +2496,17 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const asist = p.asistF_link || '';
             if (!asist || asist.toUpperCase() === 'NO' || asist.length < 5) continue;
 
+            const idUltimaFactura = p.ultima_factura || p.ultimafactura || '';
+            let facturaAnteriorObj = typeof idUltimaFactura === 'object' ? idUltimaFactura : (facturasEmitidas[idUltimaFactura] || {});
+
             const ya = Object.values(facturasEmitidas).some(f => {
                 const fIdPac = f.id_paciente || f.id_paciente_db || f.idpaciente || f.idpacientedb || '';
                 if (fIdPac !== idPaciente && fIdPac !== nombrePaciente) return false;
-                const fEmision = f.fecha_emision || f.fechaemision;
+                const fDesde = f.desdeFact || f.desde_fact || f.fecha_desde || '';
+                if (fDesde) {
+                    return fDesde === primerDiaMesFormato && !!(f.cae || f.CAE);
+                }
+                const fEmision = f.fecha_emision || f.fechaemision || '';
                 if (!fEmision) return false;
                 const parts = fEmision.includes('/') ? fEmision.split('/') : fEmision.split('-');
                 if (parts.length < 3) return false;
@@ -2486,17 +2516,14 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             });
             if (ya) continue;
 
-            const idUltimaFactura = p.ultima_factura || p.ultimafactura || '';
-            let facturaAnteriorObj = typeof idUltimaFactura === 'object' ? idUltimaFactura : (facturasEmitidas[idUltimaFactura] || {});
-            
             const detAnteriorOriginal = (facturaAnteriorObj.detalle || facturaAnteriorObj.descripcion || facturaAnteriorObj.concepto || '').trim();
             const detAnterior = detAnteriorOriginal.toUpperCase();
 
-            // Extracción directa de datos fiscales desde la última factura emitida para evitar duplicados y errores
             const osNombre = facturaAnteriorObj.receptor_nombre || facturaAnteriorObj.rs || osPaciente;
             const cuit = facturaAnteriorObj.receptor_cuit || facturaAnteriorObj.cuit || '';
             const dom = facturaAnteriorObj.receptor_domicilio || facturaAnteriorObj.domicilio || 'SAN JUAN';
             const condIVA = facturaAnteriorObj.receptor_condicion_iva || facturaAnteriorObj.condicion_iva || 'EXENTO';
+            const tipoFacturaAnt = String(facturaAnteriorObj.tipo || facturaAnteriorObj.tipocomp || '6');
 
             let montoBase = 0;
             let prestacion = modulo;
@@ -2553,7 +2580,6 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
 
             let detalleNuevo = '';
             
-            // Reemplazo inteligente respetando el formato exacto de la última factura original
             if (detAnteriorOriginal.length > 10) {
                 detalleNuevo = detAnteriorOriginal;
                 for (const mAnt of MESESCFO) {
@@ -2573,7 +2599,7 @@ PERÍODO PRESTACIONAL: ${nombreMes} ${anioFacturar}
 ${prestacion}
 C/DEPEND.S/F.I.M. RESOL ${resolucionAplicada}
 BENEF. ${nombrePaciente.toUpperCase()}${dniTxt}
-VALOR PRESTACION:       $ ${montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+VALOR PRESTACION:     $ ${montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 VALOR DEPENDENCIA:      $ ${depFmt}
 VALOR TOTAL:              $ ${totFmt}`;
                 } else {
@@ -2584,10 +2610,10 @@ RESOL. ${resolucionAplicada}`;
                 }
             }
 
-            const tipo = (condIVA.includes('Inscripto') || condIVA === '1') ? '1' : '6';
-            const ali = tipo === '1' ? 21 : 0;
-            const neto = tipo === '1' ? Math.round((montoTotal / 1.21) * 100) / 100 : 0;
-            const exento = tipo === '1' ? 0 : montoTotal;
+            const tipo = tipoFacturaAnt;
+            const ali = (tipo === '1' && !condIVA.toUpperCase().includes('EXENTO')) ? 21 : 0;
+            const neto = (tipo === '1' && ali > 0) ? Math.round((montoTotal / 1.21) * 100) / 100 : 0;
+            const exento = (tipo === '1' && ali > 0) ? 0 : montoTotal;
             const cobDesde = p.cobertura_desde || p.coberturadesde || '';
             const cobHasta = p.cobertura_hasta || p.coberturahasta || '';
 
@@ -2612,7 +2638,7 @@ RESOL. ${resolucionAplicada}`;
     }
 
     abrirModalCFO(lote, nombreMes, anioFacturar, adv, fechasCalculadas);
-}
+}		
 </script>
 </body>
 </html>
