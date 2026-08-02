@@ -2487,7 +2487,6 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const detAnteriorOriginal = (facturaAnteriorObj.detalle || facturaAnteriorObj.descripcion || facturaAnteriorObj.concepto || '').trim();
             const detAnterior = detAnteriorOriginal.toUpperCase();
 
-            // Búsqueda robusta de datos obligatorios de la obra social / factura anterior o ficha del paciente
             const osConfigObj = osConfig[osPaciente] || {};
             const osNombre = facturaAnteriorObj.receptor_nombre || facturaAnteriorObj.rs || osConfigObj.nombre || osPaciente;
             const cuit = facturaAnteriorObj.receptor_cuit || facturaAnteriorObj.cuit || osConfigObj.cuit || '';
