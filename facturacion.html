@@ -2056,11 +2056,19 @@ window.marcarTodasOS = function(marcar) {
 };
 
 window.mostrarPanelFiltros = function() {
-    const modal = document.getElementById('modalPanelFiltros') || document.getElementById('panelPanelFiltros');
+    const ids = ['modalPanelFiltros', 'panelPanelFiltros', 'modalFiltros', 'panelFiltros', 'modalLote', 'panelLote'];
+    let modal = null;
+    for (const id of ids) {
+        modal = document.getElementById(id);
+        if (modal) break;
+    }
+    if (!modal) {
+        modal = document.querySelector('.modal, .panel, [id*="filtro"], [id*="modal"]');
+    }
     if (modal) {
         modal.style.display = 'block';
     } else {
-        console.error("No se encontró el modal o panel en el HTML.");
+        console.error("No se encontró ningún modal o panel en el DOM.");
     }
 };
 
