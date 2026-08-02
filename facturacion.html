@@ -2478,15 +2478,6 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 return false;
             });
             if (ya) continue;
-                const fEmision = f.fecha_emision || f.fechaemision || '';
-                if (!fEmision) return false;
-                const parts = fEmision.includes('/') ? fEmision.split('/') : fEmision.split('-');
-                if (parts.length < 3) return false;
-                const mf = parseInt(parts[1]);
-                const af = parts[0].length === 4 ? parseInt(parts[0]) : parseInt(parts[2]);
-                return mf === mesFacturar + 1 && af === anioFacturar && !!(f.cae || f.CAE);
-            });
-            if (ya) continue;
 
             const detAnteriorOriginal = (facturaAnteriorObj.detalle || facturaAnteriorObj.descripcion || facturaAnteriorObj.concepto || '').trim();
             const detAnterior = detAnteriorOriginal.toUpperCase();
