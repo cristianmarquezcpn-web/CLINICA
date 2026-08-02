@@ -2470,10 +2470,14 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const ya = Object.values(facturasEmitidas).some(f => {
                 const fIdPac = f.id_paciente || f.id_paciente_db || f.idpaciente || f.idpacientedb || '';
                 if (fIdPac !== idPaciente && fIdPac !== nombrePaciente) return false;
-                const fDesde = f.desdeFact || f.desde_fact || f.fecha_desde || '';
+                
+                const fDesde = f.periodo_desde || f.desdeFact || f.desde_fact || f.fecha_desde || '';
                 if (fDesde) {
                     return fDesde === primerDiaMesFormato && !!(f.cae || f.CAE);
                 }
+                return false;
+            });
+            if (ya) continue;
                 const fEmision = f.fecha_emision || f.fechaemision || '';
                 if (!fEmision) return false;
                 const parts = fEmision.includes('/') ? fEmision.split('/') : fEmision.split('-');
