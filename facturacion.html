@@ -2055,6 +2055,15 @@ window.marcarTodasOS = function(marcar) {
     }
 };
 
+window.mostrarPanelFiltros = function() {
+    const modal = document.getElementById('modalFiltros') || document.getElementById('panelFiltros');
+    if (modal) {
+        modal.style.display = 'block';
+    } else {
+        console.error("No se encontró el modal o panel en el HTML.");
+    }
+};
+
 // ============================================================
 // MODAL DE CONFIRMACIÓN FINAL
 // ============================================================
@@ -2181,7 +2190,7 @@ window.sincronizarMontosModal = function(i) {
 };
 
 // ============================================================
-// PANEL DE FILTROS AMPLIADO Y NOMENCLADOR ESPECÍFICO
+// LÓGICA PRINCIPAL - LOTE MASIVO
 // ============================================================
 async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
     const [anioEmision, mesEmision] = filtros.periodo.split('-');
@@ -2242,6 +2251,9 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const asist = p.asistF_link || '';
             if (!asist || asist.toUpperCase() === 'NO' || asist.length < 5) continue;
 
+            // ============================================================
+            // ESTA ES LA CORRECCIÓN QUE PEDISTE PARA QUE NO FALLE CON VACÍOS
+            // ============================================================
             const idUltimaFactura = p.ultima_factura || p.ultimafactura || '';
             let facturaAnteriorObj = {};
             
@@ -2415,16 +2427,6 @@ RESOL. ${resolucionAplicada}`;
 
     abrirModalCFO(lote, nombreMes, anioFacturar, adv, fechasCalculadas);
 }
-window.mostrarPanelFiltros = function() {
-    if (typeof abrirModalFiltros === 'function') {
-        abrirModalFiltros();
-    } else if (typeof $('#modalFiltros').modal === 'function') {
-        $('#modalFiltros').modal('show');
-    } else {
-        const modal = document.getElementById('modalFiltros') || document.getElementById('panelFiltros');
-        if (modal) modal.style.display = 'block';
-    }
-};
 </script>
 </body>
 </html>
