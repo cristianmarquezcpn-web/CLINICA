@@ -2416,14 +2416,15 @@ RESOL. ${resolucionAplicada}`;
     abrirModalCFO(lote, nombreMes, anioFacturar, adv, fechasCalculadas);
 }
 window.mostrarPanelFiltros = function() {
-    const panel = document.getElementById('panelFiltros') || document.getElementById('modalFiltros') || document.getElementById('filtrosContainer');
-    if (panel) {
-        panel.style.display = 'block';
-        panel.classList.remove('d-none');
+    if (typeof abrirModalFiltros === 'function') {
+        abrirModalFiltros();
+    } else if (typeof $('#modalFiltros').modal === 'function') {
+        $('#modalFiltros').modal('show');
     } else {
-        console.error("No se encontró el elemento del panel de filtros en el DOM.");
+        const modal = document.getElementById('modalFiltros') || document.getElementById('panelFiltros');
+        if (modal) modal.style.display = 'block';
     }
-};		
+};
 </script>
 </body>
 </html>
