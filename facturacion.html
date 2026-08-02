@@ -2050,131 +2050,107 @@ window.marcarTodasOS = function(marcar) {
         actualizarPacientesCheckbox();
     }
 };
-
 // ============================================================
 // MODAL DE CONFIRMACIÓN FINAL
 // ============================================================
 function abrirModalCFO(lote, nombreMes, anio, adv, fechasCalc) {
-    let html = `
-    <div style="background:#f0f4ff;padding:12px;border-radius:8px;margin-bottom:15px;
-                border-left:5px solid #8e44ad;display:flex;justify-content:space-between;
-                align-items:center;flex-wrap:wrap;gap:10px;">
-      <div>
-        <b style="color:#6c3483;">🎯 LOTE PREPARADO — PERÍODO PRESTACIONAL: ${nombreMes} ${anio}</b><br>
-        <small>${lote.length} pacientes · Total general: <b id="totalGeneralLote">${lote.reduce((s,e)=>s+e.monto,0).toLocaleString('es-AR')}</b> ARS</small>
-      </div>
-    </div>`;
+    let html = `
+    <div style="background:#f0f4ff;padding:12px;border-radius:8px;margin-bottom:15px;
+                border-left:5px solid #8e44ad;display:flex;justify-content:space-between;
+                align-items:center;flex-wrap:wrap;gap:10px;">
+      <div>
+        <b style="color:#6c3483;">🎯 LOTE PREPARADO — PERÍODO PRESTACIONAL: ${nombreMes} ${anio}</b><br>
+        <small>${lote.length} pacientes · Total general: <b id="totalGeneralLote">${lote.reduce((s,e)=>s+e.monto,0).toLocaleString('es-AR')}</b> ARS</small>
+      </div>
+    </div>`;
 
-    if (adv.length) {
-        html += `<div style="background:#fff3e0;padding:8px 12px;border-radius:5px;margin-bottom:12px;border:1px solid #ff9800;font-size:12px;">
-          <b>⚠️ ADVERTENCIAS:</b><br>${adv.map(a => `• ${a.paciente}: ${a.msg}`).join('<br>')}</div>`;
-    }
+    if (adv.length) {
+        html += `<div style="background:#fff3e0;padding:8px 12px;border-radius:5px;margin-bottom:12px;border:1px solid #ff9800;font-size:12px;">
+          <b>⚠️ ADVERTENCIAS:</b><br>${adv.map(a => `• ${a.paciente}: ${a.msg}`).join('<br>')}</div>`;
+    }
 
-    lote.forEach((e, i) => {
-        const cobDesdeFmt = e.cobDesde ? e.cobDesde.split('-').reverse().join('/') : 'S/F';
-        const cobHastaFmt = e.cobHasta ? e.cobHasta.split('-').reverse().join('/') : 'S/F';
+    lote.forEach((e, i) => {
+        const cobDesdeFmt = e.cobDesde ? e.cobDesde.split('-').reverse().join('/') : 'S/F';
+        const cobHastaFmt = e.cobHasta ? e.cobHasta.split('-').reverse().join('/') : 'S/F';
 
-        html += `
-        <div style="border:1px solid #ddd;padding:10px;margin-bottom:15px;border-radius:5px;background:#fdfdfd;">
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
-            <b style="color:#2c3e50;">${e.rs} (${e.nombrePaciente})</b>
-            <span style="font-size:12px;color:#2c3e50;">📅 Autorización: <b>${cobDesdeFmt}</b> al <b>${cobHastaFmt}</b></span>
-          </div>
-          <div style="font-size:11px;color:#888;margin-top:2px;font-weight:bold;">
-            MÓDULO: ${NOMBRES_MODULOS[e.modulo] || e.modulo} | Total: <span id="lblMontoItem${i}">${e.monto.toLocaleString('es-AR')}</span> ARS
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:5px;font-size:12px;">
-            <label>Tipo: <input value="${e.tipo}" id="mTipo${i}"></label>
-            <label>CUIT: <input value="${e.cuit}" id="mCuit${i}" style="${!e.cuit||e.cuit.length<10?'border:2px solid red':''}"></label>
-            <label>R.Social: <input value="${e.rs}" id="mRs${i}"></label>
-            <label>Domicilio: <input value="${e.dom}" id="mDom${i}"></label>
-            <label>Período Desde: <input type="date" id="mDesde${i}" value="${fechasCalc.desde}"></label>
-            <label>Período Hasta: <input type="date" id="mHasta${i}" value="${fechasCalc.hasta}"></label>
-            <label>Vto. Pago: <input type="date" id="mVto${i}" value="${fechasCalc.vto}"></label>
-            <label>Alícuota:
-              <select id="mAli${i}" onchange="recalcularItemModal(${i})">
-                <option value="0" ${e.ali==0?'selected':''}>Exento</option>
-                <option value="10.5" ${e.ali==10.5?'selected':''}>10.5%</option>
-                <option value="21" ${e.ali==21?'selected':''}>21%</option>
-              </select>
-            </label>
-            <label>Neto: <input type="number" value="${e.neto}" id="mNeto${i}" oninput="sincronizarMontosModal(${i})"></label>
-            <label>Exento: <input type="number" value="${e.exento}" id="mExento${i}" oninput="sincronizarMontosModal(${i})"></label>
-          </div>
-          <label style="margin-top:5px;font-size:12px;font-weight:bold;">Detalle a Facturar:</label>
-          <textarea id="mDet${i}" style="width:100%;height:100px;font-family:monospace;font-size:11px;padding:5px;">${e.detalle}</textarea>
-        </div>`;
-    });
+        html += `
+        <div style="border:1px solid #ddd;padding:12px;margin-bottom:15px;border-radius:6px;background:#fdfdfd;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+            <b style="color:#2c3e50;">${e.rs} (${e.nombrePaciente})</b>
+            <span style="font-size:12px;color:#2c3e50;">📅 Autorización: <b>${cobDesdeFmt}</b> al <b>${cobHastaFmt}</b></span>
+          </div>
+          <div style="font-size:11px;color:#888;margin-bottom:8px;font-weight:bold;">
+            MÓDULO: ${NOMBRES_MODULOS[e.modulo] || e.modulo} | Total: <span id="lblMontoItem${i}">${e.monto.toLocaleString('es-AR')}</span> ARS
+          </div>
+          
+          <div style="display:grid;grid-template-columns: 1fr 1fr; gap: 15px;">
+            <!-- Columna Izquierda: Datos del Comprobante y Fechas -->
+            <div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">
+                <label>Tipo: <input value="${e.tipo}" id="mTipo${i}" style="width:100%"></label>
+                <label>CUIT: <input value="${e.cuit}" id="mCuit${i}" style="width:100%;${!e.cuit||e.cuit.length<10?'border:2px solid red':''}"></label>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;margin-top:6px;">
+                <label>R.Social: <input value="${e.rs}" id="mRs${i}" style="width:100%"></label>
+                <label>Domicilio: <input value="${e.dom}" id="mDom${i}" style="width:100%"></label>
+                <label>Período Desde: <input type="date" id="mDesde${i}" value="${fechasCalc.desde}" style="width:100%"></label>
+                <label>Período Hasta: <input type="date" id="mHasta${i}" value="${fechasCalc.hasta}" style="width:100%"></label>
+                <label>Vto. Pago: <input type="date" id="mVto${i}" value="${fechasCalc.vto}" style="width:100%"></label>
+              </div>
+            </div>
 
-    let modalContent = document.getElementById('modalContent');
-    if (!modalContent) {
-        let modalGlobal = document.getElementById('modalConfirmacion');
-        if (!modalGlobal) {
-            modalGlobal = document.createElement('div');
-            modalGlobal.id = 'modalConfirmacion';
-            modalGlobal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:20000;display:none;overflow-y:auto;padding:20px;';
-            modalGlobal.innerHTML = `<div style="background:white;max-width:800px;margin:30px auto;padding:20px;border-radius:8px;"><div id="modalContent"></div><div style="text-align:right;margin-top:15px;"><button onclick="document.getElementById('modalConfirmacion').style.display='none'" style="padding:8px 15px;background:#8e44ad;color:white;border:none;border-radius:4px;cursor:pointer;">Confirmar y Cerrar</button></div></div>`;
-            document.body.appendChild(modalGlobal);
-        }
-        modalContent = document.getElementById('modalContent');
-    }
+            <!-- Columna Derecha: Alícuota, Montos y Detalle -->
+            <div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">
+                <label>Alícuota:
+                  <select id="mAli${i}" onchange="recalcularItemModal(${i})" style="width:100%">
+                    <option value="0" ${e.ali==0?'selected':''}>Exento</option>
+                    <option value="10.5" ${e.ali==10.5?'selected':''}>10.5%</option>
+                    <option value="21" ${e.ali==21?'selected':''}>21%</option>
+                  </select>
+                </label>
+                <label>Neto: <input type="number" value="${e.neto}" id="mNeto${i}" oninput="sincronizarMontosModal(${i})" style="width:100%"></label>
+              </div>
+              <div style="font-size:12px;margin-top:6px;">
+                <label>Exento: <input type="number" value="${e.exento}" id="mExento${i}" oninput="sincronizarMontosModal(${i})" style="width:100%"></label>
+              </div>
+              <div style="margin-top:6px;">
+                <label style="font-size:12px;font-weight:bold;display:block;">Detalle a Facturar:</label>
+                <textarea id="mDet${i}" style="width:100%;height:100px;font-family:monospace;font-size:11px;padding:5px;">${e.detalle}</textarea>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    });
 
-    modalContent.innerHTML = html;
+    let modalContent = document.getElementById('modalContent');
+    if (!modalContent) {
+        let modalGlobal = document.getElementById('modalConfirmacion');
+        if (!modalGlobal) {
+            modalGlobal = document.createElement('div');
+            modalGlobal.id = 'modalConfirmacion';
+            modalGlobal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:20000;display:none;overflow-y:auto;padding:20px;';
+            modalGlobal.innerHTML = `<div style="background:white;max-width:1000px;margin:30px auto;padding:20px;border-radius:8px;"><div id="modalContent"></div><div style="text-align:right;margin-top:15px;"><button onclick="document.getElementById('modalConfirmacion').style.display='none'" style="padding:8px 15px;background:#8e44ad;color:white;border:none;border-radius:4px;cursor:pointer;">Confirmar y Cerrar</button></div></div>`;
+            document.body.appendChild(modalGlobal);
+        }
+        modalContent = document.getElementById('modalContent');
+    }
 
-    window.datosParaConfirmar = lote.map((e, i) => ({
-        datos: {
-            id: e.id, tipo: e.tipo, cuit: e.cuit, rs: e.rs, dom: e.dom,
-            neto: e.neto, exento: e.exento, ali: e.ali, detalle: e.detalle,
-            cobDesde: e.cobDesde, cobHasta: e.cobHasta, modulo: e.modulo,
-            desdeFact: fechasCalc.desde, hastaFact: fechasCalc.hasta, vtoFact: fechasCalc.vto
-        },
-        fila: null, idx: i
-    }));
+    modalContent.innerHTML = html;
 
-    const modalConfirmacionEl = document.getElementById('modalConfirmacion');
-    if (modalConfirmacionEl) modalConfirmacionEl.style.display = 'block';
+    window.datosParaConfirmar = lote.map((e, i) => ({
+        datos: {
+            id: e.id, tipo: e.tipo, cuit: e.cuit, rs: e.rs, dom: e.dom,
+            neto: e.neto, exento: e.exento, ali: e.ali, detalle: e.detalle,
+            cobDesde: e.cobDesde, cobHasta: e.cobHasta, modulo: e.modulo,
+            desdeFact: fechasCalc.desde, hastaFact: fechasCalc.hasta, vtoFact: fechasCalc.vto
+        },
+        fila: null, idx: i
+    }));
+
+    const modalConfirmacionEl = document.getElementById('modalConfirmacion');
+    if (modalConfirmacionEl) modalConfirmacionEl.style.display = 'block';
 }
-
-window.recalcularItemModal = function(i) {
-    const ali = parseFloat(document.getElementById(`mAli${i}`).value) || 0;
-    const netoEl = document.getElementById(`mNeto${i}`);
-    const exentoEl = document.getElementById(`mExento${i}`);
-
-    let valorTotal = parseFloat(netoEl.value) + parseFloat(exentoEl.value);
-    if (!valorTotal) valorTotal = parseFloat(exentoEl.value) || parseFloat(netoEl.value) || 0;
-
-    if (ali > 0) {
-        netoEl.value = Math.round((valorTotal / (1 + (ali / 100))) * 100) / 100;
-        exentoEl.value = 0;
-    } else {
-        netoEl.value = 0;
-        exentoEl.value = valorTotal;
-    }
-    sincronizarMontosModal(i);
-};
-
-window.sincronizarMontosModal = function(i) {
-    const neto = parseFloat(document.getElementById(`mNeto${i}`).value) || 0;
-    const exento = parseFloat(document.getElementById(`mExento${i}`).value) || 0;
-    const total = neto + exento;
-    const lbl = document.getElementById(`lblMontoItem${i}`);
-    if (lbl) lbl.innerText = total.toLocaleString('es-AR');
-
-    let nuevoTotalGeneral = 0;
-    if (window.datosParaConfirmar) {
-        window.datosParaConfirmar.forEach((_, idx) => {
-            const nEl = document.getElementById(`mNeto${idx}`);
-            const eEl = document.getElementById(`mExento${idx}`);
-            if (nEl && eEl) {
-                nuevoTotalGeneral += (parseFloat(nEl.value) || 0) + (parseFloat(eEl.value) || 0);
-            }
-        });
-        const lblTotalGeneral = document.getElementById('totalGeneralLote');
-        if (lblTotalGeneral) {
-            lblTotalGeneral.innerText = nuevoTotalGeneral.toLocaleString('es-AR');
-        }
-    }
-}; 
 async function mostrarPanelFiltros() {
     const hoy = new Date();
     const mesDefecto = hoy.getMonth(); 
@@ -2511,10 +2487,12 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             const detAnteriorOriginal = (facturaAnteriorObj.detalle || facturaAnteriorObj.descripcion || facturaAnteriorObj.concepto || '').trim();
             const detAnterior = detAnteriorOriginal.toUpperCase();
 
-            const osNombre = facturaAnteriorObj.receptor_nombre || facturaAnteriorObj.rs || osPaciente;
-            const cuit = facturaAnteriorObj.receptor_cuit || facturaAnteriorObj.cuit || '';
-            const dom = facturaAnteriorObj.receptor_domicilio || facturaAnteriorObj.domicilio || 'SAN JUAN';
-            const condIVA = facturaAnteriorObj.receptor_condicion_iva || facturaAnteriorObj.condicion_iva || 'EXENTO';
+            // Búsqueda robusta de datos obligatorios de la obra social / factura anterior o ficha del paciente
+            const osConfigObj = osConfig[osPaciente] || {};
+            const osNombre = facturaAnteriorObj.receptor_nombre || facturaAnteriorObj.rs || osConfigObj.nombre || osPaciente;
+            const cuit = facturaAnteriorObj.receptor_cuit || facturaAnteriorObj.cuit || osConfigObj.cuit || '';
+            const dom = facturaAnteriorObj.receptor_domicilio || facturaAnteriorObj.domicilio || osConfigObj.domicilio || 'SAN JUAN';
+            const condIVA = facturaAnteriorObj.receptor_condicion_iva || facturaAnteriorObj.condicion_iva || osConfigObj.condicion_iva || 'EXENTO';
             const tipoFacturaAnt = String(facturaAnteriorObj.tipo || facturaAnteriorObj.tipocomp || '6');
 
             let montoBase = 0;
@@ -2581,6 +2559,7 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                     }
                 }
                 detalleNuevo = detalleNuevo.replace(/202[5-6]/g, anioFacturar);
+                detalleNuevo = detalleNuevo.replace(/RESOL[\.\s]*[\d\/]+/g, `RESOL. ${resolucionAplicada}`);
             } else {
                 const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
                 if (tieneDependencia) {
