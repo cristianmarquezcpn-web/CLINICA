@@ -2183,7 +2183,7 @@ window.sincronizarMontosModal = function(i) {
 // ============================================================
 // PANEL DE FILTROS AMPLIADO Y NOMENCLADOR ESPECÍFICO
 // ============================================================
-async function fixLoteMultiSolucionDefinitiva(filtros, todosPacientes, osConfig) {
+async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
     const [anioEmision, mesEmision] = filtros.periodo.split('-');
     
     let fechaPrestacion = new Date(parseInt(anioEmision), parseInt(mesEmision) - 1, 1);
@@ -2415,9 +2415,6 @@ RESOL. ${resolucionAplicada}`;
 
     abrirModalCFO(lote, nombreMes, anioFacturar, adv, fechasCalculadas);
 }	
-window.mostrarPanelFiltros = function() {
-    console.log("Panel de filtros abierto");
-};		
 </script>
 </body>
 </html>
