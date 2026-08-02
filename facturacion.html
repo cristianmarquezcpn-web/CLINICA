@@ -2466,7 +2466,17 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
 
             const idUltimaFactura = p.ultima_factura || p.ultimafactura || '';
             let facturaAnteriorObj = typeof idUltimaFactura === 'object' ? idUltimaFactura : (facturasEmitidas[idUltimaFactura] || {});
-
+			if (!facturaAnteriorObj || Object.keys(facturaAnteriorObj).length === 0) {
+                const todasFacturasArr = Object.values(facturasEmitidas);
+                // Buscamos la última factura que pertenezca a este paciente
+                const facturaEncontrada = todasFacturasArr.reverse().find(f => {
+                    const fIdPac = f.id_paciente || f.id_paciente_db || f.idpaciente || f.idpacientedb || '';
+                    return fIdPac === idPaciente || fIdPac === nombrePaciente;
+                });
+                if (facturaEncontrada) {
+                    facturaAnteriorObj = facturaEncontrada;
+                }
+            }
             const ya = Object.values(facturasEmitidas).some(f => {
                 const fIdPac = f.id_paciente || f.id_paciente_db || f.idpaciente || f.idpacientedb || '';
                 if (fIdPac !== idPaciente && fIdPac !== nombrePaciente) return false;
