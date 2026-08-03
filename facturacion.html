@@ -2440,14 +2440,17 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
 
     let ultimoComp = 0;
     Object.values(facturasEmitidas).forEach(f => {
-        const c = parseInt(f.nrocomp || f.numero || f.nro_comp || 0);
-        if (c > ultimoComp) ultimoComp = c;
+        const tipoCompCheck = parseInt(f.tipo_comp || f.tipocomp || f.tipo || 0);
+        // Excluir notas de crédito (ej. tipo 3 o 8) del cálculo del último comprobante emitido
+        if (tipoCompCheck !== 3 && tipoCompCheck !== 8) {
+            const c = parseInt(f.nrocomp || f.numero || f.nro_comp || 0);
+            if (c > ultimoComp) ultimoComp = c;
+        }
     });
 
     const lote = [];
     const adv = [];
     const cfg = filtros.montosConfig;
-    // Captura estricta de la resolución provista en la configuración de la pantalla
     const resolucionAplicada = cfg.resolucion || cfg.nroResolucion || cfg.res || '1297/2026';
 
     for (const modulo of filtros.modulos) {
@@ -2467,33 +2470,49 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
             if (!asist || asist.toUpperCase() === 'NO' || asist.length < 5) continue;
 
             let facturaAnteriorObj = {};
-            const todasFacturasArr = Object.entries(facturasEmitidas);
             
+            // Función auxiliar para validar si un comprobante NO es Nota de Crédito (3 o 8)
+            const esFacturaValida = (fObj) => {
+                if (!fObj) return false;
+                const t = parseInt(fObj.tipo_comp || fObj.tipocomp || fObj.tipo || 0);
+                return t !== 3 && t !== 8;
+            };
+
             const idUltimaFactura = p.ultima_factura;
             if (idUltimaFactura) {
+                let fCandidate = null;
                 if (typeof idUltimaFactura === 'string' && facturasEmitidas[idUltimaFactura]) {
-                    facturaAnteriorObj = facturasEmitidas[idUltimaFactura];
+                    fCandidate = facturasEmitidas[idUltimaFactura];
                 } else if (typeof idUltimaFactura === 'object' && idUltimaFactura.id && facturasEmitidas[idUltimaFactura.id]) {
-                    facturaAnteriorObj = facturasEmitidas[idUltimaFactura.id];
+                    fCandidate = facturasEmitidas[idUltimaFactura.id];
+                }
+                
+                // Si la última registrada es una factura válida (ignora notas de crédito 3 u 8)
+                if (esFacturaValida(fCandidate)) {
+                    facturaAnteriorObj = fCandidate;
                 }
             }
 
+            // Si no se encontró por referencia directa o era una nota de crédito, buscamos la última factura real emitida para este paciente
             if (!facturaAnteriorObj || Object.keys(facturaAnteriorObj).length === 0) {
-                let facturaEncontrada = null;
-                for (const [fKey, fVal] of todasFacturasArr) {
+                let listaPaciente = [];
+                for (const [fKey, fVal] of Object.entries(facturasEmitidas)) {
                     const fIdPac = (fVal.id_paciente || '').trim().toUpperCase();
-                    if (fIdPac === nombrePaciente.toUpperCase()) {
-                        facturaEncontrada = fVal;
+                    if ((fIdPac === nombrePaciente.toUpperCase() || fIdPac === idPaciente.toUpperCase()) && esFacturaValida(fVal)) {
+                        listaPaciente.push(fVal);
                     }
                 }
-                if (facturaEncontrada) {
-                    facturaAnteriorObj = facturaEncontrada;
+                if (listaPaciente.length > 0) {
+                    // Tomar la de fecha más reciente o mayor número de comprobante
+                    listaPaciente.sort((a, b) => (parseInt(b.nro_comp || b.nrocomp || 0) - parseInt(a.nro_comp || a.nrocomp || 0)));
+                    facturaAnteriorObj = listaPaciente[0];
                 }
             }
 
             const ya = Object.values(facturasEmitidas).some(f => {
                 const fIdPac = (f.id_paciente || f.id_paciente_db || f.idpaciente || f.idpacientedb || '').trim().toUpperCase();
                 if (fIdPac !== nombrePaciente.toUpperCase() && fIdPac !== idPaciente.toUpperCase()) return false;
+                if (!esFacturaValida(f)) return false;
                 
                 const fDesde = f.periodo_desde || f.desdeFact || f.desde_fact || f.fecha_desde || '';
                 if (fDesde) {
@@ -2573,6 +2592,7 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 detalleNuevo = detAnteriorOriginal;
                 
                 const montoBaseFmtNew = montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const montoDepFmtNew = montoDependencia.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 const montoTotalFmtNew = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 
                 for (const mAnt of MESESCFO) {
@@ -2583,15 +2603,25 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 }
                 detalleNuevo = detalleNuevo.replace(/202[5-6]/g, anioFacturar);
                 
-                // Reemplazo estricto y total de cualquier patrón de resolución previo por el nuevo de pantalla
-                detalleNuevo = detalleNuevo.replace(/RESOLUCIÓN[\.\s]*[\d\/]+/gi, `RESOLUCIÓN ${resolucionAplicada}`);
-                detalleNuevo = detalleNuevo.replace(/RESOL[\.\s]*[\d\/]+/gi, `RESOL. ${resolucionAplicada}`);
+                detalleNuevo = detalleNuevo.replace(/RESOLUCI[OÓ]N[\.\s]*[\d\/]+/gi, '');
+                detalleNuevo = detalleNuevo.replace(/RESOL[\.\s]*[\d\/]+/gi, '');
+                detalleNuevo = detalleNuevo.replace(/RES[\.\s]*[\d\/]+/gi, '');
                 
-                // Actualizar montos dinámicos en los textos largos (capturando tanto VALOR PRESTACIÓN, VALOR TOTAL como VALOR:)
-                detalleNuevo = detalleNuevo.replace(/VALOR PRESTACIÓN[:\s]*\$?[\s\d\.,]+/gi, `VALOR PRESTACIÓN:     $ ${montoBaseFmtNew}`);
-                detalleNuevo = detalleNuevo.replace(/VALOR PRESTACION[:\s]*\$?[\s\d\.,]+/gi, `VALOR PRESTACIÓN:     $ ${montoBaseFmtNew}`);
-                detalleNuevo = detalleNuevo.replace(/VALOR TOTAL[:\s]*\$?[\s\d\.,]+/gi, `VALOR TOTAL:              $ ${montoTotalFmtNew}`);
-                detalleNuevo = detalleNuevo.replace(/VALOR[:\s]*\$?[\s\d\.,]+/gi, `VALOR: $ ${montoTotalFmtNew}`);
+                detalleNuevo = detalleNuevo.replace(/\n\s*\n/g, '\n').trim();
+                detalleNuevo += `\nRESOLUCIÓN ${resolucionAplicada}`;
+
+                detalleNuevo = detalleNuevo.replace(/VALOR PRESTACI[OÓ]N[:\s]*\$?[\s\d\.,]+/gi, '');
+                detalleNuevo = detalleNuevo.replace(/VALOR PRESTACION[:\s]*\$?[\s\d\.,]+/gi, '');
+                detalleNuevo = detalleNuevo.replace(/VALOR TOTAL[:\s]*\$?[\s\d\.,]+/gi, '');
+                detalleNuevo = detalleNuevo.replace(/VALOR[:\s]*\$?[\s\d\.,]+/gi, '');
+                detalleNuevo = detalleNuevo.replace(/DEPENDENCIA[:\s]*\$?[\s\d\.,]+/gi, '');
+                detalleNuevo = detalleNuevo.replace(/\n\s*\n/g, '\n').trim();
+
+                if (tieneDependencia) {
+                    detalleNuevo += `\nVALOR PRESTACIÓN: $ ${montoBaseFmtNew}\nDEPENDENCIA: $ ${montoDepFmtNew}\nVALOR TOTAL: $ ${montoTotalFmtNew}`;
+                } else {
+                    detalleNuevo += `\nVALOR: $ ${montoTotalFmtNew}`;
+                }
             } else {
                 const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
                 if (tieneDependencia) {
@@ -2602,9 +2632,9 @@ PERÍODO PRESTACIONAL: ${nombreMes} ${anioFacturar}
 ${prestacion}
 C/DEPEND.S/F.I.M. RESOL ${resolucionAplicada}
 BENEF. ${nombrePaciente.toUpperCase()}${dniTxt}
-VALOR PRESTACIÓN:     $ ${montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-VALOR DEPENDENCIA:      $ ${depFmt}
-VALOR TOTAL:              $ ${totFmt}`;
+VALOR PRESTACIÓN: $ ${montoBase.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+DEPENDENCIA: $ ${depFmt}
+VALOR TOTAL: $ ${totFmt}`;
                 } else {
                     detalleNuevo = `${nombrePaciente.toUpperCase()}${dniTxt}
 PERÍODO PRESTACIONAL: ${nombreMes} ${anioFacturar}
@@ -2613,7 +2643,6 @@ RESOL. ${resolucionAplicada}`;
                 }
             }
 
-            // Forzar que aun siendo tipo 1 (Factura A), la operación sea exenta de IVA por tratarse de prestaciones médicas/discapacidad
             const ali = 0;
             const neto = 0;
             const exento = montoTotal;
