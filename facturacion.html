@@ -2687,13 +2687,12 @@ RESOL. ${resolucionAplicada}`;
 }
 let vozSilenciada = false;
 let recognitionGlobal = null;
+let indicePacienteActual = 0;
+let datosLoteActual = [];
 
 function toggleVozSilencio() {
     vozSilenciada = !vozSilenciada;
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    if (recognitionGlobal) {
-        try { recognitionGlobal.stop(); } catch(e) {}
-    }
+    detenerTodoElHabla();
     const btn = document.getElementById('btnMuteVoz');
     if (btn) btn.innerHTML = vozSilenciada ? '🔇 Voz Silenciada' : '🔊 Voz Activa';
 }
@@ -2705,13 +2704,53 @@ function detenerTodoElHabla() {
     }
 }
 
-function iniciarAsistenteVozModal(totalItems) {
+function iniciarAsistenteVozModal(loteDatos) {
+    if (vozSilenciada) return;
+    detenerTodoElHabla();
+
+    // Normalizamos los datos asegurando que sean objetos planos limpios
+    datosLoteActual = (loteDatos || []).map(item => item.datos ? item.datos : item);
+    indicePacienteActual = 0;
+
+    if (datosLoteActual.length === 0) return;
+
+    leerPacienteActual();
+}
+
+function leerPacienteActual() {
     if (vozSilenciada) return;
     const synth = window.speechSynthesis;
     if (!synth) return;
 
     detenerTodoElHabla();
 
+    if (indicePacienteActual >= datosLoteActual.length) {
+        synth.speak(new SpeechSynthesisUtterance("Fin del lote. Diga aceptar para confirmar o cancelar para salir."));
+        escucharComandosGlobales();
+        return;
+    }
+
+    const p = datosLoteActual[indicePacienteActual];
+    const nroItem = indicePacienteActual + 1;
+    const totalItems = datosLoteActual.length;
+
+    // Lectura detallada campo por campo
+    const textoLectura = `Paciente ${nroItem} de ${totalItems}. Razón social: ${p.rs || 'Sin datos'}. CUIT: ${p.cuit || 'Sin CUIT'}. Tipo: ${p.tipo || 'B'}. Domicilio: ${p.dom || 'Sin domicilio'}. Monto Neto: ${p.neto || 0} pesos. Exento: ${p.exento || 0} pesos. Alícuota: ${p.ali || 0} por ciento. Detalle: ${p.detalle || 'Sin detalle'}. Diga siguiente, repetir, cambiar detalle, aceptar o cancelar.`;
+
+    const utterance = new SpeechSynthesisUtterance(textoLectura);
+    
+    utterance.onend = () => {
+        // Pausa de seguridad de 600ms antes de abrir el micro para evitar eco
+        setTimeout(() => {
+            if (!vozSilenciada) escucharComandosGlobales();
+        }, 600);
+    };
+
+    synth.speak(utterance);
+}
+
+function escucharComandosGlobales() {
+    if (vozSilenciada) return;
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
@@ -2721,118 +2760,109 @@ function iniciarAsistenteVozModal(totalItems) {
     recognition.interimResults = false;
     recognitionGlobal = recognition;
 
-    const textoResumen = `Lote preparado con ${totalItems} elementos. Diga aceptar para confirmar, cancelar para salir, o diga cambiar detalle, cambiar monto o cambiar CUIT, seguido del número de paciente.`;
-    const utterance = new SpeechSynthesisUtterance(textoResumen);
-    
-    utterance.onend = () => {
-        if (!vozSilenciada) {
-            try { recognition.start(); } catch(e) {}
-        }
-    };
-
-    synth.speak(utterance);
+    try {
+        recognition.start();
+    } catch(e) {}
 
     recognition.onresult = (event) => {
         const dicho = event.results[0][0].transcript.toLowerCase();
-        console.log("🗣️ Escuchado:", dicho);
-        
-        // 1. CANCELAR (Frena TODO al instante)
+        console.log("🗣️ Comando detectado:", dicho);
+
+        detenerTodoElHabla();
+
+        // 1. SIGUIENTE
+        if (dicho.includes('siguiente') || dicho.includes('proximo') || dicho.includes('otro')) {
+            indicePacienteActual++;
+            leerPacienteActual();
+            return;
+        }
+
+        // 2. REPETIR
+        if (dicho.includes('repetir') || dicho.includes('otra vez')) {
+            leerPacienteActual();
+            return;
+        }
+
+        // 3. CAMBIAR DETALLE
+        if (dicho.includes('cambiar detalle') || dicho.includes('modificar detalle')) {
+            if (!vozSilenciada) {
+                const synth = window.speechSynthesis;
+                synth.speak(new SpeechSynthesisUtterance("Dictando nuevo detalle. Tómese su tiempo, lo escucho."));
+            }
+
+            setTimeout(() => {
+                const recDetalle = new SpeechRecognition();
+                recDetalle.lang = 'es-AR';
+                recDetalle.continuous = true; // Permite pausas largas sin cortar
+                recDetalle.interimResults = true;
+
+                let textoAcumulado = "";
+
+                recDetalle.onresult = (eDet) => {
+                    textoAcumulado = Array.from(eDet.results)
+                        .map(res => res[0].transcript)
+                        .join('');
+                };
+
+                // Si pasan 3 segundos sin que hables, se guarda automáticamente
+                let temporizadorCierre = null;
+                recDetalle.onresult = (eDet) => {
+                    textoAcumulado = Array.from(eDet.results).map(res => res[0].transcript).join('');
+                    clearTimeout(temporizadorCierre);
+                    temporizadorCierre = setTimeout(() => {
+                        try { recDetalle.stop(); } catch(err) {}
+                    }, 3500);
+                };
+
+                recDetalle.onend = () => {
+                    const idx = indicePacienteActual;
+                    const txtArea = document.getElementById(`mDet_${idx}`) || document.getElementById(`mDet${idx}`);
+                    
+                    if (txtArea && textoAcumulado.trim()) {
+                        txtArea.value = textoAcumulado.trim();
+                        datosLoteActual[idx].detalle = textoAcumulado.trim(); // Actualiza memoria
+                        if (!vozSilenciada) {
+                            const synth = window.speechSynthesis;
+                            synth.speak(new SpeechSynthesisUtterance("Detalle actualizado correctamente. Continuamos."));
+                        }
+                    }
+                    setTimeout(() => { leerPacienteActual(); }, 1500);
+                };
+
+                try { recDetalle.start(); } catch(e) {}
+            }, 2000);
+            return;
+        }
+
+        // 4. ACEPTAR
+        if (dicho.includes('acepto') || dicho.includes('confirmar') || dicho.includes('ok')) {
+            if (!vozSilenciada) {
+                const synth = window.speechSynthesis;
+                synth.speak(new SpeechSynthesisUtterance("Confirmando operación."));
+            }
+            const btnConfirmar = document.querySelector('button[onclick*="Confirmar"]') || document.querySelector('#modalConfirmacion button');
+            if (btnConfirmar) btnConfirmar.click();
+            return;
+        }
+
+        // 5. CANCELAR
         if (dicho.includes('cancela') || dicho.includes('cerrar') || dicho.includes('salir')) {
-            detenerTodoElHabla();
             const modalEl = document.getElementById('modalConfirmacion');
             if (modalEl) modalEl.style.display = 'none';
             return;
         }
 
-        // 2. ACEPTAR / CONFIRMAR
-        if (dicho.includes('acepto') || dicho.includes('confirmar') || dicho.includes('ok')) {
-            detenerTodoElHabla();
-            if (!vozSilenciada) synth.speak(new SpeechSynthesisUtterance("Confirmando lote."));
-            const btnConfirmar = document.querySelector('button[onclick*="Confirmar"]') || document.querySelector('#modalConfirmacion button');
-            if (btnConfirmar) btnConfirmar.click();
-            return;
-        } 
-
-        // 3. CAMBIAR CAMPOS (Detalle, Monto, CUIT, Razón Social, etc.)
-        if (dicho.includes('cambiar') || dicho.includes('modificar')) {
-            detenerTodoElHabla();
-            
-            // Detectamos qué campo quiere cambiar
-            let campoAEditar = 'mDet_'; // Por defecto detalle
-            let nombreCampoTxt = 'detalle';
-            
-            if (dicho.includes('monto') || dicho.includes('exento') || dicho.includes('neto')) {
-                campoAEditar = 'mExento_'; // o neto según prefieras
-                nombreCampoTxt = 'monto';
-            } else if (dicho.includes('cuit')) {
-                campoAEditar = 'mCuit_';
-                nombreCampoTxt = 'CUIT';
-            } else if (dicho.includes('razón social') || dicho.includes('nombre')) {
-                campoAEditar = 'mRs_';
-                nombreCampoTxt = 'razón social';
-            }
-
-            // Intentamos extraer el número de paciente mencionado (ej: "paciente uno" -> índice 0)
-            let indexPaciente = 0;
-            if (dicho.includes('dos') || dicho.includes(' 2')) indexPaciente = 1;
-            if (dicho.includes('tres') || dicho.includes(' 3')) indexPaciente = 2;
-            if (dicho.includes('cuatro') || dicho.includes(' 4')) indexPaciente = 3;
-            if (dicho.includes('cinco') || dicho.includes(' 5')) indexPaciente = 4;
-
-            if (!vozSilenciada) {
-                synth.speak(new SpeechSynthesisUtterance(`Dictando nuevo ${nombreCampoTxt} para el paciente ${indexPaciente + 1}. Puede tomarse su tiempo, lo escucho.`));
-            }
-
-            setTimeout(() => {
-                const recEdicion = new SpeechRecognition();
-                recEdicion.lang = 'es-AR';
-                recEdicion.continuous = true; // Permite pausas largas sin cortarse de golpe
-                recEdicion.interimResults = true;
-
-                let textoFinalDictado = "";
-
-                recEdicion.onresult = (eEd) => {
-                    textoFinalDictado = Array.from(eEd.results)
-                        .map(result => result[0].transcript)
-                        .join('');
-                };
-
-                recEdicion.onend = () => {
-                    // Al terminar de dictar (cuando el sistema detecta que dejaste de hablar un buen rato), lo inyecta
-                    const inputTarget = document.getElementById(`${campoAEditar}${indexPaciente}`) || document.getElementById(`${campoAEditar.replace('_','')}${indexPaciente}`);
-                    
-                    if (inputTarget) {
-                        inputTarget.value = textoFinalDictado.trim();
-                        if (!vozSilenciada) {
-                            synth.speak(new SpeechSynthesisUtterance(`Actualizado correctamente.`));
-                        }
-                    } else {
-                        if (!vozSilenciada) synth.speak(new SpeechSynthesisUtterance("No encontré ese campo para actualizar."));
-                    }
-
-                    // Volvemos al ciclo general de escucha
-                    setTimeout(() => { try { recognition.start(); } catch(err) {} }, 2000);
-                };
-
-                try {
-                    recEdicion.start();
-                } catch(e) {
-                    console.error("Error al iniciar dictado largo:", e);
-                }
-
-            }, 4500);
-
-        } else {
-            if (!vozSilenciada) {
-                synth.speak(new SpeechSynthesisUtterance(`No entendí el comando. Diga cancelar para salir.`));
-                setTimeout(() => { try { recognition.start(); } catch(e) {} }, 2500);
-            }
+        // Si no entendió
+        if (!vozSilenciada) {
+            const synth = window.speechSynthesis;
+            synth.speak(new SpeechSynthesisUtterance("No le entendí. Diga siguiente, repetir, cambiar detalle, aceptar o cancelar."));
+            setTimeout(() => { escucharComandosGlobales(); }, 3000);
         }
     };
 
     recognition.onerror = () => {};
     recognition.onend = () => {};
-}		
+}	
 </script>
 </body>
 </html>
