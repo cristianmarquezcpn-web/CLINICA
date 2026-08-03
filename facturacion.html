@@ -1921,7 +1921,17 @@ window.abrirModalValidacion = function() {
     const valVto = document.getElementById('vto_pago').value;
     window.datosParaConfirmar = [];
     let html = "";
-    
+    <div style="background:#f0f4ff;padding:12px;border-radius:8px;margin-bottom:15px;
+                border-left:5px solid #3498db;display:flex;justify-content:space-between;
+                align-items:center;flex-wrap:wrap;gap:10px;">
+      <div>
+        <b style="color:#2980b9;">📋 VALIDACIÓN DE PACIENTES SELECCIONADOS</b><br>
+        <small>${seleccionados.length} elementos listos para revisar</small>
+      </div>
+      <div>
+        <button id="btnMuteVoz" onclick="toggleVozSilencio()" style="padding:4px 8px;font-size:11px;background:#e74c3c;color:white;border:none;border-radius:4px;cursor:pointer;">🔊 Voz Activa</button>
+      </div>
+    </div>`;
     seleccionados.forEach((ck, index) => {
         const fila = ck.closest('tr');
         const id = ck.getAttribute('data-id');
@@ -1984,6 +1994,7 @@ window.abrirModalValidacion = function() {
         document.getElementById(`mHasta_${index}`).value = valHasta;
         document.getElementById(`mVto_${index}`).value = valVto;
     });
+	iniciarAsistenteVozModal(seleccionados.length);
 };
 window.confirmarEnvioAFIP = async function(event) {
     const btn = event ? event.target : document.getElementById('btnConfirmarModal');
@@ -2061,7 +2072,8 @@ function abrirModalCFO(lote, nombreMes, anio, adv, fechasCalc) {
       <div>
         <b style="color:#6c3483;">🎯 LOTE PREPARADO — PERÍODO PRESTACIONAL: ${nombreMes} ${anio}</b><br>
         <small>${lote.length} pacientes · Total general: <b id="totalGeneralLote">${lote.reduce((s,e)=>s+e.monto,0).toLocaleString('es-AR')}</b> ARS</small>
-      </div>
+      	<button id="btnMuteVoz" onclick="toggleVozSilencio()" style="padding:4px 8px;font-size:11px;background:#e74c3c;color:white;border:none;border-radius:4px;cursor:pointer;">🔊 Voz Activa</button>
+	  </div>
     </div>`;
 
     if (adv.length) {
@@ -2150,6 +2162,7 @@ function abrirModalCFO(lote, nombreMes, anio, adv, fechasCalc) {
 
     const modalConfirmacionEl = document.getElementById('modalConfirmacion');
     if (modalConfirmacionEl) modalConfirmacionEl.style.display = 'block';
+	iniciarAsistenteVozModal(lote.length);
 }
 async function mostrarPanelFiltros() {
     const hoy = new Date();
@@ -2672,6 +2685,97 @@ RESOL. ${resolucionAplicada}`;
 
     abrirModalCFO(lote, nombreMes, anioFacturar, adv, fechasCalculadas);
 }
+let vozSilenciada = false;
+let recognitionGlobal = null;
+
+// Botón visual para mutear/desmutear la voz
+function toggleVozSilencio() {
+    vozSilenciada = !vozSilenciada;
+    if (vozSilenciada && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+    }
+    const btn = document.getElementById('btnMuteVoz');
+    if (btn) btn.innerHTML = vozSilenciada ? '🔇 Voz Silenciada' : '🔊 Voz Activa';
+}
+
+// Asistente universal con comandos de corrección por voz
+function iniciarAsistenteVozModal(totalItems) {
+    if (vozSilenciada) return;
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+
+    synth.cancel();
+    if (recognitionGlobal) {
+        try { recognitionGlobal.stop(); } catch(e) {}
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-AR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognitionGlobal = recognition;
+
+    const textoResumen = `Lote preparado con ${totalItems} elementos. Diga aceptar para confirmar, cancelar para salir, o diga "cambiar detalle del paciente uno" para modificar textos.`;
+    const utterance = new SpeechSynthesisUtterance(textoResumen);
+    
+    utterance.onend = () => {
+        if (!vozSilenciada) {
+            try { recognition.start(); } catch(e) {}
+        }
+    };
+
+    synth.speak(utterance);
+
+    recognition.onresult = (event) => {
+        const dicho = event.results[0][0].transcript.toLowerCase();
+        console.log("🗣️ Escuchado:", dicho);
+        
+        if (dicho.includes('acepto') || dicho.includes('confirmar') || dicho.includes('ok')) {
+            if (!vozSilenciada) synth.speak(new SpeechSynthesisUtterance("Confirmando lote."));
+            const btnConfirmar = document.querySelector('button[onclick*="Confirmar"]') || document.querySelector('#modalConfirmacion button');
+            if (btnConfirmar) btnConfirmar.click();
+            
+        } else if (dicho.includes('cancela') || dicho.includes('cerrar')) {
+            if (!vozSilenciada) synth.speak(new SpeechSynthesisUtterance("Cancelando."));
+            const modalEl = document.getElementById('modalConfirmacion');
+            if (modalEl) modalEl.style.display = 'none';
+            
+        } else if (dicho.includes('cambiar detalle') || dicho.includes('modificar detalle')) {
+            // Ejemplo de comando de corrección: "cambiar detalle del paciente uno"
+            if (!vozSilenciada) {
+                synth.speak(new SpeechSynthesisUtterance("¿Qué texto desea colocar en el detalle del primer paciente? Dictelo a continuación."));
+            }
+            
+            // Abrimos un segundo ciclo de escucha exclusivo para capturar el nuevo texto del detalle
+            setTimeout(() => {
+                const recDetalle = new SpeechRecognition();
+                recDetalle.lang = 'es-AR';
+                recDetalle.start();
+                
+                recDetalle.onresult = (eDet) => {
+                    const nuevoTexto = eDet.results[0][0].transcript;
+                    // Buscamos el textarea del primer ítem (índice 0) y le inyectamos el cambio
+                    const txtArea = document.getElementById('mDet_0') || document.getElementById('mDet0');
+                    if (txtArea) {
+                        txtArea.value = nuevoTexto;
+                        if (!vozSilenciada) synth.speak(new SpeechSynthesisUtterance(`Detalle actualizado a: ${nuevoTexto}`.trim()));
+                    }
+                    // Reiniciar el ciclo general
+                    setTimeout(() => { try { recognition.start(); } catch(err) {} }, 3000);
+                };
+            }, 4000);
+
+        } else {
+            if (!vozSilenciada) {
+                synth.speak(new SpeechSynthesisUtterance(`No entendí "${dicho}". Intente de nuevo.`));
+                setTimeout(() => { try { recognition.start(); } catch(e) {} }, 2000);
+            }
+        }
+    };
+}		
 </script>
 </body>
 </html>
