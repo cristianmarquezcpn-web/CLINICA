@@ -248,16 +248,24 @@ function seleccionarPacienteParaFacturar(idPaciente) {
 }
 // --- GESTIÓN DE OBRAS SOCIALES (FACTURACIÓN) ---
 window.guardarOS = async function() {
-    const nombre = document.getElementById('os-nombre').value.toUpperCase().trim();
+    const inputNombre = document.getElementById('os-nombre');
+    const nombreNuevo = inputNombre.value.toUpperCase().trim();
+    const nombreOriginal = inputNombre.dataset.nombreOriginal || ""; // Recuperamos el viejo si venía de edición
+    
     const cuit = document.getElementById('os-cuit').value.trim();
     const dom = document.getElementById('os-dom').value.trim();
     const iva = document.getElementById('os-iva').value;
 
-    if(!nombre || !cuit) return alert("⚠️ Nombre y CUIT son obligatorios");
+    if(!nombreNuevo || !cuit) return alert("⚠️ Nombre y CUIT son obligatorios");
 
     try {
-        // Guardamos en Firebase (si el nombre existe, lo pisa/actualiza)
-        await db.ref('/config/obras_sociales/' + nombre).set({
+        // Si estamos editando y cambió el nombre (ej: le agregó el punto), borramos el nodo viejo primero
+        if (nombreOriginal && nombreOriginal !== nombreNuevo) {
+            await db.ref('/config/obras_sociales/' + nombreOriginal).remove();
+        }
+
+        // Guardamos los datos en el nuevo nombre (o actualizamos si se mantiene igual)
+        await db.ref('/config/obras_sociales/' + nombreNuevo).set({
             cuit: cuit,
             domicilio: dom,
             condicion_iva: iva
@@ -266,20 +274,18 @@ window.guardarOS = async function() {
         alert("✅ Obra Social guardada/actualizada con éxito");
 
         // --- LIMPIEZA DEL FORMULARIO ---
-        const inputNombre = document.getElementById('os-nombre');
         inputNombre.value = "";
         inputNombre.readOnly = false; 
-        inputNombre.style.backgroundColor = "#fff"; 
+        inputNombre.style.backgroundColor = "#fff";
+        delete inputNombre.dataset.nombreOriginal; // Limpiamos la marca de edición
         
         document.getElementById('os-cuit').value = "";
         document.getElementById('os-dom').value = "";
         document.getElementById('os-iva').selectedIndex = 0; 
 
         // --- ACTUALIZACIÓN DE INTERFAZ ---
-        // 1. Refrescar datos generales
         await window.cargarTodo();
 
-        // 2. Refrescar el listado visual de Obras Sociales (lo que faltaba)
         if (typeof actualizarPanelOS === 'function') {
             actualizarPanelOS();
         }
@@ -295,14 +301,19 @@ window.prepararEdicionOS = function(nombre) {
         if(d) {
             const inputNombre = document.getElementById('os-nombre');
             inputNombre.value = nombre;
-            inputNombre.readOnly = true; // Bloqueamos el nombre para que no crees un duplicado por error
-            inputNombre.style.backgroundColor = "#f0f0f0";
+            
+            // YA NO LO BLOQUEAMOS, permitimos editarlo
+            inputNombre.readOnly = false; 
+            inputNombre.style.backgroundColor = "#fff";
+            
+            // Guardamos el nombre viejo en un atributo temporal del input para saber cuál borrar después
+            inputNombre.dataset.nombreOriginal = nombre;
             
             document.getElementById('os-cuit').value = d.cuit;
             document.getElementById('os-dom').value = d.domicilio || "";
             document.getElementById('os-iva').value = d.condicion_iva || "EXENTO";
             
-            window.scrollTo(0,0); // Sube la pantalla al formulario
+            window.scrollTo(0,0);
         }
     });
 };
