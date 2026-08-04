@@ -2025,8 +2025,11 @@ window.confirmarEnvioAFIP = async function(event) {
 
     // 3. Actualizamos los otros datos en la tabla (si es necesario)
     window.datosParaConfirmar.forEach(item => {
-        const index = item.idx;
-        const fila = item.fila;
+    const index = item.idx;
+    const fila = item.fila;
+    
+    // Solo actualiza la tabla de fondo SI LA FILA EXISTE EN EL DOM
+    if (fila) {
         fila.querySelector('.sel-tipo').value = document.getElementById(`mTipo_${index}`).value;
         fila.querySelector('.cuit-val').value = document.getElementById(`mCuit_${index}`).value;
         fila.querySelector('.rs-val').value = document.getElementById(`mRs_${index}`).value;
@@ -2036,7 +2039,8 @@ window.confirmarEnvioAFIP = async function(event) {
         fila.querySelector('.sel-ali').value = document.getElementById(`mAli_${index}`).value;
         fila.querySelector('.det-val').value = document.getElementById(`mDet_${index}`).value;
         window.recalcularTotales(fila.querySelector('.neto-edit'));
-    });
+    }
+});
     
     document.getElementById('modalConfirmacion').style.display = 'none';
     
