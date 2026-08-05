@@ -2498,8 +2498,7 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
 
         for (const [idPaciente, p] of Object.entries(pacientesModulo)) {
            const nombrePaciente = (idPaciente || '').trim().toUpperCase();
-		   if (filtros.pacientes && filtros.pacientes.length > 0 && !filtros.pacientes.some(pSel => pSel.trim().toUpperCase() === nombrePaciente)) continue;
-
+			if (filtros.pacientes && filtros.pacientes.length > 0 && !filtros.pacientes.some(pSel => pSel.trim().toUpperCase() === nombrePaciente)) continue;
             
             const osPaciente = (p.os || '').trim().toUpperCase();
             if (filtros.os && filtros.os.length > 0 && !filtros.os.includes(osPaciente)) continue;
