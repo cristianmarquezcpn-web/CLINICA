@@ -158,7 +158,7 @@
         let ok = false;
         if (mod === 'cet' && hora >= 8 && hora <= 21.5) ok = true;
         if (mod === 'cd' && hora >= 8 && hora <= 12.5) ok = true;
-        if (mod === 'rehab' && hora >= 13 && hora <= 21.5) ok = true;
+        if (mod === 'rehab' && hora >= 8 && hora <= 21.5) ok = true;
         if (['fac', 'saei', 'cob'].includes(mod) && hora >= 8 && hora <= 21.5) ok = true;
 
         if (ok) location.href = url;
