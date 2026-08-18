@@ -692,7 +692,7 @@ window.gestionarTipoComp = function(select) {
         const montoExento = parseFloat(fila.querySelector('.exento-edit')?.value) || 0;
         const alicuota = parseFloat(fila.querySelector('.sel-ali')?.value) || 0;
         const tipo = parseInt(fila.querySelector('.sel-tipo')?.value); 
-
+		const condicionFiscal = cacheCondicionesIVA[cuitCapturado] || "IVA Sujeto Exento";
         const cuitCapturado = fila.querySelector('.cuit-val')?.value.replace(/\D/g, '');
         const razonCapturada = fila.querySelector('.rs-val')?.value.toUpperCase();
         const domCapturada = fila.querySelector('.dom-val')?.value.toUpperCase();
@@ -709,7 +709,7 @@ window.gestionarTipoComp = function(select) {
             razon_social: razonCapturada,
             cuit: cuitCapturado,
             domicilio: domCapturada,
-            iva_condicion: "IVA Sujeto Exento", 
+            iva_condicion: condicionFiscal, 
             tipo: tipo,
             descripcion: fila.querySelector('.det-val')?.value.toUpperCase() || "PRESTACION DE SERVICIOS",
             total: montoNeto + (montoNeto * (alicuota / 100)) + montoExento, 
@@ -1598,6 +1598,134 @@ db.ref('facturas_emitidas_saei').on('value', () => {
     console.log("⚡ Cambio detectado en Facturas SAEI, actualizando...");
     if (typeof procesarTodo === 'function') procesarTodo();
 });
+window.abrirModalValidacion = function() {
+    const seleccionados = document.querySelectorAll('.ck:checked');
+    if (seleccionados.length === 0) return alert("Selecciona al menos un paciente");
+    
+    // Capturamos del encabezado
+    const valDesde = document.getElementById('per_desde').value;
+    const valHasta = document.getElementById('per_hasta').value;
+    const valVto = document.getElementById('vto_pago').value;
+    window.datosParaConfirmar = [];
+   let html = `
+    <div style="background:#f0f4ff;padding:12px;border-radius:8px;margin-bottom:15px;
+                border-left:5px solid #3498db;display:flex;justify-content:space-between;
+                align-items:center;flex-wrap:wrap;gap:10px;">
+      <div>
+        <b style="color:#2980b9;">📋 VALIDACIÓN DE PACIENTES SELECCIONADOS</b><br>
+        <small>${seleccionados.length} elementos listos para revisar</small>
+      </div>
+      <div>
+        <button id="btnMuteVoz" onclick="toggleVozSilencio()" style="padding:4px 8px;font-size:11px;background:#e74c3c;color:white;border:none;border-radius:4px;cursor:pointer;">🔊 Voz Activa</button>
+      </div>
+    </div>`;
+    seleccionados.forEach((ck, index) => {
+        const fila = ck.closest('tr');
+        const id = ck.getAttribute('data-id');
+		const pacienteDB = (window.dataFull || []).find(p => (p.id || p.id_db) === id);
+        const cobDesde = pacienteDB && pacienteDB.cobertura_desde ? pacienteDB.cobertura_desde : '';
+        const cobHasta = pacienteDB && pacienteDB.cobertura_hasta ? pacienteDB.cobertura_hasta : '';
+		const cobDesdeFmt = cobDesde ? cobDesde.split('-').reverse().join('/') : 'S/F';
+        const cobHastaFmt = cobHasta ? cobHasta.split('-').reverse().join('/') : 'S/F';
+        const v = {
+            id: id,
+            tipo: fila.querySelector('.sel-tipo').value,
+            cuit: fila.querySelector('.cuit-val').value,
+            rs: fila.querySelector('.rs-val').value,
+            dom: fila.querySelector('.dom-val').value,
+            neto: fila.querySelector('.neto-edit').value,
+            exento: fila.querySelector('.exento-edit').value,
+            ali: fila.querySelector('.sel-ali').value,
+            detalle: fila.querySelector('.det-val').value,
+			cobDesde: cobDesde,
+            cobHasta: cobHasta
+        };
+
+        window.datosParaConfirmar.push({datos: v, fila: fila, idx: index});
+        
+        html += `
+        <div style="border:1px solid #ddd; padding:10px; margin-bottom:15px; border-radius:5px; background:#fdfdfd;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+                <b style="color:var(--azul);">${v.rs} (${id})</b>
+                <span style="font-size:12px; color:var(--azul);">📅 Aut. O.S: <b>${cobDesdeFmt}</b> al <b>${cobHastaFmt}</b></span>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:5px;">
+                <label>Tipo: <input type="text" value="${v.tipo}" id="mTipo_${index}"></label>
+                <label>CUIT: <input type="text" value="${v.cuit}" id="mCuit_${index}"></label>
+                <label>R.Social: <input type="text" value="${v.rs}" id="mRs_${index}"></label>
+                <label>Domicilio: <input type="text" value="${v.dom}" id="mDom_${index}"></label>
+                <label>Desde: <input type="date" id="mDesde_${index}"></label>
+                <label>Hasta: <input type="date" id="mHasta_${index}"></label>
+                <label>Vto: <input type="date" id="mVto_${index}"></label>
+                <label>Alicuota: 
+                    <select id="mAli_${index}">
+                        <option value="0" ${v.ali==0?'selected':''}>Exento</option>
+                        <option value="10.5" ${v.ali==10.5?'selected':''}>10.5%</option>
+                        <option value="21" ${v.ali==21?'selected':''}>21%</option>
+                    </select>
+                </label>
+                <label>Neto: <input type="number" value="${v.neto}" id="mNeto_${index}"></label>
+                <label>Exento: <input type="number" value="${v.exento}" id="mExento_${index}"></label>
+            </div>
+            <label style="display:block; margin-top:5px;">Detalle:</label>
+            <textarea id="mDet_${index}" style="width:100%; height:40px;">${v.detalle}</textarea>
+        </div>`;
+    });
+    
+    document.getElementById('modalContent').innerHTML = html;
+    document.getElementById('modalConfirmacion').style.display = 'block';
+
+    // --- CARGA DIRECTA POST-RENDER ---
+    seleccionados.forEach((ck, index) => {
+        document.getElementById(`mDesde_${index}`).value = valDesde;
+        document.getElementById(`mHasta_${index}`).value = valHasta;
+        document.getElementById(`mVto_${index}`).value = valVto;
+    });
+	
+window.confirmarEnvioAFIP = async function(event) {
+    const btn = event ? event.target : document.getElementById('btnConfirmarModal');
+    if(btn) btn.disabled = true;
+
+    // 1. Tomamos el primer paciente seleccionado para actualizar el encabezado
+    // (Asumimos que si editaste el modal, esas son las fechas que quieres para todos)
+    const primerIndex = window.datosParaConfirmar[0].idx;
+    const nuevaDesde = document.getElementById(`mDesde_${primerIndex}`).value;
+    const nuevaHasta = document.getElementById(`mHasta_${primerIndex}`).value;
+    const nuevaVto = document.getElementById(`mVto_${primerIndex}`).value;
+
+    // 2. ACTUALIZAMOS EL ENCABEZADO (La fuente de la verdad para enviarAFIP_WS)
+    document.getElementById('per_desde').value = nuevaDesde;
+    document.getElementById('per_hasta').value = nuevaHasta;
+    document.getElementById('vto_pago').value = nuevaVto;
+
+    // 3. Actualizamos los otros datos en la tabla (si es necesario)
+    window.datosParaConfirmar.forEach(item => {
+    const index = item.idx;
+    const fila = item.fila;
+    
+    // Solo actualiza la tabla de fondo SI LA FILA EXISTE EN EL DOM
+    if (fila) {
+        fila.querySelector('.sel-tipo').value = document.getElementById(`mTipo_${index}`).value;
+        fila.querySelector('.cuit-val').value = document.getElementById(`mCuit_${index}`).value;
+        fila.querySelector('.rs-val').value = document.getElementById(`mRs_${index}`).value;
+        fila.querySelector('.dom-val').value = document.getElementById(`mDom_${index}`).value;
+        fila.querySelector('.neto-edit').value = document.getElementById(`mNeto_${index}`).value;
+        fila.querySelector('.exento-edit').value = document.getElementById(`mExento_${index}`).value;
+        fila.querySelector('.sel-ali').value = document.getElementById(`mAli_${index}`).value;
+        fila.querySelector('.det-val').value = document.getElementById(`mDet_${index}`).value;
+        window.recalcularTotales(fila.querySelector('.neto-edit'));
+    }
+});
+    
+    document.getElementById('modalConfirmacion').style.display = 'none';
+    
+    // 4. Ahora sí, al ejecutar esto, leerá los campos del encabezado ya corregidos
+    await enviarAFIP_WS(); 
+    
+    if(btn) btn.disabled = false;
+    window.datosParaConfirmar = [];
+};
+	
 // --- 8. AUTH ---
 auth.onAuthStateChanged((user) => {
     if (user) {
