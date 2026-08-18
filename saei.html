@@ -671,7 +671,19 @@ window.gestionarTipoComp = function(select) {
         pVtaInput.value = 5;
     }
 };
-	async function enviarAFIP_WS() {
+async function enviarAFIP_WS() {
+    let cacheCondicionesIVA = {};
+    const snapshot = await db.ref('config/obras_sociales').once('value');
+    const todasLasObras = snapshot.val();
+    if (todasLasObras) {
+        for (let key in todasLasObras) {
+            let cuitFB = String(todasLasObras[key].cuit || "").replace(/\D/g, '').trim();
+            if (cuitFB) {
+                cacheCondicionesIVA[cuitFB] = todasLasObras[key].condicion_iva || "IVA Sujeto Exento";
+            }
+        }
+    }
+
     const seleccionados = document.querySelectorAll('.ck:checked');
     if (seleccionados.length === 0) return alert("Selecciona pacientes");
     
@@ -686,26 +698,34 @@ window.gestionarTipoComp = function(select) {
         if (!fila) continue;
     
         const idDelPaciente = ck.getAttribute('data-id'); 
+        const nombreModulo = (ck.getAttribute('data-mod') || "SAEI").toUpperCase();
         
-        // --- CAPTURA DE VALORES DESDE TU RENDER ---
         const montoNeto = parseFloat(fila.querySelector('.neto-edit')?.value) || 0;
         const montoExento = parseFloat(fila.querySelector('.exento-edit')?.value) || 0;
         const alicuota = parseFloat(fila.querySelector('.sel-ali')?.value) || 0;
         const tipo = parseInt(fila.querySelector('.sel-tipo')?.value); 
-		const condicionFiscal = cacheCondicionesIVA[cuitCapturado] || "IVA Sujeto Exento";
+
         const cuitCapturado = fila.querySelector('.cuit-val')?.value.replace(/\D/g, '');
+        
+        // --- BÚSQUEDA EN DICCIONARIO Y LOGS ---
+        const condicionFiscal = cacheCondicionesIVA[cuitCapturado] || "IVA Sujeto Exento";
+        console.log("Buscando CUIT en diccionario:", cuitCapturado);
+        console.log("Lo que encontró el diccionario:", cacheCondicionesIVA[cuitCapturado]);
+        console.log("Valor final que se enviará:", condicionFiscal);
+
         const razonCapturada = fila.querySelector('.rs-val')?.value.toUpperCase();
         const domCapturada = fila.querySelector('.dom-val')?.value.toUpperCase();
 
-        // VALIDACIÓN DE CUIT (Si no hay CUIT, no mandamos nada)
         if (!cuitCapturado || cuitCapturado.length < 10) {
             alert(`⚠️ Error en ${idDelPaciente}: El CUIT está vacío o es inválido.`);
-            continue;
+            continue; 
         }
 
+        // --- CONSTRUCCIÓN DEL PEDIDO ---
         const pedido = {
-            id_paciente: idDelPaciente,
-            modulo: (ck.getAttribute('data-mod') || "SAEI").toUpperCase(), 
+            id_paciente: idDelPaciente,    // Para compatibilidad
+            id_paciente_db: idDelPaciente, // 🔑 CLAVE PARA EL GRIS POSTERIOR
+            modulo: nombreModulo, 
             razon_social: razonCapturada,
             cuit: cuitCapturado,
             domicilio: domCapturada,
@@ -725,7 +745,7 @@ window.gestionarTipoComp = function(select) {
             fecha_peticion: new Date().toISOString()
         };
 
-        // --- CORRECCIÓN PARA NOTA DE CRÉDITO (TIPO 8 o 3) ---
+        // --- LÓGICA DE NOTA DE CRÉDITO ---
         if (tipo === 8 || tipo === 3) {
             const pvAsoc = fila.querySelector('.aso-pv')?.value;
             const numAsoc = fila.querySelector('.aso-num')?.value;
@@ -736,27 +756,38 @@ window.gestionarTipoComp = function(select) {
                 continue;
             }
 
-            pedido.tipo_asoc = (tipo === 8) ? 6 : 1; // Si es NC B asocia Factura B (6)
+            pedido.tipo_asoc = (tipo === 8) ? 6 : 1;
             pedido.pv_asoc = parseInt(pvAsoc) || ptoVtaGlobal;
             pedido.nro_asoc = parseInt(numAsoc);
             pedido.asoc_fecha = fecAsoc;
         }
 
         try {
-            // Enviamos a Firebase
+            // Enviamos a la cola de procesamiento
             await db.ref('/cola_facturacion').push(pedido);
-			await db.ref(`SAEI/pacientes/${idDelPaciente}`).update({
-       		facturado: "SI",
-        	facturado_saei: "SI"
-   			 });
+            
+            // Marcar visualmente en la tabla del legajo (para que no se ponga gris antes de tiempo)
+            await db.ref(`${nombreModulo.toLowerCase()}/pacientes/${idDelPaciente}`).update({
+                facturado: 'PROCESANDO'
+            });
+
             fila.style.opacity = "0.5"; 
-            fila.style.background = "#e8f5e9"; // Feedback visual verde suave
+            fila.style.background = "#fff9c4"; // Amarillo: En proceso
             ck.checked = false; 
         } catch (e) {
             console.error("Error al enviar a la cola:", e);
         }
     }
-    alert("🚀 Proceso terminado. Revisá el Motor.");
+    
+    alert("🚀 Facturas enviadas al motor. En segundos aparecerán en gris con su PDF.");
+    
+    // 🔄 REFRESCAR AUTOMÁTICAMENTE
+    // Le damos tiempo al motor de AFIP y luego disparamos el procesarTodo
+    setTimeout(() => {
+        if (typeof window.procesarTodo === "function") {
+            window.procesarTodo();
+        }
+    }, 5000); // 5 segundos suele ser suficiente para el WS de AFIP
 }
 	function procesarFacturaAprobada(respuestaAfip, datosPedido) {
     // 1. NORMALIZACIÓN DE RUTAS
