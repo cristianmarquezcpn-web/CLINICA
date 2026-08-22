@@ -312,7 +312,7 @@
 
     database.on('value', (s) => {
         const d = s.val() || {}; pacs = d.pacientes || {}; msgs = d.mensajes || {};
-        renderTableros(); renderLista(); renderChat();actualizarContadores();
+        renderTableros(); renderLista(); renderChat(); actualizarContadores(); verificarAlertasAlIniciar();
         if(document.getElementById('mod-salas').style.display === 'flex') actualizarModuloSalas();
     });
 
@@ -1053,8 +1053,6 @@ document.getElementById('dominguito-texto').addEventListener('keypress', (e) => 
         document.getElementById('dominguito-input-box').style.display = 'none';
     }
 });
-let cachePacientes = {};
-
 const DOCUMENTOS_SISTEMA = [
     { clave: 'infMenF', nombre: 'Informe Mensual' },
     { clave: 'infoF', nombre: 'Informe Semanal' },
@@ -1068,12 +1066,7 @@ const DOCUMENTOS_SISTEMA = [
     { clave: 'cud', nombre: 'CUD' }
 ];
 
-// 1. INICIALIZAR Y LANZAR ALERTAS AL ARRANCAR
-function inicializarSistemaGestion(pacsData) {
-    cachePacientes = pacsData || {};
-    verificarAlertasAlIniciar();
-}
-
+// 1. LANZAR ALERTAS AL ARRANCAR (Leyendo directo de pacs)
 function verificarAlertasAlIniciar() {
     let listaAlertas = document.getElementById('lista-alertas-inicio');
     if (!listaAlertas) return;
@@ -1085,9 +1078,9 @@ function verificarAlertasAlIniciar() {
 
     let arrayAlertasTemp = [];
 
-    for (let id in cachePacientes) {
-        let p = cachePacientes[id];
-        let nombre = p.nombre || 'Sin Nombre';
+    for (let id in pacs) {
+        let p = pacs[id];
+        let nombre = id; // El nombre/clave en tu objeto pacs es el nombre del paciente
         let dni = p.dni || 'S/D';
 
         DOCUMENTOS_SISTEMA.forEach(doc => {
@@ -1177,7 +1170,7 @@ function cerrarPanelGeneral() {
     if (modal) modal.style.display = 'none';
 }
 
-// 2. PANEL GENERAL CON ASIGNACIÓN MASIVA Y LISTADO COMPLETO DE PACIENTES
+// 2. PANEL GENERAL CON ASIGNACIÓN MASIVA (Directo de pacs)
 function abrirPanelGeneralGestiones() {
     let modal = document.getElementById('modal-panel-general');
     if (!modal) return;
@@ -1211,9 +1204,9 @@ function abrirPanelGeneralGestiones() {
     let hoy = new Date();
     hoy.setHours(0,0,0,0);
 
-    for (let id in cachePacientes) {
-        let p = cachePacientes[id];
-        let nombre = p.nombre || 'Sin Nombre';
+    for (let id in pacs) {
+        let p = pacs[id];
+        let nombre = id;
         let dni = p.dni || 'S/D';
         
         let fechaRef = p.cud || p.infMenF || '';
@@ -1256,16 +1249,21 @@ function ejecutarAsignacionMasivaInterna() {
     let docObj = DOCUMENTOS_SISTEMA.find(d => d.clave === tipoDoc);
     if (!confirm(`¿Aplicar ${nuevaFecha} a todos los pacientes en ${docObj.nombre}?`)) return;
 
-    for (let id in cachePacientes) {
-        cachePacientes[id][tipoDoc] = nuevaFecha;
+    let updates = {};
+    for (let id in pacs) {
+        updates[`${id}/${tipoDoc}`] = nuevaFecha;
     }
-    alert("¡Aplicado a todos correctamente!");
-    abrirPanelGeneralGestiones();
+
+    // Actualiza Firebase directo para que se guarde de verdad
+    database.child('pacientes').update(updates).then(() => {
+        alert("¡Aplicado y guardado en Firebase correctamente!");
+        abrirPanelGeneralGestiones();
+    });
 }
 
-// 3. LA FICHA INDIVIDUAL DE 10 DOCUMENTOS
+// 3. LA FICHA INDIVIDUAL DE 10 DOCUMENTOS (Actualiza directo a Firebase al cambiar fecha)
 function abrirLegajoCompletoPaciente(idPaciente) {
-    let p = cachePacientes[idPaciente];
+    let p = pacs[idPaciente];
     if (!p) return;
 
     let modalLegajo = document.getElementById('modal-legajo-completo');
@@ -1285,7 +1283,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
         modalLegajo = div;
     }
 
-    document.getElementById('legajo-titulo-nombre').innerText = `📂 Legajo: ${p.nombre || 'Sin Nombre'} (DNI: ${p.dni || 'S/D'})`;
+    document.getElementById('legajo-titulo-nombre').innerText = `📂 Legajo: ${idPaciente} (DNI: ${p.dni || 'S/D'})`;
     let contenedorDetalle = document.getElementById('legajo-contenido-detalle');
     
     let hoy = new Date();
@@ -1347,14 +1345,14 @@ function abrirLegajoCompletoPaciente(idPaciente) {
             <tr style="border-bottom:1px solid #eee;">
                 <td style="padding:8px; font-weight:bold; color:#2c3e50;">${doc.nombre}</td>
                 <td style="padding:8px;">
-                    <input type="date" value="${fechaDoc}" onchange="cachePacientes['${idPaciente}']['${doc.clave}'] = this.value; alert('Fecha actualizada');" style="padding:3px; border:1px solid #ccc; border-radius:3px; font-size:11px;">
+                    <input type="date" value="${fechaDoc}" onchange="database.child('pacientes/${idPaciente}').update({'${doc.clave}': this.value});" style="padding:3px; border:1px solid #ccc; border-radius:3px; font-size:11px;">
                 </td>
                 <td style="padding:8px;">${estadoBadge}</td>
             </tr>
             <tr style="background:#fff3cd; border-bottom:1px solid #eee;">
                 <td style="padding:8px; font-weight:bold; color:#856404; padding-left:20px;">↳ ⚡ Turno ${doc.nombre}</td>
                 <td style="padding:8px;">
-                    <input type="date" value="${fechaTurno}" onchange="cachePacientes['${idPaciente}']['${claveTurno}'] = this.value; alert('Fecha de turno actualizada');" style="padding:3px; border:1px solid #ccc; border-radius:3px; font-size:11px;">
+                    <input type="date" value="${fechaTurno}" onchange="database.child('pacientes/${idPaciente}').update({'${claveTurno}': this.value});" style="padding:3px; border:1px solid #ccc; border-radius:3px; font-size:11px;">
                 </td>
                 <td style="padding:8px;">${estadoTurnoBadge}</td>
             </tr>`;
@@ -1382,7 +1380,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
 
     contenedorDetalle.innerHTML = htmlTabla + htmlBitacora;
     modalLegajo.style.display = 'flex';
-}  
+} 
 </script>         
 </body>
 </html>
