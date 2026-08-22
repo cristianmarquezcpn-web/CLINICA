@@ -1091,6 +1091,7 @@ function verificarAlertasAlIniciar() {
         let dni = p.dni || 'S/D';
 
         DOCUMENTOS_SISTEMA.forEach(doc => {
+            // 1. Revisa la fecha de vencimiento normal
             let fechaVenc = p[doc.clave];
             if (fechaVenc) {
                 let fVenc = new Date(fechaVenc);
@@ -1107,6 +1108,27 @@ function verificarAlertasAlIniciar() {
                         claveDoc: doc.clave,
                         fecha: fechaVenc,
                         diff: diffDias
+                    });
+                }
+            }
+
+            // 2. Revisa la fecha de TURNO del padre (para avisar 48/72hs antes)
+            let claveTurno = doc.clave + 'T';
+            let fechaTurno = p[claveTurno];
+            if (fechaTurno) {
+                let fTurno = new Date(fechaTurno);
+                fTurno.setHours(0, 0, 0, 0);
+                let diffTurno = Math.round((fTurno - hoy) / (1000 * 60 * 60 * 24));
+
+                if (diffTurno <= 15) {
+                    arrayAlertasTemp.push({
+                        id: id,
+                        nombre: nombre,
+                        dni: dni,
+                        tipoDoc: `⚡ Turno ${doc.nombre} (Avisar Padre)`,
+                        claveDoc: claveTurno,
+                        fecha: fechaTurno,
+                        diff: diffTurno
                     });
                 }
             }
@@ -1149,6 +1171,7 @@ function verificarAlertasAlIniciar() {
 }
 
 // 2. PANEL GENERAL CON ASIGNACIÓN MASIVA DE LOS 10 DOCUMENTOS
+// 2. PANEL GENERAL CON ASIGNACIÓN MASIVA Y LISTADO COMPLETO DE PACIENTES
 function abrirPanelGeneralGestiones() {
     let modal = document.getElementById('modal-panel-general');
     if (!modal) return;
@@ -1171,27 +1194,56 @@ function abrirPanelGeneralGestiones() {
             </div>`;
         let headerModal = modal.querySelector('div');
         if (headerModal) headerModal.insertAdjacentHTML('afterend', htmlMasivo);
+    } else {
+        // Actualizamos el select por si acaso
+        document.getElementById('masivo-tipo-doc').innerHTML = opcionesHtml;
     }
 
     let tbody = document.getElementById('body-tabla-panel-general');
     if (!tbody) return;
     tbody.innerHTML = '';
 
+    let hoy = new Date();
+    hoy.setHours(0,0,0,0);
+
+    // LLENAMOS LA TABLA CON CADA PACIENTE DE TU BASE
     for (let id in cachePacientes) {
         let p = cachePacientes[id];
+        let nombre = p.nombre || 'Sin Nombre';
+        let dni = p.dni || 'S/D';
+        
+        // Tomamos por defecto el CUD o el primer documento para mostrar un estado rápido en la tabla
+        let fechaRef = p.cud || p.infMenF || '';
+        let badgeEstado = '<span style="background:#95a5a6; color:white; padding:3px 6px; border-radius:3px; font-size:10px;">SIN FECHA</span>';
+
+        if (fechaRef) {
+            let fVenc = new Date(fechaRef);
+            fVenc.setHours(0,0,0,0);
+            let diff = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
+
+            if (diff < 0) {
+                badgeEstado = `<span style="background:#e74c3c; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🔴 VENCIDO</span>`;
+            } else if (diff <= 15) {
+                badgeEstado = `<span style="background:#f39c12; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟠 Vence en ${diff}d</span>`;
+            } else {
+                badgeEstado = `<span style="background:#27ae60; color:white; padding:3px 6px; border-radius:3px; font-size:10px;">🟢 Al día</span>`;
+            }
+        }
+
         tbody.innerHTML += `
-            <tr style="border-bottom:1px solid #ddd; background:#fff;">
-                <td style="padding:10px; font-weight:bold; color:#2c3e50;">${p.nombre || 'Sin Nombre'}</td>
-                <td style="padding:10px; color:#555;">DNI: ${p.dni || 'S/D'}</td>
-                <td style="padding:10px;">
-                    <button class="btn" style="background:#2980b9; color:white; padding:5px 10px; border-radius:4px; font-size:11px;" onclick="abrirLegajoCompletoPaciente('${id}')">📂 Ver Ficha / 10 Docs</button>
+            <tr style="border-bottom:1px solid #eee; background:#fff;">
+                <td style="padding:8px; font-weight:bold; color:#2c3e50;">${nombre}</td>
+                <td style="padding:8px; color:#555;">DNI: ${dni}</td>
+                <td style="padding:8px;">${badgeEstado}</td>
+                <td style="padding:8px; font-size:11px;">CUD/Ref: ${fechaRef || 'S/D'}</td>
+                <td style="padding:8px;">
+                    <button class="btn" style="background:#2980b9; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" onclick="abrirLegajoCompletoPaciente('${id}')">📂 Ver Ficha / 10 Docs</button>
                 </td>
             </tr>`;
     }
 
     modal.style.display = 'block';
 }
-
 function ejecutarAsignacionMasivaInterna() {
     let tipoDoc = document.getElementById('masivo-tipo-doc').value;
     let nuevaFecha = document.getElementById('masivo-fecha-input').value;
@@ -1267,6 +1319,26 @@ function abrirLegajoCompletoPaciente(idPaciente) {
             }
         }
 
+        let claveTurno = doc.clave + 'T';
+        let fechaTurno = p[claveTurno] || '';
+        let estadoTurnoBadge = '<span style="background:#95a5a6; color:white; padding:3px 6px; border-radius:3px; font-size:10px;">SIN TURNO</span>';
+
+        if (fechaTurno) {
+            let fTurno = new Date(fechaTurno);
+            fTurno.setHours(0,0,0,0);
+            let diffTurno = Math.round((fTurno - hoy) / (1000 * 60 * 60 * 24));
+
+            if (diffTurno < 0) {
+                estadoTurnoBadge = `<span style="background:#e74c3c; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🔴 Pasó hace ${Math.abs(diffTurno)} días</span>`;
+            } else if (diffTurno === 0) {
+                estadoTurnoBadge = `<span style="background:#e67e22; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟠 ¡TURNO HOY!</span>`;
+            } else if (diffTurno <= 15) {
+                estadoTurnoBadge = `<span style="background:#f39c12; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟠 Faltan ${diffTurno} días (Avisar Padre)</span>`;
+            } else {
+                estadoTurnoBadge = `<span style="background:#27ae60; color:white; padding:3px 6px; border-radius:3px; font-size:10px;">🟢 Faltan ${diffTurno} días</span>`;
+            }
+        }
+
         htmlTabla += `
             <tr style="border-bottom:1px solid #eee;">
                 <td style="padding:8px; font-weight:bold; color:#2c3e50;">${doc.nombre}</td>
@@ -1274,6 +1346,13 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                     <input type="date" value="${fechaDoc}" onchange="cachePacientes['${idPaciente}']['${doc.clave}'] = this.value; alert('Fecha actualizada');" style="padding:3px; border:1px solid #ccc; border-radius:3px; font-size:11px;">
                 </td>
                 <td style="padding:8px;">${estadoBadge}</td>
+            </tr>
+            <tr style="background:#fff3cd; border-bottom:1px solid #eee;">
+                <td style="padding:8px; font-weight:bold; color:#856404; padding-left:20px;">↳ ⚡ Turno ${doc.nombre}</td>
+                <td style="padding:8px;">
+                    <input type="date" value="${fechaTurno}" onchange="cachePacientes['${idPaciente}']['${claveTurno}'] = this.value; alert('Fecha de turno actualizada');" style="padding:3px; border:1px solid #ccc; border-radius:3px; font-size:11px;">
+                </td>
+                <td style="padding:8px;">${estadoTurnoBadge}</td>
             </tr>`;
     });
     htmlTabla += `</tbody></table>`;
@@ -1300,7 +1379,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
 
     contenedorDetalle.innerHTML = htmlTabla + htmlBitacora;
     modalLegajo.style.display = 'flex';
-} 
+}
 </script>         
 </body>
 </html>
