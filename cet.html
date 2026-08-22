@@ -1091,14 +1091,12 @@ function verificarAlertasAlIniciar() {
         let dni = p.dni || 'S/D';
 
         DOCUMENTOS_SISTEMA.forEach(doc => {
-            // 1. Revisa la fecha de vencimiento normal
             let fechaVenc = p[doc.clave];
             if (fechaVenc) {
                 let fVenc = new Date(fechaVenc);
                 fVenc.setHours(0, 0, 0, 0);
                 let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
 
-                // Margen de 15 días hacia atrás (vencidos) y hacia adelante (por vencer)
                 if (diffDias <= 15) {
                     arrayAlertasTemp.push({
                         id: id,
@@ -1112,7 +1110,6 @@ function verificarAlertasAlIniciar() {
                 }
             }
 
-            // 2. Revisa la fecha de TURNO del padre (para avisar 48/72hs antes)
             let claveTurno = doc.clave + 'T';
             let fechaTurno = p[claveTurno];
             if (fechaTurno) {
@@ -1161,13 +1158,23 @@ function verificarAlertasAlIniciar() {
                 </div>
                 <div style="text-align:right;">
                     <span style="background:${colorBadge}; color:white; padding:3px 8px; border-radius:4px; font-size:10px; font-weight:bold; display:inline-block; margin-bottom:4px;">${textoEstado}</span><br>
-                    <button class="btn" style="background:#2c3e50; color:white; font-size:10px; padding:4px 8px; border:none; border-radius:3px; cursor:pointer;" onclick="abrirLegajoCompletoPaciente('${alerta.id}')">Ver Legajo</button>
+                    <button class="btn" style="background:#2c3e50; color:white; font-size:10px; padding:4px 8px; border:none; border-radius:3px; cursor:pointer;" onclick="cerrarAlertaInicio(); abrirLegajoCompletoPaciente('${alerta.id}')">Ver Legajo</button>
                 </div>
             </div>`;
     });
 
     let modalAlerta = document.getElementById('modal-alerta-inicio');
     if (modalAlerta && contadorAlertas > 0) modalAlerta.style.display = 'flex';
+}
+
+function cerrarAlertaInicio() {
+    let modalAlerta = document.getElementById('modal-alerta-inicio');
+    if (modalAlerta) modalAlerta.style.display = 'none';
+}
+
+function cerrarPanelGeneral() {
+    let modal = document.getElementById('modal-panel-general');
+    if (modal) modal.style.display = 'none';
 }
 
 // 2. PANEL GENERAL CON ASIGNACIÓN MASIVA Y LISTADO COMPLETO DE PACIENTES
@@ -1204,7 +1211,6 @@ function abrirPanelGeneralGestiones() {
     let hoy = new Date();
     hoy.setHours(0,0,0,0);
 
-    // LLENAMOS LA TABLA CON CADA PACIENTE DE TU BASE
     for (let id in cachePacientes) {
         let p = cachePacientes[id];
         let nombre = p.nombre || 'Sin Nombre';
@@ -1239,8 +1245,9 @@ function abrirPanelGeneralGestiones() {
             </tr>`;
     }
 
-    modal.style.display = 'flex';
+    modal.style.display = 'block';
 }
+
 function ejecutarAsignacionMasivaInterna() {
     let tipoDoc = document.getElementById('masivo-tipo-doc').value;
     let nuevaFecha = document.getElementById('masivo-fecha-input').value;
@@ -1256,7 +1263,7 @@ function ejecutarAsignacionMasivaInterna() {
     abrirPanelGeneralGestiones();
 }
 
-// 3. LA FICHA INDIVIDUAL (Acá ves los 10 documentos, cuánto falta y la cronología de archivos)
+// 3. LA FICHA INDIVIDUAL DE 10 DOCUMENTOS
 function abrirLegajoCompletoPaciente(idPaciente) {
     let p = cachePacientes[idPaciente];
     if (!p) return;
@@ -1354,7 +1361,6 @@ function abrirLegajoCompletoPaciente(idPaciente) {
     });
     htmlTabla += `</tbody></table>`;
 
-    // Cronología de la bitácora con fecha y hora de subida
     let bitacoraArray = p.bitacora || [];
     let htmlBitacora = `
         <h4 style="margin-bottom:8px; color:#34495e;">💬 Cronología de Notas y PDFs Adjuntos:</h4>
@@ -1376,12 +1382,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
 
     contenedorDetalle.innerHTML = htmlTabla + htmlBitacora;
     modalLegajo.style.display = 'flex';
-}
-// 1. INICIALIZAR Y LANZAR ALERTAS AL ARRANCAR
-function inicializarSistemaGestion(pacsData) {
-    cachePacientes = pacsData || {};
-    verificarAlertasAlIniciar(); // <-- Esto es lo que abre el modal de alertas automáticamente
-}    
+}  
 </script>         
 </body>
 </html>
