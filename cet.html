@@ -1170,7 +1170,6 @@ function verificarAlertasAlIniciar() {
     if (modalAlerta && contadorAlertas > 0) modalAlerta.style.display = 'flex';
 }
 
-// 2. PANEL GENERAL CON ASIGNACIÓN MASIVA DE LOS 10 DOCUMENTOS
 // 2. PANEL GENERAL CON ASIGNACIÓN MASIVA Y LISTADO COMPLETO DE PACIENTES
 function abrirPanelGeneralGestiones() {
     let modal = document.getElementById('modal-panel-general');
@@ -1195,7 +1194,6 @@ function abrirPanelGeneralGestiones() {
         let headerModal = modal.querySelector('div');
         if (headerModal) headerModal.insertAdjacentHTML('afterend', htmlMasivo);
     } else {
-        // Actualizamos el select por si acaso
         document.getElementById('masivo-tipo-doc').innerHTML = opcionesHtml;
     }
 
@@ -1212,7 +1210,6 @@ function abrirPanelGeneralGestiones() {
         let nombre = p.nombre || 'Sin Nombre';
         let dni = p.dni || 'S/D';
         
-        // Tomamos por defecto el CUD o el primer documento para mostrar un estado rápido en la tabla
         let fechaRef = p.cud || p.infMenF || '';
         let badgeEstado = '<span style="background:#95a5a6; color:white; padding:3px 6px; border-radius:3px; font-size:10px;">SIN FECHA</span>';
 
@@ -1242,7 +1239,7 @@ function abrirPanelGeneralGestiones() {
             </tr>`;
     }
 
-    modal.style.display = 'block';
+    modal.style.display = 'flex';
 }
 function ejecutarAsignacionMasivaInterna() {
     let tipoDoc = document.getElementById('masivo-tipo-doc').value;
@@ -1380,6 +1377,11 @@ function abrirLegajoCompletoPaciente(idPaciente) {
     contenedorDetalle.innerHTML = htmlTabla + htmlBitacora;
     modalLegajo.style.display = 'flex';
 }
+// 1. INICIALIZAR Y LANZAR ALERTAS AL ARRANCAR
+function inicializarSistemaGestion(pacsData) {
+    cachePacientes = pacsData || {};
+    verificarAlertasAlIniciar(); // <-- Esto es lo que abre el modal de alertas automáticamente
+}    
 </script>         
 </body>
 </html>
