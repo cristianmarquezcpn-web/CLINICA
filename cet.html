@@ -218,6 +218,84 @@
     <h2>📄 RENOVACIONES</h2>
     <div id="lista-renovaciones-completa"></div>
     <button class="btn" onclick="cerrar()" style="background:black; width:100%; margin-top:15px">CERRAR</button>
+</div> 
+<!-- BOTÓN PARA ABRIR EL PANEL GENERAL DESDE EL MENÚ -->
+<button class="btn" style="background:#6c5ce7; color:white; padding:8px 15px; margin:5px; border-radius:5px; font-weight:bold;" onclick="abrirPanelGeneralGestiones()">📊 Panel General de Gestiones y CUD</button>
+
+<!-- 🚨 CARTEL DE AVISO OBLIGATORIO AL INICIAR EL PROGRAMA -->
+<div id="modal-alerta-inicio" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; justify-content:center; align-items:center;">
+    <div style="background:white; padding:30px; border-radius:12px; max-width:650px; width:90%; box-shadow:0 10px 30px rgba(0,0,0,0.5); text-align:left; border-top:6px solid #e74c3c;">
+        <h2 style="color:#c0392b; margin-top:0; font-size:22px;">🚨 ATENCIÓN CLÍNICA: VENCIMIENTOS Y ALERTAS</h2>
+        <p style="font-size:13px; color:#555;">El sistema detectó expedientes que requieren tu atención inmediata o que ya se encuentran vencidos:</p>
+        
+        <div id="lista-alertas-inicio" style="max-height:250px; overflow-y:auto; border:1px solid #ddd; padding:10px; border-radius:6px; background:#f9f9f9; margin-bottom:15px; font-size:12px;">
+            <!-- Se llena dinámicamente -->
+        </div>
+
+        <button class="btn" onclick="cerrarAlertaInicio()" style="background:#2c3e50; color:white; width:100%; padding:10px; border-radius:6px; font-weight:bold; font-size:14px;">ENTENDIDO, REVISAR CLÍNICA</button>
+    </div>
+</div>
+
+<!-- PANEL GENERAL DE AUDITORÍA -->
+<div id="modal-panel-general" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:25px; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); z-index:1100; width:95%; max-width:950px; max-height:85vh; overflow-y:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #eee; padding-bottom:10px; margin-bottom:15px;">
+        <h3 style="color:#2c3e50; margin:0; font-size:22px;">📈 Panel de Seguimiento Clínico</h3>
+        <button class="btn" onclick="cerrarPanelGeneral()" style="background:#e74c3c; padding:6px 12px; font-weight:bold; border-radius:6px;">X CERRAR</button>
+    </div>
+    <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left;">
+            <thead>
+                <tr style="background:#34495e; color:white;">
+                    <th style="padding:10px; border-radius:6px 0 0 0;">Paciente</th>
+                    <th style="padding:10px;">Documento</th>
+                    <th style="padding:10px;">Estado</th>
+                    <th style="padding:10px;">Detalle de Fechas</th>
+                    <th style="padding:10px; border-radius:0 6px 0 0;">Acción</th>
+                </tr>
+            </thead>
+            <tbody id="body-tabla-panel-general"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- MODAL INDIVIDUAL DE GESTIÓN POR LEGAJO -->
+<div id="modal-seguimiento-legajo" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:25px; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); z-index:1000; width:90%; max-width:650px; max-height:90vh; overflow-y:auto;">
+    <h3 id="seg-titulo-legajo" style="color:#2c3e50; margin-top:0; border-bottom:2px solid #eee; padding-bottom:10px;">📋 Gestión de Documento</h3>
+    
+    <div id="seg-semaforo-box" style="padding:12px; border-radius:8px; text-align:center; font-weight:bold; color:white; margin-bottom:15px; font-size:14px; text-transform:uppercase; letter-spacing:1px;">
+        Calculando estado...
+    </div>
+    
+    <div style="background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #e9ecef; margin-bottom:15px; font-size:13px;">
+        <p style="margin:0 0 10px 0;"><b>📁 Última subida en sistema:</b> <span id="seg-fecha-subida" style="color:#7f8c8d;"></span></p>
+        <div>
+            <label style="font-weight:bold; color:#2c3e50;">📅 Fecha Límite / Vencimiento:</label>
+            <input type="date" id="seg-fecha-limite" onchange="guardarFechaLimiteGestion()" style="padding:5px; border:1px solid #ccc; border-radius:4px; margin-left:8px;">
+            <small id="seg-info-fecha" style="display:block; color:#7f8c8d; margin-top:4px; font-style:italic;"></small>
+        </div>
+    </div>
+
+    <!-- ZONA EXCLUSIVA PARA PADRES (CUD, RHC, PM) -->
+    <div id="seg-seccion-gestion" style="display:none;">
+        <div style="background:#eef6fc; padding:12px; border-radius:8px; margin-bottom:15px; border:1px solid #c9e1f5;">
+            <label style="font-size:12px; font-weight:bold; color:#2980b9;">⏰ Promesa de Turno (Alerta 48/72hs):</label>
+            <input type="date" id="seg-fecha-turno-padre" onchange="guardarFechaTurnoPadre()" style="width:100%; padding:6px; margin-top:5px; border:1px solid #b3d4f0; border-radius:4px;">
+            <div id="seg-alerta-turno" style="font-weight:bold; margin-top:6px; font-size:12px;"></div>
+        </div>
+
+        <h4 style="margin:0 0 8px 0; color:#34495e; font-size:14px;">💬 Bitácora Familiar</h4>
+        <div id="seg-lista-gestion" style="max-height:180px; overflow-y:auto; border:1px solid #ddd; padding:10px; border-radius:6px; background:#fff; margin-bottom:10px; font-size:12px;"></div>
+        
+        <div style="background:#f4f6f7; padding:12px; border-radius:8px; border:1px solid #bdc3c7;">
+            <input type="text" id="seg-nuevo-mensaje" placeholder="Ej: Me comuniqué con la madre, avisa que asiste el viernes..." style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; margin-bottom:8px; box-sizing:border-box;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <input type="file" id="seg-file-adjunto" style="font-size:11px; max-width:200px;">
+                <button class="btn" style="background:#27ae60; color:white; padding:8px 16px; font-weight:bold; border-radius:6px;" onclick="agregarNotaConAdjunto()">➕ Registrar</button>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn" onclick="cerrarModalSeguimiento()" style="background:#2c3e50; color:white; width:100%; margin-top:20px; padding:10px; border-radius:6px; font-weight:bold; letter-spacing:1px;">CERRAR VENTANA</button>
 </div>    
 <script>
     const firebaseConfig = { apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8", authDomain: "clinicaintegral-5c488.firebaseapp.com", databaseURL: "https://clinicaintegral-5c488-default-rtdb.firebaseio.com", projectId: "clinicaintegral-5c488", storageBucket: "clinicaintegral-5c488.firebasestorage.app", messagingSenderId: "184090967634", appId: "1:184090967634:web:09715937b33ea48288698b" };
@@ -974,6 +1052,280 @@ document.getElementById('dominguito-texto').addEventListener('keypress', (e) => 
         document.getElementById('dominguito-input-box').style.display = 'none';
     }
 });
+let legajoActualSeguimiento = null;
+const docsPadres = ['cudDoc', 'rhcF', 'pmF'];
+
+// --- 🚨 1. VERIFICACIÓN AUTOMÁTICA AL INICIAR EL PROGRAMA ---
+function verificarAlertasAlIniciar() {
+    setTimeout(() => {
+        const contenedorLista = document.getElementById('lista-alertas-inicio');
+        if (!contenedorLista) return;
+        contenedorLista.innerHTML = "";
+        
+        let totalCriticos = 0;
+        const auditDocs = [
+            { id: 'infMenF', n: 'Inf. Mensual' }, { id: 'infoF', n: 'Inf. Semanal' },
+            { id: 'iiieF', n: 'I.I / I.E' }, { id: 'planF', n: 'Plan Trabajo' },
+            { id: 'presuF', n: 'Presupuesto' }, { id: 'cudDoc', n: 'CUD' },
+            { id: 'rhcF', n: 'RHC' }, { id: 'pmF', n: 'P.M' }
+        ];
+
+        for (let cod in pacs) {
+            const p = pacs[cod];
+            if (!p) continue;
+
+            auditDocs.forEach(d => {
+                const ok = p[d.id] || p[d.id + '_link'] || (d.id === 'cudDoc' && p.cud);
+                if (ok && d.id !== 'cudDoc') return;
+
+                const baseDate = d.id === 'cudDoc' ? p.cud : p[d.id + '_limite'];
+                if (baseDate) {
+                    const dias = Math.floor((new Date(baseDate) - new Date()) / 86400000);
+                    if (dias <= 7) {
+                        totalCriticos++;
+                        const colorBorde = dias < 0 ? '#e74c3c' : '#e67e22';
+                        const textoEstado = dias < 0 ? `🔴 VENCIDO (Hace ${Math.abs(dias)} días)` : `🟠 CRÍTICO (Vence en ${dias} días)`;
+                        
+                        contenedorLista.innerHTML += `
+                            <div style="border-left:4px solid ${colorBorde}; padding:8px; margin-bottom:6px; background:#fff; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <b style="color:#2c3e50;">${p.nombre || cod}</b> - <span style="color:#555;">${d.n}</span><br>
+                                    <small style="color:${colorBorde}; font-weight:bold;">${textoEstado}</small>
+                                </div>
+                                <button class="btn" style="background:#2c3e50; color:white; padding:3px 8px; font-size:10px; border-radius:4px;" onclick="irAlLegajoDesdeAlerta('${cod}', '${d.id}', '${d.n}')">Resolver</button>
+                            </div>`;
+                    }
+                }
+            });
+        }
+
+        if (totalCriticos > 0) {
+            document.getElementById('modal-alerta-inicio').style.display = 'flex';
+        }
+    }, 1500);
+}
+
+function cerrarAlertaInicio() {
+    document.getElementById('modal-alerta-inicio').style.display = 'none';
+}
+
+function irAlLegajoDesdeAlerta(cod, idDoc, nombreDoc) {
+    cerrarAlertaInicio();
+    nF = cod;
+    abrirSeguimientoLegajo(idDoc, nombreDoc);
+}
+
+
+// --- 2. APERTURA Y CONTROL DEL MODAL INDIVIDUAL ---
+function abrirSeguimientoLegajo(idLegajo, nombreLegajo) {
+    legajoActualSeguimiento = idLegajo;
+    const p = pacs[nF] || {};
+    
+    document.getElementById('seg-titulo-legajo').innerText = `📋 Gestión: ${nombreLegajo} (${nF})`;
+    document.getElementById('seg-fecha-subida').innerText = p[idLegajo + '_timestamp'] ? new Date(p[idLegajo + '_timestamp']).toLocaleString() : "⚠️ Sin archivo";
+
+    const inputFecha = document.getElementById('seg-fecha-limite');
+    const infoFecha = document.getElementById('seg-info-fecha');
+    const seccionGestion = document.getElementById('seg-seccion-gestion');
+    const esDePadre = docsPadres.includes(idLegajo);
+
+    if (idLegajo === 'cudDoc') {
+        inputFecha.value = p.cud || "";
+        inputFecha.disabled = true;
+        infoFecha.innerText = "Vencimiento oficial (se modifica desde el legajo principal).";
+    } else {
+        inputFecha.value = p[idLegajo + '_limite'] || "";
+        inputFecha.disabled = false;
+        infoFecha.innerText = esDePadre ? "Fecha límite acordada con la familia." : "Fecha tope interna de entrega de la clínica.";
+    }
+
+    seccionGestion.style.display = esDePadre ? 'block' : 'none';
+
+    if (esDePadre) {
+        document.getElementById('seg-fecha-turno-padre').value = p[idLegajo + '_turno'] || "";
+        actualizarAlertaTurnoPadre(p[idLegajo + '_turno']);
+        renderHistorialGestion(p[idLegajo + '_gestion'] || []);
+    }
+
+    actualizarSemaforo(p, idLegajo);
+    document.getElementById('modal-seguimiento-legajo').style.display = 'block';
+    document.getElementById('overlay').style.display = 'block';
+}
+
+function cerrarModalSeguimiento() {
+    document.getElementById('modal-seguimiento-legajo').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+}
+
+
+// --- 3. CÁLCULO DE SEMÁFOROS (DÍAS RESTANTES) ---
+function actualizarSemaforo(p, idLegajo) {
+    const caja = document.getElementById('seg-semaforo-box');
+    const tieneArchivo = p[idLegajo] || p[idLegajo + '_link'] || (idLegajo === 'cudDoc' && p.cud);
+    
+    if (tieneArchivo && idLegajo !== 'cudDoc') {
+        caja.style.background = "#27ae60"; caja.innerText = "🟢 ARCHIVO OK";
+        return;
+    }
+
+    const fechaBase = (idLegajo === 'cudDoc') ? p.cud : p[idLegajo + '_limite'];
+    if (!fechaBase) {
+        caja.style.background = "#95a5a6"; caja.innerText = "⚪ SIN FECHA ASIGNADA";
+        return;
+    }
+
+    const dias = Math.floor((new Date(fechaBase) - new Date()) / 86400000);
+    if (dias < 0) {
+        caja.style.background = "#e74c3c"; caja.innerText = `🔴 VENCIDO (Hace ${Math.abs(dias)} días)`;
+    } else if (dias <= 7) {
+        caja.style.background = "#e67e22"; caja.innerText = `🟠 ATENCIÓN: Vence en ${dias} días`;
+    } else {
+        caja.style.background = "#3498db"; caja.innerText = `🔵 EN PLAZO (Faltan ${dias} días)`;
+    }
+}
+
+
+// --- 4. GESTIÓN DE FECHAS EN FIREBASE ---
+function guardarFechaLimiteGestion() {
+    if (!nF || legajoActualSeguimiento === 'cudDoc') return;
+    const v = document.getElementById('seg-fecha-limite').value;
+    database.child('pacientes').child(nF).update({ [legajoActualSeguimiento + '_limite']: v }).then(() => {
+        pacs[nF][legajoActualSeguimiento + '_limite'] = v;
+        actualizarSemaforo(pacs[nF], legajoActualSeguimiento);
+    });
+}
+
+function guardarFechaTurnoPadre() {
+    const v = document.getElementById('seg-fecha-turno-padre').value;
+    database.child('pacientes').child(nF).update({ [legajoActualSeguimiento + '_turno']: v }).then(() => {
+        pacs[nF][legajoActualSeguimiento + '_turno'] = v;
+        actualizarAlertaTurnoPadre(v);
+    });
+}
+
+
+// --- 5. ALERTA INTELIGENTE 48/72 HORAS ---
+function actualizarAlertaTurnoPadre(fecha) {
+    const lbl = document.getElementById('seg-alerta-turno');
+    if (!fecha) { lbl.innerText = ""; return; }
+    
+    const hs = (new Date(fecha + "T12:00:00") - new Date()) / 3600000;
+    if (hs < 0) {
+        lbl.style.color = "#c0392b"; lbl.innerText = "⚠️ EL TURNO YA PASÓ. ¡Auditar asistencia!";
+    } else if (hs <= 48) {
+        lbl.style.color = "#c0392b"; lbl.innerText = "🚨 ¡MENOS DE 48HS! Llamar o mandar WhatsApp urgente.";
+    } else if (hs <= 72) {
+        lbl.style.color = "#d35400"; lbl.innerText = "🔔 72HS: Preparar mensaje de recordatorio.";
+    } else {
+        lbl.style.color = "#27ae60"; lbl.innerText = `✅ Faltan ${Math.ceil(hs/24)} días para el turno.`;
+    }
+}
+
+
+// --- 6. BITÁCORA Y ADJUNTOS (WPP / ACTAS) ---
+async function agregarNotaConAdjunto() {
+    const txt = document.getElementById('seg-nuevo-mensaje').value.trim();
+    const file = document.getElementById('seg-file-adjunto').files[0];
+    if (!txt && !file) return alert("Ingresá un texto o adjuntá un archivo.");
+
+    const btn = event.target;
+    btn.innerText = "Subiendo..."; btn.disabled = true;
+
+    let url = file ? await subirACloudinary(file) : null;
+    let hist = pacs[nF][legajoActualSeguimiento + '_gestion'] || [];
+    
+    hist.push({ fecha: new Date().toLocaleString(), nota: txt || "Documento adjunto", adjunto: url });
+
+    database.child('pacientes').child(nF).update({ [legajoActualSeguimiento + '_gestion']: hist }).then(() => {
+        pacs[nF][legajoActualSeguimiento + '_gestion'] = hist;
+        renderHistorialGestion(hist);
+        document.getElementById('seg-nuevo-mensaje').value = "";
+        document.getElementById('seg-file-adjunto').value = "";
+        btn.innerText = "➕ Registrar"; btn.disabled = false;
+    });
+}
+
+function renderHistorialGestion(hist) {
+    const cont = document.getElementById('seg-lista-gestion');
+    cont.innerHTML = hist.length ? "" : "<span style='color:#7f8c8d;'>Sin registros previos.</span>";
+    hist.forEach(h => {
+        const link = h.adjunto ? `<a href="${h.adjunto}" target="_blank" style="background:#2980b9; color:white; padding:2px 8px; border-radius:4px; text-decoration:none; font-size:10px;">📄 VER ARCHIVO</a>` : "";
+        cont.innerHTML += `<div style="border-bottom:1px solid #ecf0f1; margin-bottom:8px; padding-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><b style="color:#2c3e50;">${h.fecha}</b> ${link}</div>
+            <div style="color:#34495e;">${h.nota}</div>
+        </div>`;
+    });
+}
+
+
+// --- 7. MOTOR DEL PANEL GENERAL ---
+function abrirPanelGeneralGestiones() {
+    const tbody = document.getElementById('body-tabla-panel-general');
+    tbody.innerHTML = "";
+    
+    const auditDocs = [
+        { id: 'infMenF', n: 'Inf. Mensual' }, { id: 'infoF', n: 'Inf. Semanal' },
+        { id: 'iiieF', n: 'I.I / I.E' }, { id: 'planF', n: 'Plan Trabajo' },
+        { id: 'presuF', n: 'Presupuesto' }, { id: 'cudDoc', n: 'CUD' },
+        { id: 'rhcF', n: 'RHC' }, { id: 'pmF', n: 'P.M' }
+    ];
+
+    for (let cod in pacs) {
+        const p = pacs[cod];
+        if (!p) continue;
+
+        auditDocs.forEach(d => {
+            const ok = p[d.id] || p[d.id + '_link'] || (d.id === 'cudDoc' && p.cud);
+            if (ok && d.id !== 'cudDoc') return;
+
+            const baseDate = d.id === 'cudDoc' ? p.cud : p[d.id + '_limite'];
+            let badge = "<span style='background:#95a5a6; color:white; padding:3px 8px; border-radius:4px;'>Pendiente</span>";
+            let txt = "Sin fecha límite cargada";
+            let fondoTr = "#ffffff";
+
+            if (baseDate) {
+                const dias = Math.floor((new Date(baseDate) - new Date()) / 86400000);
+                if (dias < 0) {
+                    badge = `<span style='background:#e74c3c; color:white; padding:3px 8px; border-radius:4px;'>🔴 VENCIDO</span>`;
+                    txt = `Hace ${Math.abs(dias)} días`;
+                    fondoTr = "#fadbd8";
+                } else if (dias <= 7) {
+                    badge = `<span style='background:#e67e22; color:white; padding:3px 8px; border-radius:4px;'>🟠 CRÍTICO</span>`;
+                    txt = `Vence en ${dias} días`;
+                    fondoTr = "#fdebd0";
+                } else {
+                    badge = `<span style='background:#3498db; color:white; padding:3px 8px; border-radius:4px;'>🔵 EN PLAZO</span>`;
+                    txt = `Vence en ${dias} días`;
+                }
+            }
+
+            tbody.innerHTML += `
+                <tr style="background:${fondoTr}; border-bottom:1px solid #ddd;">
+                    <td style="padding:10px; font-weight:bold; color:#2c3e50;">${p.nombre || cod}</td>
+                    <td style="padding:10px;">${d.n}</td>
+                    <td style="padding:10px;">${badge}</td>
+                    <td style="padding:10px; font-size:11px;">${txt}</td>
+                    <td style="padding:10px;">
+                        <button class="btn" style="background:#2c3e50; color:white; padding:4px 10px; border-radius:4px;" onclick="irAlLegajo('${cod}', '${d.id}', '${d.n}')">Gestionar</button>
+                    </td>
+                </tr>`;
+        });
+    }
+    
+    document.getElementById('modal-panel-general').style.display = 'block';
+    document.getElementById('overlay').style.display = 'block';
+}
+
+function cerrarPanelGeneral() {
+    document.getElementById('modal-panel-general').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+}
+
+function irAlLegajo(cod, idDoc, nombreDoc) {
+    cerrarPanelGeneral();
+    nF = cod;
+    abrirSeguimientoLegajo(idDoc, nombreDoc);
+}    
 </script>         
 </body>
 </html>
