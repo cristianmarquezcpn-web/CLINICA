@@ -1053,165 +1053,122 @@ document.getElementById('dominguito-texto').addEventListener('keypress', (e) => 
         document.getElementById('dominguito-input-box').style.display = 'none';
     }
 });
-// Variable global en memoria para que vuele de velocidad (evita consultar Firebase a cada rato)
 let cachePacientes = {};
 
-// 1. CARGAR DATOS EN MEMORIA Y VERIFICAR ALERTAS AL INICIAR
+const DOCUMENTOS_SISTEMA = [
+    { clave: 'infMenF', nombre: 'Informe Mensual' },
+    { clave: 'infoF', nombre: 'Informe Semanal' },
+    { clave: 'pmF', nombre: 'Plan Médico (P.M)' },
+    { clave: 'rhcF', nombre: 'RHC' },
+    { clave: 'confF', nombre: 'CONF' },
+    { clave: 'iiieF', nombre: 'I.I / I.E' },
+    { clave: 'planF', nombre: 'Plan de Trabajo' },
+    { clave: 'presuF', nombre: 'Presupuesto' },
+    { clave: 'fimDoc', nombre: 'FIM' },
+    { clave: 'cud', nombre: 'CUD' }
+];
+
+// 1. INICIALIZAR Y LANZAR ALERTAS AL ARRANCAR
 function inicializarSistemaGestion(pacsData) {
     cachePacientes = pacsData || {};
     verificarAlertasAlIniciar();
 }
 
-// 2. CARTEL DE ALERTA OBLIGATORIA AL INICIAR (Optimizado)
 function verificarAlertasAlIniciar() {
     let listaAlertas = document.getElementById('lista-alertas-inicio');
     if (!listaAlertas) return;
     
     listaAlertas.innerHTML = '';
-    let contadorVencidos = 0;
+    let contadorAlertas = 0;
     let hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    let arrayAlertasTemp = [];
 
     for (let id in cachePacientes) {
         let p = cachePacientes[id];
-        let docs = p.documentos || {}; // Suponiendo que tus documentos están aquí
-        
-        // Revisar CUD y autorizaciones de OS de ejemplo
-        let cudVence = p.cud || '';
-        if (cudVence) {
-            let fCud = new Date(cudVence);
-            let diffDias = Math.ceil((fCud - hoy) / (1000 * 60 * 60 * 24));
-            
-            if (diffDias <= 15) {
-                contadorVencidos++;
-                let colorBadge = diffDias < 0 ? '#e74c3c' : '#f39c12'; // Rojo vencido, Naranja por vencer
-                let textoEstado = diffDias < 0 ? '🔴 VENCIDO' : '🟠 POR VENCER';
-                
-                listaAlertas.innerHTML += `
-                    <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #eee; background:white; margin-bottom:4px; border-radius:4px;">
-                        <div><b>${p.nombre || 'Sin Nombre'}</b> (DNI: ${p.dni || 'S/D'})<br><small style="color:#666">CUD Vence: ${cudVence}</small></div>
-                        <div><span style="background:${colorBadge}; color:white; padding:3px 8px; border-radius:4px; font-size:10px; font-weight:bold;">${textoEstado} (${diffDias} días)</span>
-                        <button class="btn" style="background:#2c3e50; font-size:10px; padding:4px 8px; margin-left:5px;" onclick="abrirSeguimientoLegajo('${id}', 'CUD')">Gestionar</button></div>
-                    </div>`;
+        let nombre = p.nombre || 'Sin Nombre';
+        let dni = p.dni || 'S/D';
+
+        DOCUMENTOS_SISTEMA.forEach(doc => {
+            let fechaVenc = p[doc.clave];
+            if (fechaVenc) {
+                let fVenc = new Date(fechaVenc);
+                fVenc.setHours(0, 0, 0, 0);
+                let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
+
+                // Margen de 15 días hacia atrás (vencidos) y hacia adelante (por vencer)
+                if (diffDias <= 15) {
+                    arrayAlertasTemp.push({
+                        id: id,
+                        nombre: nombre,
+                        dni: dni,
+                        tipoDoc: doc.nombre,
+                        claveDoc: doc.clave,
+                        fecha: fechaVenc,
+                        diff: diffDias
+                    });
+                }
             }
+        });
+    }
+
+    arrayAlertasTemp.sort((a, b) => a.diff - b.diff);
+
+    arrayAlertasTemp.forEach(alerta => {
+        contadorAlertas++;
+        let colorBadge, textoEstado;
+
+        if (alerta.diff < 0) {
+            let diasVencido = Math.abs(alerta.diff);
+            colorBadge = '#e74c3c';
+            textoEstado = `🔴 VENCIDO hace ${diasVencido} ${diasVencido === 1 ? 'día' : 'días'}`;
+        } else if (alerta.diff === 0) {
+            colorBadge = '#e67e22';
+            textoEstado = `🟠 ¡VENCE HOY!`;
+        } else {
+            colorBadge = '#f39c12';
+            textoEstado = `🟠 Faltan ${alerta.diff} ${alerta.diff === 1 ? 'día' : 'días'}`;
         }
-    }
 
-    if (contadorVencidos > 0) {
-        document.getElementById('modal-alerta-inicio').style.display = 'flex';
-    }
-}
-
-function cerrarAlertaInicio() {
-    document.getElementById('modal-alerta-inicio').style.display = 'none';
-}
-function cerrarPanelGeneral() {
-    document.getElementById('modal-panel-general').style.display = 'none';
-}
-
-// 4. VENTANA DE GESTIÓN INDIVIDUAL CON BOTÓN PARA SUBIR PDF DIRECTO
-let pacienteActualId = null;
-
-function abrirSeguimientoLegajo(idPaciente, tipoDoc) {
-    pacienteActualId = idPaciente;
-    let p = cachePacientes[idPaciente];
-    if (!p) return;
-
-    document.getElementById('seg-titulo-legajo').innerText = `📋 Gestión: ${p.nombre || 'Paciente'} (${tipoDoc})`;
-    document.getElementById('seg-fecha-limite').value = p.cud || '';
-    
-    // Mostrar sección familiar y bitácora
-    document.getElementById('seg-seccion-gestion').style.display = 'block';
-    
-    // Simular estado de semáforo visual en el modal
-    let box = document.getElementById('seg-semaforo-box');
-    box.style.background = '#27ae60';
-    box.innerText = 'ESTADO: DOCUMENTACIÓN EN ORDEN';
-
-    // Cargar bitácora existente si la hubiera
-    renderBitacora(p.bitacora || []);
-
-    document.getElementById('modal-seguimiento-legajo').style.display = 'block';
-}
-
-function cerrarModalSeguimiento() {
-    document.getElementById('modal-seguimiento-legajo').style.display = 'none';
-}
-
-// 5. BITÁCORA Y ADJUNTO DE PDF INFINITO
-function agregarNotaConAdjunto() {
-    let texto = document.getElementById('seg-nuevo-mensaje').value;
-    let fileInput = document.getElementById('seg-file-adjunto');
-    
-    if (!texto && fileInput.files.length === 0) {
-        alert("Escribí una nota o adjuntá un archivo.");
-        return;
-    }
-
-    let fechaHora = new Date().toLocaleString();
-    let nombreArchivo = fileInput.files.length > 0 ? fileInput.files[0].name : 'Sin archivo';
-
-    // Estructura de la nota para guardar en Firebase o memoria
-    let nuevaNota = {
-        fecha: fechaHora,
-        mensaje: texto,
-        archivo: nombreArchivo
-    };
-
-    if (!cachePacientes[pacienteActualId].bitacora) {
-        cachePacientes[pacienteActualId].bitacora = [];
-    }
-    
-    cachePacientes[pacienteActualId].bitacora.push(nuevaNota);
-    
-    // Aquí actualizás tu base de datos Firebase:
-    // database.child('pacientes/' + pacienteActualId).update({ bitacora: cachePacientes[pacienteActualId].bitacora });
-
-    renderBitacora(cachePacientes[pacienteActualId].bitacora);
-    document.getElementById('seg-nuevo-mensaje').value = '';
-    fileInput.value = '';
-    alert("¡Nota y adjunto registrados correctamente en la bitácora!");
-}
-
-function renderBitacora(bitacoraArray) {
-    let contenedor = document.getElementById('seg-lista-gestion');
-    contenedor.innerHTML = '';
-    
-    if (bitacoraArray.length === 0) {
-        contenedor.innerHTML = '<i style="color:#999">No hay registros previos en la bitácora familiar.</i>';
-        return;
-    }
-
-    bitacoraArray.forEach(item => {
-        contenedor.innerHTML += `
-            <div style="background:#f1f2f6; padding:8px; border-radius:6px; margin-bottom:6px; border-left:3px solid #2980b9;">
-                <small style="color:#7f8c8d; font-weight:bold;">${item.fecha}</small>
-                <p style="margin:4px 0; color:#2c3e50;">${item.mensaje}</p>
-                <small style="color:#27ae60;">📁 Archivo/PDF: ${item.archivo}</small>
+        listaAlertas.innerHTML += `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #eee; background:white; margin-bottom:4px; border-radius:4px; border-left: 4px solid ${colorBadge};">
+                <div>
+                    <b>${alerta.nombre}</b> (DNI: ${alerta.dni})<br>
+                    <small style="color:#666">📄 <b>${alerta.tipoDoc}</b> - Vence el: ${alerta.fecha}</small>
+                </div>
+                <div style="text-align:right;">
+                    <span style="background:${colorBadge}; color:white; padding:3px 8px; border-radius:4px; font-size:10px; font-weight:bold; display:inline-block; margin-bottom:4px;">${textoEstado}</span><br>
+                    <button class="btn" style="background:#2c3e50; color:white; font-size:10px; padding:4px 8px; border:none; border-radius:3px; cursor:pointer;" onclick="abrirLegajoCompletoPaciente('${alerta.id}')">Ver Legajo</button>
+                </div>
             </div>`;
     });
+
+    let modalAlerta = document.getElementById('modal-alerta-inicio');
+    if (modalAlerta && contadorAlertas > 0) modalAlerta.style.display = 'flex';
 }
-/* ==========================================================
-   3. PANEL GENERAL UNIFICADO CON ASIGNACIÓN MASIVA INTEGRADA
-   ========================================================== */
+
+// 2. PANEL GENERAL CON ASIGNACIÓN MASIVA DE LOS 10 DOCUMENTOS
 function abrirPanelGeneralGestiones() {
     let modal = document.getElementById('modal-panel-general');
     if (!modal) return;
 
-    // Inyectamos la barra masiva arriba de la tabla si no existe todavía
+    let opcionesHtml = '';
+    DOCUMENTOS_SISTEMA.forEach(doc => {
+        opcionesHtml += `<option value="${doc.clave}">${doc.nombre}</option>`;
+    });
+
     let barraMasivaHtml = document.getElementById('barra-masiva-interna');
     if (!barraMasivaHtml) {
         let htmlMasivo = `
             <div id="barra-masiva-interna" style="background:#f8f9fa; padding:12px; border-radius:8px; border:1px solid #e9ecef; margin-bottom:15px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                <span style="font-size:12px; font-weight:bold; color:#2c3e50;">⚡ Aplicar fecha general a todos:</span>
+                <span style="font-size:12px; font-weight:bold; color:#2c3e50;">⚡ Aplicar fecha a todos:</span>
                 <select id="masivo-tipo-doc" style="padding:5px; border:1px solid #ccc; border-radius:4px; font-size:11px;">
-                    <option value="rhc">RHC (General)</option>
-                    <option value="pm">Plan Médico (General)</option>
-                    <option value="cud">CUD (General)</option>
+                    ${opcionesHtml}
                 </select>
                 <input type="date" id="masivo-fecha-input" style="padding:4px; border:1px solid #ccc; border-radius:4px; font-size:11px;">
-                <button class="btn" onclick="ejecutarAsignacionMasivaInterna()" style="background:#27ae60; color:white; padding:5px 12px; font-size:11px; font-weight:bold; border-radius:4px;">Aplicar a los 250</button>
+                <button class="btn" onclick="ejecutarAsignacionMasivaInterna()" style="background:#27ae60; color:white; padding:5px 12px; font-size:11px; font-weight:bold; border-radius:4px;">Aplicar Masivo</button>
             </div>`;
-        
         let headerModal = modal.querySelector('div');
         if (headerModal) headerModal.insertAdjacentHTML('afterend', htmlMasivo);
     }
@@ -1220,31 +1177,14 @@ function abrirPanelGeneralGestiones() {
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    let hoy = new Date();
-
     for (let id in cachePacientes) {
         let p = cachePacientes[id];
-        let nombre = p.nombre || 'Paciente sin nombre';
-        let dni = p.dni || 'S/D';
-        let cud = p.cud || 'Sin fecha';
-        
-        // Calcular estado general del CUD para el semáforo rápido
-        let badgeColor = '#27ae60'; // Verde por defecto
-        let badgeText = '🟢 AL DÍA';
-        if (cud !== 'Sin fecha') {
-            let diff = Math.ceil((new Date(cud) - hoy) / (1000 * 60 * 60 * 24));
-            if (diff < 0) { badgeColor = '#e74c3c'; badgeText = '🔴 VENCIDO'; }
-            else if (diff <= 15) { badgeColor = '#f39c12'; badgeText = '🟠 POR VENCER'; }
-        }
-
         tbody.innerHTML += `
             <tr style="border-bottom:1px solid #ddd; background:#fff;">
-                <td style="padding:10px; font-weight:bold; color:#2c3e50;">${nombre}</td>
-                <td style="padding:10px; color:#555;">DNI: ${dni}</td>
-                <td style="padding:10px;"><span style="background:${badgeColor}; color:white; padding:4px 8px; border-radius:4px; font-size:10px; font-weight:bold;">${badgeText}</span></td>
-                <td style="padding:10px; font-size:11px;"><b>CUD:</b> ${cud}</td>
+                <td style="padding:10px; font-weight:bold; color:#2c3e50;">${p.nombre || 'Sin Nombre'}</td>
+                <td style="padding:10px; color:#555;">DNI: ${p.dni || 'S/D'}</td>
                 <td style="padding:10px;">
-                    <button class="btn" style="background:#2980b9; color:white; padding:5px 10px; border-radius:4px; font-size:11px;" onclick="abrirSeguimientoLegajo('${id}', 'CUD')">📋 Gestionar / PDF</button>
+                    <button class="btn" style="background:#2980b9; color:white; padding:5px 10px; border-radius:4px; font-size:11px;" onclick="abrirLegajoCompletoPaciente('${id}')">📂 Ver Ficha / 10 Docs</button>
                 </td>
             </tr>`;
     }
@@ -1252,33 +1192,115 @@ function abrirPanelGeneralGestiones() {
     modal.style.display = 'block';
 }
 
-function cerrarPanelGeneral() {
-    document.getElementById('modal-panel-general').style.display = 'none';
-}
-
-// Función que ejecuta la asignación masiva desde adentro del panel
 function ejecutarAsignacionMasivaInterna() {
     let tipoDoc = document.getElementById('masivo-tipo-doc').value;
     let nuevaFecha = document.getElementById('masivo-fecha-input').value;
+    if (!nuevaFecha) { alert("Elegí una fecha."); return; }
 
-    if (!nuevaFecha) {
-        alert("Por favor, elegí una fecha.");
-        return;
-    }
-
-    if (!confirm(`¿Estás seguro de aplicar la fecha ${nuevaFecha} a todos los pacientes para "${tipoDoc.toUpperCase()}"?`)) {
-        return;
-    }
+    let docObj = DOCUMENTOS_SISTEMA.find(d => d.clave === tipoDoc);
+    if (!confirm(`¿Aplicar ${nuevaFecha} a todos los pacientes en ${docObj.nombre}?`)) return;
 
     for (let id in cachePacientes) {
         cachePacientes[id][tipoDoc] = nuevaFecha;
-        // Si usas Firebase, descomentá la siguiente línea:
-        // database.child('pacientes/' + id).update({ [tipoDoc]: nuevaFecha });
+    }
+    alert("¡Aplicado a todos correctamente!");
+    abrirPanelGeneralGestiones();
+}
+
+// 3. LA FICHA INDIVIDUAL (Acá ves los 10 documentos, cuánto falta y la cronología de archivos)
+function abrirLegajoCompletoPaciente(idPaciente) {
+    let p = cachePacientes[idPaciente];
+    if (!p) return;
+
+    let modalLegajo = document.getElementById('modal-legajo-completo');
+    if (!modalLegajo) {
+        let div = document.createElement('div');
+        div.id = 'modal-legajo-completo';
+        div.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:center;';
+        div.innerHTML = `
+            <div style="background:white; width:85%; max-height:90vh; border-radius:8px; padding:20px; overflow-y:auto; box-shadow:0 4px 15px rgba(0,0,0,0.3);">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #eee; padding-bottom:10px; margin-bottom:15px;">
+                    <h2 id="legajo-titulo-nombre" style="margin:0; color:#2c3e50; font-size:18px;"></h2>
+                    <button onclick="document.getElementById('modal-legajo-completo').style.display='none'" style="background:#e74c3c; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">X CERRAR</button>
+                </div>
+                <div id="legajo-contenido-detalle"></div>
+            </div>`;
+        document.body.appendChild(div);
+        modalLegajo = div;
     }
 
-    alert("¡Listo! Fecha aplicada masivamente a todos los legajos.");
-    abrirPanelGeneralGestiones(); // Refresca la tabla
-}    
+    document.getElementById('legajo-titulo-nombre').innerText = `📂 Legajo: ${p.nombre || 'Sin Nombre'} (DNI: ${p.dni || 'S/D'})`;
+    let contenedorDetalle = document.getElementById('legajo-contenido-detalle');
+    
+    let hoy = new Date();
+    hoy.setHours(0,0,0,0);
+
+    let htmlTabla = `
+        <h4 style="margin-bottom:8px; color:#34495e;">📋 Control de los 10 Documentos y Vencimientos:</h4>
+        <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px;">
+            <thead>
+                <tr style="background:#f8f9fa; border-bottom:2px solid #ddd; text-align:left;">
+                    <th style="padding:8px;">Documento</th>
+                    <th style="padding:8px;">Fecha de Vencimiento</th>
+                    <th style="padding:8px;">Estado / Tiempo Restante</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+    DOCUMENTOS_SISTEMA.forEach(doc => {
+        let fechaDoc = p[doc.clave] || '';
+        let estadoBadge = '<span style="background:#95a5a6; color:white; padding:3px 6px; border-radius:3px; font-size:10px;">SIN FECHA</span>';
+        
+        if (fechaDoc) {
+            let fVenc = new Date(fechaDoc);
+            fVenc.setHours(0,0,0,0);
+            let diff = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
+
+            if (diff < 0) {
+                estadoBadge = `<span style="background:#e74c3c; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🔴 VENCIDO hace ${Math.abs(diff)} días</span>`;
+            } else if (diff === 0) {
+                estadoBadge = `<span style="background:#e67e22; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟠 ¡VENCE HOY!</span>`;
+            } else if (diff <= 15) {
+                estadoBadge = `<span style="background:#f39c12; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟠 Faltan ${diff} días</span>`;
+            } else {
+                estadoBadge = `<span style="background:#27ae60; color:white; padding:3px 6px; border-radius:3px; font-size:10px;">🟢 Al día (Faltan ${diff} días)</span>`;
+            }
+        }
+
+        htmlTabla += `
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:8px; font-weight:bold; color:#2c3e50;">${doc.nombre}</td>
+                <td style="padding:8px;">
+                    <input type="date" value="${fechaDoc}" onchange="cachePacientes['${idPaciente}']['${doc.clave}'] = this.value; alert('Fecha actualizada');" style="padding:3px; border:1px solid #ccc; border-radius:3px; font-size:11px;">
+                </td>
+                <td style="padding:8px;">${estadoBadge}</td>
+            </tr>`;
+    });
+    htmlTabla += `</tbody></table>`;
+
+    // Cronología de la bitácora con fecha y hora de subida
+    let bitacoraArray = p.bitacora || [];
+    let htmlBitacora = `
+        <h4 style="margin-bottom:8px; color:#34495e;">💬 Cronología de Notas y PDFs Adjuntos:</h4>
+        <div style="background:#fdfefe; border:1px solid #e2e8f0; border-radius:6px; padding:10px; max-height:200px; overflow-y:auto;">`;
+
+    if (bitacoraArray.length === 0) {
+        htmlBitacora += `<i style="color:#999; font-size:11px;">No hay registros previos en la bitácora de este paciente.</i>`;
+    } else {
+        bitacoraArray.forEach(item => {
+            htmlBitacora += `
+                <div style="background:#f1f2f6; padding:8px; border-radius:4px; margin-bottom:6px; border-left:3px solid #2980b9; font-size:11px;">
+                    <div style="color:#7f8c8d; font-weight:bold; margin-bottom:2px;">📅 Subido el: ${item.fecha}</div>
+                    <p style="margin:2px 0; color:#2c3e50;">${item.mensaje || 'Sin texto'}</p>
+                    <span style="color:#27ae60; font-weight:bold;">📁 Archivo: ${item.archivo || 'Ninguno'}</span>
+                </div>`;
+        });
+    }
+    htmlBitacora += `</div>`;
+
+    contenedorDetalle.innerHTML = htmlTabla + htmlBitacora;
+    modalLegajo.style.display = 'flex';
+} 
 </script>         
 </body>
 </html>
