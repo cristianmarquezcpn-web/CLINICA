@@ -1369,156 +1369,164 @@ function ejecutarAsignacionMasivaInterna() {
         abrirPanelGeneralGestiones();
     });
 }
-
 function abrirLegajoCompletoPaciente(idPaciente) {
-    let p = pacs[idPaciente];
-    if (!p) return;
+    let p = pacs[idPaciente];
+    if (!p) return;
 
-    let modalLegajo = document.getElementById('modal-legajo-completo');
-    if (!modalLegajo) {
-        let div = document.createElement('div');
-        div.id = 'modal-legajo-completo';
-        div.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;';
-        div.innerHTML = `
-            <div style="background:white; width:92%; max-width:1050px; max-height:92vh; border-radius:8px; padding:20px; overflow-y:auto; box-shadow:0 4px 25px rgba(231,76,60,0.4); border: 2px solid #e74c3c;">
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #e74c3c; padding-bottom:10px; margin-bottom:15px; background:#fdf2f2; padding:10px; border-radius:6px;">
-                    <h2 id="legajo-titulo-nombre" style="margin:0; color:#c0392b; font-size:18px; font-weight:bold;"></h2>
-                    <button onclick="document.getElementById('modal-legajo-completo').style.display='none'; document.getElementById('sirena-emergencia-global').style.display='none';" style="background:#c0392b; color:white; border:none; padding:6px 14px; border-radius:4px; cursor:pointer; font-weight:bold;">✖ CERRAR EXPEDIENTE</button>
-                </div>
-                <div id="legajo-contenido-detalle"></div>
-            </div>`;
-        document.body.appendChild(div);
-        modalLegajo = div;
-    }
+    let modalLegajo = document.getElementById('modal-legajo-completo');
+    if (!modalLegajo) {
+        let div = document.createElement('div');
+        div.id = 'modal-legajo-completo';
+        div.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;';
+        div.innerHTML = `
+            <div style="background:white; width:92%; max-width:1050px; max-height:92vh; border-radius:8px; padding:20px; overflow-y:auto; box-shadow:0 4px 25px rgba(231,76,60,0.4); border: 2px solid #e74c3c;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #e74c3c; padding-bottom:10px; margin-bottom:15px; background:#fdf2f2; padding:10px; border-radius:6px;">
+                    <h2 id="legajo-titulo-nombre" style="margin:0; color:#c0392b; font-size:18px; font-weight:bold;"></h2>
+                    <button onclick="document.getElementById('modal-legajo-completo').style.display='none'; document.getElementById('efecto-sirena-global').style.display='none';" style="background:#c0392b; color:white; border:none; padding:6px 14px; border-radius:4px; cursor:pointer; font-weight:bold;">✖ CERRAR EXPEDIENTE</button>
+                </div>
+                <div id="legajo-contenido-detalle"></div>
+            </div>`;
+        document.body.appendChild(div);
+        modalLegajo = div;
+    }
 
-    // Activamos efecto sirena visual de presión en todo el sistema mientras revisa un legajo crítico
-    let sirena = inyectarEfectoSirena();
-    sirena.style.display = 'block';
+    // Evaluamos si este paciente específico tiene alguna alerta crítica real para decidir si encendemos la sirena general del legajo
+    let hoy = new Date();
+    hoy.setHours(0,0,0,0);
+    let tieneAlertaCriticaEnLegajo = false;
 
-    document.getElementById('legajo-titulo-nombre').innerText = `📂 EXPEDIENTE TAD / LEGAJO CRÍTICO: ${idPaciente} (DNI: ${p.dni || 'S/D'})`;
-    let contenedorDetalle = document.getElementById('legajo-contenido-detalle');
-    let hoy = new Date();
-    hoy.setHours(0,0,0,0);
+    DOCUMENTOS_SISTEMA.forEach(doc => {
+        let docData = p[doc.clave];
+        let tieneArchivo = documentoTieneArchivoSubido(docData, p, doc.clave);
+        let fechaPlana = p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http') ? p[doc.clave] : null;
+        
+        if (!tieneArchivo) {
+            if (!fechaPlana) {
+                tieneAlertaCriticaEnLegajo = true;
+            } else {
+                let fVenc = new Date(fechaPlana);
+                if (!isNaN(fVenc) && fVenc < hoy) tieneAlertaCriticaEnLegajo = true;
+            }
+        }
+    });
 
-    // --- BITÁCORA TAD: ÚLTIMAS 5 MODIFICACIONES Y TTRAZABILIDAD DE SECRETARÍA ---
-    let historialModificaciones = p.historialModificaciones || [];
-    // Si no existe el array pero hay una ultimaModificacion suelta, la normalizamos para la bitácora
-    if (historialModificaciones.length === 0 && p.ultimaModificacion) {
-        historialModificaciones = [p.ultimaModificacion];
-    }
-    // Tomamos estrictamente las últimas 5
-    let ultimasCinco = historialModificaciones.slice(-5).reverse();
+    let sirena = inyectarEfectoSirena();
+    sirena.style.display = tieneAlertaCriticaEnLegajo ? 'block' : 'none';
 
-    let htmlBitacoraTad = `
-        <div style="background:#1e293b; color:#f8fafc; border:1px solid #334155; padding:12px; border-radius:6px; margin-bottom:20px; font-size:11px;">
-            <h3 style="margin:0 0 8px 0; color:#38bdf8; font-size:12px; text-transform:uppercase; letter-spacing:1px;">📋 Bitácora TAD (Trazabilidad de Gestiones y Contactos Secretaría - Últimas 5 Acciones)</h3>
-            <div style="display:flex; flex-direction:column; gap:4px;">`;
-    
-    if (ultimasCinco.length === 0) {
-        htmlBitacoraTad += `<div style="color:#f87171; font-weight:bold;">⚠️ NO HAY REGISTROS DE AUDITORÍA NI CONTACTOS CARGADOS EN ESTE EXPEDIENTE.</div>`;
-    } else {
-        ultimasCinco.forEach((mod, idx) => {
-            let fechaFmt = mod.fecha ? mod.fecha.replace('T', ' ').substring(0,19) : 'Fecha s/d';
-            htmlBitacoraTad += `
-                <div style="background:#0f172a; padding:6px 10px; border-radius:4px; border-left:3px solid #38bdf8; display:flex; justify-content:space-between; align-items:center;">
-                    <span><b>#${idx+1} [${fechaFmt}]</b> - <em>${mod.accion || 'Gestión registrada'}</em></span>
-                    <span style="color:#94a3b8; background:#1e293b; padding:2px 6px; border-radius:3px;">👤 ${mod.usuario || 'Secretaría'}</span>
-                </div>`;
-        });
-    }
-    htmlBitacoraTad += `</div></div>`;
+    document.getElementById('legajo-titulo-nombre').innerText = `📂 EXPEDIENTE TAD / LEGAJO CRÍTICO: ${idPaciente} (DNI: ${p.dni || 'S/D'})`;
+    let contenedorDetalle = document.getElementById('legajo-contenido-detalle');
 
-    let htmlTabla = `
-        ${htmlBitacoraTad}
-        <h4 style="margin-bottom:8px; color:#c0392b; font-weight:bold;">⚡ CONTROL DOCUMENTAL OBLIGATORIO Y EXIGENCIA DE ACTAS DE CONTACTO:</h4>
-        <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px;">
-            <thead>
-                <tr style="background:#fee2e2; border-bottom:2px solid #ef4444; text-align:left; color:#991b1b;">
-                    <th style="padding:8px; width:22%;">Documento / Plazo</th>
-                    <th style="padding:8px; width:38%;">Actas de Contacto con Padre & Reloj Violento</th>
-                    <th style="padding:8px; width:40%;">Workflow Obligatorio & Sanción Secretaría</th>
-                </tr>
-            </thead>
-            <tbody>`;
+    // --- BITÁCORA TAD ---
+    let historialModificaciones = p.historialModificaciones || [];
+    if (historialModificaciones.length === 0 && p.ultimaModificacion) {
+        historialModificaciones = [p.ultimaModificacion];
+    }
+    let ultimasCinco = historialModificaciones.slice(-5).reverse();
 
-    DOCUMENTOS_SISTEMA.forEach(doc => {
-        let docData = p[doc.clave];
-        let tieneArchivo = documentoTieneArchivoSubido(docData, p, doc.clave);
-        let listaActas = Array.isArray(docData) ? docData : (docData ? [docData] : []);
+    let htmlBitacoraTad = `
+        <div style="background:#1e293b; color:#f8fafc; border:1px solid #334155; padding:12px; border-radius:6px; margin-bottom:20px; font-size:11px;">
+            <h3 style="margin:0 0 8px 0; color:#38bdf8; font-size:12px; text-transform:uppercase; letter-spacing:1px;">📋 Bitácora TAD (Trazabilidad de Gestiones y Contactos Secretaría)</h3>
+            <div style="display:flex; flex-direction:column; gap:4px;">`;
+    
+    if (ultimasCinco.length === 0) {
+        htmlBitacoraTad += `<div style="color:#f87171; font-weight:bold;">⚠️ NO HAY REGISTROS DE AUDITORÍA CARGADOS EN ESTE EXPEDIENTE.</div>`;
+    } else {
+        ultimasCinco.forEach((mod, idx) => {
+            let fechaFmt = mod.fecha ? mod.fecha.replace('T', ' ').substring(0,19) : 'Fecha s/d';
+            htmlBitacoraTad += `
+                <div style="background:#0f172a; padding:6px 10px; border-radius:4px; border-left:3px solid #38bdf8; display:flex; justify-content:space-between; align-items:center;">
+                    <span><b>#${idx+1} [${fechaFmt}]</b> - <em>${mod.accion || 'Gestión registrada'}</em></span>
+                    <span style="color:#94a3b8; background:#1e293b; padding:2px 6px; border-radius:3px;">👤 ${mod.usuario || 'Secretaría'}</span>
+                </div>`;
+        });
+    }
+    htmlBitacoraTad += `</div></div>`;
 
-        if (listaActas.length === 0 && p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http')) {
-            listaActas = [{ fecha: p[doc.clave], descripcion: 'Fecha de registro principal (Sin acta formal)', archivo: '' }];
-        }
-        
-        let estadoActual = tieneArchivo ? 'Documento Subido' : (p[doc.clave + '_estado'] || 'Pendiente Padre');
-        let htmlActasInternas = '';
+    let htmlTabla = `
+        ${htmlBitacoraTad}
+        <h4 style="margin-bottom:8px; color:#c0392b; font-weight:bold;">⚡ CONTROL DOCUMENTAL OBLIGATORIO Y EXIGENCIA DE ACTAS DE CONTACTO:</h4>
+        <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px;">
+            <thead>
+                <tr style="background:#fee2e2; border-bottom:2px solid #ef4444; text-align:left; color:#991b1b;">
+                    <th style="padding:8px; width:22%;">Documento / Plazo</th>
+                    <th style="padding:8px; width:38%;">Estado y Vigencia en Legajo</th>
+                    <th style="padding:8px; width:40%;">Workflow Obligatorio & Sanción Secretaría</th>
+                </tr>
+            </thead>
+            <tbody>`;
 
-        if (listaActas.length === 0 && !tieneArchivo) {
-            htmlActasInternas = `<div style="background:#7f1d1d; color:#fff; padding:8px; border-radius:4px; font-weight:bold; font-size:11px; text-align:center; animation: parpadeoSirena 0.8s infinite alternate;">🚨 EXIGENCIA TAD: FALTA ACTA DE CONTACTO Y ARCHIVO OBLIGATORIO</div>`;
-        } else {
-            listaActas.forEach((acta, index) => {
-                let badgeArchivo = (acta.archivo && acta.archivo.startsWith('http')) ? 
-                    `<span style="color:#16a34a; font-weight:bold; background:#dcfce7; padding:2px 6px; border-radius:3px;">🟢 Archivo Subido OK</span>` : 
-                    `<span style="color:#dc2626; font-weight:bold; background:#fee2e2; padding:2px 6px; border-radius:3px; animation: parpadeoSirena 1s infinite;">🚨 FALTA SUBIR COMPROBANTE O ACTA FIRMADA</span>`;
+    DOCUMENTOS_SISTEMA.forEach(doc => {
+        let docData = p[doc.clave];
+        let tieneArchivo = documentoTieneArchivoSubido(docData, p, doc.clave);
+        
+        // Capturar fecha plana directa de firebase (ej: p.cud = "2028-07-01") o dentro de arrays
+        let fechaPlanaDirecta = p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http') ? p[doc.clave] : null;
+        let listaActas = Array.isArray(docData) ? docData : (docData && typeof docData === 'object' && docData.fecha ? [docData] : []);
 
-                let relojViolentoId = `reloj_violento_${idPaciente}_${doc.clave}_${index}`;
-                let fechaVencEval = acta.fecha || null;
+        let htmlActasInternas = '';
 
-                htmlActasInternas += `
-                    <div style="background:#fff5f5; border:1px solid #feb2b2; padding:8px; border-radius:6px; margin-bottom:6px; font-size:11px;">
-                        <div>
-                            <b>Acta de Contacto #${index + 1}</b> - <em>${acta.descripcion || 'Gestión con padre'}</em><br>
-                            Fecha límite límite estipulada: <input type="date" value="${acta.fecha || ''}" onchange="actualizarFechaActaItem('${idPaciente}', '${doc.clave}', ${index}, this.value)" style="padding:2px; font-size:10px; border:1px solid #e02424; border-radius:3px; margin-top:3px; background:#fff;">
-                            <div id="${relojViolentoId}" style="margin-top:6px; padding:6px; border-radius:4px; background:#7f1d1d; color:white; font-weight:bold; text-align:center;">Cargando reloj violento...</div>
-                            <div style="margin-top:6px;">${badgeArchivo}</div>
-                        </div>
-                        <div style="text-align:right; margin-top:4px;">
-                            <button onclick="eliminarActaDeItem('${idPaciente}', '${doc.clave}', ${index})" style="background:#991b1b; color:white; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-size:10px; font-weight:bold;">🗑️ Borrar Acta</button>
-                        </div>
-                    </div>`;
+        // SI YA TIENE ARCHIVO SUBIDO O CUMPLE CON FECHA VIGENTE, MOSTRAR ESTADO VERDE OK (Sin falsas alarmas de vencimiento)
+        if (tieneArchivo) {
+            let infoFecha = fechaPlanaDirecta ? `Vencimiento oficial: ${fechaPlanaDirecta}` : 'Archivo digital verificado';
+            htmlActasInternas = `
+                <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px; border-radius:6px; font-size:11px;">
+                    <span style="color:#16a34a; font-weight:bold; background:#dcfce7; padding:3px 8px; border-radius:3px;">🟢 DOCUMENTO AL DÍA / ARCHIVO OK</span>
+                    <div style="margin-top:6px; color:#166534; font-weight:bold;">📄 ${infoFecha}</div>
+                </div>`;
+        } else if (!fechaPlanaDirecta && listaActas.length === 0) {
+            // NO HAY ARCHIVO NI FECHA CARGADA -> ALERTA ROJA REAL
+            htmlActasInternas = `<div style="background:#7f1d1d; color:#fff; padding:8px; border-radius:4px; font-weight:bold; font-size:11px; text-align:center;">🚨 FALTA CARGAR Y SUBIR ${doc.nombre.toUpperCase()}</div>`;
+        } else {
+            // HAY FECHA PLANIFICADA O VENCIMIENTO A EVALUAR SIN ARCHIVO
+            let fechaEvaluar = fechaPlanaDirecta || (listaActas[0] ? listaActas[0].fecha : null);
+            let fVenc = fechaEvaluar ? new Date(fechaEvaluar) : null;
+            if (fVenc) fVenc.setHours(0,0,0,0);
 
-                // Disparamos el reloj con segundos en tiempo real tras renderizar
-                if (fechaVencEval) {
-                    // Calculamos 23:59:59 del día de vencimiento para el conteo hiperpreciso
-                    setTimeout(() => {
-                        iniciarRelojViolentoPresion(relojViolentoId, fechaVencEval + 'T23:59:59');
-                    }, 100);
-                }
-            });
-        }
+            let estaVencido = fVenc && fVenc < hoy;
+            let estiloFondo = estaVencido ? '#fef2f2' : '#fefce8';
+            let estiloBorde = estaVencido ? '#f87171' : '#facc15';
+            let textoAlerta = estaVencido ? `🚨 VENCIDO HACE ${Math.abs(Math.round((fVenc - hoy)/(1000*60*60*24)))} DÍAS` : `⏱️ Vence el ${fechaEvaluar}`;
 
-        let botonWspHtml = doc.gestionPadre ? `<button class="btn" onclick="enviarWspPadreDocumento('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#15803d; color:white; border:none; padding:6px 10px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">💬 Enviar WSP Urgente al Padre (Plazo Estricto)</button>` : '';
+            htmlActasInternas = `
+                <div style="background:${estiloFondo}; border:1px solid ${estiloBorde}; padding:8px; border-radius:6px; font-size:11px;">
+                    <b>Estado:</b> ${textoAlerta}<br>
+                    Fecha límite registrada: <input type="date" value="${fechaEvaluar || ''}" onchange="actualizarFechaActaItem('${idPaciente}', '${doc.clave}', 0, this.value)" style="padding:2px; font-size:10px; border:1px solid #ccc; border-radius:3px; margin-top:3px; background:#fff;">
+                    <div style="margin-top:6px;"><span style="color:#dc2626; font-weight:bold; background:#fee2e2; padding:2px 6px; border-radius:3px;">🚨 FALTA SUBIR COMPROBANTE DIGITAL</span></div>
+                </div>`;
+        }
 
-        htmlTabla += `
-            <tr style="border-bottom:1px solid #cbd5e1; vertical-align: top; background:#fff;">
-                <td style="padding:10px; font-weight:bold; color:#7f1d1d;">${doc.nombre}</td>
-                <td style="padding:10px;"><div style="max-height: 280px; overflow-y: auto;">${htmlActasInternas}</div></td>
-                <td style="padding:10px;">
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <div style="display:flex; gap:4px;">
-                            <button class="btn" onclick="agregarActaPrompt('${idPaciente}', '${doc.clave}')" style="background:#0284c7; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">➕ Registrar Acta Obligatoria</button>
-                            <input type="file" id="file_${idPaciente}_${doc.clave}" style="display:none;" onchange="subirDocModuloDirecto('${idPaciente}', '${doc.clave}', this)">
-                            <button class="btn" onclick="document.getElementById('file_${idPaciente}_${doc.clave}').click()" style="background:#16a34a; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">📤 Subir Archivo Inmediato</button>
-                        </div>
-                        <div style="background:#fee2e2; border:1px solid #f87171; padding:6px; border-radius:4px; font-size:11px;">
-                            <span style="color:#991b1b; font-weight:bold;">Control TAD / Secretaría:</span>
-                            <select onchange="actualizarEstadoWorkflow('${idPaciente}', '${doc.clave}', this.value)" style="width:100%; margin-top:2px; font-size:10px; padding:3px; border:1px solid #ef4444; border-radius:3px; font-weight:bold;">
-                                <option value="Pendiente Padre" ${estadoActual === 'Pendiente Padre' ? 'selected' : ''}>⏳ Pendiente Padre (Alerta Activa)</option>
-                                <option value="Turno Solicitado" ${estadoActual === 'Turno Solicitado' ? 'selected' : ''}>📅 Turno Solicitado</option>
-                                <option value="Documento Subido" ${estadoActual === 'Documento Subido' ? 'selected' : ''}>✅ Documento Subido y Verificado</option>
-                            </select>
-                        </div>
-                        ${botonWspHtml}
-                    </div>
-                </td>
-            </tr>`;
-    });
+        let estadoActual = tieneArchivo ? 'Documento Subido' : (p[doc.clave + '_estado'] || 'Pendiente Padre');
+        let botonWspHtml = doc.gestionPadre ? `<button class="btn" onclick="enviarWspPadreDocumento('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#15803d; color:white; border:none; padding:6px 10px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">💬 Enviar WSP Urgente al Padre</button>` : '';
 
-    htmlTabla += `</tbody></table>`;
-    contenedorDetalle.innerHTML = htmlTabla;
-    modalLegajo.style.display = 'flex';
-} 
+        htmlTabla += `
+            <tr style="border-bottom:1px solid #cbd5e1; vertical-align: top; background:#fff;">
+                <td style="padding:10px; font-weight:bold; color:#7f1d1d;">${doc.nombre}</td>
+                <td style="padding:10px;"><div style="max-height: 280px; overflow-y: auto;">${htmlActasInternas}</div></td>
+                <td style="padding:10px;">
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <div style="display:flex; gap:4px;">
+                            <button class="btn" onclick="agregarActaPrompt('${idPaciente}', '${doc.clave}')" style="background:#0284c7; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">➕ Registrar Acta</button>
+                            <input type="file" id="file_${idPaciente}_${doc.clave}" style="display:none;" onchange="subirDocModuloDirecto('${idPaciente}', '${doc.clave}', this)">
+                            <button class="btn" onclick="document.getElementById('file_${idPaciente}_${doc.clave}').click()" style="background:#16a34a; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">📤 Subir Archivo</button>
+                        </div>
+                        <div style="background:#fee2e2; border:1px solid #f87171; padding:6px; border-radius:4px; font-size:11px;">
+                            <span style="color:#991b1b; font-weight:bold;">Control TAD / Secretaría:</span>
+                            <select onchange="actualizarEstadoWorkflow('${idPaciente}', '${doc.clave}', this.value)" style="width:100%; margin-top:2px; font-size:10px; padding:3px; border:1px solid #ef4444; border-radius:3px; font-weight:bold;">
+                                <option value="Pendiente Padre" ${estadoActual === 'Pendiente Padre' ? 'selected' : ''}>⏳ Pendiente Padre (Alerta Activa)</option>
+                                <option value="Turno Solicitado" ${estadoActual === 'Turno Solicitado' ? 'selected' : ''}>📅 Turno Solicitado</option>
+                                <option value="Documento Subido" ${estadoActual === 'Documento Subido' ? 'selected' : ''}>✅ Documento Subido y Verificado</option>
+                            </select>
+                        </div>
+                        ${botonWspHtml}
+                    </div>
+                </td>
+            </tr>`;
+    });
 
+    htmlTabla += `</tbody></table>`;
+    contenedorDetalle.innerHTML = htmlTabla;
+    modalLegajo.style.display = 'flex';
+}
 function enviarWspPadreDocumento(idPaciente, docClave, nombreDoc) {
     let p = pacs[idPaciente];
     let tel = p.tel || prompt("Teléfono del padre / tutor:", "");
