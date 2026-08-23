@@ -1053,7 +1053,7 @@ document.getElementById('dominguito-texto').addEventListener('keypress', (e) => 
         document.getElementById('dominguito-input-box').style.display = 'none';
     }
 });
-// DOCUMENTOS DEL SISTEMA (Los 10 obligatorios)
+// DOCUMENTOS DEL SISTEMA (Los 10 obligatorios con CUD, P.M y RHC configurados correctamente)
 const DOCUMENTOS_SISTEMA = [
     { clave: 'infMenF', nombre: 'Informe Mensual' },
     { clave: 'infoF', nombre: 'Informe Semestral', criticoSemestral: true },
@@ -1071,7 +1071,7 @@ function obtenerUsuarioActual() {
     return window.usuarioLogueadoEmail || localStorage.getItem('usuarioClinica') || 'secretaria@clinica.com';
 }
 
-// Validación estricta: solo es true si hay archivo físico/link en Cloudinary
+// Validación estricta: solo es true si hay archivo físico/link real en Cloudinary
 function documentoTieneArchivoSubido(docData) {
     if (!docData) return false;
     if (Array.isArray(docData)) {
@@ -1083,7 +1083,18 @@ function documentoTieneArchivoSubido(docData) {
     return false;
 }
 
-// 1. ALERTAS DE INICIO (Respetando plazos exactos: 60 para CUD, 45 para P.M y RHC)
+// FUNCIONES DE CIERRE DE MODALES (Soluciona el error de la consola)
+function cerrarPanelGeneral() {
+    let modal = document.getElementById('modal-panel-general');
+    if (modal) modal.style.display = 'none';
+}
+
+function cerrarAlertaInicio() {
+    let modalAlerta = document.getElementById('modal-alerta-inicio');
+    if (modalAlerta) modalAlerta.style.display = 'none';
+}
+
+// 1. ALERTAS DE INICIO (Con plazos exactos: 60 para CUD, 45 para P.M y RHC)
 function verificarAlertasAlIniciar() {
     let listaAlertas = document.getElementById('lista-alertas-inicio');
     if (!listaAlertas) return;
@@ -1105,7 +1116,6 @@ function verificarAlertasAlIniciar() {
             let tieneArchivo = documentoTieneArchivoSubido(docData);
             let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
 
-            // Si NO tiene archivo subido, evaluamos alertas
             if (!tieneArchivo) {
                 if (lista.length === 0) {
                     arrayAlertasTemp.push({
@@ -1120,8 +1130,6 @@ function verificarAlertasAlIniciar() {
                             let fVenc = new Date(item.fecha);
                             fVenc.setHours(0, 0, 0, 0);
                             let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
-                            
-                            // Anticipación estricta según corresponda
                             let diasAnticipacion = doc.diasAnticipacion || 0;
 
                             if (diffDias < 0) {
@@ -1138,7 +1146,7 @@ function verificarAlertasAlIniciar() {
                                     fecha: item.fecha, diff: diffDias,
                                     motivo: `⏰ Vence en ${diffDias} días. 🚨 SECRETARIA: Contactar al padre (WhatsApp/Llamada) y subir constancia.`
                                 });
-                            } else if (diasAnticipacion === 0 && diffDias <= 15) { // Alerta estándar para el resto si vencen pronto
+                            } else if (diasAnticipacion === 0 && diffDias <= 15) {
                                 arrayAlertasTemp.push({
                                     id: id, nombre: nombre, dni: dni,
                                     tipoDoc: doc.nombre, claveDoc: doc.clave,
@@ -1151,7 +1159,6 @@ function verificarAlertasAlIniciar() {
                 }
             }
 
-            // Alertas de Turnos
             if (doc.critico) {
                 let claveTurno = doc.clave + 'T';
                 let fechaTurno = p[claveTurno];
@@ -1194,12 +1201,7 @@ function verificarAlertasAlIniciar() {
     if (modalAlerta && contadorAlertas > 0) modalAlerta.style.display = 'flex';
 }
 
-function cerrarAlertaInicio() {
-    let modalAlerta = document.getElementById('modal-alerta-inicio');
-    if (modalAlerta) modalAlerta.style.display = 'none';
-}
-
-// 2. PANEL GENERAL (Lectura correcta de archivos subidos reales)
+// 2. PANEL GENERAL
 function abrirPanelGeneralGestiones() {
     let modal = document.getElementById('modal-panel-general');
     if (!modal) return;
@@ -1356,7 +1358,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
         let docData = p[doc.clave];
         let tieneArchivo = documentoTieneArchivoSubido(docData);
         let listaActas = Array.isArray(docData) ? docData : (docData ? [docData] : []);
-        let estadoActual = tieneArchivo ? 'Documento Subido' : (p[doc.clave + '_estado'] || (listaActas.length > 0 ? 'Pendiente Padre' : 'Pendiente Padre'));
+        let estadoActual = tieneArchivo ? 'Documento Subido' : (p[doc.clave + '_estado'] || 'Pendiente Padre');
 
         let htmlActasInternas = '';
         if (listaActas.length === 0) {
