@@ -1071,8 +1071,23 @@ function obtenerUsuarioActual() {
     return window.usuarioLogueadoEmail || localStorage.getItem('usuarioClinica') || 'secretaria@clinica.com';
 }
 
-// VALIDACIÓN ESTRICTA DE ARCHIVO: Única forma de que algo figure como subido (exige link real de Cloudinary)
-function documentoTieneArchivoSubido(docData) {
+// VALIDACIÓN ESTRICTA DE ARCHIVO: Soporta tanto strings directos, arrays/historiales como estructuras con sufijo _link de Firebase
+function documentoTieneArchivoSubido(docData, p = null, docClave = '') {
+    // 1. Revisar si hay un campo dinámico de tipo `_link` en el objeto principal del paciente (ej: cudDoc_link, planF_link, infoF_link, etc.)
+    if (p && docClave) {
+        let claveLinkDirecto = docClave + '_link';
+        if (p[claveLinkDirecto] && typeof p[claveLinkDirecto] === 'string' && p[claveLinkDirecto].trim() !== '' && p[claveLinkDirecto].startsWith('http')) {
+            return true;
+        }
+        // Casos especiales de mapeo alternativo en Firebase
+        if (docClave === 'cud' && p.cudDoc_link && typeof p.cudDoc_link === 'string' && p.cudDoc_link.startsWith('http')) return true;
+        if (docClave === 'infMenF' && (
+            (p.inf_mensual_m3_link && p.inf_mensual_m3_link.startsWith('http')) ||
+            (p.inf_mensual_m4_link && p.inf_mensual_m4_link.startsWith('http')) ||
+            (p.inf_mensual_m5_link && p.inf_mensual_m5_link.startsWith('http'))
+        )) return true;
+    }
+
     if (!docData) return false;
     
     if (typeof docData === 'string' && docData.trim() !== '' && docData.startsWith('http')) {
@@ -1106,13 +1121,15 @@ function cerrarAlertaInicio() {
     if (modalAlerta) modalAlerta.style.display = 'none';
 }
 
-// 1. ALERTAS DE INICIO (EXCLUSIVAS PARA CUD, P.M y RHC EN SUS TRES CASOS, Y VENCIMIENTOS GENERALES SIN LLAMADO AL PADRE SI NO CORRESPONDE)
+// 1. ALERTAS DE INICIO
+// --- VERIFICACIÓN GENERAL DE ALERTAS CON EFECTO SIRENA GLOBAL ---
 function verificarAlertasAlIniciar() {
     let listaAlertas = document.getElementById('lista-alertas-inicio');
     if (!listaAlertas) return;
     
     listaAlertas.innerHTML = '';
     let contadorAlertas = 0;
+    let hayAlertasCriticasRojas = false; // Bandera para activar la sirena global en el inicio
     let hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
 
@@ -1125,29 +1142,44 @@ function verificarAlertasAlIniciar() {
 
         DOCUMENTOS_SISTEMA.forEach(doc => {
             let docData = p[doc.clave];
-            let tieneArchivoReal = documentoTieneArchivoSubido(docData);
+            let tieneArchivoReal = documentoTieneArchivoSubido(docData, p, doc.clave);
             let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
 
-            // A. Evaluación de vencimiento del documento
+            // A. Evaluación de vencimiento o ausencia total del documento
             if (!tieneArchivoReal) {
                 let diasAnticipacionCritica = doc.diasAnticipacion || 15;
+                let fechaPlana = p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http') ? p[doc.clave] : null;
 
-                if (lista.length === 0) {
+                if (lista.length === 0 && !fechaPlana) {
+                    hayAlertasCriticasRojas = true;
                     if (doc.gestionPadre) {
                         arrayAlertasTemp.push({
                             id: id, nombre: nombre, dni: dni,
                             tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
-                            mensaje: `🚨 SECRETARIA: Falta cargar y subir ${doc.nombre.toUpperCase()}. Contactar al padre urgente.`
+                            mensaje: `🚨 SECRETARIA: Falta cargar ${doc.nombre.toUpperCase()}. Llamar al padre urgente para que gestione el turno.`
                         });
                     } else {
                         arrayAlertasTemp.push({
                             id: id, nombre: nombre, dni: dni,
-                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'naranja',
-                            mensaje: `⚠️ Falta cargar y subir ${doc.nombre.toUpperCase()} en el legajo.`
+                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                            mensaje: `🚨 CONTROL INTERNO: Falta cargar y subir ${doc.nombre.toUpperCase()} en el legajo.`
                         });
                     }
                 } else {
-                    lista.forEach(item => {
+                    let fechasAEvaluar = [];
+                    if (fechaPlana) fechasAEvaluar.push({ fecha: fechaPlana });
+                    lista.forEach(item => { if (item.fecha) fechasAEvaluar.push(item); });
+
+                    if (fechasAEvaluar.length === 0 && !tieneArchivoReal) {
+                        hayAlertasCriticasRojas = true;
+                        arrayAlertasTemp.push({
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                            mensaje: `🚨 ATENCIÓN: Falta subir el archivo digital de ${doc.nombre.toUpperCase()} al sistema.`
+                        });
+                    }
+
+                    fechasAEvaluar.forEach(item => {
                         let fVenc = item.fecha ? new Date(item.fecha) : null;
                         if (fVenc) fVenc.setHours(0, 0, 0, 0);
                         if (!fVenc) return;
@@ -1155,9 +1187,10 @@ function verificarAlertasAlIniciar() {
                         let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
 
                         if (diffDias < 0) {
+                            hayAlertasCriticasRojas = true;
                             let msg = doc.gestionPadre ? 
-                                `🚨 ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días sin archivo. Llamar al padre.` :
-                                `⚠️ ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días sin archivo.`;
+                                `🚨 ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días. Llamar al padre urgente para regularizar.` :
+                                `🚨 ${doc.nombre.toUpperCase()} INTERNO VENCIDO hace ${Math.abs(diffDias)} días. ¡Subir versión actualizada!`;
                             arrayAlertasTemp.push({
                                 id: id, nombre: nombre, dni: dni,
                                 tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'rojo',
@@ -1165,8 +1198,8 @@ function verificarAlertasAlIniciar() {
                             });
                         } else if (diffDias <= diasAnticipacionCritica) {
                             let msg = doc.gestionPadre ? 
-                                `⏰ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Secretaria: gestionar comprobante.` :
-                                `⏱️ ${doc.nombre.toUpperCase()} vence en ${diffDias} días.`;
+                                `⏰ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Secretaria: llamar al padre para que saque turno.` :
+                                `⏱️ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Preparar renovación.`;
                             arrayAlertasTemp.push({
                                 id: id, nombre: nombre, dni: dni,
                                 tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'naranja',
@@ -1177,33 +1210,30 @@ function verificarAlertasAlIniciar() {
                 }
             }
 
-            // B. GESTIÓN DE TURNOS CRÍTICOS (EXCLUSIVO PARA CUD, P.M Y RHC)
+            // B. GESTIÓN DE TURNOS CRÍTICOS (EXCLUSIVO PARA CUD, P.M Y RHC) - Alerta de 48 a 72 hs antes
             if (doc.critico && doc.gestionPadre) {
                 let claveTurno = doc.clave + 'T';
                 let fechaTurno = p[claveTurno];
                 
                 if (!fechaTurno && !tieneArchivoReal) {
+                    hayAlertasCriticasRojas = true;
                     arrayAlertasTemp.push({
                         id: id, nombre: nombre, dni: dni,
                         tipoDoc: `Turno ${doc.nombre}`, diff: -500, prioridadVisual: 'rojo',
-                        mensaje: `🚨 SECRETARIA: El paciente no tiene turno asignado para ${doc.nombre}. Llamar al padre para que saque el turno YA.`
+                        mensaje: `🚨 SECRETARIA: El paciente no tiene turno asignado para ${doc.nombre}. Llamar al padre YA.`
                     });
                 } else if (fechaTurno) {
                     let fT = new Date(fechaTurno);
                     fT.setHours(0, 0, 0, 0);
                     let diffT = Math.round((fT - hoy) / (1000 * 60 * 60 * 24));
                     
-                    if (diffT < 0) {
+                    // Dispara alerta estricta a las 48 o 72 hs (entre 2 y 3 días exactos antes del turno)
+                    if (diffT >= 2 && diffT <= 3) {
+                        hayAlertasCriticasRojas = true;
                         arrayAlertasTemp.push({
                             id: id, nombre: nombre, dni: dni,
                             tipoDoc: `Turno ${doc.nombre}`, diff: diffT, prioridadVisual: 'rojo',
-                            mensaje: `⏰ Turno de ${doc.nombre} vencido hace ${Math.abs(diffT)} días (${fechaTurno}). Verificar si asistió y registrar el acta.`
-                        });
-                    } else if (diffT >= 0 && diffT <= 3) {
-                        arrayAlertasTemp.push({
-                            id: id, nombre: nombre, dni: dni,
-                            tipoDoc: `Turno ${doc.nombre}`, diff: diffT, prioridadVisual: 'rojo',
-                            mensaje: `⚡ TURNO EN ${diffT} DÍAS (${fechaTurno}): Secretaria, llamá y recordale al padre que tiene que asistir al turno de ${doc.nombre}.`
+                            mensaje: `⚡ RECORDATORIO A PADRES (${diffT} días): El turno para ${doc.nombre} es inminente. Llamar para confirmar asistencia.`
                         });
                     }
                 }
@@ -1232,7 +1262,13 @@ function verificarAlertasAlIniciar() {
     });
 
     let modalAlerta = document.getElementById('modal-alerta-inicio');
-    if (modalAlerta && contadorAlertas > 0) modalAlerta.style.display = 'flex';
+    if (modalAlerta && contadorAlertas > 0) {
+        modalAlerta.style.display = 'flex';
+        if (hayAlertasCriticasRojas) {
+            let sirenaGlobal = inyectarEfectoSirena();
+            sirenaGlobal.style.display = 'block';
+        }
+    }
 }
 
 // 2. PANEL GENERAL CON CONTEO REAL DE ARCHIVOS CLOUDINARY
@@ -1278,7 +1314,7 @@ function abrirPanelGeneralGestiones() {
 
         DOCUMENTOS_SISTEMA.forEach(doc => {
             let dData = p[doc.clave];
-            let tieneArchivo = documentoTieneArchivoSubido(dData);
+            let tieneArchivo = documentoTieneArchivoSubido(dData, p, doc.clave);
 
             if (tieneArchivo) {
                 archivosRealesSubidos++;
@@ -1334,161 +1370,204 @@ function ejecutarAsignacionMasivaInterna() {
     });
 }
 
-// 3. LEGAJO INDIVIDUAL CON BITÁCORA MÚLTIPLE DE ACTAS Y BOTÓN WSP EXCLUSIVO PARA CUD, P.M Y RHC
 function abrirLegajoCompletoPaciente(idPaciente) {
-    let p = pacs[idPaciente];
-    if (!p) return;
+    let p = pacs[idPaciente];
+    if (!p) return;
 
-    let modalLegajo = document.getElementById('modal-legajo-completo');
-    if (!modalLegajo) {
-        let div = document.createElement('div');
-        div.id = 'modal-legajo-completo';
-        div.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:center;';
-        div.innerHTML = `
-            <div style="background:white; width:90%; max-width:980px; max-height:90vh; border-radius:8px; padding:20px; overflow-y:auto; box-shadow:0 4px 15px rgba(0,0,0,0.3);">
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #eee; padding-bottom:10px; margin-bottom:15px;">
-                    <h2 id="legajo-titulo-nombre" style="margin:0; color:#2c3e50; font-size:18px;"></h2>
-                    <button onclick="document.getElementById('modal-legajo-completo').style.display='none'" style="background:#e74c3c; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">X CERRAR</button>
-                </div>
-                <div id="legajo-contenido-detalle"></div>
-            </div>`;
-        document.body.appendChild(div);
-        modalLegajo = div;
-    }
+    let modalLegajo = document.getElementById('modal-legajo-completo');
+    if (!modalLegajo) {
+        let div = document.createElement('div');
+        div.id = 'modal-legajo-completo';
+        div.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;';
+        div.innerHTML = `
+            <div style="background:white; width:92%; max-width:1050px; max-height:92vh; border-radius:8px; padding:20px; overflow-y:auto; box-shadow:0 4px 25px rgba(231,76,60,0.4); border: 2px solid #e74c3c;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #e74c3c; padding-bottom:10px; margin-bottom:15px; background:#fdf2f2; padding:10px; border-radius:6px;">
+                    <h2 id="legajo-titulo-nombre" style="margin:0; color:#c0392b; font-size:18px; font-weight:bold;"></h2>
+                    <button onclick="document.getElementById('modal-legajo-completo').style.display='none'; document.getElementById('sirena-emergencia-global').style.display='none';" style="background:#c0392b; color:white; border:none; padding:6px 14px; border-radius:4px; cursor:pointer; font-weight:bold;">✖ CERRAR EXPEDIENTE</button>
+                </div>
+                <div id="legajo-contenido-detalle"></div>
+            </div>`;
+        document.body.appendChild(div);
+        modalLegajo = div;
+    }
 
-    document.getElementById('legajo-titulo-nombre').innerText = `📂 Legajo: ${idPaciente} (DNI: ${p.dni || 'S/D'})`;
-    let contenedorDetalle = document.getElementById('legajo-contenido-detalle');
-    let hoy = new Date();
-    hoy.setHours(0,0,0,0);
+    // Activamos efecto sirena visual de presión en todo el sistema mientras revisa un legajo crítico
+    let sirena = inyectarEfectoSirena();
+    sirena.style.display = 'block';
 
-    let infoAuditoria = p.ultimaModificacion ? `<div style="background:#f8fafc; border:1px solid #e2e8f0; padding:8px; border-radius:6px; margin-bottom:15px; font-size:11px; color:#64748b;"><b>Última modificación:</b> ${p.ultimaModificacion.fecha.replace('T', ' ').substring(0,16)} por <em>${p.ultimaModificacion.usuario}</em> (${p.ultimaModificacion.accion})</div>` : '';
+    document.getElementById('legajo-titulo-nombre').innerText = `📂 EXPEDIENTE TAD / LEGAJO CRÍTICO: ${idPaciente} (DNI: ${p.dni || 'S/D'})`;
+    let contenedorDetalle = document.getElementById('legajo-contenido-detalle');
+    let hoy = new Date();
+    hoy.setHours(0,0,0,0);
 
-    let htmlTabla = `
-        ${infoAuditoria}
-        <h4 style="margin-bottom:8px; color:#34495e;">📋 Control Documental (Bitácora de Actas Múltiples):</h4>
-        <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px;">
-            <thead>
-                <tr style="background:#f8f9fa; border-bottom:2px solid #ddd; text-align:left;">
-                    <th style="padding:8px; width:22%;">Documento</th>
-                    <th style="padding:8px; width:38%;">Historial de Actas & Reloj de Presión</th>
-                    <th style="padding:8px; width:40%;">Workflow & Acciones Secretaría</th>
-                </tr>
-            </thead>
-            <tbody>`;
+    // --- BITÁCORA TAD: ÚLTIMAS 5 MODIFICACIONES Y TTRAZABILIDAD DE SECRETARÍA ---
+    let historialModificaciones = p.historialModificaciones || [];
+    // Si no existe el array pero hay una ultimaModificacion suelta, la normalizamos para la bitácora
+    if (historialModificaciones.length === 0 && p.ultimaModificacion) {
+        historialModificaciones = [p.ultimaModificacion];
+    }
+    // Tomamos estrictamente las últimas 5
+    let ultimasCinco = historialModificaciones.slice(-5).reverse();
 
-    DOCUMENTOS_SISTEMA.forEach(doc => {
-        let docData = p[doc.clave];
-        let tieneArchivo = documentoTieneArchivoSubido(docData);
-        let listaActas = Array.isArray(docData) ? docData : (docData ? [docData] : []);
-        
-        let estadoActual = tieneArchivo ? 'Documento Subido' : (p[doc.clave + '_estado'] || 'Pendiente Padre');
+    let htmlBitacoraTad = `
+        <div style="background:#1e293b; color:#f8fafc; border:1px solid #334155; padding:12px; border-radius:6px; margin-bottom:20px; font-size:11px;">
+            <h3 style="margin:0 0 8px 0; color:#38bdf8; font-size:12px; text-transform:uppercase; letter-spacing:1px;">📋 Bitácora TAD (Trazabilidad de Gestiones y Contactos Secretaría - Últimas 5 Acciones)</h3>
+            <div style="display:flex; flex-direction:column; gap:4px;">`;
+    
+    if (ultimasCinco.length === 0) {
+        htmlBitacoraTad += `<div style="color:#f87171; font-weight:bold;">⚠️ NO HAY REGISTROS DE AUDITORÍA NI CONTACTOS CARGADOS EN ESTE EXPEDIENTE.</div>`;
+    } else {
+        ultimasCinco.forEach((mod, idx) => {
+            let fechaFmt = mod.fecha ? mod.fecha.replace('T', ' ').substring(0,19) : 'Fecha s/d';
+            htmlBitacoraTad += `
+                <div style="background:#0f172a; padding:6px 10px; border-radius:4px; border-left:3px solid #38bdf8; display:flex; justify-content:space-between; align-items:center;">
+                    <span><b>#${idx+1} [${fechaFmt}]</b> - <em>${mod.accion || 'Gestión registrada'}</em></span>
+                    <span style="color:#94a3b8; background:#1e293b; padding:2px 6px; border-radius:3px;">👤 ${mod.usuario || 'Secretaría'}</span>
+                </div>`;
+        });
+    }
+    htmlBitacoraTad += `</div></div>`;
 
-        let htmlActasInternas = '';
-        if (listaActas.length === 0) {
-            htmlActasInternas = `<div style="background:#fee2e2; border:1px solid #ef4444; color:#991b1b; padding:6px; border-radius:4px; font-weight:bold; font-size:11px;">❌ SIN REGISTROS DE FECHA NI ARCHIVO</div>`;
-        } else {
-            listaActas.forEach((acta, index) => {
-                let badgeArchivo = (acta.archivo && acta.archivo.startsWith('http')) ? 
-                    `<span style="color:#16a34a; font-weight:bold; background:#dcfce7; padding:2px 6px; border-radius:3px;">🟢 Archivo Subido OK</span>` : 
-                    `<span style="color:#dc2626; font-weight:bold; background:#fee2e2; padding:2px 6px; border-radius:3px;">🔴 SOLO FECHA - FALTA SUBIR ARCHIVO</span>`;
+    let htmlTabla = `
+        ${htmlBitacoraTad}
+        <h4 style="margin-bottom:8px; color:#c0392b; font-weight:bold;">⚡ CONTROL DOCUMENTAL OBLIGATORIO Y EXIGENCIA DE ACTAS DE CONTACTO:</h4>
+        <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px;">
+            <thead>
+                <tr style="background:#fee2e2; border-bottom:2px solid #ef4444; text-align:left; color:#991b1b;">
+                    <th style="padding:8px; width:22%;">Documento / Plazo</th>
+                    <th style="padding:8px; width:38%;">Actas de Contacto con Padre & Reloj Violento</th>
+                    <th style="padding:8px; width:40%;">Workflow Obligatorio & Sanción Secretaría</th>
+                </tr>
+            </thead>
+            <tbody>`;
 
-                let relojPresion = '';
-                if (acta.fecha) {
-                    let fV = new Date(acta.fecha);
-                    fV.setHours(0,0,0,0);
-                    let diff = Math.round((fV - hoy) / (1000 * 60 * 60 * 24));
-                    
-                    if (diff < 0) {
-                        relojPresion = `<div style="background:#7f1d1d; color:#fff; padding:6px; border-radius:4px; margin-top:4px; font-weight:bold; font-size:11px;">🚨 ¡VENCIDO HACE ${Math.abs(diff)} DÍAS!</div>`;
-                    } else if (diff <= 15) {
-                        relojPresion = `<div style="background:#fef3c7; border:1px solid #f59e0b; color:#92400e; padding:5px; border-radius:4px; margin-top:4px; font-weight:bold; font-size:11px;">⏰ Vence en ${diff} días (${acta.fecha})</div>`;
-                    } else {
-                        relojPresion = `<div style="background:#f1f5f9; border:1px solid #cbd5e1; color:#334155; padding:4px; border-radius:4px; margin-top:4px; font-size:11px;">⏱️ Vence en ${diff} días (${acta.fecha})</div>`;
-                    }
-                }
+    DOCUMENTOS_SISTEMA.forEach(doc => {
+        let docData = p[doc.clave];
+        let tieneArchivo = documentoTieneArchivoSubido(docData, p, doc.clave);
+        let listaActas = Array.isArray(docData) ? docData : (docData ? [docData] : []);
 
-                let tieneLinkValido = acta.archivo && acta.archivo.startsWith('http');
+        if (listaActas.length === 0 && p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http')) {
+            listaActas = [{ fecha: p[doc.clave], descripcion: 'Fecha de registro principal (Sin acta formal)', archivo: '' }];
+        }
+        
+        let estadoActual = tieneArchivo ? 'Documento Subido' : (p[doc.clave + '_estado'] || 'Pendiente Padre');
+        let htmlActasInternas = '';
 
-                htmlActasInternas += `
-                    <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:8px; border-radius:6px; margin-bottom:6px; font-size:11px;">
-                        <div>
-                            <b>Acta #${index + 1}</b> - <em>${acta.descripcion || 'Sin descripción'}</em><br>
-                            Fecha límite: <input type="date" value="${acta.fecha || ''}" onchange="actualizarFechaActaItem('${idPaciente}', '${doc.clave}', ${index}, this.value)" style="padding:2px; font-size:10px; border:1px solid #cbd5e1; border-radius:3px; margin-top:3px;">
-                            ${relojPresion}
-                            <div style="margin-top:6px;">${badgeArchivo}</div>
-                            ${tieneLinkValido ? `<div style="margin-top:4px;"><a href="${acta.archivo}" target="_blank" style="color:#2563eb; font-weight:bold; text-decoration:underline;">🔗 Ver PDF en Cloudinary</a></div>` : ''}
-                        </div>
-                        <div style="text-align:right; margin-top:4px;">
-                            <button onclick="eliminarActaDeItem('${idPaciente}', '${doc.clave}', ${index})" style="background:#ef4444; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer; font-size:10px;">🗑️ Borrar Acta</button>
-                        </div>
-                    </div>`;
-            });
-        }
+        if (listaActas.length === 0 && !tieneArchivo) {
+            htmlActasInternas = `<div style="background:#7f1d1d; color:#fff; padding:8px; border-radius:4px; font-weight:bold; font-size:11px; text-align:center; animation: parpadeoSirena 0.8s infinite alternate;">🚨 EXIGENCIA TAD: FALTA ACTA DE CONTACTO Y ARCHIVO OBLIGATORIO</div>`;
+        } else {
+            listaActas.forEach((acta, index) => {
+                let badgeArchivo = (acta.archivo && acta.archivo.startsWith('http')) ? 
+                    `<span style="color:#16a34a; font-weight:bold; background:#dcfce7; padding:2px 6px; border-radius:3px;">🟢 Archivo Subido OK</span>` : 
+                    `<span style="color:#dc2626; font-weight:bold; background:#fee2e2; padding:2px 6px; border-radius:3px; animation: parpadeoSirena 1s infinite;">🚨 FALTA SUBIR COMPROBANTE O ACTA FIRMADA</span>`;
 
-        // Botón WhatsApp exclusivo para CUD, P.M y RHC
-        let botonWspHtml = '';
-        if (doc.gestionPadre) {
-            botonWspHtml = `<button class="btn" onclick="enviarWspPadreDocumento('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#25d366; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">💬 Enviar WSP al Padre</button>`;
-        }
+                let relojViolentoId = `reloj_violento_${idPaciente}_${doc.clave}_${index}`;
+                let fechaVencEval = acta.fecha || null;
 
-        htmlTabla += `
-            <tr style="border-bottom:1px solid #eee; vertical-align: top;">
-                <td style="padding:10px; font-weight:bold; color:#2c3e50;">${doc.nombre}</td>
-                <td style="padding:10px;"><div style="max-height: 250px; overflow-y: auto;">${htmlActasInternas}</div></td>
-                <td style="padding:10px;">
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <div style="display:flex; gap:4px;">
-                            <button class="btn" onclick="agregarActaPrompt('${idPaciente}', '${doc.clave}')" style="background:#0ea5e9; color:white; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;" title="Permite registrar un nuevo llamado o gestión realizada">➕ Nueva Acta de Contacto</button>
-                            <input type="file" id="file_${idPaciente}_${doc.clave}" style="display:none;" onchange="subirDocModuloDirecto('${idPaciente}', '${doc.clave}', this)">
-                            <button class="btn" onclick="document.getElementById('file_${idPaciente}_${doc.clave}').click()" style="background:#10b981; color:white; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">📤 Subir Archivo</button>
-                        </div>
-                        <div style="background:#fff7ed; border:1px solid #ffedd5; padding:6px; border-radius:4px; font-size:11px;">
-                            <span style="color:#c2410c; font-weight:bold;">Workflow Secretaría:</span>
-                            <select onchange="actualizarEstadoWorkflow('${idPaciente}', '${doc.clave}', this.value)" style="width:100%; margin-top:2px; font-size:10px; padding:2px; border:1px solid #fdba74; border-radius:3px;">
-                                <option value="Pendiente Padre" ${estadoActual === 'Pendiente Padre' ? 'selected' : ''}>⏳ Pendiente Padre</option>
-                                <option value="Turno Solicitado" ${estadoActual === 'Turno Solicitado' ? 'selected' : ''}>📅 Turno Solicitado</option>
-                                <option value="Documento Subido" ${estadoActual === 'Documento Subido' ? 'selected' : ''}>✅ Documento Subido</option>
-                            </select>
-                        </div>
-                        ${botonWspHtml}
-                    </div>
-                </td>
-            </tr>`;
+                htmlActasInternas += `
+                    <div style="background:#fff5f5; border:1px solid #feb2b2; padding:8px; border-radius:6px; margin-bottom:6px; font-size:11px;">
+                        <div>
+                            <b>Acta de Contacto #${index + 1}</b> - <em>${acta.descripcion || 'Gestión con padre'}</em><br>
+                            Fecha límite límite estipulada: <input type="date" value="${acta.fecha || ''}" onchange="actualizarFechaActaItem('${idPaciente}', '${doc.clave}', ${index}, this.value)" style="padding:2px; font-size:10px; border:1px solid #e02424; border-radius:3px; margin-top:3px; background:#fff;">
+                            <div id="${relojViolentoId}" style="margin-top:6px; padding:6px; border-radius:4px; background:#7f1d1d; color:white; font-weight:bold; text-align:center;">Cargando reloj violento...</div>
+                            <div style="margin-top:6px;">${badgeArchivo}</div>
+                        </div>
+                        <div style="text-align:right; margin-top:4px;">
+                            <button onclick="eliminarActaDeItem('${idPaciente}', '${doc.clave}', ${index})" style="background:#991b1b; color:white; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-size:10px; font-weight:bold;">🗑️ Borrar Acta</button>
+                        </div>
+                    </div>`;
 
-        // Fila de Turno exclusiva para CUD, P.M y RHC
-        if (doc.critico && doc.gestionPadre) {
-            let claveTurno = doc.clave + 'T';
-            let fechaTurno = p[claveTurno] || '';
-            let htmlRelojTurno = '';
-            if (fechaTurno) {
-                let fT = new Date(fechaTurno);
-                fT.setHours(0,0,0,0);
-                let diffT = Math.round((fT - hoy) / (1000 * 60 * 60 * 24));
-                htmlRelojTurno = diffT < 0 ? `<span style="background:#fee2e2; color:#991b1b; padding:2px 6px; border-radius:4px; font-weight:bold; margin-left:10px;">⏰ Turno vencido hace ${Math.abs(diffT)} días</span>` : `<span style="background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; font-weight:bold; margin-left:10px;">⏰ Faltan ${diffT} días para el turno</span>`;
-            }
+                // Disparamos el reloj con segundos en tiempo real tras renderizar
+                if (fechaVencEval) {
+                    // Calculamos 23:59:59 del día de vencimiento para el conteo hiperpreciso
+                    setTimeout(() => {
+                        iniciarRelojViolentoPresion(relojViolentoId, fechaVencEval + 'T23:59:59');
+                    }, 100);
+                }
+            });
+        }
 
-            htmlTabla += `
-                <tr style="background:#fffbeb; border-bottom:1px solid #eee;">
-                    <td style="padding:6px; font-weight:bold; color:#b45309; padding-left:20px; font-size:11px;">↳ ⚡ Turno ${doc.nombre}</td>
-                    <td colspan="2" style="padding:6px;">
-                        <input type="date" value="${fechaTurno}" onchange="actualizarTurnoConAuditoria('${idPaciente}', '${claveTurno}', this.value);" style="padding:3px; border:1px solid #ccc; border-radius:3px; font-size:11px;">
-                        ${htmlRelojTurno}
-                    </td>
-                </tr>`;
-        }
-    });
+        let botonWspHtml = doc.gestionPadre ? `<button class="btn" onclick="enviarWspPadreDocumento('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#15803d; color:white; border:none; padding:6px 10px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">💬 Enviar WSP Urgente al Padre (Plazo Estricto)</button>` : '';
 
-    htmlTabla += `</tbody></table>`;
-    contenedorDetalle.innerHTML = htmlTabla;
-    modalLegajo.style.display = 'flex';
-}
+        htmlTabla += `
+            <tr style="border-bottom:1px solid #cbd5e1; vertical-align: top; background:#fff;">
+                <td style="padding:10px; font-weight:bold; color:#7f1d1d;">${doc.nombre}</td>
+                <td style="padding:10px;"><div style="max-height: 280px; overflow-y: auto;">${htmlActasInternas}</div></td>
+                <td style="padding:10px;">
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <div style="display:flex; gap:4px;">
+                            <button class="btn" onclick="agregarActaPrompt('${idPaciente}', '${doc.clave}')" style="background:#0284c7; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">➕ Registrar Acta Obligatoria</button>
+                            <input type="file" id="file_${idPaciente}_${doc.clave}" style="display:none;" onchange="subirDocModuloDirecto('${idPaciente}', '${doc.clave}', this)">
+                            <button class="btn" onclick="document.getElementById('file_${idPaciente}_${doc.clave}').click()" style="background:#16a34a; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">📤 Subir Archivo Inmediato</button>
+                        </div>
+                        <div style="background:#fee2e2; border:1px solid #f87171; padding:6px; border-radius:4px; font-size:11px;">
+                            <span style="color:#991b1b; font-weight:bold;">Control TAD / Secretaría:</span>
+                            <select onchange="actualizarEstadoWorkflow('${idPaciente}', '${doc.clave}', this.value)" style="width:100%; margin-top:2px; font-size:10px; padding:3px; border:1px solid #ef4444; border-radius:3px; font-weight:bold;">
+                                <option value="Pendiente Padre" ${estadoActual === 'Pendiente Padre' ? 'selected' : ''}>⏳ Pendiente Padre (Alerta Activa)</option>
+                                <option value="Turno Solicitado" ${estadoActual === 'Turno Solicitado' ? 'selected' : ''}>📅 Turno Solicitado</option>
+                                <option value="Documento Subido" ${estadoActual === 'Documento Subido' ? 'selected' : ''}>✅ Documento Subido y Verificado</option>
+                            </select>
+                        </div>
+                        ${botonWspHtml}
+                    </div>
+                </td>
+            </tr>`;
+    });
+
+    htmlTabla += `</tbody></table>`;
+    contenedorDetalle.innerHTML = htmlTabla;
+    modalLegajo.style.display = 'flex';
+} 
 
 function enviarWspPadreDocumento(idPaciente, docClave, nombreDoc) {
     let p = pacs[idPaciente];
-    let tel = p.tel || prompt("Teléfono del padre:", "");
+    let tel = p.tel || prompt("Teléfono del padre / tutor:", "");
     if (!tel) return;
     let numeroLimpiado = tel.replace(/\D/g, '');
-    let mensaje = `Estimados padres de ${idPaciente}: Desde la clínica les recordamos la urgente actualización y presentación del documento ${nombreDoc}. Quedamos a la espera del comprobante. Esencial Salud Srl.`;
+
+    // Buscamos la fecha límite correspondiente (del documento o del acta/plazo asignado)
+    let docData = p[docClave];
+    let fechaLimiteStr = "";
+    
+    let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
+    if (lista.length > 0 && lista[lista.length - 1].fecha) {
+        fechaLimiteStr = lista[lista.length - 1].fecha;
+    } else if (typeof p[docClave] === 'string' && !p[docClave].startsWith('http')) {
+        fechaLimiteStr = p[docClave];
+    } else {
+        fechaLimiteStr = "a la brevedad";
+    }
+
+    // Si la fecha está en formato YYYY-MM-DD, la pasamos a DD/MM/YYYY para que quede más prolija en el mensaje
+    let fechaFormateada = fechaLimiteStr;
+    if (fechaLimiteStr.includes('-')) {
+        let partes = fechaLimiteStr.split('-');
+        if (partes.length === 3) fechaFormateada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+    }
+
+    let mensaje = "";
+
+    // Mensaje diferenciado según si es CUD o el resto de la documentación
+    if (docClave.toLowerCase().includes('cud')) {
+        mensaje = `*AVISO ADMINISTRATIVO URGENTE* - Esencial Salud S.R.L.\n\n` +
+                  `Estimada familia de *${idPaciente}*:\n\n` +
+                  `Desde la administración de la clínica nos comunicamos con usted para solicitar la presentación del *${nombreDoc}* actualizado. ` +
+                  `Este documento es indispensable para poder llevar adelante el proceso de renovación y auditoría de las prestaciones.\n\n` +
+                  `⚠️ Le informamos que el plazo límite estipulado para su entrega vence el *${fechaFormateada}*. ` +
+                  `De no contar con el mismo en tiempo y forma, lamentablemente *no podremos garantizar la continuidad de las prestaciones ni la reserva del lugar para el año que viene*.\n\n` +
+                  `Quedamos a la espera del archivo o comprobante digital.\n` +
+                  `_Gestión de Legajos y Auditoría - Esencial Salud S.R.L._`;
+    } else {
+        mensaje = `*AVISO ADMINISTRATIVO URGENTE* - Esencial Salud S.R.L.\n\n` +
+                  `Estimada familia de *${idPaciente}*:\n\n` +
+                  `Desde la administración de la clínica le recordamos que necesitamos contar con la documentación correspondiente a *${nombreDoc}* ` +
+                  `para poder iniciar el proceso reglamentario de renovación.\n\n` +
+                  `⚠️ Solicitamos la presentación del mismo con fecha límite hasta el *${fechaFormateada}*. ` +
+                  `Aclaramos que, vencido dicho plazo sin la documentación requerida, *no nos es posible garantizar la disponibilidad del lugar ni la continuidad de las terapias para el próximo año*.\n\n` +
+                  `Agradecemos su colaboración y quedamos a la espera.\n` +
+                  `_Gestión de Legajos y Auditoría - Esencial Salud S.R.L._`;
+    }
+
     window.open(`https://api.whatsapp.com/send?phone=${numeroLimpiado}&text=${encodeURIComponent(mensaje)}`, '_blank');
 }
 
@@ -1543,7 +1622,7 @@ function actualizarEstadoWorkflow(idPaciente, docClave, nuevoEstado) {
 function actualizarTurnoConAuditoria(idPaciente, claveTurno, valorFecha) {
     database.child(`pacientes/${idPaciente}`).update({
         [claveTurno]: valorFecha,
-        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Modificó turno` }
+        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().issuer || obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Modificó turno` }
     });
 }
 
