@@ -1053,7 +1053,7 @@ document.getElementById('dominguito-texto').addEventListener('keypress', (e) => 
         document.getElementById('dominguito-input-box').style.display = 'none';
     }
 });
-// DOCUMENTOS DEL SISTEMA (Los 10 obligatorios - Informe Semestral corregido)
+// DOCUMENTOS DEL SISTEMA (Los 10 obligatorios con CUD y críticos restaurados)
 const DOCUMENTOS_SISTEMA = [
     { clave: 'infMenF', nombre: 'Informe Mensual' },
     { clave: 'infoF', nombre: 'Informe Semestral', criticoSemestral: true },
@@ -1071,7 +1071,7 @@ function obtenerUsuarioActual() {
     return window.usuarioLogueadoEmail || localStorage.getItem('usuarioClinica') || 'secretaria@clinica.com';
 }
 
-// Validación estricta y blindada de archivo subido
+// Validación estricta: solo es true si hay archivo físico/link en Cloudinary
 function documentoTieneArchivoSubido(docData) {
     if (!docData) return false;
     if (Array.isArray(docData)) {
@@ -1083,7 +1083,7 @@ function documentoTieneArchivoSubido(docData) {
     return false;
 }
 
-// 1. ALERTAS DE INICIO
+// 1. ALERTAS DE INICIO (Muestra los vencidos y próximos a vencer si NO tienen archivo subido)
 function verificarAlertasAlIniciar() {
     let listaAlertas = document.getElementById('lista-alertas-inicio');
     if (!listaAlertas) return;
@@ -1105,17 +1105,14 @@ function verificarAlertasAlIniciar() {
             let tieneArchivo = documentoTieneArchivoSubido(docData);
             let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
 
+            // Si NO tiene archivo subido, evaluamos sus fechas para las alertas de la secretaría
             if (!tieneArchivo) {
                 if (lista.length === 0) {
                     arrayAlertasTemp.push({
-                        id: id,
-                        nombre: nombre,
-                        dni: dni,
-                        tipoDoc: doc.nombre,
-                        claveDoc: doc.clave,
-                        fecha: 'Sin cargar',
-                        diff: -999,
-                        motivo: '🔴 FALTA CARGAR ESTE DOCUMENTO'
+                        id: id, nombre: nombre, dni: dni,
+                        tipoDoc: doc.nombre, claveDoc: doc.clave,
+                        fecha: 'Sin cargar', diff: -999,
+                        motivo: '🔴 FALTA CARGAR ESTE DOCUMENTO - ¡SECRETARIA: LLAMAR / MANDAR WSP Y SUBIR CONSTANCIA!'
                     });
                 } else {
                     lista.forEach(item => {
@@ -1123,29 +1120,20 @@ function verificarAlertasAlIniciar() {
                             let fVenc = new Date(item.fecha);
                             fVenc.setHours(0, 0, 0, 0);
                             let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
-
                             let diasAnticipacion = (doc.clave === 'cud') ? 60 : ((doc.clave === 'pmF' || doc.clave === 'rhcF') ? 45 : 0);
 
                             if (diffDias < 0) {
                                 arrayAlertasTemp.push({
-                                    id: id,
-                                    nombre: nombre,
-                                    dni: dni,
-                                    tipoDoc: doc.nombre,
-                                    claveDoc: doc.clave,
-                                    fecha: item.fecha,
-                                    diff: diffDias,
+                                    id: id, nombre: nombre, dni: dni,
+                                    tipoDoc: doc.nombre, claveDoc: doc.clave,
+                                    fecha: item.fecha, diff: diffDias,
                                     motivo: `🔴 VENCIDO HACE ${Math.abs(diffDias)} DÍAS - ¡SECRETARIA: LLAMAR / MANDAR WSP Y SUBIR CONSTANCIA!`
                                 });
                             } else if (doc.critico && diffDias <= diasAnticipacion) {
                                 arrayAlertasTemp.push({
-                                    id: id,
-                                    nombre: nombre,
-                                    dni: dni,
-                                    tipoDoc: doc.nombre,
-                                    claveDoc: doc.clave,
-                                    fecha: item.fecha,
-                                    diff: diffDias,
+                                    id: id, nombre: nombre, dni: dni,
+                                    tipoDoc: doc.nombre, claveDoc: doc.clave,
+                                    fecha: item.fecha, diff: diffDias,
                                     motivo: `⏰ Vence en ${diffDias} días. 🚨 SECRETARIA: Contactar al padre (WhatsApp/Llamada) y subir constancia.`
                                 });
                             }
@@ -1154,6 +1142,7 @@ function verificarAlertasAlIniciar() {
                 }
             }
 
+            // Alertas de Turnos
             if (doc.critico) {
                 let claveTurno = doc.clave + 'T';
                 let fechaTurno = p[claveTurno];
@@ -1161,16 +1150,11 @@ function verificarAlertasAlIniciar() {
                     let fT = new Date(fechaTurno);
                     fT.setHours(0, 0, 0, 0);
                     let diffT = Math.round((fT - hoy) / (1000 * 60 * 60 * 24));
-                    
                     if (diffT <= 3 && diffT >= 0) {
                         arrayAlertasTemp.push({
-                            id: id,
-                            nombre: nombre,
-                            dni: dni,
-                            tipoDoc: `⚡ Turno ${doc.nombre}`,
-                            claveDoc: claveTurno,
-                            fecha: fechaTurno,
-                            diff: diffT,
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: `⚡ Turno ${doc.nombre}`, claveDoc: claveTurno,
+                            fecha: fechaTurno, diff: diffT,
                             motivo: `🚨 TURNO EN ${diffT} DÍAS: Secretaria contactar al padre para recordar el turno.`
                         });
                     }
@@ -1204,11 +1188,6 @@ function verificarAlertasAlIniciar() {
 function cerrarAlertaInicio() {
     let modalAlerta = document.getElementById('modal-alerta-inicio');
     if (modalAlerta) modalAlerta.style.display = 'none';
-}
-
-function cerrarPanelGeneral() {
-    let modal = document.getElementById('modal-panel-general');
-    if (modal) modal.style.display = 'none';
 }
 
 // 2. PANEL GENERAL
@@ -1249,7 +1228,7 @@ function abrirPanelGeneralGestiones() {
         let nombre = id;
         let dni = p.dni || 'S/D';
         
-        let documentosAlDia = 0;
+        let documentosConArchivo = 0;
         let tieneProblemas = false;
 
         DOCUMENTOS_SISTEMA.forEach(doc => {
@@ -1258,7 +1237,7 @@ function abrirPanelGeneralGestiones() {
             let lista = Array.isArray(dData) ? dData : (dData ? [dData] : []);
 
             if (tieneArchivo) {
-                documentosAlDia++;
+                documentosConArchivo++;
             } else {
                 if (lista.length === 0) {
                     tieneProblemas = true;
@@ -1276,8 +1255,8 @@ function abrirPanelGeneralGestiones() {
             }
         });
 
-        let badgeEstado = documentosAlDia === DOCUMENTOS_SISTEMA.length && !tieneProblemas ? 
-            `<span style="background:#27ae60; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟢 Al día (10/10 Completo)</span>` : 
+        let badgeEstado = documentosConArchivo === DOCUMENTOS_SISTEMA.length && !tieneProblemas ? 
+            `<span style="background:#27ae60; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟢 Al día (${documentosConArchivo}/10)</span>` : 
             `<span style="background:#e74c3c; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🔴 INCOMPLETO / VENCIDO</span>`;
 
         tbody.innerHTML += `
@@ -1285,7 +1264,7 @@ function abrirPanelGeneralGestiones() {
                 <td style="padding:8px; font-weight:bold; color:#2c3e50;">${nombre}</td>
                 <td style="padding:8px; color:#555;">DNI: ${dni}</td>
                 <td style="padding:8px;">${badgeEstado}</td>
-                <td style="padding:8px; font-size:11px;">Al día / Presentados: <b>${documentosAlDia}</b> de ${DOCUMENTOS_SISTEMA.length}</td>
+                <td style="padding:8px; font-size:11px;">Archivos Subidos: <b>${documentosConArchivo}</b> de ${DOCUMENTOS_SISTEMA.length}</td>
                 <td style="padding:8px;">
                     <button class="btn" style="background:#2980b9; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" onclick="abrirLegajoCompletoPaciente('${id}')">📂 Ver Ficha</button>
                 </td>
@@ -1301,15 +1280,15 @@ function ejecutarAsignacionMasivaInterna() {
     if (!nuevaFecha) { alert("Elegí una fecha."); return; }
 
     let docObj = DOCUMENTOS_SISTEMA.find(d => d.clave === tipoDoc);
-    if (!confirm(`¿Aplicar ${nuevaFecha} a todos los pacientes en ${docObj.nombre}?`)) return;
+    if (!confirm(`¿Aplicar fecha de vencimiento ${nuevaFecha} a todos los pacientes en ${docObj.nombre}?`)) return;
 
     let updates = {};
     let usuario = obtenerUsuarioActual();
     let fechaAuditoria = new Date().toISOString();
 
     for (let id in pacs) {
-        updates[`${id}/${tipoDoc}`] = [{ fecha: nuevaFecha, descripcion: 'Asignación masiva', archivo: '' }];
-        updates[`${id}/${tipoDoc}_estado`]; // No forzamos documento subido masivamente si no hay archivo
+        // Mantiene o crea el item respetando que NO tiene archivo subido (archivo: '')
+        updates[`${id}/${tipoDoc}`] = [{ fecha: nuevaFecha, descripcion: 'Asignación masiva vencimiento', archivo: '' }];
         updates[`${id}/ultimaModificacion`] = {
             usuario: usuario,
             fecha: fechaAuditoria,
@@ -1318,12 +1297,12 @@ function ejecutarAsignacionMasivaInterna() {
     }
 
     database.child('pacientes').update(updates).then(() => {
-        alert("¡Aplicado, guardado en Firebase y auditado correctamente!");
+        alert("¡Fechas aplicadas correctamente sin alterar el estado de archivos!");
         abrirPanelGeneralGestiones();
     });
 }
 
-// 3. LA FICHA INDIVIDUAL (CON RELOJ GRANDE Y LLAMATIVO DE PRESIÓN)
+// 3. LA FICHA INDIVIDUAL CON RELOJES DE PRESIÓN
 function abrirLegajoCompletoPaciente(idPaciente) {
     let p = pacs[idPaciente];
     if (!p) return;
@@ -1370,17 +1349,16 @@ function abrirLegajoCompletoPaciente(idPaciente) {
         let tieneArchivo = documentoTieneArchivoSubido(docData);
         let listaActas = Array.isArray(docData) ? docData : (docData ? [docData] : []);
 
-        // ESTADO AUTOMÁTICO REAL: Si tiene archivo subido, va 'Documento Subido'. Si no, respeta lo que tenga o Pendiente Padre.
+        // Estado inteligente: Si tiene archivo, se fuerza 'Documento Subido'. Si no, toma el del workflow o 'Pendiente Padre'.
         let estadoActual = tieneArchivo ? 'Documento Subido' : (p[doc.clave + '_estado'] || (listaActas.length > 0 ? 'Pendiente Padre' : 'Pendiente Padre'));
 
         let htmlActasInternas = '';
         if (listaActas.length === 0) {
-            htmlActasInternas = `<span style="color:#e74c3c; font-weight:bold; font-size:11px;">❌ FALTA CARGAR ESTE DOCUMENTO</span>`;
+            htmlActasInternas = `<span style="color:#e74c3c; font-weight:bold; font-size:11px;">❌ FALTA CARGAR ESTE DOCUMENTO - ¡SECRETARIA LLAMAR / WSP!</span>`;
         } else {
             listaActas.forEach((acta, index) => {
-                let badgeEstadoActa = acta.archivo ? `🟢 Archivo Subido` : `📄 Registrado`;
+                let badgeEstadoActa = acta.archivo ? `<span style="color:green; font-weight:bold;">🟢 Archivo Subido (Cloudinary)</span>` : `<span style="color:#d97706; font-weight:bold;">📄 Solo Fecha Registrada (Falta Archivo)</span>`;
 
-                // 🔥 RELOJ GRANDE, LLAMATIVO Y DE ALTA PRESIÓN (Solo si NO hay archivo subido)
                 let htmlRelojGrande = '';
                 if (!acta.archivo && acta.fecha) {
                     let fV = new Date(acta.fecha);
@@ -1389,12 +1367,12 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                     
                     if (diff < 0) {
                         htmlRelojGrande = `
-                            <div style="background:#fee2e2; border:1px solid #ef4444; color:#991b1b; padding:6px 8px; border-radius:6px; margin:6px 0; font-weight:bold; font-size:11px; display:flex; align-items:center; gap:6px;">
-                                ⏰ <span>¡¡VENCIDO HACE ${Math.abs(diff)} DÍAS!! (Urgente gestionar)</span>
+                            <div style="background:#fee2e2; border:1px solid #ef4444; color:#991b1b; padding:6px 8px; border-radius:6px; margin:6px 0; font-weight:bold; font-size:11px;">
+                                ⏰ <span>¡¡VENCIDO HACE ${Math.abs(diff)} DÍAS!! (Urgente reclamar al padre)</span>
                             </div>`;
                     } else if (diff <= 30) {
                         htmlRelojGrande = `
-                            <div style="background:#fef3c7; border:1px solid #f59e0b; color:#92400e; padding:6px 8px; border-radius:6px; margin:6px 0; font-weight:bold; font-size:11px; display:flex; align-items:center; gap:6px;">
+                            <div style="background:#fef3c7; border:1px solid #f59e0b; color:#92400e; padding:6px 8px; border-radius:6px; margin:6px 0; font-weight:bold; font-size:11px;">
                                 ⏰ <span>¡¡ATENCIÓN!! Vence en ${diff} días (Presionar para regularizar)</span>
                             </div>`;
                     } else {
@@ -1408,7 +1386,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                 htmlActasInternas += `
                     <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:8px; border-radius:6px; margin-bottom:6px; font-size:11px;">
                         <div>
-                            <b>#${index + 1}</b> Fecha: <input type="date" value="${acta.fecha || ''}" onchange="actualizarFechaActaItem('${idPaciente}', '${doc.clave}', ${index}, this.value)" style="padding:2px; font-size:10px; border:1px solid #cbd5e1; border-radius:3px;">
+                            <b>#${index + 1}</b> Fecha Venc.: <input type="date" value="${acta.fecha || ''}" onchange="actualizarFechaActaItem('${idPaciente}', '${doc.clave}', ${index}, this.value)" style="padding:2px; font-size:10px; border:1px solid #cbd5e1; border-radius:3px;">
                             ${htmlRelojGrande}
                             <div style="margin-top:4px;"><small style="color:#475569;"><b>Desc:</b> ${acta.descripcion || 'Sin descripción'} | ${badgeEstadoActa}</small></div>
                             ${acta.archivo ? `<div style="margin-top:4px;"><a href="${acta.archivo}" target="_blank" style="color:#2563eb; font-weight:bold; text-decoration:underline;">🔗 Ver Archivo Cloudinary</a></div>` : ''}
@@ -1433,9 +1411,9 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                 <td style="padding:10px;">
                     <div style="display:flex; flex-direction:column; gap:6px;">
                         <div style="display:flex; gap:4px;">
-                            <button class="btn" onclick="agregarActaPrompt('${idPaciente}', '${doc.clave}')" style="background:#0ea5e9; color:white; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">+ Acta</button>
+                            <button class="btn" onclick="agregarActaPrompt('${idPaciente}', '${doc.clave}')" style="background:#0ea5e9; color:white; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">+ Fecha</button>
                             <input type="file" id="file_${idPaciente}_${doc.clave}" style="display:none;" onchange="subirDocModuloDirecto('${idPaciente}', '${doc.clave}', this)">
-                            <button class="btn" onclick="document.getElementById('file_${idPaciente}_${doc.clave}').click()" style="background:#10b981; color:white; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">📤 Subir</button>
+                            <button class="btn" onclick="document.getElementById('file_${idPaciente}_${doc.clave}').click()" style="background:#10b981; color:white; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">📤 Subir Archivo</button>
                         </div>
                         <div style="background:#fff7ed; border:1px solid #ffedd5; padding:6px; border-radius:4px; font-size:11px;">
                             <span style="color:#c2410c; font-weight:bold;">Workflow Padre:</span>
@@ -1452,7 +1430,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                 </td>
             </tr>`;
 
-        // Turno exclusivo para CUD, P.M y RHC con su propio reloj de presión
+        // Turno exclusivo para CUD, P.M y RHC
         if (doc.critico) {
             let claveTurno = doc.clave + 'T';
             let fechaTurno = p[claveTurno] || '';
@@ -1484,7 +1462,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
     modalLegajo.style.display = 'flex';
 }
 
-// 4. FUNCIONES DE ACCIÓN Y AUDITORÍA
+// 4. FUNCIONES DE ACCIÓN
 function enviarWspPadreDocumento(idPaciente, docClave, nombreDoc) {
     let p = pacs[idPaciente];
     let tel = p.tel || prompt("No se encontró el teléfono guardado en p.tel. Ingrese el número:", "");
@@ -1498,13 +1476,14 @@ function enviarWspPadreDocumento(idPaciente, docClave, nombreDoc) {
 }
 
 function agregarActaPrompt(idPaciente, docClave) {
-    let fecha = prompt("Ingrese la fecha del acta (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
+    let fecha = prompt("Ingrese la fecha de vencimiento (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
     if (!fecha) return;
-    let descripcion = prompt("Ingrese la descripción o número de acta (Ej. Acta N° 4):") || "Acta institucional";
+    let descripcion = prompt("Ingrese la descripción o número de acta (Ej. Vencimiento anual):") || "Vencimiento regulado";
 
     let p = pacs[idPaciente];
     let actual = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [p[docClave]] : []);
 
+    // Agregamos con archivo vacío para que la fecha actúe como alerta pero NO como subido
     actual.push({ fecha: fecha, descripcion: descripcion, archivo: '' });
 
     let usuario = obtenerUsuarioActual();
@@ -1513,7 +1492,7 @@ function agregarActaPrompt(idPaciente, docClave) {
         ultimaModificacion: {
             usuario: usuario,
             fecha: new Date().toISOString(),
-            accion: `Agregó acta en ${docClave}`
+            accion: `Agregó fecha en ${docClave}`
         }
     }).then(() => {
         abrirLegajoCompletoPaciente(idPaciente);
@@ -1533,15 +1512,15 @@ function actualizarFechaActaItem(idPaciente, docClave, index, nuevaFecha) {
         ultimaModificacion: {
             usuario: usuario,
             fecha: new Date().toISOString(),
-            accion: `Modificó fecha de acta en ${docClave}`
+            accion: `Modificó fecha en ${docClave}`
         }
     }).then(() => {
-        console.log("Fecha de acta actualizada y auditada.");
+        console.log("Fecha actualizada.");
     });
 }
 
 function eliminarActaDeItem(idPaciente, docClave, index) {
-    if (!confirm("¿Está seguro de eliminar esta acta?")) return;
+    if (!confirm("¿Está seguro de eliminar este registro?")) return;
 
     let p = pacs[idPaciente];
     if (!p || !Array.isArray(p[docClave])) return;
@@ -1555,7 +1534,7 @@ function eliminarActaDeItem(idPaciente, docClave, index) {
         ultimaModificacion: {
             usuario: usuario,
             fecha: new Date().toISOString(),
-            accion: `Eliminó acta de ${docClave}`
+            accion: `Eliminó registro de ${docClave}`
         }
     }).then(() => {
         abrirLegajoCompletoPaciente(idPaciente);
@@ -1572,7 +1551,7 @@ function actualizarEstadoWorkflow(idPaciente, docClave, nuevoEstado) {
             accion: `Cambió estado workflow de ${docClave} a ${nuevoEstado}`
         }
     }).then(() => {
-        console.log("Estado de workflow actualizado.");
+        console.log("Estado actualizado.");
     });
 }
 
@@ -1586,7 +1565,7 @@ function actualizarTurnoConAuditoria(idPaciente, claveTurno, valorFecha) {
             accion: `Modificó turno ${claveTurno}`
         }
     }).then(() => {
-        console.log("Turno actualizado con auditoría.");
+        console.log("Turno actualizado.");
     });
 }
 
@@ -1611,6 +1590,7 @@ async function subirDocModuloDirecto(idPaciente, docClave, input) {
             let p = pacs[idPaciente];
             let actualArray = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [p[docClave]] : []);
 
+            // Aquí SÍ guardamos el archivo real, lo que marca el documento como subido oficialmente
             actualArray.push({ fecha: fechaActa, descripcion: descripcion, archivo: data.secure_url });
 
             let usuario = obtenerUsuarioActual();
@@ -1623,7 +1603,7 @@ async function subirDocModuloDirecto(idPaciente, docClave, input) {
                     accion: `Subió archivo adjunto a ${docClave}`
                 }
             }).then(() => {
-                alert("¡Archivo subido a Cloudinary, vinculado y auditado con éxito!");
+                alert("¡Archivo subido y marcado como 'Documento Subido' con éxito!");
                 abrirLegajoCompletoPaciente(idPaciente);
             });
         } else {
