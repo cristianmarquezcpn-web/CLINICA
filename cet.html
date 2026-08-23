@@ -1067,12 +1067,11 @@ const DOCUMENTOS_SISTEMA = [
     { clave: 'cud', nombre: 'CUD' }
 ];
 
-// OBTENER USUARIO ACTUAL
 function obtenerUsuarioActual() {
     return window.usuarioLogueadoEmail || localStorage.getItem('usuarioClinica') || 'secretaria@clinica.com';
 }
 
-// 1. ALERTAS DE INICIO: Si falta alguno de los 10 documentos o está vencido, salta la alerta
+// 1. ALERTAS DE INICIO: SOLO avisa si EL DOCUMENTO NO ESTÁ SUBIDO (está vacío). Si está subido, CERO alertas.
 function verificarAlertasAlIniciar() {
     let listaAlertas = document.getElementById('lista-alertas-inicio');
     if (!listaAlertas) return;
@@ -1093,7 +1092,7 @@ function verificarAlertasAlIniciar() {
             let docData = p[doc.clave];
             let lista = Array.isArray(docData) ? docData : (docData ? [{ fecha: docData, archivo: '' }] : []);
 
-            // SI FALTA EL DOCUMENTO (0 documentos cargados para este ítem)
+            // LA ÚNICA CONDICIÓN DE ALERTA: QUE NO ESTÉ SUBIDO (Lista vacía)
             if (lista.length === 0) {
                 arrayAlertasTemp.push({
                     id: id,
@@ -1101,43 +1100,20 @@ function verificarAlertasAlIniciar() {
                     dni: dni,
                     tipoDoc: doc.nombre,
                     claveDoc: doc.clave,
-                    fecha: 'Falta adjuntar',
-                    diff: -999, // Rojo directo por faltante
-                    motivo: 'Falta completar documentación'
-                });
-            } else {
-                // Si tiene documentos, evaluamos si el CUD o PM están vencidos por fecha
-                lista.forEach(item => {
-                    if (item && item.fecha && (doc.clave === 'cud' || doc.clave === 'pmF')) {
-                        let fVenc = new Date(item.fecha);
-                        fVenc.setHours(0, 0, 0, 0);
-                        let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
-                        let umbral = 60;
-
-                        if (diffDias <= umbral) {
-                            arrayAlertasTemp.push({
-                                id: id,
-                                nombre: nombre,
-                                dni: dni,
-                                tipoDoc: doc.nombre,
-                                claveDoc: doc.clave,
-                                fecha: item.fecha,
-                                diff: diffDias,
-                                motivo: diffDias < 0 ? 'VENCIDO' : 'Próximo a vencer'
-                            });
-                        }
-                    }
+                    fecha: 'Sin cargar',
+                    diff: -999,
+                    motivo: '🔴 FALTA CARGAR ESTE DOCUMENTO'
                 });
             }
 
-            // Validación de Turnos
+            // Validación de Turnos (opcional si corresponde)
             let claveTurno = doc.clave + 'T';
             let fechaTurno = p[claveTurno];
             if (fechaTurno) {
                 let fT = new Date(fechaTurno);
                 fT.setHours(0, 0, 0, 0);
                 let diffT = Math.round((fT - hoy) / (1000 * 60 * 60 * 24));
-                if (diffT <= 45) {
+                if (diffT <= 45 && diffT >= 0) {
                     arrayAlertasTemp.push({
                         id: id,
                         nombre: nombre,
@@ -1146,7 +1122,7 @@ function verificarAlertasAlIniciar() {
                         claveDoc: claveTurno,
                         fecha: fechaTurno,
                         diff: diffT,
-                        motivo: 'Recordatorio de Turno'
+                        motivo: '📅 Recordatorio de Turno próximo'
                     });
                 }
             }
@@ -1158,17 +1134,15 @@ function verificarAlertasAlIniciar() {
     arrayAlertasTemp.forEach(alerta => {
         contadorAlertas++;
         let colorBadge = '#e74c3c';
-        let textoEstado = alerta.diff === -999 ? `🔴 FALTA DOCUMENTACIÓN` : (alerta.diff < 0 ? `🔴 VENCIDO` : `🟠 PRÓXIMO`);
 
         listaAlertas.innerHTML += `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #eee; background:white; margin-bottom:4px; border-radius:4px; border-left: 4px solid ${colorBadge};">
                 <div>
                     <b>${alerta.nombre}</b> (DNI: ${alerta.dni})<br>
-                    <small style="color:#666">📄 <b>${alerta.tipoDoc}</b> - Detalle: ${alerta.fecha}</small>
+                    <small style="color:#444">📄 <b>${alerta.tipoDoc}</b> - <i>${alerta.motivo}</i></small>
                 </div>
                 <div style="text-align:right;">
-                    <span style="background:${colorBadge}; color:white; padding:3px 8px; border-radius:4px; font-size:10px; font-weight:bold; display:inline-block; margin-bottom:4px;">${textoEstado}</span><br>
-                    <button class="btn" style="background:#2c3e50; color:white; font-size:10px; padding:4px 8px; border:none; border-radius:3px; cursor:pointer;" onclick="cerrarAlertaInicio(); abrirLegajoCompletoPaciente('${alerta.id}')">Ver Legajo</button>
+                    <button class="btn" style="background:#2c3e50; color:white; font-size:10px; padding:5px 10px; border:none; border-radius:3px; cursor:pointer;" onclick="cerrarAlertaInicio(); abrirLegajoCompletoPaciente('${alerta.id}')">Ver Legajo</button>
                 </div>
             </div>`;
     });
@@ -1187,7 +1161,7 @@ function cerrarPanelGeneral() {
     if (modal) modal.style.display = 'none';
 }
 
-// 2. PANEL GENERAL: EXIGENCIA DE LOS 10 DOCUMENTOS COMPLETOS PARA ESTAR EN VERDE
+// 2. PANEL GENERAL: VERDE SOLO SI TIENE LOS 10 DOCUMENTOS SUBIDOS
 function abrirPanelGeneralGestiones() {
     let modal = document.getElementById('modal-panel-general');
     if (!modal) return;
@@ -1224,33 +1198,25 @@ function abrirPanelGeneralGestiones() {
         let dni = p.dni || 'S/D';
         
         let documentosCompletos = 0;
-        let tieneVencidos = false;
+        let tieneFaltantes = false;
 
         DOCUMENTOS_SISTEMA.forEach(doc => {
             let dData = p[doc.clave];
             let lista = Array.isArray(dData) ? dData : (dData ? [{ fecha: dData, archivo: '' }] : []);
             
-            if (lista.length > 0) {
+            if (lista.length === 0) {
+                tieneFaltantes = true;
+            } else {
                 documentosCompletos++;
-                // Verificar si tiene vencimiento de fecha en CUD o Plan Médico
-                lista.forEach(item => {
-                    if (item && item.fecha && (doc.clave === 'cud' || doc.clave === 'pmF')) {
-                        let fV = new Date(item.fecha);
-                        fV.setHours(0,0,0,0);
-                        let hoy = new Date();
-                        hoy.setHours(0,0,0,0);
-                        if (Math.round((fV - hoy) / (1000 * 60 * 60 * 24)) < 0) tieneVencidos = true;
-                    }
-                });
             }
         });
 
         let badgeEstado = '';
-        // SOLO ESTÁ EN VERDE SI TIENE LOS 10 DOCUMENTOS Y NINGUNO VENCIDO
-        if (documentosCompletos === DOCUMENTOS_SISTEMA.length && !tieneVencidos) {
+        // SOLO ES VERDE SI TIENE LOS 10 DOCUMENTOS SUBIDOS (Sin importar si la fecha pasó, ya que está subido)
+        if (documentosCompletos === DOCUMENTOS_SISTEMA.length && !tieneFaltantes) {
             badgeEstado = `<span style="background:#27ae60; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟢 Al día (10/10 Completo)</span>`;
         } else {
-            badgeEstado = `<span style="background:#e74c3c; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🔴 INCOMPLETO (${documentosCompletos}/10)</span>`;
+            badgeEstado = `<span style="background:#e74c3c; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🔴 INCOMPLETO (Faltan documentos)</span>`;
         }
 
         tbody.innerHTML += `
@@ -1260,7 +1226,7 @@ function abrirPanelGeneralGestiones() {
                 <td style="padding:8px;">${badgeEstado}</td>
                 <td style="padding:8px; font-size:11px;">Cargados: <b>${documentosCompletos}</b> de ${DOCUMENTOS_SISTEMA.length}</td>
                 <td style="padding:8px;">
-                    <button class="btn" style="background:#2980b9; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" onclick="abrirLegajoCompletoPaciente('${id}')">📂 Ver Ficha / Múltiples Docs</button>
+                    <button class="btn" style="background:#2980b9; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" onclick="abrirLegajoCompletoPaciente('${id}')">📂 Ver Ficha</button>
                 </td>
             </tr>`;
     }
@@ -1294,8 +1260,7 @@ function ejecutarAsignacionMasivaInterna() {
         abrirPanelGeneralGestiones();
     });
 }
-
-// 3. LA FICHA INDIVIDUAL (Workflow sincronizado con el estado real)
+// 3. LA FICHA INDIVIDUAL CON EL RELOJ CONTADOR INVERTIDO SEGÚN TU REGLA
 function abrirLegajoCompletoPaciente(idPaciente) {
     let p = pacs[idPaciente];
     if (!p) return;
@@ -1319,18 +1284,20 @@ function abrirLegajoCompletoPaciente(idPaciente) {
 
     document.getElementById('legajo-titulo-nombre').innerText = `📂 Legajo: ${idPaciente} (DNI: ${p.dni || 'S/D'})`;
     let contenedorDetalle = document.getElementById('legajo-contenido-detalle');
+    let hoy = new Date();
+    hoy.setHours(0,0,0,0);
 
     let infoAuditoria = p.ultimaModificacion ? `<div style="background:#f8fafc; border:1px solid #e2e8f0; padding:8px; border-radius:6px; margin-bottom:15px; font-size:11px; color:#64748b;"><b>Última modificación:</b> ${p.ultimaModificacion.fecha.replace('T', ' ').substring(0,16)} por <em>${p.ultimaModificacion.usuario}</em> (${p.ultimaModificacion.accion || 'Actualización'})</div>` : '';
 
     let htmlTabla = `
         ${infoAuditoria}
-        <h4 style="margin-bottom:8px; color:#34495e;">📋 Control Documental Avanzado (Exigencia 10 Documentos, Cloudinary y WhatsApp):</h4>
+        <h4 style="margin-bottom:8px; color:#34495e;">📋 Control Documental:</h4>
         <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px;">
             <thead>
                 <tr style="background:#f8f9fa; border-bottom:2px solid #ddd; text-align:left;">
                     <th style="padding:8px; width:22%;">Documento / Ítem</th>
                     <th style="padding:8px; width:38%;">Listado de Actas / Fechas / Archivos</th>
-                    <th style="padding:8px; width:40%;">Acciones, Workflow & WhatsApp Padre</th>
+                    <th style="padding:8px; width:40%;">Estado, Reloj & Acciones WhatsApp</th>
                 </tr>
             </thead>
             <tbody>`;
@@ -1339,17 +1306,32 @@ function abrirLegajoCompletoPaciente(idPaciente) {
         let docData = p[doc.clave];
         let listaActas = Array.isArray(docData) ? docData : (docData ? [{ fecha: docData, descripcion: 'Registro único', archivo: '' }] : []);
 
-        let claveTurno = doc.clave + 'T';
-        let fechaTurno = p[claveTurno] || '';
-        let claveEstado = doc.clave + '_estado';
-        
-        // Estado automático inteligente: si tiene archivo o actas, por defecto es Documento Subido si no se cambió antes
-        let estadoActual = p[claveEstado] || (listaActas.length > 0 ? 'Documento Subido' : 'Pendiente Padre');
-
         let htmlActasInternas = '';
+        let relojContadorHtml = '';
+
+        // REGLA: Si NO está subido (lista vacía) -> APARECE EL RELOJ / Alerta de faltante
         if (listaActas.length === 0) {
             htmlActasInternas = `<span style="color:#e74c3c; font-weight:bold; font-size:11px;">❌ FALTA CARGAR ESTE DOCUMENTO</span>`;
+            relojContadorHtml = `<span style="background:#fee2e2; color:#b91c1c; padding:4px 8px; border-radius:4px; font-size:10px; font-weight:bold; display:inline-block;">⏰ Reloj / Alerta: Documento no subido</span>`;
         } else {
+            // SÍ está subido: CHAU RELOJ (mientras esté vigente). Evaluamos si se venció.
+            let ultimaFecha = listaActas[listaActas.length - 1].fecha;
+            if (ultimaFecha) {
+                let fVenc = new Date(ultimaFecha);
+                fVenc.setHours(0,0,0,0);
+                let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
+
+                if (diffDias < 0) {
+                    // ¡Se venció! Acá sí aparece la alerta de vencido hasta que se cargue una nueva fecha
+                    relojContadorHtml = `<span style="background:#fef3c7; color:#d97706; padding:4px 8px; border-radius:4px; font-size:10px; font-weight:bold; display:inline-block;">⚠️ Documento Vencido (Hace ${Math.abs(diffDias)} días)</span>`;
+                } else {
+                    // Está subido y al día: CHAU RELOJ (queda vacío o sin aviso de falta)
+                    relojContadorHtml = ``; 
+                }
+            } else {
+                relojContadorHtml = ``;
+            }
+
             listaActas.forEach((acta, index) => {
                 let badgeEstadoActa = acta.archivo ? `🟢 Archivo Subido` : `📄 Registrado`;
 
@@ -1368,7 +1350,8 @@ function abrirLegajoCompletoPaciente(idPaciente) {
         htmlTabla += `
             <tr style="border-bottom:1px solid #eee; vertical-align: top;">
                 <td style="padding:10px; font-weight:bold; color:#2c3e50;">
-                    ${doc.nombre}
+                    ${doc.nombre}<br>
+                    <div style="margin-top:6px;">${relojContadorHtml}</div>
                 </td>
                 <td style="padding:10px;">
                     <div style="max-height: 140px; overflow-y: auto; padding-right: 4px;">
@@ -1382,25 +1365,10 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                             <input type="file" id="file_${idPaciente}_${doc.clave}" style="display:none;" onchange="subirDocModuloDirecto('${idPaciente}', '${doc.clave}', this)">
                             <button class="btn" onclick="document.getElementById('file_${idPaciente}_${doc.clave}').click()" style="background:#10b981; color:white; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">📤 Subir</button>
                         </div>
-                        <div style="background:#fff7ed; border:1px solid #ffedd5; padding:6px; border-radius:4px; font-size:11px;">
-                            <span style="color:#c2410c; font-weight:bold;">Workflow Padre:</span>
-                            <select onchange="actualizarEstadoWorkflow('${idPaciente}', '${doc.clave}', this.value)" style="width:100%; margin-top:2px; font-size:10px; padding:2px; border:1px solid #fdba74; border-radius:3px;">
-                                <option value="Pendiente Padre" ${estadoActual === 'Pendiente Padre' ? 'selected' : ''}>⏳ Pendiente Padre</option>
-                                <option value="Turno Solicitado" ${estadoActual === 'Turno Solicitado' ? 'selected' : ''}>📅 Turno Solicitado</option>
-                                <option value="Documento Subido" ${estadoActual === 'Documento Subido' ? 'selected' : ''}>✅ Documento Subido</option>
-                            </select>
-                        </div>
                         <button class="btn" onclick="enviarWspPadreDocumento('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#25d366; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold; display:flex; align-items:center; justify-content:center; gap:5px;">
                             💬 Enviar Aviso WhatsApp
                         </button>
                     </div>
-                </td>
-            </tr>
-            <tr style="background:#fffbeb; border-bottom:1px solid #eee;">
-                <td style="padding:6px; font-weight:bold; color:#b45309; padding-left:20px; font-size:11px;">↳ ⚡ Turno ${doc.nombre}</td>
-                <td colspan="2" style="padding:6px;">
-                    <input type="date" value="${fechaTurno}" onchange="actualizarTurnoConAuditoria('${idPaciente}', '${claveTurno}', this.value);" style="padding:3px; border:1px solid #ccc; border-radius:3px; font-size:11px;">
-                    <span style="font-size:11px; color:#78350f; margin-left:10px;">(Gestión de recordatorios de turnos)</span>
                 </td>
             </tr>`;
     });
@@ -1409,21 +1377,14 @@ function abrirLegajoCompletoPaciente(idPaciente) {
     contenedorDetalle.innerHTML = htmlTabla;
     modalLegajo.style.display = 'flex';
 }
-
-// 4. FUNCIONES DE MANIPULACIÓN (Usando p.tel directo)
+// 4. FUNCIONES DE ACCIÓN
 function enviarWspPadreDocumento(idPaciente, docClave, nombreDoc) {
     let p = pacs[idPaciente];
     let tel = p.tel || prompt("No se encontró el teléfono guardado en p.tel. Ingrese el número:", "");
     if (!tel) return;
     
     let numeroLimpiado = tel.replace(/\D/g, '');
-    let mensaje = "";
-
-    if (docClave === 'cud') {
-        mensaje = `Estimados padres de ${idPaciente}: Nos comunicamos desde la clínica para recordarles que el Certificado Único de Discapacidad (CUD) se encuentra próximo a vencer o requiere renovación. Por favor, manténgannos al tanto para gestionar los pasos necesarios. Equipo de Esencial Salud Srl.`;
-    } else {
-        mensaje = `Estimados padres de ${idPaciente}: Les informamos que ya se encuentran en condiciones de solicitar / tramitar ${nombreDoc} para realizar el proceso de renovación correspondiente. Equipo de Esencial Salud Srl.`;
-    }
+    let mensaje = `Estimados padres de ${idPaciente}: Nos comunicamos desde la clínica para recordarles la gestión y actualización de ${nombreDoc}. Por favor, manténgannos al tanto. Equipo de Esencial Salud Srl.`;
 
     let urlWsp = `https://api.whatsapp.com/send?phone=${numeroLimpiado}&text=${encodeURIComponent(mensaje)}`;
     window.open(urlWsp, '_blank');
@@ -1437,11 +1398,7 @@ function agregarActaPrompt(idPaciente, docClave) {
     let p = pacs[idPaciente];
     let actual = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [{ fecha: p[docClave], descripcion: 'Anterior', archivo: '' }] : []);
 
-    actual.push({
-        fecha: fecha,
-        descripcion: descripcion,
-        archivo: ''
-    });
+    actual.push({ fecha: fecha, descripcion: descripcion, archivo: '' });
 
     let usuario = obtenerUsuarioActual();
     database.child(`pacientes/${idPaciente}`).update({
@@ -1473,7 +1430,7 @@ function actualizarFechaActaItem(idPaciente, docClave, index, nuevaFecha) {
             accion: `Modificó fecha de acta en ${docClave}`
         }
     }).then(() => {
-        console.log("Fecha de acta actualizada y auditada.");
+        abrirLegajoCompletoPaciente(idPaciente);
     });
 }
 
@@ -1499,34 +1456,6 @@ function eliminarActaDeItem(idPaciente, docClave, index) {
     });
 }
 
-function actualizarEstadoWorkflow(idPaciente, docClave, nuevoEstado) {
-    let usuario = obtenerUsuarioActual();
-    database.child(`pacientes/${idPaciente}`).update({
-        [`${docClave}_estado`]: nuevoEstado,
-        ultimaModificacion: {
-            usuario: usuario,
-            fecha: new Date().toISOString(),
-            accion: `Cambió estado workflow de ${docClave} a ${nuevoEstado}`
-        }
-    }).then(() => {
-        console.log("Estado de workflow actualizado.");
-    });
-}
-
-function actualizarTurnoConAuditoria(idPaciente, claveTurno, valorFecha) {
-    let usuario = obtenerUsuarioActual();
-    database.child(`pacientes/${idPaciente}`).update({
-        [claveTurno]: valorFecha,
-        ultimaModificacion: {
-            usuario: usuario,
-            fecha: new Date().toISOString(),
-            accion: `Modificó turno ${claveTurno}`
-        }
-    }).then(() => {
-        console.log("Turno actualizado con auditoría.");
-    });
-}
-
 async function subirDocModuloDirecto(idPaciente, docClave, input) {
     if(!input.files[0]) return;
     const file = input.files[0];
@@ -1548,11 +1477,7 @@ async function subirDocModuloDirecto(idPaciente, docClave, input) {
             let p = pacs[idPaciente];
             let actualArray = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [{ fecha: p[docClave], descripcion: 'Anterior', archivo: '' }] : []);
 
-            actualArray.push({
-                fecha: fechaActa,
-                descripcion: descripcion,
-                archivo: data.secure_url
-            });
+            actualArray.push({ fecha: fechaActa, descripcion: descripcion, archivo: data.secure_url });
 
             let usuario = obtenerUsuarioActual();
             database.child(`pacientes/${idPaciente}`).update({
