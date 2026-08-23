@@ -1071,15 +1071,28 @@ function obtenerUsuarioActual() {
     return window.usuarioLogueadoEmail || localStorage.getItem('usuarioClinica') || 'secretaria@clinica.com';
 }
 
-// VALIDACIÓN ESTRICTA DE ARCHIVO: Solo es true si Cloudinary tiene la URL guardada.
+// VALIDACIÓN ESTRICTA DE ARCHIVO: Única forma de que algo figure como subido (exige link real de Cloudinary)
 function documentoTieneArchivoSubido(docData) {
     if (!docData) return false;
+    
+    if (typeof docData === 'string' && docData.trim() !== '' && docData.startsWith('http')) {
+        return true;
+    }
+
     if (Array.isArray(docData)) {
-        return docData.some(item => item && item.archivo && typeof item.archivo === 'string' && item.archivo.trim() !== '');
+        return docData.some(item => {
+            if (!item) return false;
+            if (typeof item === 'string' && item.trim() !== '' && item.startsWith('http')) return true;
+            return (item.archivo && typeof item.archivo === 'string' && item.archivo.trim() !== '' && item.archivo.startsWith('http')) ||
+                   (item.url && typeof item.url === 'string' && item.url.trim() !== '' && item.url.startsWith('http'));
+        });
     }
+
     if (typeof docData === 'object') {
-        return docData.archivo && typeof docData.archivo === 'string' && docData.archivo.trim() !== '';
+        return (docData.archivo && typeof docData.archivo === 'string' && docData.archivo.trim() !== '' && docData.archivo.startsWith('http')) ||
+               (docData.url && typeof docData.url === 'string' && docData.url.trim() !== '' && docData.url.startsWith('http'));
     }
+
     return false;
 }
 
@@ -1093,7 +1106,7 @@ function cerrarAlertaInicio() {
     if (modalAlerta) modalAlerta.style.display = 'none';
 }
 
-// 1. ALERTAS DE INICIO (SEPARANDO ALERTA DE VENCIMIENTO VS ALERTA DE PRESIÓN A SECRETARIA)
+// 1. ALERTAS DE INICIO (CON LAS DOS ALERTAS DE TURNO PARA LA SECRETARIA Y VENCIMIENTOS REALES)
 function verificarAlertasAlIniciar() {
     let listaAlertas = document.getElementById('lista-alertas-inicio');
     if (!listaAlertas) return;
@@ -1112,72 +1125,74 @@ function verificarAlertasAlIniciar() {
 
         DOCUMENTOS_SISTEMA.forEach(doc => {
             let docData = p[doc.clave];
-            let tieneArchivo = documentoTieneArchivoSubido(docData);
+            let tieneArchivoReal = documentoTieneArchivoSubido(docData);
             let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
 
-            // A. Si no tiene archivo subido, se genera la ALERTA DE GESTIÓN PARA LA SECRETARIA (Presión activa)
-            if (!tieneArchivo) {
+            // A. Si NO tiene archivo real subido, evaluamos los vencimientos del documento
+            if (!tieneArchivoReal) {
+                let diasAnticipacionCritica = doc.diasAnticipacion || 15;
+
                 if (lista.length === 0) {
                     arrayAlertasTemp.push({
                         id: id, nombre: nombre, dni: dni,
-                        tipoDoc: doc.nombre, claveDoc: doc.clave,
-                        diff: -999,
-                        prioridadVisual: 'rojo',
-                        motivoSecre: `🚨 SECRETARIA: FALTA CARGAR Y SUBIR ${doc.nombre.toUpperCase()} - LLAMAR / WSP AL PADRE URGENTE.`
+                        tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                        mensaje: `🚨 SECRETARIA: Falta cargar y subir ${doc.nombre.toUpperCase()}. Contactar al padre urgente.`
                     });
                 } else {
-                    // Tiene fecha pero NO archivo (Caso típico de Presupuesto, CONF, Plan de Trabajo con fecha cargada pero sin PDF)
                     lista.forEach(item => {
                         let fVenc = item.fecha ? new Date(item.fecha) : null;
                         if (fVenc) fVenc.setHours(0, 0, 0, 0);
-                        let diffDias = fVenc ? Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24)) : -999;
-                        let diasAnticipacion = doc.diasAnticipacion || 15;
+                        if (!fVenc) return;
 
-                        if (fVenc && diffDias < 0) {
+                        let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
+
+                        if (diffDias < 0) {
                             arrayAlertasTemp.push({
                                 id: id, nombre: nombre, dni: dni,
-                                tipoDoc: doc.nombre, claveDoc: doc.clave,
-                                diff: diffDias,
-                                prioridadVisual: 'rojo',
-                                motivenSecre: `🚨 ${doc.nombre.toUpperCase()} VENCIDO HACE ${Math.abs(diffDias)} DÍAS - ¡FALTA SUBIR EL ARCHIVO REAL! LLAMAR.`
+                                tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'rojo',
+                                mensaje: `🚨 ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días sin archivo. Llamar al padre.`
                             });
-                        } else if (fVenc && diffDias <= diasAnticipacion) {
+                        } else if (diffDias <= diasAnticipacionCritica) {
                             arrayAlertasTemp.push({
                                 id: id, nombre: nombre, dni: dni,
-                                tipoDoc: doc.nombre, claveDoc: doc.clave,
-                                diff: diffDias,
-                                prioridadVisual: 'naranja',
-                                motivoSecre: `⏰ Vence en ${diffDias} días. 🚨 SECRETARIA: Gestionar con el padre y subir comprobante de ${doc.nombre}.`
-                            });
-                        } else {
-                            // Alerta específica para cuando le pusieron fecha pero sigue pendiente de archivo
-                            arrayAlertasTemp.push({
-                                id: id, nombre: nombre, dni: dni,
-                                tipoDoc: doc.nombre, claveDoc: doc.clave,
-                                diff: diffDias,
-                                prioridadVisual: 'naranja',
-                                motivoSecre: `⚠️ ${doc.nombre.toUpperCase()} tiene fecha (${item.fecha}) pero NO TIENE ARCHIVO SUBIDO - Accionar.`
+                                tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'naranja',
+                                mensaje: `⏰ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Secretaria: gestionar comprobante.`
                             });
                         }
                     });
                 }
             }
 
-            // B. Alertas de Turnos Críticos próximos
+            // B. GESTIÓN DE TURNOS CRÍTICOS (LAS DOS ALERTAS DISTINTAS PARA LA SECRETARIA)
             if (doc.critico) {
                 let claveTurno = doc.clave + 'T';
                 let fechaTurno = p[claveTurno];
-                if (fechaTurno) {
+                
+                // CASO 1: NO TIENE FECHA DE TURNO CARGADA -> Alerta a la secretaria para que mueva al padre
+                if (!fechaTurno && !tieneArchivoReal) {
+                    arrayAlertasTemp.push({
+                        id: id, nombre: nombre, dni: dni,
+                        tipoDoc: `Turno ${doc.nombre}`, diff: -500, prioridadVisual: 'rojo',
+                        mensaje: `🚨 SECRETARIA: El paciente no tiene turno asignado para ${doc.nombre}. Llamar al padre para que saque el turno YA.`
+                    });
+                } 
+                // CASO 2: SÍ TIENE FECHA DE TURNO -> Alerta a 48/72 horas para recordarle al padre
+                else if (fechaTurno) {
                     let fT = new Date(fechaTurno);
                     fT.setHours(0, 0, 0, 0);
                     let diffT = Math.round((fT - hoy) / (1000 * 60 * 60 * 24));
-                    if (diffT <= 5 && diffT >= 0) {
+                    
+                    if (diffT < 0) {
                         arrayAlertasTemp.push({
                             id: id, nombre: nombre, dni: dni,
-                            tipoDoc: `Turno ${doc.nombre}`, claveDoc: claveTurno,
-                            diff: diffT,
-                            prioridadVisual: 'rojo',
-                            motivoSecre: `⚡ TURNO EN ${diffT} DÍAS: Secretaria contactar al padre para recordar el turno de ${doc.nombre}.`
+                            tipoDoc: `Turno ${doc.nombre}`, diff: diffT, prioridadVisual: 'rojo',
+                            mensaje: `⏰ Turno de ${doc.nombre} vencido hace ${Math.abs(diffT)} días (${fechaTurno}). Verificar si asistió.`
+                        });
+                    } else if (diffT >= 0 && diffT <= 3) { // 48 a 72 horas antes
+                        arrayAlertasTemp.push({
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: `Turno ${doc.nombre}`, diff: diffT, prioridadVisual: 'rojo',
+                            mensaje: `⚡ TURNO EN ${diffT} DÍAS (${fechaTurno}): Secretaria, llamá y recordale al padre que tiene que asistir al turno de ${doc.nombre}.`
                         });
                     }
                 }
@@ -1197,7 +1212,7 @@ function verificarAlertasAlIniciar() {
                 <div>
                     <b style="color:#2c3e50; font-size:13px;">${alerta.nombre}</b> <small style="color:#555;">(DNI: ${alerta.dni})</small><br>
                     <span style="color:#c0392b; font-weight:bold; font-size:11px;">📄 ${alerta.tipoDoc}</span><br>
-                    <span style="color:#222; font-size:11px; font-weight:bold;">${alerta.motivoSecre || alerta.motivenSecre}</span>
+                    <span style="color:#222; font-size:11px; font-weight:bold;">${alerta.mensaje}</span>
                 </div>
                 <div style="text-align:right;">
                     <button class="btn" style="background:#2c3e50; color:white; font-size:11px; padding:6px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="cerrarAlertaInicio(); abrirLegajoCompletoPaciente('${alerta.id}')">Ver Legajo</button>
@@ -1294,7 +1309,7 @@ function ejecutarAsignacionMasivaInterna() {
 
     for (let id in pacs) {
         updates[`${id}/${tipoDoc}`] = [{ fecha: nuevaFecha, descripcion: 'Asignación masiva', archivo: '' }];
-        updates[`${id}/${tipoDoc}_estado`] = 'Pendiente Padre';
+        updates[`${id}/${tipoDoc}_estado`]= 'Pendiente Padre';
         updates[`${id}/ultimaModificacion`] = {
             usuario: usuario,
             fecha: fechaAuditoria,
@@ -1308,7 +1323,7 @@ function ejecutarAsignacionMasivaInterna() {
     });
 }
 
-// 3. LEGAJO INDIVIDUAL: RELOJ DE PRESIÓN ROJO/NARANJA Y VALIDACIÓN ESTRICTA DE ARCHIVOS
+// 3. LEGAJO INDIVIDUAL CON VALIDACIÓN ESTRICTA DE ARCHIVOS (SIN FALSOS "CARGADO")
 function abrirLegajoCompletoPaciente(idPaciente) {
     let p = pacs[idPaciente];
     if (!p) return;
@@ -1339,7 +1354,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
 
     let htmlTabla = `
         ${infoAuditoria}
-        <h4 style="margin-bottom:8px; color:#34495e;">📋 Control Documental (Presupuesto, CONF, Plan de Trabajo y CUD con validación estricta):</h4>
+        <h4 style="margin-bottom:8px; color:#34495e;">📋 Control Documental:</h4>
         <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px;">
             <thead>
                 <tr style="background:#f8f9fa; border-bottom:2px solid #ddd; text-align:left;">
@@ -1355,7 +1370,6 @@ function abrirLegajoCompletoPaciente(idPaciente) {
         let tieneArchivo = documentoTieneArchivoSubido(docData);
         let listaActas = Array.isArray(docData) ? docData : (docData ? [docData] : []);
         
-        // Si no hay archivo real en Cloudinary, NUNCA puede figurar como "Documento Subido"
         let estadoActual = tieneArchivo ? 'Documento Subido' : (p[doc.clave + '_estado'] || 'Pendiente Padre');
 
         let htmlActasInternas = '';
@@ -1363,8 +1377,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
             htmlActasInternas = `<div style="background:#fee2e2; border:1px solid #ef4444; color:#991b1b; padding:6px; border-radius:4px; font-weight:bold; font-size:11px;">❌ FALTA FECHA Y ARCHIVO (ROJO)</div>`;
         } else {
             listaActas.forEach((acta, index) => {
-                // Validación estricta visual para Presupuesto, CONF, Plan de Trabajo, etc.
-                let badgeArchivo = acta.archivo ? 
+                let badgeArchivo = (acta.archivo && acta.archivo.startsWith('http')) ? 
                     `<span style="color:#16a34a; font-weight:bold; background:#dcfce7; padding:2px 6px; border-radius:3px;">🟢 Archivo Subido OK</span>` : 
                     `<span style="color:#dc2626; font-weight:bold; background:#fee2e2; padding:2px 6px; border-radius:3px;">🔴 SOLO TIENE FECHA - FALTA SUBIR ARCHIVO</span>`;
 
@@ -1383,13 +1396,15 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                     }
                 }
 
+                let tieneLinkValido = acta.archivo && acta.archivo.startsWith('http');
+
                 htmlActasInternas += `
                     <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:8px; border-radius:6px; margin-bottom:6px; font-size:11px;">
                         <div>
                             Fecha: <input type="date" value="${acta.fecha || ''}" onchange="actualizarFechaActaItem('${idPaciente}', '${doc.clave}', ${index}, this.value)" style="padding:2px; font-size:10px; border:1px solid #cbd5e1; border-radius:3px;">
                             ${relojPresion}
                             <div style="margin-top:6px;">${badgeArchivo}</div>
-                            ${acta.archivo ? `<div style="margin-top:4px;"><a href="${acta.archivo}" target="_blank" style="color:#2563eb; font-weight:bold; text-decoration:underline;">🔗 Ver PDF en Cloudinary</a></div>` : ''}
+                            ${tieneLinkValido ? `<div style="margin-top:4px;"><a href="${acta.archivo}" target="_blank" style="color:#2563eb; font-weight:bold; text-decoration:underline;">🔗 Ver PDF en Cloudinary</a></div>` : ''}
                         </div>
                         <div style="text-align:right; margin-top:4px;">
                             <button onclick="eliminarActaDeItem('${idPaciente}', '${doc.clave}', ${index})" style="background:#ef4444; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer; font-size:10px;">🗑️ Borrar</button>
