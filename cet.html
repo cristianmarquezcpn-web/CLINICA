@@ -1307,10 +1307,11 @@ function abrirPanelGeneralGestiones() {
     hoy.setHours(0,0,0,0);
 
     for (let id in pacs) {
+        if (id.startsWith('SALA_')) continue;
+
         let p = pacs[id];
         let nombre = id;
         let dni = p.dni || 'S/D';
-        
         let archivosRealesSubidos = 0;
         let tienePendientes = false;
 
