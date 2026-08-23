@@ -1343,7 +1343,6 @@ function abrirPanelGeneralGestiones() {
 
     modal.style.display = 'block';
 }
-
 function ejecutarAsignacionMasivaInterna() {
     let tipoDoc = document.getElementById('masivo-tipo-doc').value;
     let nuevaFecha = document.getElementById('masivo-fecha-input').value;
@@ -1357,8 +1356,9 @@ function ejecutarAsignacionMasivaInterna() {
     let fechaAuditoria = new Date().toISOString();
 
     for (let id in pacs) {
-        updates[`${id}/${tipoDoc}`] = [{ fecha: nuevaFecha, descripcion: 'Asignación masiva', archivo: '' }];
-        updates[`${id}/${tipoDoc}_estado`]= 'Pendiente Padre';
+        // AQUÍ ESTABA EL DETALLE: Lo guardamos en la clave oficial de vencimiento
+        updates[`${id}/${tipoDoc}_vencimiento`] = nuevaFecha;
+        updates[`${id}/${tipoDoc}_estado`] = 'Pendiente Padre';
         updates[`${id}/ultimaModificacion`] = {
             usuario: usuario,
             fecha: fechaAuditoria,
