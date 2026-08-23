@@ -1053,18 +1053,18 @@ document.getElementById('dominguito-texto').addEventListener('keypress', (e) => 
         document.getElementById('dominguito-input-box').style.display = 'none';
     }
 });
-// DOCUMENTOS DEL SISTEMA (Con CUD a 60 días, P.M y RHC a 45 días)
+// DOCUMENTOS DEL SISTEMA (Con CUD a 60 días, P.M y RHC a 45 días, únicos con gestión crítica/padre/turno)
 const DOCUMENTOS_SISTEMA = [
-    { clave: 'infMenF', nombre: 'Informe Mensual' },
-    { clave: 'infoF', nombre: 'Informe Semestral', criticoSemestral: true },
-    { clave: 'pmF', nombre: 'Plan Médico (P.M)', critico: true, diasAnticipacion: 45 },
-    { clave: 'rhcF', nombre: 'RHC', critico: true, diasAnticipacion: 45 },
-    { clave: 'confF', nombre: 'CONF' },
-    { clave: 'iiieF', nombre: 'I.I / I.E' },
-    { clave: 'planF', nombre: 'Plan de Trabajo' },
-    { clave: 'presuF', nombre: 'Presupuesto' },
-    { clave: 'fimDoc', nombre: 'FIM' },
-    { clave: 'cud', nombre: 'CUD', critico: true, diasAnticipacion: 60 }
+    { clave: 'infMenF', nombre: 'Informe Mensual', gestionPadre: false },
+    { clave: 'infoF', nombre: 'Informe Semestral', criticoSemestral: true, gestionPadre: false },
+    { clave: 'pmF', nombre: 'Plan Médico (P.M)', critico: true, diasAnticipacion: 45, gestionPadre: true },
+    { clave: 'rhcF', nombre: 'RHC', critico: true, diasAnticipacion: 45, gestionPadre: true },
+    { clave: 'confF', nombre: 'CONF', gestionPadre: false },
+    { clave: 'iiieF', nombre: 'I.I / I.E', gestionPadre: false },
+    { clave: 'planF', nombre: 'Plan de Trabajo', gestionPadre: false },
+    { clave: 'presuF', nombre: 'Presupuesto', gestionPadre: false },
+    { clave: 'fimDoc', nombre: 'FIM', gestionPadre: false },
+    { clave: 'cud', nombre: 'CUD', critico: true, diasAnticipacion: 60, gestionPadre: true }
 ];
 
 function obtenerUsuarioActual() {
@@ -1106,7 +1106,7 @@ function cerrarAlertaInicio() {
     if (modalAlerta) modalAlerta.style.display = 'none';
 }
 
-// 1. ALERTAS DE INICIO (CON LAS DOS ALERTAS DE TURNO PARA LA SECRETARIA Y VENCIMIENTOS REALES)
+// 1. ALERTAS DE INICIO (EXCLUSIVAS PARA CUD, P.M y RHC EN SUS TRES CASOS, Y VENCIMIENTOS GENERALES SIN LLAMADO AL PADRE SI NO CORRESPONDE)
 function verificarAlertasAlIniciar() {
     let listaAlertas = document.getElementById('lista-alertas-inicio');
     if (!listaAlertas) return;
@@ -1128,16 +1128,24 @@ function verificarAlertasAlIniciar() {
             let tieneArchivoReal = documentoTieneArchivoSubido(docData);
             let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
 
-            // A. Si NO tiene archivo real subido, evaluamos los vencimientos del documento
+            // A. Evaluación de vencimiento del documento
             if (!tieneArchivoReal) {
                 let diasAnticipacionCritica = doc.diasAnticipacion || 15;
 
                 if (lista.length === 0) {
-                    arrayAlertasTemp.push({
-                        id: id, nombre: nombre, dni: dni,
-                        tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
-                        mensaje: `🚨 SECRETARIA: Falta cargar y subir ${doc.nombre.toUpperCase()}. Contactar al padre urgente.`
-                    });
+                    if (doc.gestionPadre) {
+                        arrayAlertasTemp.push({
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                            mensaje: `🚨 SECRETARIA: Falta cargar y subir ${doc.nombre.toUpperCase()}. Contactar al padre urgente.`
+                        });
+                    } else {
+                        arrayAlertasTemp.push({
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'naranja',
+                            mensaje: `⚠️ Falta cargar y subir ${doc.nombre.toUpperCase()} en el legajo.`
+                        });
+                    }
                 } else {
                     lista.forEach(item => {
                         let fVenc = item.fecha ? new Date(item.fecha) : null;
@@ -1147,37 +1155,40 @@ function verificarAlertasAlIniciar() {
                         let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
 
                         if (diffDias < 0) {
+                            let msg = doc.gestionPadre ? 
+                                `🚨 ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días sin archivo. Llamar al padre.` :
+                                `⚠️ ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días sin archivo.`;
                             arrayAlertasTemp.push({
                                 id: id, nombre: nombre, dni: dni,
                                 tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'rojo',
-                                mensaje: `🚨 ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días sin archivo. Llamar al padre.`
+                                mensaje: msg
                             });
                         } else if (diffDias <= diasAnticipacionCritica) {
+                            let msg = doc.gestionPadre ? 
+                                `⏰ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Secretaria: gestionar comprobante.` :
+                                `⏱️ ${doc.nombre.toUpperCase()} vence en ${diffDias} días.`;
                             arrayAlertasTemp.push({
                                 id: id, nombre: nombre, dni: dni,
                                 tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'naranja',
-                                mensaje: `⏰ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Secretaria: gestionar comprobante.`
+                                mensaje: msg
                             });
                         }
                     });
                 }
             }
 
-            // B. GESTIÓN DE TURNOS CRÍTICOS (LAS DOS ALERTAS DISTINTAS PARA LA SECRETARIA)
-            if (doc.critico) {
+            // B. GESTIÓN DE TURNOS CRÍTICOS (EXCLUSIVO PARA CUD, P.M Y RHC)
+            if (doc.critico && doc.gestionPadre) {
                 let claveTurno = doc.clave + 'T';
                 let fechaTurno = p[claveTurno];
                 
-                // CASO 1: NO TIENE FECHA DE TURNO CARGADA -> Alerta a la secretaria para que mueva al padre
                 if (!fechaTurno && !tieneArchivoReal) {
                     arrayAlertasTemp.push({
                         id: id, nombre: nombre, dni: dni,
                         tipoDoc: `Turno ${doc.nombre}`, diff: -500, prioridadVisual: 'rojo',
                         mensaje: `🚨 SECRETARIA: El paciente no tiene turno asignado para ${doc.nombre}. Llamar al padre para que saque el turno YA.`
                     });
-                } 
-                // CASO 2: SÍ TIENE FECHA DE TURNO -> Alerta a 48/72 horas para recordarle al padre
-                else if (fechaTurno) {
+                } else if (fechaTurno) {
                     let fT = new Date(fechaTurno);
                     fT.setHours(0, 0, 0, 0);
                     let diffT = Math.round((fT - hoy) / (1000 * 60 * 60 * 24));
@@ -1186,9 +1197,9 @@ function verificarAlertasAlIniciar() {
                         arrayAlertasTemp.push({
                             id: id, nombre: nombre, dni: dni,
                             tipoDoc: `Turno ${doc.nombre}`, diff: diffT, prioridadVisual: 'rojo',
-                            mensaje: `⏰ Turno de ${doc.nombre} vencido hace ${Math.abs(diffT)} días (${fechaTurno}). Verificar si asistió.`
+                            mensaje: `⏰ Turno de ${doc.nombre} vencido hace ${Math.abs(diffT)} días (${fechaTurno}). Verificar si asistió y registrar el acta.`
                         });
-                    } else if (diffT >= 0 && diffT <= 3) { // 48 a 72 horas antes
+                    } else if (diffT >= 0 && diffT <= 3) {
                         arrayAlertasTemp.push({
                             id: id, nombre: nombre, dni: dni,
                             tipoDoc: `Turno ${doc.nombre}`, diff: diffT, prioridadVisual: 'rojo',
@@ -1323,7 +1334,7 @@ function ejecutarAsignacionMasivaInterna() {
     });
 }
 
-// 3. LEGAJO INDIVIDUAL CON VALIDACIÓN ESTRICTA DE ARCHIVOS (SIN FALSOS "CARGADO")
+// 3. LEGAJO INDIVIDUAL CON BITÁCORA MÚLTIPLE DE ACTAS Y BOTÓN WSP EXCLUSIVO PARA CUD, P.M Y RHC
 function abrirLegajoCompletoPaciente(idPaciente) {
     let p = pacs[idPaciente];
     if (!p) return;
@@ -1354,12 +1365,12 @@ function abrirLegajoCompletoPaciente(idPaciente) {
 
     let htmlTabla = `
         ${infoAuditoria}
-        <h4 style="margin-bottom:8px; color:#34495e;">📋 Control Documental:</h4>
+        <h4 style="margin-bottom:8px; color:#34495e;">📋 Control Documental (Bitácora de Actas Múltiples):</h4>
         <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px;">
             <thead>
                 <tr style="background:#f8f9fa; border-bottom:2px solid #ddd; text-align:left;">
                     <th style="padding:8px; width:22%;">Documento</th>
-                    <th style="padding:8px; width:38%;">Fechas, Reloj de Presión & Archivos</th>
+                    <th style="padding:8px; width:38%;">Historial de Actas & Reloj de Presión</th>
                     <th style="padding:8px; width:40%;">Workflow & Acciones Secretaría</th>
                 </tr>
             </thead>
@@ -1374,12 +1385,12 @@ function abrirLegajoCompletoPaciente(idPaciente) {
 
         let htmlActasInternas = '';
         if (listaActas.length === 0) {
-            htmlActasInternas = `<div style="background:#fee2e2; border:1px solid #ef4444; color:#991b1b; padding:6px; border-radius:4px; font-weight:bold; font-size:11px;">❌ FALTA FECHA Y ARCHIVO (ROJO)</div>`;
+            htmlActasInternas = `<div style="background:#fee2e2; border:1px solid #ef4444; color:#991b1b; padding:6px; border-radius:4px; font-weight:bold; font-size:11px;">❌ SIN REGISTROS DE FECHA NI ARCHIVO</div>`;
         } else {
             listaActas.forEach((acta, index) => {
                 let badgeArchivo = (acta.archivo && acta.archivo.startsWith('http')) ? 
                     `<span style="color:#16a34a; font-weight:bold; background:#dcfce7; padding:2px 6px; border-radius:3px;">🟢 Archivo Subido OK</span>` : 
-                    `<span style="color:#dc2626; font-weight:bold; background:#fee2e2; padding:2px 6px; border-radius:3px;">🔴 SOLO TIENE FECHA - FALTA SUBIR ARCHIVO</span>`;
+                    `<span style="color:#dc2626; font-weight:bold; background:#fee2e2; padding:2px 6px; border-radius:3px;">🔴 SOLO FECHA - FALTA SUBIR ARCHIVO</span>`;
 
                 let relojPresion = '';
                 if (acta.fecha) {
@@ -1388,9 +1399,9 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                     let diff = Math.round((fV - hoy) / (1000 * 60 * 60 * 24));
                     
                     if (diff < 0) {
-                        relojPresion = `<div style="background:#7f1d1d; color:#fff; padding:6px; border-radius:4px; margin-top:4px; font-weight:bold; font-size:11px;">🚨 ¡VENCIDO HACE ${Math.abs(diff)} DÍAS! LLAMAR AL PADRE</div>`;
+                        relojPresion = `<div style="background:#7f1d1d; color:#fff; padding:6px; border-radius:4px; margin-top:4px; font-weight:bold; font-size:11px;">🚨 ¡VENCIDO HACE ${Math.abs(diff)} DÍAS!</div>`;
                     } else if (diff <= 15) {
-                        relojPresion = `<div style="background:#fef3c7; border:1px solid #f59e0b; color:#92400e; padding:5px; border-radius:4px; margin-top:4px; font-weight:bold; font-size:11px;">⏰ RELOJ DE PRESIÓN: Vence en ${diff} días (${acta.fecha})</div>`;
+                        relojPresion = `<div style="background:#fef3c7; border:1px solid #f59e0b; color:#92400e; padding:5px; border-radius:4px; margin-top:4px; font-weight:bold; font-size:11px;">⏰ Vence en ${diff} días (${acta.fecha})</div>`;
                     } else {
                         relojPresion = `<div style="background:#f1f5f9; border:1px solid #cbd5e1; color:#334155; padding:4px; border-radius:4px; margin-top:4px; font-size:11px;">⏱️ Vence en ${diff} días (${acta.fecha})</div>`;
                     }
@@ -1401,26 +1412,33 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                 htmlActasInternas += `
                     <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:8px; border-radius:6px; margin-bottom:6px; font-size:11px;">
                         <div>
-                            Fecha: <input type="date" value="${acta.fecha || ''}" onchange="actualizarFechaActaItem('${idPaciente}', '${doc.clave}', ${index}, this.value)" style="padding:2px; font-size:10px; border:1px solid #cbd5e1; border-radius:3px;">
+                            <b>Acta #${index + 1}</b> - <em>${acta.descripcion || 'Sin descripción'}</em><br>
+                            Fecha límite: <input type="date" value="${acta.fecha || ''}" onchange="actualizarFechaActaItem('${idPaciente}', '${doc.clave}', ${index}, this.value)" style="padding:2px; font-size:10px; border:1px solid #cbd5e1; border-radius:3px; margin-top:3px;">
                             ${relojPresion}
                             <div style="margin-top:6px;">${badgeArchivo}</div>
                             ${tieneLinkValido ? `<div style="margin-top:4px;"><a href="${acta.archivo}" target="_blank" style="color:#2563eb; font-weight:bold; text-decoration:underline;">🔗 Ver PDF en Cloudinary</a></div>` : ''}
                         </div>
                         <div style="text-align:right; margin-top:4px;">
-                            <button onclick="eliminarActaDeItem('${idPaciente}', '${doc.clave}', ${index})" style="background:#ef4444; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer; font-size:10px;">🗑️ Borrar</button>
+                            <button onclick="eliminarActaDeItem('${idPaciente}', '${doc.clave}', ${index})" style="background:#ef4444; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer; font-size:10px;">🗑️ Borrar Acta</button>
                         </div>
                     </div>`;
             });
         }
 
+        // Botón WhatsApp exclusivo para CUD, P.M y RHC
+        let botonWspHtml = '';
+        if (doc.gestionPadre) {
+            botonWspHtml = `<button class="btn" onclick="enviarWspPadreDocumento('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#25d366; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">💬 Enviar WSP al Padre</button>`;
+        }
+
         htmlTabla += `
             <tr style="border-bottom:1px solid #eee; vertical-align: top;">
                 <td style="padding:10px; font-weight:bold; color:#2c3e50;">${doc.nombre}</td>
-                <td style="padding:10px;"><div style="max-height: 200px; overflow-y: auto;">${htmlActasInternas}</div></td>
+                <td style="padding:10px;"><div style="max-height: 250px; overflow-y: auto;">${htmlActasInternas}</div></td>
                 <td style="padding:10px;">
                     <div style="display:flex; flex-direction:column; gap:6px;">
                         <div style="display:flex; gap:4px;">
-                            <button class="btn" onclick="agregarActaPrompt('${idPaciente}', '${doc.clave}')" style="background:#0ea5e9; color:white; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">+ Fecha</button>
+                            <button class="btn" onclick="agregarActaPrompt('${idPaciente}', '${doc.clave}')" style="background:#0ea5e9; color:white; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;" title="Permite registrar un nuevo llamado o gestión realizada">➕ Nueva Acta de Contacto</button>
                             <input type="file" id="file_${idPaciente}_${doc.clave}" style="display:none;" onchange="subirDocModuloDirecto('${idPaciente}', '${doc.clave}', this)">
                             <button class="btn" onclick="document.getElementById('file_${idPaciente}_${doc.clave}').click()" style="background:#10b981; color:white; border:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">📤 Subir Archivo</button>
                         </div>
@@ -1432,12 +1450,13 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                                 <option value="Documento Subido" ${estadoActual === 'Documento Subido' ? 'selected' : ''}>✅ Documento Subido</option>
                             </select>
                         </div>
-                        <button class="btn" onclick="enviarWspPadreDocumento('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#25d366; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">💬 Enviar WSP al Padre</button>
+                        ${botonWspHtml}
                     </div>
                 </td>
             </tr>`;
 
-        if (doc.critico) {
+        // Fila de Turno exclusiva para CUD, P.M y RHC
+        if (doc.critico && doc.gestionPadre) {
             let claveTurno = doc.clave + 'T';
             let fechaTurno = p[claveTurno] || '';
             let htmlRelojTurno = '';
@@ -1474,9 +1493,9 @@ function enviarWspPadreDocumento(idPaciente, docClave, nombreDoc) {
 }
 
 function agregarActaPrompt(idPaciente, docClave) {
-    let fecha = prompt("Ingrese la fecha límite (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
+    let fecha = prompt("Ingrese la fecha de este contacto/acta (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
     if (!fecha) return;
-    let descripcion = prompt("Descripción:") || "Control periódico";
+    let descripcion = prompt("Detalle de la gestión o contacto realizado:", "Llamado telefónico al padre") || "Control periódico";
 
     let p = pacs[idPaciente];
     let actual = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [p[docClave]] : []);
@@ -1485,7 +1504,7 @@ function agregarActaPrompt(idPaciente, docClave) {
     database.child(`pacientes/${idPaciente}`).update({
         [docClave]: actual,
         [`${docClave}_estado`]: 'Pendiente Padre',
-        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Agregó fecha sin archivo en ${docClave}` }
+        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Agregó nueva acta en ${docClave}` }
     }).then(() => abrirLegajoCompletoPaciente(idPaciente));
 }
 
@@ -1497,12 +1516,12 @@ function actualizarFechaActaItem(idPaciente, docClave, index, nuevaFecha) {
 
     database.child(`pacientes/${idPaciente}`).update({
         [docClave]: actual,
-        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Modificó fecha` }
+        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Modificó fecha de acta` }
     });
 }
 
 function eliminarActaDeItem(idPaciente, docClave, index) {
-    if (!confirm("¿Borrar este registro?")) return;
+    if (!confirm("¿Borrar este registro de acta?")) return;
     let p = pacs[idPaciente];
     if (!p || !Array.isArray(p[docClave])) return;
     let actual = [...p[docClave]];
@@ -1510,7 +1529,7 @@ function eliminarActaDeItem(idPaciente, docClave, index) {
 
     database.child(`pacientes/${idPaciente}`).update({
         [docClave]: actual,
-        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Eliminó registro` }
+        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Eliminó registro de acta` }
     }).then(() => abrirLegajoCompletoPaciente(idPaciente));
 }
 
@@ -1531,9 +1550,9 @@ function actualizarTurnoConAuditoria(idPaciente, claveTurno, valorFecha) {
 async function subirDocModuloDirecto(idPaciente, docClave, input) {
     if(!input.files[0]) return;
     const file = input.files[0];
-    let fechaActa = prompt("Fecha asociada (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
+    let fechaActa = prompt("Fecha asociada al documento (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
     if (!fechaActa) return;
-    let descripcion = prompt("Descripción:", file.name) || "Archivo subido";
+    let descripcion = prompt("Descripción del archivo:", file.name) || "Archivo subido";
 
     const formData = new FormData();
     formData.append('file', file);
@@ -1552,7 +1571,7 @@ async function subirDocModuloDirecto(idPaciente, docClave, input) {
             database.child(`pacientes/${idPaciente}`).update({
                 [docClave]: actualArray,
                 [`${docClave}_estado`]: 'Documento Subido',
-                ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Subió archivo real` }
+                ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Subió archivo real y registró acta` }
             }).then(() => {
                 alert("¡Subido con éxito!");
                 abrirLegajoCompletoPaciente(idPaciente);
