@@ -1120,9 +1120,7 @@ function cerrarAlertaInicio() {
     let modalAlerta = document.getElementById('modal-alerta-inicio');
     if (modalAlerta) modalAlerta.style.display = 'none';
 }
-
 // 1. ALERTAS DE INICIO
-// --- VERIFICACIÓN GENERAL DE ALERTAS CON EFECTO SIRENA GLOBAL ---
 function verificarAlertasAlIniciar() {
     let listaAlertas = document.getElementById('lista-alertas-inicio');
     if (!listaAlertas) return;
@@ -1143,71 +1141,71 @@ function verificarAlertasAlIniciar() {
         DOCUMENTOS_SISTEMA.forEach(doc => {
             let docData = p[doc.clave];
             let tieneArchivoReal = documentoTieneArchivoSubido(docData, p, doc.clave);
+            if (tieneArchivoReal) return;
+
             let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
 
             // A. Evaluación de vencimiento o ausencia total del documento
-            if (!tieneArchivoReal) {
-                let diasAnticipacionCritica = doc.diasAnticipacion || 15;
-                let fechaPlana = p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http') ? p[doc.clave] : null;
+            let diasAnticipacionCritica = doc.diasAnticipacion || 15;
+            let fechaPlana = p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http') ? p[doc.clave] : null;
 
-                if (lista.length === 0 && !fechaPlana) {
-                    hayAlertasCriticasRojas = true;
-                    if (doc.gestionPadre) {
-                        arrayAlertasTemp.push({
-                            id: id, nombre: nombre, dni: dni,
-                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
-                            mensaje: `🚨 SECRETARIA: Falta cargar ${doc.nombre.toUpperCase()}. Llamar al padre urgente para que gestione el turno.`
-                        });
-                    } else {
-                        arrayAlertasTemp.push({
-                            id: id, nombre: nombre, dni: dni,
-                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
-                            mensaje: `🚨 CONTROL INTERNO: Falta cargar y subir ${doc.nombre.toUpperCase()} en el legajo.`
-                        });
-                    }
+            if (lista.length === 0 && !fechaPlana) {
+                hayAlertasCriticasRojas = true;
+                if (doc.gestionPadre) {
+                    arrayAlertasTemp.push({
+                        id: id, nombre: nombre, dni: dni,
+                        tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                        mensaje: `🚨 SECRETARIA: Falta cargar ${doc.nombre.toUpperCase()}. Llamar al padre urgente para que gestione el turno.`
+                    });
                 } else {
-                    let fechasAEvaluar = [];
-                    if (fechaPlana) fechasAEvaluar.push({ fecha: fechaPlana });
-                    lista.forEach(item => { if (item.fecha) fechasAEvaluar.push(item); });
-
-                    if (fechasAEvaluar.length === 0 && !tieneArchivoReal) {
-                        hayAlertasCriticasRojas = true;
-                        arrayAlertasTemp.push({
-                            id: id, nombre: nombre, dni: dni,
-                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
-                            mensaje: `🚨 ATENCIÓN: Falta subir el archivo digital de ${doc.nombre.toUpperCase()} al sistema.`
-                        });
-                    }
-
-                    fechasAEvaluar.forEach(item => {
-                        let fVenc = item.fecha ? new Date(item.fecha) : null;
-                        if (fVenc) fVenc.setHours(0, 0, 0, 0);
-                        if (!fVenc) return;
-
-                        let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
-
-                        if (diffDias < 0) {
-                            hayAlertasCriticasRojas = true;
-                            let msg = doc.gestionPadre ? 
-                                `🚨 ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días. Llamar al padre urgente para regularizar.` :
-                                `🚨 ${doc.nombre.toUpperCase()} INTERNO VENCIDO hace ${Math.abs(diffDias)} días. ¡Subir versión actualizada!`;
-                            arrayAlertasTemp.push({
-                                id: id, nombre: nombre, dni: dni,
-                                tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'rojo',
-                                mensaje: msg
-                            });
-                        } else if (diffDias <= diasAnticipacionCritica) {
-                            let msg = doc.gestionPadre ? 
-                                `⏰ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Secretaria: llamar al padre para que saque turno.` :
-                                `⏱️ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Preparar renovación.`;
-                            arrayAlertasTemp.push({
-                                id: id, nombre: nombre, dni: dni,
-                                tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'naranja',
-                                mensaje: msg
-                            });
-                        }
+                    arrayAlertasTemp.push({
+                        id: id, nombre: nombre, dni: dni,
+                        tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                        mensaje: `🚨 CONTROL INTERNO: Falta cargar y subir ${doc.nombre.toUpperCase()} en el legajo.`
                     });
                 }
+            } else {
+                let fechasAEvaluar = [];
+                if (fechaPlana) fechasAEvaluar.push({ fecha: fechaPlana });
+                lista.forEach(item => { if (item.fecha) fechasAEvaluar.push(item); });
+
+                if (fechasAEvaluar.length === 0) {
+                    hayAlertasCriticasRojas = true;
+                    arrayAlertasTemp.push({
+                        id: id, nombre: nombre, dni: dni,
+                        tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                        mensaje: `🚨 ATENCIÓN: Falta subir el archivo digital de ${doc.nombre.toUpperCase()} al sistema.`
+                    });
+                }
+
+                fechasAEvaluar.forEach(item => {
+                    let fVenc = item.fecha ? new Date(item.fecha) : null;
+                    if (fVenc) fVenc.setHours(0, 0, 0, 0);
+                    if (!fVenc) return;
+
+                    let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
+
+                    if (diffDias < 0) {
+                        hayAlertasCriticasRojas = true;
+                        let msg = doc.gestionPadre ? 
+                            `🚨 ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días. Llamar al padre urgente para regularizar.` :
+                            `🚨 ${doc.nombre.toUpperCase()} INTERNO VENCIDO hace ${Math.abs(diffDias)} días. ¡Subir versión actualizada!`;
+                        arrayAlertasTemp.push({
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'rojo',
+                            mensaje: msg
+                        });
+                    } else if (diffDias <= diasAnticipacionCritica) {
+                        let msg = doc.gestionPadre ? 
+                            `⏰ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Secretaria: llamar al padre para que saque turno.` :
+                            `⏱️ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Preparar renovación.`;
+                        arrayAlertasTemp.push({
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'naranja',
+                            mensaje: msg
+                        });
+                    }
+                });
             }
 
             // B. GESTIÓN DE TURNOS CRÍTICOS (EXCLUSIVO PARA CUD, P.M Y RHC) - Alerta de 48 a 72 hs antes
@@ -1215,7 +1213,7 @@ function verificarAlertasAlIniciar() {
                 let claveTurno = doc.clave + 'T';
                 let fechaTurno = p[claveTurno];
                 
-                if (!fechaTurno && !tieneArchivoReal) {
+                if (!fechaTurno) {
                     hayAlertasCriticasRojas = true;
                     arrayAlertasTemp.push({
                         id: id, nombre: nombre, dni: dni,
@@ -1227,7 +1225,6 @@ function verificarAlertasAlIniciar() {
                     fT.setHours(0, 0, 0, 0);
                     let diffT = Math.round((fT - hoy) / (1000 * 60 * 60 * 24));
                     
-                    // Dispara alerta estricta a las 48 o 72 hs (entre 2 y 3 días exactos antes del turno)
                     if (diffT >= 2 && diffT <= 3) {
                         hayAlertasCriticasRojas = true;
                         arrayAlertasTemp.push({
@@ -1270,7 +1267,6 @@ function verificarAlertasAlIniciar() {
         }
     }
 }
-
 // 2. PANEL GENERAL CON CONTEO REAL DE ARCHIVOS CLOUDINARY
 function abrirPanelGeneralGestiones() {
     let modal = document.getElementById('modal-panel-general');
