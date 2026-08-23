@@ -381,7 +381,9 @@
         const g = document.getElementById('f-grid-main'); g.innerHTML = "";
         legajosDef.forEach(l => { 
             const link = p[l.id + "_link"] || ""; 
-            const tiene = (p[l.id] || link);
+            
+            const tieneArchivoReal = documentoTieneArchivoSubido(p[l.id], p, l.id);
+            const tiene = (tieneArchivoReal || link);
             g.innerHTML += `<div style="background:#f9f9f9; padding:5px; border:1px solid #ddd; text-align:center">
                 <b>${l.n}</b>
                 <div id="st-${l.id}" style="font-size:8px; color:${tiene?'green':'#aaa'}">${tiene?'● CARGADO':'○ VACÍO'}</div>
@@ -582,7 +584,11 @@
         const c = document.getElementById('lista-renovaciones-completa'); c.innerHTML = ""; const listaPacientes = Object.keys(pacs).sort();
         c.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; background:#eee; padding:10px; border-radius:8px; margin-bottom:10px"><strong style="font-size:14px">TOTAL: ${listaPacientes.length} LEGAJOS</strong><button class="btn" style="background:var(--verde)" onclick="descargarInformeExcel()">📊 DESCARGAR INFORME EXCEL</button></div>`;
         listaPacientes.forEach((n, index) => { 
-            let b = ""; legajosDef.forEach(l => { const cargado = (pacs[n][l.id] || pacs[n][l.id+'_link']) ? "cargado" : ""; b += `<button onclick="verArchP('${l.id}','${n}')" title="${l.n}" style="background:${cargado?'var(--azul)':'#ccc'}; border:none; color:white; font-size:7px; width:18px; height:18px; margin:1px">${l.s}</button>`; }); 
+            let b = ""; 
+        legajosDef.forEach(l => { 
+            // USAMOS LA VALIDACIÓN REAL DE ARCHIVO SUBIDO
+            let tieneArchivo = documentoTieneArchivoSubido(pacs[n][l.id], pacs[n], l.id);
+            let cargado = (tieneArchivo || pacs[n][l.id+'_link']) ? "cargado" : ""; b += `<button onclick="verArchP('${l.id}','${n}')" title="${l.n}" style="background:${cargado?'var(--azul)':'#ccc'}; border:none; color:white; font-size:7px; width:18px; height:18px; margin:1px">${l.s}</button>`; }); 
             c.innerHTML += `<div style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee; align-items:center"><span><b>${index + 1}.</b> ${n}</span><div>${b}</div></div>`; 
         });
         document.getElementById('panel-renov').style.display="block"; document.getElementById('overlay').style.display="block"; 
