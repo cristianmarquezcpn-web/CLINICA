@@ -1371,6 +1371,7 @@ function ejecutarAsignacionMasivaInterna() {
         abrirPanelGeneralGestiones();
     });
 }
+// --- 2. APERTURA DE EXPEDIENTE CON RELOJ DINÁMICO (CAMBIO DE COLOR SEGÚN PLAZOS) ---
 function abrirLegajoCompletoPaciente(idPaciente) {
     let p = pacs[idPaciente];
     if (!p) return;
@@ -1392,22 +1393,32 @@ function abrirLegajoCompletoPaciente(idPaciente) {
         modalLegajo = div;
     }
 
-    // Evaluamos si este paciente específico tiene alguna alerta crítica real para decidir si encendemos la sirena general del legajo
     let hoy = new Date();
     hoy.setHours(0,0,0,0);
     let tieneAlertaCriticaEnLegajo = false;
 
+    // Evaluamos los plazos específicos para cada documento del sistema
     DOCUMENTOS_SISTEMA.forEach(doc => {
         let docData = p[doc.clave];
         let tieneArchivo = documentoTieneArchivoSubido(docData, p, doc.clave);
-        let fechaPlana = p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http') ? p[doc.clave] : null;
+        let fechaVencOficial = p[doc.clave + '_vencimiento'] || (typeof docData === 'string' && !docData.startsWith('http') ? docData : null);
         
+        let umbralPlazo = (doc.clave === 'cud') ? 60 : (['pm', 'rhc'].includes(doc.clave) ? 45 : 30);
+
         if (!tieneArchivo) {
-            if (!fechaPlana) {
+            if (!fechaVencOficial) {
                 tieneAlertaCriticaEnLegajo = true;
             } else {
-                let fVenc = new Date(fechaPlana);
-                if (!isNaN(fVenc) && fVenc < hoy) tieneAlertaCriticaEnLegajo = true;
+                let fVenc = new Date(fechaVencOficial);
+                if (!isNaN(fVenc)) {
+                    fVenc.setHours(0,0,0,0);
+                    let diasRestantes = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
+                    if (diasRestantes <= umbralPlazo) {
+                        tieneAlertaCriticaEnLegajo = true;
+                    }
+                } else {
+                    tieneAlertaCriticaEnLegajo = true;
+                }
             }
         }
     });
@@ -1451,8 +1462,8 @@ function abrirLegajoCompletoPaciente(idPaciente) {
             <thead>
                 <tr style="background:#fee2e2; border-bottom:2px solid #ef4444; text-align:left; color:#991b1b;">
                     <th style="padding:8px; width:22%;">Documento / Plazo</th>
-                    <th style="padding:8px; width:38%;">Estado y Vigencia en Legajo</th>
-                    <th style="padding:8px; width:40%;">Workflow Obligatorio & Sanción Secretaría</th>
+                    <th style="padding:8px; width:38%;">Estado, Reloj y Vigencia</th>
+                    <th style="padding:8px; width:40%;">Workflow, Historial de Actas & Subida Unificada</th>
                 </tr>
             </thead>
             <tbody>`;
@@ -1460,45 +1471,68 @@ function abrirLegajoCompletoPaciente(idPaciente) {
     DOCUMENTOS_SISTEMA.forEach(doc => {
         let docData = p[doc.clave];
         let tieneArchivo = documentoTieneArchivoSubido(docData, p, doc.clave);
+        let fechaVencOficial = p[doc.clave + '_vencimiento'] || (typeof docData === 'string' && !docData.startsWith('http') ? docData : null);
+        let listaActas = Array.isArray(p[doc.clave + '_actas']) ? p[doc.clave + '_actas'] : [];
         
-        // Capturar fecha plana directa de firebase (ej: p.cud = "2028-07-01") o dentro de arrays
-        let fechaPlanaDirecta = p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http') ? p[doc.clave] : null;
-        let listaActas = Array.isArray(docData) ? docData : (docData && typeof docData === 'object' && docData.fecha ? [docData] : []);
-
+        let umbralPlazo = (doc.clave === 'cud') ? 60 : (['pm', 'rhc'].includes(doc.clave) ? 45 : 30);
         let htmlActasInternas = '';
 
-        // SI YA TIENE ARCHIVO SUBIDO O CUMPLE CON FECHA VIGENTE, MOSTRAR ESTADO VERDE OK (Sin falsas alarmas de vencimiento)
         if (tieneArchivo) {
-            let infoFecha = fechaPlanaDirecta ? `Vencimiento oficial: ${fechaPlanaDirecta}` : 'Archivo digital verificado';
             htmlActasInternas = `
                 <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px; border-radius:6px; font-size:11px;">
                     <span style="color:#16a34a; font-weight:bold; background:#dcfce7; padding:3px 8px; border-radius:3px;">🟢 DOCUMENTO AL DÍA / ARCHIVO OK</span>
-                    <div style="margin-top:6px; color:#166534; font-weight:bold;">📄 ${infoFecha}</div>
+                    <div style="margin-top:6px; color:#166534; font-weight:bold;">📄 Archivo digital verificado</div>
                 </div>`;
-        } else if (!fechaPlanaDirecta && listaActas.length === 0) {
-            // NO HAY ARCHIVO NI FECHA CARGADA -> ALERTA ROJA REAL
-            htmlActasInternas = `<div style="background:#7f1d1d; color:#fff; padding:8px; border-radius:4px; font-weight:bold; font-size:11px; text-align:center;">🚨 FALTA CARGAR Y SUBIR ${doc.nombre.toUpperCase()}</div>`;
         } else {
-            // HAY FECHA PLANIFICADA O VENCIMIENTO A EVALUAR SIN ARCHIVO
-            let fechaEvaluar = fechaPlanaDirecta || (listaActas[0] ? listaActas[0].fecha : null);
-            let fVenc = fechaEvaluar ? new Date(fechaEvaluar) : null;
+            let fVenc = fechaVencOficial ? new Date(fechaVencOficial) : null;
             if (fVenc) fVenc.setHours(0,0,0,0);
+            
+            let diasRestantes = fVenc ? Math.round((fVenc - hoy)/(1000*60*60*24)) : null;
+            let estaEnZonaRojas = diasRestantes !== null && diasRestantes <= umbralPlazo;
+            let estaVencido = diasRestantes !== null && diasRestantes < 0;
 
-            let estaVencido = fVenc && fVenc < hoy;
-            let estiloFondo = estaVencido ? '#fef2f2' : '#fefce8';
-            let estiloBorde = estaVencido ? '#f87171' : '#facc15';
-            let textoAlerta = estaVencido ? `🚨 VENCIDO HACE ${Math.abs(Math.round((fVenc - hoy)/(1000*60*60*24)))} DÍAS` : `⏱️ Vence el ${fechaEvaluar}`;
+            // ESTILOS DINÁMICOS: Normal y tranquilo si hay tiempo, rojo intimidante si se achicaron los plazos o venció
+            let estiloFondo = estaEnZonaRojas ? '#fef2f2' : '#f8f9fa';
+            let estiloBorde = estaEnZonaRojas ? '#f87171' : '#cbd5e1';
+            let colorTextoReloj = estaEnZonaRojas ? '#991b1b' : '#334155';
+            let pesoFuenteReloj = estaEnZonaRojas ? 'bold' : 'normal';
+
+            let textoReloj = '';
+            if (diasRestantes === null) {
+                textoReloj = `<span style="color:#991b1b; font-weight:bold;">🚨 FALTA CARGAR FECHA DE VENCIMIENTO</span>`;
+            } else if (estaVencido) {
+                textoReloj = `<span style="color:#dc2626; font-weight:bold; font-size:12px;">🚨 ¡VENCIDO HACE ${Math.abs(diasRestantes)} DÍAS!</span>`;
+            } else if (estaEnZonaRojas) {
+                textoReloj = `<span style="color:#dc2626; font-weight:bold;">⏰ Quedan ${diasRestantes} días (¡Plazo crítico menor a ${umbralPlazo} días!)</span>`;
+            } else {
+                textoReloj = `<span style="color:#334155;">⏱️ Faltan ${diasRestantes} días (Plazo normal)</span>`;
+            }
 
             htmlActasInternas = `
                 <div style="background:${estiloFondo}; border:1px solid ${estiloBorde}; padding:8px; border-radius:6px; font-size:11px;">
-                    <b>Estado:</b> ${textoAlerta}<br>
-                    Fecha límite registrada: <input type="date" value="${fechaEvaluar || ''}" onchange="actualizarFechaActaItem('${idPaciente}', '${doc.clave}', 0, this.value)" style="padding:2px; font-size:10px; border:1px solid #ccc; border-radius:3px; margin-top:3px; background:#fff;">
+                    <div style="margin-bottom:4px;"><b>Reloj:</b> ${textoReloj}</div>
+                    <div style="margin-top:4px; font-size:10px; color:#64748b;">Fecha Vencimiento Oficial:</div>
+                    <input type="date" value="${fechaVencOficial || ''}" onchange="actualizarVencimientoOficial('${idPaciente}', '${doc.clave}', this.value)" style="padding:2px; font-size:10px; border:1px solid #ccc; border-radius:3px; margin-top:2px; background:#fff; width:100%;">
                     <div style="margin-top:6px;"><span style="color:#dc2626; font-weight:bold; background:#fee2e2; padding:2px 6px; border-radius:3px;">🚨 FALTA SUBIR COMPROBANTE DIGITAL</span></div>
                 </div>`;
         }
 
+        // Renderizado del historial de actas de este documento
+        let htmlHistorialActasDoc = '';
+        if (listaActas.length > 0) {
+            listaActas.forEach((acta, idx) => {
+                htmlHistorialActasDoc += `
+                    <div style="background:#f8fafc; border-left:3px solid #0284c7; padding:4px 6px; margin-bottom:3px; border-radius:2px; font-size:10px;">
+                        <b>#${idx+1} [${acta.fecha}]</b>: ${acta.texto}
+                        ${acta.archivoLink ? `<a href="${acta.archivoLink}" target="_blank" style="color:#2563eb; font-weight:bold; margin-left:4px;">[Ver]</a>` : ''}
+                    </div>`;
+            });
+        } else {
+            htmlHistorialActasDoc = `<div style="color:#94a3b8; font-style:italic; font-size:10px; margin-bottom:4px;">Sin actas registradas para este ítem.</div>`;
+        }
+
         let estadoActual = tieneArchivo ? 'Documento Subido' : (p[doc.clave + '_estado'] || 'Pendiente Padre');
-        let botonWspHtml = doc.gestionPadre ? `<button class="btn" onclick="enviarWspPadreDocumento('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#15803d; color:white; border:none; padding:6px 10px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">💬 Enviar WSP Urgente al Padre</button>` : '';
+        let botonWspHtml = doc.gestionPadre ? `<button class="btn" onclick="enviarWspPresionPadre('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#15803d; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; width:100%; margin-top:6px;">💬 Enviar WhatsApp Urgente</button>` : '';
 
         htmlTabla += `
             <tr style="border-bottom:1px solid #cbd5e1; vertical-align: top; background:#fff;">
@@ -1506,14 +1540,23 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                 <td style="padding:10px;"><div style="max-height: 280px; overflow-y: auto;">${htmlActasInternas}</div></td>
                 <td style="padding:10px;">
                     <div style="display:flex; flex-direction:column; gap:6px;">
-                        <div style="display:flex; gap:4px;">
-                            <button class="btn" onclick="agregarActaPrompt('${idPaciente}', '${doc.clave}')" style="background:#0284c7; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">➕ Registrar Acta</button>
-                            <input type="file" id="file_${idPaciente}_${doc.clave}" style="display:none;" onchange="subirDocModuloDirecto('${idPaciente}', '${doc.clave}', this)">
-                            <button class="btn" onclick="document.getElementById('file_${idPaciente}_${doc.clave}').click()" style="background:#16a34a; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; flex:1;">📤 Subir Archivo</button>
+                        <div style="max-height:120px; overflow-y:auto; border:1px solid #e2e8f0; padding:4px; border-radius:4px; background:#fff;">
+                            <div style="font-weight:bold; font-size:10px; color:#334155; margin-bottom:2px;">Historial de Actas:</div>
+                            ${htmlHistorialActasDoc}
                         </div>
-                        <div style="background:#fee2e2; border:1px solid #f87171; padding:6px; border-radius:4px; font-size:11px;">
-                            <span style="color:#991b1b; font-weight:bold;">Control TAD / Secretaría:</span>
-                            <select onchange="actualizarEstadoWorkflow('${idPaciente}', '${doc.clave}', this.value)" style="width:100%; margin-top:2px; font-size:10px; padding:3px; border:1px solid #ef4444; border-radius:3px; font-weight:bold;">
+                        
+                        <div style="background:#f1f5f9; padding:6px; border-radius:4px; border:1px solid #cbd5e1;">
+                            <div style="font-size:10px; font-weight:bold; color:#0f172a; margin-bottom:3px;">➕ Registrar Acta + Subir Archivo:</div>
+                            <input type="text" id="texto_acta_${idPaciente}_${doc.clave}" placeholder="Detalle de gestión..." style="width:100%; font-size:10px; padding:3px; margin-bottom:3px; border:1px solid #ccc; border-radius:3px;">
+                            <div style="display:flex; gap:4px; align-items:center;">
+                                <input type="file" id="file_acta_${idPaciente}_${doc.clave}" style="font-size:9px; flex:1;">
+                                <button class="btn" onclick="guardarActaConArchivoUnificado('${idPaciente}', '${doc.clave}')" style="background:#16a34a; color:white; border:none; padding:4px 8px; border-radius:3px; cursor:pointer; font-size:10px; font-weight:bold;">💾 Guardar</button>
+                            </div>
+                        </div>
+
+                        <div style="background:#fee2e2; border:1px solid #f87171; padding:5px; border-radius:4px; font-size:10px;">
+                            <span style="color:#991b1b; font-weight:bold;">Control TAD:</span>
+                            <select onchange="actualizarEstadoWorkflow('${idPaciente}', '${doc.clave}', this.value)" style="width:100%; margin-top:2px; font-size:10px; padding:2px; border:1px solid #ef4444; border-radius:3px; font-weight:bold;">
                                 <option value="Pendiente Padre" ${estadoActual === 'Pendiente Padre' ? 'selected' : ''}>⏳ Pendiente Padre (Alerta Activa)</option>
                                 <option value="Turno Solicitado" ${estadoActual === 'Turno Solicitado' ? 'selected' : ''}>📅 Turno Solicitado</option>
                                 <option value="Documento Subido" ${estadoActual === 'Documento Subido' ? 'selected' : ''}>✅ Documento Subido y Verificado</option>
