@@ -1072,7 +1072,7 @@ function obtenerUsuarioActual() {
     return window.usuarioLogueadoEmail || localStorage.getItem('usuarioClinica') || 'secretaria@clinica.com';
 }
 
-// 1. LANZAR ALERTAS AL ARRANCAR (Soporta plazos diferenciados: 60 días para PM/CUD, 45 para informes)
+// 1. LANZAR ALERTAS AL ARRANCAR (Las actas históricas ya no generan alertas de vencimiento)
 function verificarAlertasAlIniciar() {
     let listaAlertas = document.getElementById('lista-alertas-inicio');
     if (!listaAlertas) return;
@@ -1092,13 +1092,8 @@ function verificarAlertasAlIniciar() {
         DOCUMENTOS_SISTEMA.forEach(doc => {
             let docData = p[doc.clave];
             
-            if (Array.isArray(docData)) {
-                docData.forEach((itemActa, idx) => {
-                    if (itemActa && itemActa.fecha) {
-                        evaluarFechaAlerta(itemActa.fecha, id, nombre, dni, `${doc.nombre} #${idx + 1}`, doc.clave, arrayAlertasTemp, hoy);
-                    }
-                });
-            } else if (docData) {
+            // Si es un documento general antiguo guardado como fecha simple y sin archivo, evaluamos
+            if (docData && !Array.isArray(docData) && typeof docData === 'string') {
                 evaluarFechaAlerta(docData, id, nombre, dni, doc.nombre, doc.clave, arrayAlertasTemp, hoy);
             }
 
@@ -1133,7 +1128,7 @@ function verificarAlertasAlIniciar() {
             <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #eee; background:white; margin-bottom:4px; border-radius:4px; border-left: 4px solid ${colorBadge};">
                 <div>
                     <b>${alerta.nombre}</b> (DNI: ${alerta.dni})<br>
-                    <small style="color:#666">📄 <b>${alerta.tipoDoc}</b> - Vence el: ${alerta.fecha}</small>
+                    <small style="color:#666">📄 <b>${alerta.tipoDoc}</b> - Fecha: ${alerta.fecha}</small>
                 </div>
                 <div style="text-align:right;">
                     <span style="background:${colorBadge}; color:white; padding:3px 8px; border-radius:4px; font-size:10px; font-weight:bold; display:inline-block; margin-bottom:4px;">${textoEstado}</span><br>
@@ -1176,7 +1171,7 @@ function cerrarPanelGeneral() {
     if (modal) modal.style.display = 'none';
 }
 
-// 2. PANEL GENERAL CON EVALUACIÓN GLOBAL DE ESTADOS Y ASIGNACIÓN MASIVA
+// 2. PANEL GENERAL (Si tiene registros o archivos, está cubierto)
 function abrirPanelGeneralGestiones() {
     let modal = document.getElementById('modal-panel-general');
     if (!modal) return;
@@ -1207,44 +1202,22 @@ function abrirPanelGeneralGestiones() {
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    let hoy = new Date();
-    hoy.setHours(0,0,0,0);
-
     for (let id in pacs) {
         let p = pacs[id];
         let nombre = id;
         let dni = p.dni || 'S/D';
         
-        // Evaluar estado general de TODOS los documentos del paciente
-        let tieneVencido = false;
-        let tienePorVencer = false;
         let totalDocsCargados = 0;
 
         DOCUMENTOS_SISTEMA.forEach(doc => {
             let dData = p[doc.clave];
             let lista = Array.isArray(dData) ? dData : (dData ? [{ fecha: dData }] : []);
             if (lista.length > 0) totalDocsCargados++;
-
-            lista.forEach(item => {
-                if (item && item.fecha) {
-                    let fV = new Date(item.fecha);
-                    fV.setHours(0,0,0,0);
-                    let diff = Math.round((fV - hoy) / (1000 * 60 * 60 * 24));
-                    let umbral = (doc.clave === 'pmF' || doc.clave === 'cud') ? 60 : 45;
-
-                    if (diff < 0) tieneVencido = true;
-                    else if (diff <= umbral) tienePorVencer = true;
-                }
-            });
         });
 
         let badgeEstado = '';
-        if (tieneVencido) {
-            badgeEstado = `<span style="background:#e74c3c; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🔴 VENCIDO</span>`;
-        } else if (tienePorVencer) {
-            badgeEstado = `<span style="background:#f39c12; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟠 PRÓXIMO A VENCER</span>`;
-        } else if (totalDocsCargados > 0) {
-            badgeEstado = `<span style="background:#27ae60; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟢 Al día</span>`;
+        if (totalDocsCargados > 0) {
+            badgeEstado = `<span style="background:#27ae60; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟢 Al día (Registrado)</span>`;
         } else {
             badgeEstado = `<span style="background:#95a5a6; color:white; padding:3px 6px; border-radius:3px; font-size:10px;">SIN DOCUMENTOS</span>`;
         }
@@ -1277,7 +1250,7 @@ function ejecutarAsignacionMasivaInterna() {
     let fechaAuditoria = new Date().toISOString();
 
     for (let id in pacs) {
-        updates[`${id}/${tipoDoc}`] = nuevaFecha;
+        updates[`${id}/${tipoDoc}`] = [{ fecha: nuevaFecha, descripcion: 'Asignación masiva', archivo: '' }];
         updates[`${id}/ultimaModificacion`] = {
             usuario: usuario,
             fecha: fechaAuditoria,
@@ -1291,7 +1264,7 @@ function ejecutarAsignacionMasivaInterna() {
     });
 }
 
-// 3. LA FICHA INDIVIDUAL (Soporta múltiples actas, Cloudinary, workflow, auditoría y WhatsApp automático)
+// 3. LA FICHA INDIVIDUAL (Actas limpias sin alertas de vencimiento)
 function abrirLegajoCompletoPaciente(idPaciente) {
     let p = pacs[idPaciente];
     if (!p) return;
@@ -1315,15 +1288,12 @@ function abrirLegajoCompletoPaciente(idPaciente) {
 
     document.getElementById('legajo-titulo-nombre').innerText = `📂 Legajo: ${idPaciente} (DNI: ${p.dni || 'S/D'})`;
     let contenedorDetalle = document.getElementById('legajo-contenido-detalle');
-    
-    let hoy = new Date();
-    hoy.setHours(0,0,0,0);
 
     let infoAuditoria = p.ultimaModificacion ? `<div style="background:#f8fafc; border:1px solid #e2e8f0; padding:8px; border-radius:6px; margin-bottom:15px; font-size:11px; color:#64748b;"><b>Última modificación:</b> ${p.ultimaModificacion.fecha.replace('T', ' ').substring(0,16)} por <em>${p.ultimaModificacion.usuario}</em> (${p.ultimaModificacion.accion || 'Actualización'})</div>` : '';
 
     let htmlTabla = `
         ${infoAuditoria}
-        <h4 style="margin-bottom:8px; color:#34495e;">📋 Control Documental Avanzado (Plazos 45/60d, Cloudinary y WhatsApp Directo):</h4>
+        <h4 style="margin-bottom:8px; color:#34495e;">📋 Control Documental Avanzado (Historial de Actas, Cloudinary y WhatsApp Directo):</h4>
         <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px;">
             <thead>
                 <tr style="background:#f8f9fa; border-bottom:2px solid #ddd; text-align:left;">
@@ -1342,31 +1312,19 @@ function abrirLegajoCompletoPaciente(idPaciente) {
         let fechaTurno = p[claveTurno] || '';
         let claveEstado = doc.clave + '_estado';
         let estadoActual = p[claveEstado] || 'Pendiente Padre';
-        let telefonoPadre = p.telefono || p.celular || p.tel || '';
 
         let htmlActasInternas = '';
         if (listaActas.length === 0) {
             htmlActasInternas = `<span style="color:#95a5a6; font-style:italic; font-size:11px;">Sin actas cargadas.</span>`;
         } else {
             listaActas.forEach((acta, index) => {
-                let badgeVenc = '';
-                if (acta.fecha) {
-                    let fVenc = new Date(acta.fecha);
-                    fVenc.setHours(0,0,0,0);
-                    let diff = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
-                    let umbralVenc = (doc.clave === 'pmF' || doc.clave === 'cud') ? 60 : 45;
-
-                    if (diff < 0) badgeVenc = `🔴 Vencido (${Math.abs(diff)}d)`;
-                    else if (diff === 0) badgeVenc = `🟠 ¡Hoy!`;
-                    else if (diff <= umbralVenc) badgeVenc = `🟠 Faltan ${diff}d`;
-                    else badgeVenc = `🟢 Al día`;
-                }
+                let badgeEstadoActa = acta.archivo ? `🟢 Archivo Subido` : `📄 Registrado`;
 
                 htmlActasInternas += `
                     <div style="background:#f1f5f9; padding:6px; border-radius:4px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:center; font-size:11px;">
                         <div>
                             <b>#${index + 1}</b> Fecha: <input type="date" value="${acta.fecha || ''}" onchange="actualizarFechaActaItem('${idPaciente}', '${doc.clave}', ${index}, this.value)" style="padding:2px; font-size:10px; border:1px solid #cbd5e1; border-radius:3px;">
-                            <br><small style="color:#475569;">${acta.descripcion || 'Sin descripción'} | ${badgeVenc}</small>
+                            <br><small style="color:#475569;">${acta.descripcion || 'Sin descripción'} | ${badgeEstadoActa}</small>
                             ${acta.archivo ? `<br><a href="${acta.archivo}" target="_blank" style="color:#2563eb; font-weight:bold; text-decoration:underline;">Ver Archivo Cloudinary</a>` : ''}
                         </div>
                         <button onclick="eliminarActaDeItem('${idPaciente}', '${doc.clave}', ${index})" style="background:#ef4444; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer; font-size:10px;">❌</button>
@@ -1419,17 +1377,12 @@ function abrirLegajoCompletoPaciente(idPaciente) {
     modalLegajo.style.display = 'flex';
 }
 
-// 4. FUNCIONES DE MANIPULACIÓN, WHATSAPP Y CLOUDINARY
-
+// 4. FUNCIONES DE MANIPULACIÓN
 function enviarWspPadreDocumento(idPaciente, docClave, nombreDoc) {
     let p = pacs[idPaciente];
-    let tel = p.tel || prompt("No se encontró el teléfono guardado. Ingrese el número del padre/tutor con característica (ej: 549264...):", "");
+    let tel = p.tel || prompt("No se encontró el teléfono guardado en p.tel. Ingrese el número:", "");
     if (!tel) return;
     
-    // Limpiar caracteres no numéricos
-    if (!tel) return;
-    
-    // Limpiar caracteres no numéricos
     let numeroLimpiado = tel.replace(/\D/g, '');
     let mensaje = "";
 
@@ -1444,7 +1397,7 @@ function enviarWspPadreDocumento(idPaciente, docClave, nombreDoc) {
 }
 
 function agregarActaPrompt(idPaciente, docClave) {
-    let fecha = prompt("Ingrese la fecha del acta (YYYY-MM-DD):");
+    let fecha = prompt("Ingrese la fecha del acta (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
     if (!fecha) return;
     let descripcion = prompt("Ingrese la descripción o número de acta (Ej. Acta N° 4):") || "Acta institucional";
 
@@ -1544,7 +1497,7 @@ async function subirDocModuloDirecto(idPaciente, docClave, input) {
     if(!input.files[0]) return;
     const file = input.files[0];
     
-    let fechaActa = prompt("Ingrese la fecha asociada a este documento/acta (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
+    let fechaActa = prompt("Ingrese la fecha asociada a este documento (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
     if (!fechaActa) return;
     let descripcion = prompt("Descripción del archivo:", file.name) || "Documento adjunto";
 
@@ -1559,9 +1512,9 @@ async function subirDocModuloDirecto(idPaciente, docClave, input) {
         
         if(data.secure_url) {
             let p = pacs[idPaciente];
-            let actual = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [{ fecha: p[docClave], descripcion: 'Documento previo', archivo: '' }] : []);
+            let actualArray = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [{ fecha: p[docClave], descripcion: 'Anterior', archivo: '' }] : []);
 
-            actual.push({
+            actualArray.push({
                 fecha: fechaActa,
                 descripcion: descripcion,
                 archivo: data.secure_url
@@ -1569,7 +1522,7 @@ async function subirDocModuloDirecto(idPaciente, docClave, input) {
 
             let usuario = obtenerUsuarioActual();
             database.child(`pacientes/${idPaciente}`).update({
-                [docClave]: actual,
+                [docClave]: actualArray,
                 [`${docClave}_estado`]: 'Documento Subido',
                 ultimaModificacion: {
                     usuario: usuario,
