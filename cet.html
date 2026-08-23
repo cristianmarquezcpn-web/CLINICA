@@ -1127,151 +1127,154 @@ function cerrarAlertaInicio() {
     if (modalAlerta) modalAlerta.style.display = 'none';
 }
 // 1. ALERTAS DE INICIO
+// 1. ALERTAS DE INICIO (Optimizado con setTimeout para liberar el hilo principal)
 function verificarAlertasAlIniciar() {
-    let listaAlertas = document.getElementById('lista-alertas-inicio');
-    if (!listaAlertas) return;
-    
-    listaAlertas.innerHTML = '';
-    let contadorAlertas = 0;
-    let hayAlertasCriticasRojas = false; // Bandera para activar la sirena global en el inicio
-    let hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
+    setTimeout(() => {
+        let listaAlertas = document.getElementById('lista-alertas-inicio');
+        if (!listaAlertas) return;
+        
+        listaAlertas.innerHTML = '';
+        let contadorAlertas = 0;
+        let hayAlertasCriticasRojas = false; // Bandera para activar la sirena global en el inicio
+        let hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
 
-    let arrayAlertasTemp = [];
+        let arrayAlertasTemp = [];
 
-    for (let id in pacs) {
-        let p = pacs[id];
-        let nombre = id;
-        let dni = p.dni || 'S/D';
+        for (let id in pacs) {
+            let p = pacs[id];
+            let nombre = id;
+            let dni = p.dni || 'S/D';
 
-        DOCUMENTOS_SISTEMA.forEach(doc => {
-            let docData = p[doc.clave];
-            let tieneArchivoReal = documentoTieneArchivoSubido(docData, p, doc.clave);
-            if (tieneArchivoReal) return;
+            DOCUMENTOS_SISTEMA.forEach(doc => {
+                let docData = p[doc.clave];
+                let tieneArchivoReal = documentoTieneArchivoSubido(docData, p, doc.clave);
+                if (tieneArchivoReal) return;
 
-            let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
+                let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
 
-            // A. Evaluación de vencimiento o ausencia total del documento
-            let diasAnticipacionCritica = doc.diasAnticipacion || 15;
-            let fechaPlana = p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http') ? p[doc.clave] : null;
+                // A. Evaluación de vencimiento o ausencia total del documento
+                let diasAnticipacionCritica = doc.diasAnticipacion || 15;
+                let fechaPlana = p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http') ? p[doc.clave] : null;
 
-            if (lista.length === 0 && !fechaPlana) {
-                hayAlertasCriticasRojas = true;
-                if (doc.gestionPadre) {
-                    arrayAlertasTemp.push({
-                        id: id, nombre: nombre, dni: dni,
-                        tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
-                        mensaje: `🚨 SECRETARIA: Falta cargar ${doc.nombre.toUpperCase()}. Llamar al padre urgente para que gestione el turno.`
-                    });
+                if (lista.length === 0 && !fechaPlana) {
+                    hayAlertasCriticasRojas = true;
+                    if (doc.gestionPadre) {
+                        arrayAlertasTemp.push({
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                            mensaje: `🚨 SECRETARIA: Falta cargar ${doc.nombre.toUpperCase()}. Llamar al padre urgente para que gestione el turno.`
+                        });
+                    } else {
+                        arrayAlertasTemp.push({
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                            mensaje: `🚨 CONTROL INTERNO: Falta cargar y subir ${doc.nombre.toUpperCase()} en el legajo.`
+                        });
+                    }
                 } else {
-                    arrayAlertasTemp.push({
-                        id: id, nombre: nombre, dni: dni,
-                        tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
-                        mensaje: `🚨 CONTROL INTERNO: Falta cargar y subir ${doc.nombre.toUpperCase()} en el legajo.`
-                    });
-                }
-            } else {
-                let fechasAEvaluar = [];
-                if (fechaPlana) fechasAEvaluar.push({ fecha: fechaPlana });
-                lista.forEach(item => { if (item.fecha) fechasAEvaluar.push(item); });
+                    let fechasAEvaluar = [];
+                    if (fechaPlana) fechasAEvaluar.push({ fecha: fechaPlana });
+                    lista.forEach(item => { if (item.fecha) fechasAEvaluar.push(item); });
 
-                if (fechasAEvaluar.length === 0) {
-                    hayAlertasCriticasRojas = true;
-                    arrayAlertasTemp.push({
-                        id: id, nombre: nombre, dni: dni,
-                        tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
-                        mensaje: `🚨 ATENCIÓN: Falta subir el archivo digital de ${doc.nombre.toUpperCase()} al sistema.`
-                    });
-                }
-
-                fechasAEvaluar.forEach(item => {
-                    let fVenc = item.fecha ? new Date(item.fecha) : null;
-                    if (fVenc) fVenc.setHours(0, 0, 0, 0);
-                    if (!fVenc) return;
-
-                    let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
-
-                    if (diffDias < 0) {
+                    if (fechasAEvaluar.length === 0) {
                         hayAlertasCriticasRojas = true;
-                        let msg = doc.gestionPadre ? 
-                            `🚨 ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días. Llamar al padre urgente para regularizar.` :
-                            `🚨 ${doc.nombre.toUpperCase()} INTERNO VENCIDO hace ${Math.abs(diffDias)} días. ¡Subir versión actualizada!`;
                         arrayAlertasTemp.push({
                             id: id, nombre: nombre, dni: dni,
-                            tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'rojo',
-                            mensaje: msg
-                        });
-                    } else if (diffDias <= diasAnticipacionCritica) {
-                        let msg = doc.gestionPadre ? 
-                            `⏰ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Secretaria: llamar al padre para que saque turno.` :
-                            `⏱️ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Preparar renovación.`;
-                        arrayAlertasTemp.push({
-                            id: id, nombre: nombre, dni: dni,
-                            tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'naranja',
-                            mensaje: msg
+                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                            mensaje: `🚨 ATENCIÓN: Falta subir el archivo digital de ${doc.nombre.toUpperCase()} al sistema.`
                         });
                     }
-                });
-            }
 
-            // B. GESTIÓN DE TURNOS CRÍTICOS (EXCLUSIVO PARA CUD, P.M Y RHC) - Alerta de 48 a 72 hs antes
-            if (doc.critico && doc.gestionPadre) {
-                let claveTurno = doc.clave + 'T';
-                let fechaTurno = p[claveTurno];
-                
-                if (!fechaTurno) {
-                    hayAlertasCriticasRojas = true;
-                    arrayAlertasTemp.push({
-                        id: id, nombre: nombre, dni: dni,
-                        tipoDoc: `Turno ${doc.nombre}`, diff: -500, prioridadVisual: 'rojo',
-                        mensaje: `🚨 SECRETARIA: El paciente no tiene turno asignado para ${doc.nombre}. Llamar al padre YA.`
+                    fechasAEvaluar.forEach(item => {
+                        let fVenc = item.fecha ? new Date(item.fecha) : null;
+                        if (fVenc) fVenc.setHours(0, 0, 0, 0);
+                        if (!fVenc) return;
+
+                        let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
+
+                        if (diffDias < 0) {
+                            hayAlertasCriticasRojas = true;
+                            let msg = doc.gestionPadre ? 
+                                `🚨 ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días. Llamar al padre urgente para regularizar.` :
+                                `🚨 ${doc.nombre.toUpperCase()} INTERNO VENCIDO hace ${Math.abs(diffDias)} días. ¡Subir versión actualizada!`;
+                            arrayAlertasTemp.push({
+                                id: id, nombre: nombre, dni: dni,
+                                tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'rojo',
+                                mensaje: msg
+                            });
+                        } else if (diffDias <= diasAnticipacionCritica) {
+                            let msg = doc.gestionPadre ? 
+                                `⏰ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Secretaria: llamar al padre para que saque turno.` :
+                                `⏱️ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Preparar renovación.`;
+                            arrayAlertasTemp.push({
+                                id: id, nombre: nombre, dni: dni,
+                                tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'naranja',
+                                mensaje: msg
+                            });
+                        }
                     });
-                } else if (fechaTurno) {
-                    let fT = new Date(fechaTurno);
-                    fT.setHours(0, 0, 0, 0);
-                    let diffT = Math.round((fT - hoy) / (1000 * 60 * 60 * 24));
+                }
+
+                // B. GESTIÓN DE TURNOS CRÍTICOS (EXCLUSIVO PARA CUD, P.M Y RHC) - Alerta de 48 a 72 hs antes
+                if (doc.critico && doc.gestionPadre) {
+                    let claveTurno = doc.clave + 'T';
+                    let fechaTurno = p[claveTurno];
                     
-                    if (diffT >= 2 && diffT <= 3) {
+                    if (!fechaTurno) {
                         hayAlertasCriticasRojas = true;
                         arrayAlertasTemp.push({
                             id: id, nombre: nombre, dni: dni,
-                            tipoDoc: `Turno ${doc.nombre}`, diff: diffT, prioridadVisual: 'rojo',
-                            mensaje: `⚡ RECORDATORIO A PADRES (${diffT} días): El turno para ${doc.nombre} es inminente. Llamar para confirmar asistencia.`
+                            tipoDoc: `Turno ${doc.nombre}`, diff: -500, prioridadVisual: 'rojo',
+                            mensaje: `🚨 SECRETARIA: El paciente no tiene turno asignado para ${doc.nombre}. Llamar al padre YA.`
                         });
+                    } else if (fechaTurno) {
+                        let fT = new Date(fechaTurno);
+                        fT.setHours(0, 0, 0, 0);
+                        let diffT = Math.round((fT - hoy) / (1000 * 60 * 60 * 24));
+                        
+                        if (diffT >= 2 && diffT <= 3) {
+                            hayAlertasCriticasRojas = true;
+                            arrayAlertasTemp.push({
+                                id: id, nombre: nombre, dni: dni,
+                                tipoDoc: `Turno ${doc.nombre}`, diff: diffT, prioridadVisual: 'rojo',
+                                mensaje: `⚡ RECORDATORIO A PADRES (${diffT} días): El turno para ${doc.nombre} es inminente. Llamar para confirmar asistencia.`
+                            });
+                        }
                     }
                 }
-            }
-        });
-    }
-
-    arrayAlertasTemp.sort((a, b) => a.diff - b.diff);
-
-    arrayAlertasTemp.forEach(alerta => {
-        contadorAlertas++;
-        let colorBorde = alerta.prioridadVisual === 'rojo' ? '#e74c3c' : '#f39c12';
-        let fondoItem = alerta.prioridadVisual === 'rojo' ? '#fdf2f2' : '#fef9e7';
-
-        listaAlertas.innerHTML += `
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #eee; background:${fondoItem}; margin-bottom:6px; border-radius:4px; border-left: 5px solid ${colorBorde};">
-                <div>
-                    <b style="color:#2c3e50; font-size:13px;">${alerta.nombre}</b> <small style="color:#555;">(DNI: ${alerta.dni})</small><br>
-                    <span style="color:#c0392b; font-weight:bold; font-size:11px;">📄 ${alerta.tipoDoc}</span><br>
-                    <span style="color:#222; font-size:11px; font-weight:bold;">${alerta.mensaje}</span>
-                </div>
-                <div style="text-align:right;">
-                    <button class="btn" style="background:#2c3e50; color:white; font-size:11px; padding:6px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="cerrarAlertaInicio(); abrirLegajoCompletoPaciente('${alerta.id}')">Ver Legajo</button>
-                </div>
-            </div>`;
-    });
-
-    let modalAlerta = document.getElementById('modal-alerta-inicio');
-    if (modalAlerta && contadorAlertas > 0) {
-        modalAlerta.style.display = 'flex';
-        if (hayAlertasCriticasRojas) {
-            let sirenaGlobal = inyectarEfectoSirena();
-            sirenaGlobal.style.display = 'block';
+            });
         }
-    }
+
+        arrayAlertasTemp.sort((a, b) => a.diff - b.diff);
+
+        arrayAlertasTemp.forEach(alerta => {
+            contadorAlertas++;
+            let colorBorde = alerta.prioridadVisual === 'rojo' ? '#e74c3c' : '#f39c12';
+            let fondoItem = alerta.prioridadVisual === 'rojo' ? '#fdf2f2' : '#fef9e7';
+
+            listaAlertas.innerHTML += `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #eee; background:${fondoItem}; margin-bottom:6px; border-radius:4px; border-left: 5px solid ${colorBorde};">
+                    <div>
+                        <b style="color:#2c3e50; font-size:13px;">${alerta.nombre}</b> <small style="color:#555;">(DNI: ${alerta.dni})</small><br>
+                        <span style="color:#c0392b; font-weight:bold; font-size:11px;">📄 ${alerta.tipoDoc}</span><br>
+                        <span style="color:#222; font-size:11px; font-weight:bold;">${alerta.mensaje}</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <button class="btn" style="background:#2c3e50; color:white; font-size:11px; padding:6px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="cerrarAlertaInicio(); abrirLegajoCompletoPaciente('${alerta.id}')">Ver Legajo</button>
+                    </div>
+                </div>`;
+        });
+
+        let modalAlerta = document.getElementById('modal-alerta-inicio');
+        if (modalAlerta && contadorAlertas > 0) {
+            modalAlerta.style.display = 'flex';
+            if (hayAlertasCriticasRojas) {
+                let sirenaGlobal = inyectarEfectoSirena();
+                sirenaGlobal.style.display = 'block';
+            }
+        }
+    }, 200);
 }
 // 2. PANEL GENERAL CON CONTEO REAL DE ARCHIVOS CLOUDINARY
 function abrirPanelGeneralGestiones() {
@@ -1706,14 +1709,27 @@ function eliminarActaDeItem(idPaciente, docClave, index) {
         ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Eliminó registro de acta` }
     }).then(() => abrirLegajoCompletoPaciente(idPaciente));
 }
-
 function actualizarEstadoWorkflow(idPaciente, docClave, nuevoEstado) {
+    // 1. Actualizamos el dato localmente de forma instantánea (evita el lag)
+    if (pacs[idPaciente]) {
+        pacs[idPaciente][`${docClave}_estado`] = nuevoEstado;
+    }
+
+    // 2. Redibujamos SOLO el expediente abierto al instante
+    abrirLegajoCompletoPaciente(idPaciente);
+
+    // 3. Enviamos a Firebase de fondo (sin el .then() que traba la pantalla)
     database.child(`pacientes/${idPaciente}`).update({
         [`${docClave}_estado`]: nuevoEstado,
-        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Modificó workflow` }
+        ultimaModificacion: { 
+            usuario: obtenerUsuarioActual(), 
+            fecha: new Date().toISOString(), 
+            accion: `Modificó workflow a ${nuevoEstado}` 
+        }
+    }).catch(error => {
+        console.error("Error al guardar en Firebase en segundo plano:", error);
     });
 }
-
 function actualizarFechaTurno(idPaciente, docClave, nuevaFecha) {
     if (!pacs[idPaciente]) return;
     pacs[idPaciente][docClave + '_fecha_turno'] = nuevaFecha;
