@@ -97,29 +97,36 @@
         auth.signInWithPopup(provider).catch(err => alert("Error al ingresar: " + err.message));
     }
 
-    firebase.auth().onAuthStateChanged((user) => {
-        const loginScreen = document.getElementById('login-screen');
-        const mainContainer = document.getElementById('main-container');
+   firebase.auth().onAuthStateChanged((user) => {
+    const loginScreen = document.getElementById('login-screen');
+    const mainContainer = document.getElementById('main-container');
 
-        if (user) {
-            const mailKey = user.email.replace(/\./g, ','); 
-            
-            db.ref('usuarios/' + mailKey).once('value', (snap) => {
-                if (snap.exists()) {
-                    loginScreen.style.display = 'none';
-                    mainContainer.style.display = 'block';
-                    mostrarInterfaz(snap.val()); 
-                } else {
-                    alert("Usuario no autorizado. Contacte al administrador.");
-                    auth.signOut();
-                }
-            });
-        } else {
-            loginScreen.style.display = 'flex';
-            mainContainer.style.display = 'none';
-        }
-    });
+    if (user) {
+        // 1. Guardamos el email real del usuario para la auditoría
+        window.usuarioLogueadoEmail = user.email;
+        localStorage.setItem('usuarioClinica', user.email);
 
+        const mailKey = user.email.replace(/\./g, ','); 
+        
+        db.ref('usuarios/' + mailKey).once('value', (snap) => {
+            if (snap.exists()) {
+                loginScreen.style.display = 'none';
+                mainContainer.style.display = 'block';
+                mostrarInterfaz(snap.val()); 
+            } else {
+                alert("Usuario no autorizado. Contacte al administrador.");
+                auth.signOut();
+            }
+        });
+    } else {
+        // Limpiamos los datos si se desloguea
+        window.usuarioLogueadoEmail = null;
+        localStorage.removeItem('usuarioClinica');
+
+        loginScreen.style.display = 'flex';
+        mainContainer.style.display = 'none';
+    }
+});
     function mostrarInterfaz(userData) {
         document.getElementById('subtitulo').innerText = `Bienvenido/a, ${userData.nombre || 'Usuario'}`;
         const menu = document.getElementById('menu-dinamico');
