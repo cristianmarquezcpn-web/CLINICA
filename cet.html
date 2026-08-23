@@ -1476,6 +1476,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
         let listaActas = Array.isArray(p[doc.clave + '_actas']) ? p[doc.clave + '_actas'] : [];
         
         let umbralPlazo = (doc.clave === 'cud') ? 60 : (['pm', 'rhc'].includes(doc.clave) ? 45 : 30);
+        let esDocumentoCritico = ['cud', 'pm', 'rhc'].includes(doc.clave);
         let htmlActasInternas = '';
 
         if (tieneArchivo) {
@@ -1492,19 +1493,28 @@ function abrirLegajoCompletoPaciente(idPaciente) {
             let estaEnZonaRojas = diasRestantes !== null && diasRestantes <= umbralPlazo;
             let estaVencido = diasRestantes !== null && diasRestantes < 0;
 
-            // ESTILOS DINÁMICOS: Normal y tranquilo si hay tiempo, rojo intimidante si se achicaron los plazos o venció
             let estiloFondo = estaEnZonaRojas ? '#fef2f2' : '#f8f9fa';
             let estiloBorde = estaEnZonaRojas ? '#f87171' : '#cbd5e1';
-            let colorTextoReloj = estaEnZonaRojas ? '#991b1b' : '#334155';
-            let pesoFuenteReloj = estaEnZonaRojas ? 'bold' : 'normal';
 
             let textoReloj = '';
+            let mensajePresionPadre = '';
+
             if (diasRestantes === null) {
                 textoReloj = `<span style="color:#991b1b; font-weight:bold;">🚨 FALTA CARGAR FECHA DE VENCIMIENTO</span>`;
             } else if (estaVencido) {
                 textoReloj = `<span style="color:#dc2626; font-weight:bold; font-size:12px;">🚨 ¡VENCIDO HACE ${Math.abs(diasRestantes)} DÍAS!</span>`;
+                if (esDocumentoCritico) {
+                    mensajePresionPadre = `<div style="background:#fee2e2; border:1px solid #ef4444; color:#991b1b; padding:6px; border-radius:4px; font-weight:bold; margin-top:6px; font-size:10px;">
+                        🚨 ¡PLAZO VENCIDO! Exigir al padre la documentación de ${doc.nombre} de inmediato.
+                    </div>`;
+                }
             } else if (estaEnZonaRojas) {
                 textoReloj = `<span style="color:#dc2626; font-weight:bold;">⏰ Quedan ${diasRestantes} días (¡Plazo crítico menor a ${umbralPlazo} días!)</span>`;
+                if (esDocumentoCritico) {
+                    mensajePresionPadre = `<div style="background:#fef2f2; border:1px solid #f87171; color:#991b1b; padding:6px; border-radius:4px; font-weight:bold; margin-top:6px; font-size:10px;">
+                        📢 ¡ZONA CRÍTICA! <br>👉 <b>Acción obligatoria:</b> Llamar al padre y enviar WhatsApp urgente para que gestione el ${doc.nombre}.
+                    </div>`;
+                }
             } else {
                 textoReloj = `<span style="color:#334155;">⏱️ Faltan ${diasRestantes} días (Plazo normal)</span>`;
             }
@@ -1515,10 +1525,11 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                     <div style="margin-top:4px; font-size:10px; color:#64748b;">Fecha Vencimiento Oficial:</div>
                     <input type="date" value="${fechaVencOficial || ''}" onchange="actualizarVencimientoOficial('${idPaciente}', '${doc.clave}', this.value)" style="padding:2px; font-size:10px; border:1px solid #ccc; border-radius:3px; margin-top:2px; background:#fff; width:100%;">
                     <div style="margin-top:6px;"><span style="color:#dc2626; font-weight:bold; background:#fee2e2; padding:2px 6px; border-radius:3px;">🚨 FALTA SUBIR COMPROBANTE DIGITAL</span></div>
+                    ${mensajePresionPadre}
                 </div>`;
         }
 
-        // Renderizado del historial de actas de este documento
+        // Renderizado del historial de actas
         let htmlHistorialActasDoc = '';
         if (listaActas.length > 0) {
             listaActas.forEach((acta, idx) => {
@@ -1533,7 +1544,36 @@ function abrirLegajoCompletoPaciente(idPaciente) {
         }
 
         let estadoActual = tieneArchivo ? 'Documento Subido' : (p[doc.clave + '_estado'] || 'Pendiente Padre');
-        let botonWspHtml = doc.gestionPadre ? `<button class="btn" onclick="enviarWspPresionPadre('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#15803d; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; width:100%; margin-top:6px;">💬 Enviar WhatsApp Urgente</button>` : '';
+        let fechaTurnoSolicitado = p[doc.clave + '_fecha_turno'] || '';
+
+        // Bloque dinámico para la fecha de turno si está seleccionado
+        let htmlBloqueTurno = '';
+        if (estadoActual === 'Turno Solicitado') {
+            let fTurno = fechaTurnoSolicitado ? new Date(fechaTurnoSolicitado) : null;
+            if (fTurno) fTurno.setHours(0,0,0,0);
+            
+            let diasParaTurno = fTurno ? Math.round((fTurno - hoy)/(1000*60*60*24)) : null;
+            let avisoAlertaTurno = '';
+            
+            if (diasParaTurno === null) {
+                avisoAlertaTurno = `<div style="color:#b91c1c; font-weight:bold; margin-top:3px;">🚨 FALTA CARGAR LA FECHA DEL TURNO</div>`;
+            } else if (diasParaTurno <= 3 && diasParaTurno >= 0) {
+                avisoAlertaTurno = `<div style="background:#fee2e2; color:#b91c1c; padding:4px; border-radius:3px; font-weight:bold; margin-top:3px;">⚡ ¡ATENCIÓN! Quedan ${diasParaTurno} días para el turno. ¡Llamar al padre urgente para recordar!</div>`;
+            } else if (diasParaTurno < 0) {
+                avisoAlertaTurno = `<div style="background:#fee2e2; color:#991b1b; padding:4px; border-radius:3px; font-weight:bold; margin-top:3px;">🚨 El turno ya pasó hace ${Math.abs(diasParaTurno)} días. Verificar asistencia.</div>`;
+            } else {
+                avisoAlertaTurno = `<div style="color:#15803d; font-weight:bold; margin-top:3px;">📅 Turno agendado en ${diasParaTurno} días.</div>`;
+            }
+
+            htmlBloqueTurno = `
+                <div style="margin-top:5px; background:#f0fdf4; border:1px solid #bbf7d0; padding:5px; border-radius:4px; font-size:10px;">
+                    <label style="font-weight:bold; color:#166534;">Fecha del Turno Otorgado:</label>
+                    <input type="date" value="${fechaTurnoSolicitado}" onchange="actualizarFechaTurno('${idPaciente}', '${doc.clave}', this.value)" style="width:100%; margin-top:2px; font-size:10px; padding:2px; border:1px solid #16a34a; border-radius:3px; background:#fff;">
+                    ${avisoAlertaTurno}
+                </div>`;
+        }
+
+        let botonWspHtml = esDocumentoCritico ? `<button class="btn" onclick="enviarWspPresionPadre('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#15803d; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; width:100%; margin-top:6px;">💬 Enviar WhatsApp Urgente</button>` : '';
 
         htmlTabla += `
             <tr style="border-bottom:1px solid #cbd5e1; vertical-align: top; background:#fff;">
@@ -1562,6 +1602,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                                 <option value="Turno Solicitado" ${estadoActual === 'Turno Solicitado' ? 'selected' : ''}>📅 Turno Solicitado</option>
                                 <option value="Documento Subido" ${estadoActual === 'Documento Subido' ? 'selected' : ''}>✅ Documento Subido y Verificado</option>
                             </select>
+                            ${htmlBloqueTurno}
                         </div>
                         ${botonWspHtml}
                     </div>
@@ -1673,13 +1714,21 @@ function actualizarEstadoWorkflow(idPaciente, docClave, nuevoEstado) {
     });
 }
 
-function actualizarTurnoConAuditoria(idPaciente, claveTurno, valorFecha) {
+function actualizarFechaTurno(idPaciente, docClave, nuevaFecha) {
+    if (!pacs[idPaciente]) return;
+    pacs[idPaciente][docClave + '_fecha_turno'] = nuevaFecha;
+    
     database.child(`pacientes/${idPaciente}`).update({
-        [claveTurno]: valorFecha,
-        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().issuer || obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Modificó turno` }
+        [`${docClave}_fecha_turno`]: nuevaFecha,
+        ultimaModificacion: { 
+            usuario: obtenerUsuarioActual(), 
+            fecha: new Date().toISOString(), 
+            accion: `Actualizó fecha de turno para ${docClave}` 
+        }
+    }).then(() => {
+        abrirLegajoCompletoPaciente(idPaciente);
     });
 }
-
 async function subirDocModuloDirecto(idPaciente, docClave, input) {
     if(!input.files[0]) return;
     const file = input.files[0];
