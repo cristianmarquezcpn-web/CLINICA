@@ -1053,7 +1053,7 @@ document.getElementById('dominguito-texto').addEventListener('keypress', (e) => 
         document.getElementById('dominguito-input-box').style.display = 'none';
     }
 });
-// DOCUMENTOS DEL SISTEMA
+// DOCUMENTOS DEL SISTEMA (Los 10 obligatorios)
 const DOCUMENTOS_SISTEMA = [
     { clave: 'infMenF', nombre: 'Informe Mensual' },
     { clave: 'infoF', nombre: 'Informe Semanal' },
@@ -1067,12 +1067,12 @@ const DOCUMENTOS_SISTEMA = [
     { clave: 'cud', nombre: 'CUD' }
 ];
 
-// OBTENER USUARIO ACTUAL (Secretaría / Operador)
+// OBTENER USUARIO ACTUAL
 function obtenerUsuarioActual() {
     return window.usuarioLogueadoEmail || localStorage.getItem('usuarioClinica') || 'secretaria@clinica.com';
 }
 
-// 1. LANZAR ALERTAS AL ARRANCAR (Las actas históricas ya no generan alertas de vencimiento)
+// 1. ALERTAS DE INICIO: Si falta alguno de los 10 documentos o está vencido, salta la alerta
 function verificarAlertasAlIniciar() {
     let listaAlertas = document.getElementById('lista-alertas-inicio');
     if (!listaAlertas) return;
@@ -1091,17 +1091,64 @@ function verificarAlertasAlIniciar() {
 
         DOCUMENTOS_SISTEMA.forEach(doc => {
             let docData = p[doc.clave];
-            
-            // Si es un documento general antiguo guardado como fecha simple y sin archivo, evaluamos
-            if (docData && !Array.isArray(docData) && typeof docData === 'string') {
-                evaluarFechaAlerta(docData, id, nombre, dni, doc.nombre, doc.clave, arrayAlertasTemp, hoy);
+            let lista = Array.isArray(docData) ? docData : (docData ? [{ fecha: docData, archivo: '' }] : []);
+
+            // SI FALTA EL DOCUMENTO (0 documentos cargados para este ítem)
+            if (lista.length === 0) {
+                arrayAlertasTemp.push({
+                    id: id,
+                    nombre: nombre,
+                    dni: dni,
+                    tipoDoc: doc.nombre,
+                    claveDoc: doc.clave,
+                    fecha: 'Falta adjuntar',
+                    diff: -999, // Rojo directo por faltante
+                    motivo: 'Falta completar documentación'
+                });
+            } else {
+                // Si tiene documentos, evaluamos si el CUD o PM están vencidos por fecha
+                lista.forEach(item => {
+                    if (item && item.fecha && (doc.clave === 'cud' || doc.clave === 'pmF')) {
+                        let fVenc = new Date(item.fecha);
+                        fVenc.setHours(0, 0, 0, 0);
+                        let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
+                        let umbral = 60;
+
+                        if (diffDias <= umbral) {
+                            arrayAlertasTemp.push({
+                                id: id,
+                                nombre: nombre,
+                                dni: dni,
+                                tipoDoc: doc.nombre,
+                                claveDoc: doc.clave,
+                                fecha: item.fecha,
+                                diff: diffDias,
+                                motivo: diffDias < 0 ? 'VENCIDO' : 'Próximo a vencer'
+                            });
+                        }
+                    }
+                });
             }
 
             // Validación de Turnos
             let claveTurno = doc.clave + 'T';
             let fechaTurno = p[claveTurno];
             if (fechaTurno) {
-                evaluarFechaAlerta(fechaTurno, id, nombre, dni, `⚡ Turno ${doc.nombre} (Avisar Padre)`, claveTurno, arrayAlertasTemp, hoy);
+                let fT = new Date(fechaTurno);
+                fT.setHours(0, 0, 0, 0);
+                let diffT = Math.round((fT - hoy) / (1000 * 60 * 60 * 24));
+                if (diffT <= 45) {
+                    arrayAlertasTemp.push({
+                        id: id,
+                        nombre: nombre,
+                        dni: dni,
+                        tipoDoc: `⚡ Turno ${doc.nombre}`,
+                        claveDoc: claveTurno,
+                        fecha: fechaTurno,
+                        diff: diffT,
+                        motivo: 'Recordatorio de Turno'
+                    });
+                }
             }
         });
     }
@@ -1110,25 +1157,14 @@ function verificarAlertasAlIniciar() {
 
     arrayAlertasTemp.forEach(alerta => {
         contadorAlertas++;
-        let colorBadge, textoEstado;
-
-        if (alerta.diff < 0) {
-            let diasVencido = Math.abs(alerta.diff);
-            colorBadge = '#e74c3c';
-            textoEstado = `🔴 VENCIDO hace ${diasVencido} ${diasVencido === 1 ? 'día' : 'días'}`;
-        } else if (alerta.diff === 0) {
-            colorBadge = '#e67e22';
-            textoEstado = `🟠 ¡VENCE HOY!`;
-        } else {
-            colorBadge = '#f39c12';
-            textoEstado = `🟠 Faltan ${alerta.diff} ${alerta.diff === 1 ? 'día' : 'días'}`;
-        }
+        let colorBadge = '#e74c3c';
+        let textoEstado = alerta.diff === -999 ? `🔴 FALTA DOCUMENTACIÓN` : (alerta.diff < 0 ? `🔴 VENCIDO` : `🟠 PRÓXIMO`);
 
         listaAlertas.innerHTML += `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #eee; background:white; margin-bottom:4px; border-radius:4px; border-left: 4px solid ${colorBadge};">
                 <div>
                     <b>${alerta.nombre}</b> (DNI: ${alerta.dni})<br>
-                    <small style="color:#666">📄 <b>${alerta.tipoDoc}</b> - Fecha: ${alerta.fecha}</small>
+                    <small style="color:#666">📄 <b>${alerta.tipoDoc}</b> - Detalle: ${alerta.fecha}</small>
                 </div>
                 <div style="text-align:right;">
                     <span style="background:${colorBadge}; color:white; padding:3px 8px; border-radius:4px; font-size:10px; font-weight:bold; display:inline-block; margin-bottom:4px;">${textoEstado}</span><br>
@@ -1141,26 +1177,6 @@ function verificarAlertasAlIniciar() {
     if (modalAlerta && contadorAlertas > 0) modalAlerta.style.display = 'flex';
 }
 
-function evaluarFechaAlerta(fechaStr, id, nombre, dni, tipoDoc, claveDoc, arrayDestino, hoy) {
-    let fVenc = new Date(fechaStr);
-    fVenc.setHours(0, 0, 0, 0);
-    let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
-
-    let umbralAlerta = (claveDoc === 'pmF' || claveDoc === 'cud') ? 60 : 45;
-
-    if (diffDias <= umbralAlerta) {
-        arrayDestino.push({
-            id: id,
-            nombre: nombre,
-            dni: dni,
-            tipoDoc: tipoDoc,
-            claveDoc: claveDoc,
-            fecha: fechaStr,
-            diff: diffDias
-        });
-    }
-}
-
 function cerrarAlertaInicio() {
     let modalAlerta = document.getElementById('modal-alerta-inicio');
     if (modalAlerta) modalAlerta.style.display = 'none';
@@ -1171,7 +1187,7 @@ function cerrarPanelGeneral() {
     if (modal) modal.style.display = 'none';
 }
 
-// 2. PANEL GENERAL (Si tiene registros o archivos, está cubierto)
+// 2. PANEL GENERAL: EXIGENCIA DE LOS 10 DOCUMENTOS COMPLETOS PARA ESTAR EN VERDE
 function abrirPanelGeneralGestiones() {
     let modal = document.getElementById('modal-panel-general');
     if (!modal) return;
@@ -1207,19 +1223,34 @@ function abrirPanelGeneralGestiones() {
         let nombre = id;
         let dni = p.dni || 'S/D';
         
-        let totalDocsCargados = 0;
+        let documentosCompletos = 0;
+        let tieneVencidos = false;
 
         DOCUMENTOS_SISTEMA.forEach(doc => {
             let dData = p[doc.clave];
-            let lista = Array.isArray(dData) ? dData : (dData ? [{ fecha: dData }] : []);
-            if (lista.length > 0) totalDocsCargados++;
+            let lista = Array.isArray(dData) ? dData : (dData ? [{ fecha: dData, archivo: '' }] : []);
+            
+            if (lista.length > 0) {
+                documentosCompletos++;
+                // Verificar si tiene vencimiento de fecha en CUD o Plan Médico
+                lista.forEach(item => {
+                    if (item && item.fecha && (doc.clave === 'cud' || doc.clave === 'pmF')) {
+                        let fV = new Date(item.fecha);
+                        fV.setHours(0,0,0,0);
+                        let hoy = new Date();
+                        hoy.setHours(0,0,0,0);
+                        if (Math.round((fV - hoy) / (1000 * 60 * 60 * 24)) < 0) tieneVencidos = true;
+                    }
+                });
+            }
         });
 
         let badgeEstado = '';
-        if (totalDocsCargados > 0) {
-            badgeEstado = `<span style="background:#27ae60; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟢 Al día (Registrado)</span>`;
+        // SOLO ESTÁ EN VERDE SI TIENE LOS 10 DOCUMENTOS Y NINGUNO VENCIDO
+        if (documentosCompletos === DOCUMENTOS_SISTEMA.length && !tieneVencidos) {
+            badgeEstado = `<span style="background:#27ae60; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟢 Al día (10/10 Completo)</span>`;
         } else {
-            badgeEstado = `<span style="background:#95a5a6; color:white; padding:3px 6px; border-radius:3px; font-size:10px;">SIN DOCUMENTOS</span>`;
+            badgeEstado = `<span style="background:#e74c3c; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🔴 INCOMPLETO (${documentosCompletos}/10)</span>`;
         }
 
         tbody.innerHTML += `
@@ -1227,7 +1258,7 @@ function abrirPanelGeneralGestiones() {
                 <td style="padding:8px; font-weight:bold; color:#2c3e50;">${nombre}</td>
                 <td style="padding:8px; color:#555;">DNI: ${dni}</td>
                 <td style="padding:8px;">${badgeEstado}</td>
-                <td style="padding:8px; font-size:11px;">Docs Activos: ${totalDocsCargados}/${DOCUMENTOS_SISTEMA.length}</td>
+                <td style="padding:8px; font-size:11px;">Cargados: <b>${documentosCompletos}</b> de ${DOCUMENTOS_SISTEMA.length}</td>
                 <td style="padding:8px;">
                     <button class="btn" style="background:#2980b9; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" onclick="abrirLegajoCompletoPaciente('${id}')">📂 Ver Ficha / Múltiples Docs</button>
                 </td>
@@ -1264,7 +1295,7 @@ function ejecutarAsignacionMasivaInterna() {
     });
 }
 
-// 3. LA FICHA INDIVIDUAL (Actas limpias sin alertas de vencimiento)
+// 3. LA FICHA INDIVIDUAL (Workflow sincronizado con el estado real)
 function abrirLegajoCompletoPaciente(idPaciente) {
     let p = pacs[idPaciente];
     if (!p) return;
@@ -1293,7 +1324,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
 
     let htmlTabla = `
         ${infoAuditoria}
-        <h4 style="margin-bottom:8px; color:#34495e;">📋 Control Documental Avanzado (Historial de Actas, Cloudinary y WhatsApp Directo):</h4>
+        <h4 style="margin-bottom:8px; color:#34495e;">📋 Control Documental Avanzado (Exigencia 10 Documentos, Cloudinary y WhatsApp):</h4>
         <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px;">
             <thead>
                 <tr style="background:#f8f9fa; border-bottom:2px solid #ddd; text-align:left;">
@@ -1311,11 +1342,13 @@ function abrirLegajoCompletoPaciente(idPaciente) {
         let claveTurno = doc.clave + 'T';
         let fechaTurno = p[claveTurno] || '';
         let claveEstado = doc.clave + '_estado';
-        let estadoActual = p[claveEstado] || 'Pendiente Padre';
+        
+        // Estado automático inteligente: si tiene archivo o actas, por defecto es Documento Subido si no se cambió antes
+        let estadoActual = p[claveEstado] || (listaActas.length > 0 ? 'Documento Subido' : 'Pendiente Padre');
 
         let htmlActasInternas = '';
         if (listaActas.length === 0) {
-            htmlActasInternas = `<span style="color:#95a5a6; font-style:italic; font-size:11px;">Sin actas cargadas.</span>`;
+            htmlActasInternas = `<span style="color:#e74c3c; font-weight:bold; font-size:11px;">❌ FALTA CARGAR ESTE DOCUMENTO</span>`;
         } else {
             listaActas.forEach((acta, index) => {
                 let badgeEstadoActa = acta.archivo ? `🟢 Archivo Subido` : `📄 Registrado`;
@@ -1377,7 +1410,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
     modalLegajo.style.display = 'flex';
 }
 
-// 4. FUNCIONES DE MANIPULACIÓN
+// 4. FUNCIONES DE MANIPULACIÓN (Usando p.tel directo)
 function enviarWspPadreDocumento(idPaciente, docClave, nombreDoc) {
     let p = pacs[idPaciente];
     let tel = p.tel || prompt("No se encontró el teléfono guardado en p.tel. Ingrese el número:", "");
@@ -1413,10 +1446,11 @@ function agregarActaPrompt(idPaciente, docClave) {
     let usuario = obtenerUsuarioActual();
     database.child(`pacientes/${idPaciente}`).update({
         [docClave]: actual,
+        [`${docClave}_estado`]: 'Documento Subido',
         ultimaModificacion: {
             usuario: usuario,
             fecha: new Date().toISOString(),
-            accion: `Agregó acta a ${docClave}`
+            accion: `Agregó acta y actualizó estado de ${docClave}`
         }
     }).then(() => {
         abrirLegajoCompletoPaciente(idPaciente);
