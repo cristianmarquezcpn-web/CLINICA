@@ -1053,18 +1053,18 @@ document.getElementById('dominguito-texto').addEventListener('keypress', (e) => 
         document.getElementById('dominguito-input-box').style.display = 'none';
     }
 });
-// DOCUMENTOS DEL SISTEMA (Los 10 obligatorios con CUD y críticos restaurados)
+// DOCUMENTOS DEL SISTEMA (Los 10 obligatorios)
 const DOCUMENTOS_SISTEMA = [
     { clave: 'infMenF', nombre: 'Informe Mensual' },
     { clave: 'infoF', nombre: 'Informe Semestral', criticoSemestral: true },
-    { clave: 'pmF', nombre: 'Plan Médico (P.M)', critico: true },
-    { clave: 'rhcF', nombre: 'RHC', critico: true },
+    { clave: 'pmF', nombre: 'Plan Médico (P.M)', critico: true, diasAnticipacion: 45 },
+    { clave: 'rhcF', nombre: 'RHC', critico: true, diasAnticipacion: 45 },
     { clave: 'confF', nombre: 'CONF' },
     { clave: 'iiieF', nombre: 'I.I / I.E' },
     { clave: 'planF', nombre: 'Plan de Trabajo' },
     { clave: 'presuF', nombre: 'Presupuesto' },
     { clave: 'fimDoc', nombre: 'FIM' },
-    { clave: 'cud', nombre: 'CUD', critico: true }
+    { clave: 'cud', nombre: 'CUD', critico: true, diasAnticipacion: 60 }
 ];
 
 function obtenerUsuarioActual() {
@@ -1083,7 +1083,7 @@ function documentoTieneArchivoSubido(docData) {
     return false;
 }
 
-// 1. ALERTAS DE INICIO (Muestra los vencidos y próximos a vencer si NO tienen archivo subido)
+// 1. ALERTAS DE INICIO (Respetando plazos exactos: 60 para CUD, 45 para P.M y RHC)
 function verificarAlertasAlIniciar() {
     let listaAlertas = document.getElementById('lista-alertas-inicio');
     if (!listaAlertas) return;
@@ -1105,7 +1105,7 @@ function verificarAlertasAlIniciar() {
             let tieneArchivo = documentoTieneArchivoSubido(docData);
             let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
 
-            // Si NO tiene archivo subido, evaluamos sus fechas para las alertas de la secretaría
+            // Si NO tiene archivo subido, evaluamos alertas
             if (!tieneArchivo) {
                 if (lista.length === 0) {
                     arrayAlertasTemp.push({
@@ -1120,7 +1120,9 @@ function verificarAlertasAlIniciar() {
                             let fVenc = new Date(item.fecha);
                             fVenc.setHours(0, 0, 0, 0);
                             let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
-                            let diasAnticipacion = (doc.clave === 'cud') ? 60 : ((doc.clave === 'pmF' || doc.clave === 'rhcF') ? 45 : 0);
+                            
+                            // Anticipación estricta según corresponda
+                            let diasAnticipacion = doc.diasAnticipacion || 0;
 
                             if (diffDias < 0) {
                                 arrayAlertasTemp.push({
@@ -1129,12 +1131,19 @@ function verificarAlertasAlIniciar() {
                                     fecha: item.fecha, diff: diffDias,
                                     motivo: `🔴 VENCIDO HACE ${Math.abs(diffDias)} DÍAS - ¡SECRETARIA: LLAMAR / MANDAR WSP Y SUBIR CONSTANCIA!`
                                 });
-                            } else if (doc.critico && diffDias <= diasAnticipacion) {
+                            } else if (diasAnticipacion > 0 && diffDias <= diasAnticipacion) {
                                 arrayAlertasTemp.push({
                                     id: id, nombre: nombre, dni: dni,
                                     tipoDoc: doc.nombre, claveDoc: doc.clave,
                                     fecha: item.fecha, diff: diffDias,
                                     motivo: `⏰ Vence en ${diffDias} días. 🚨 SECRETARIA: Contactar al padre (WhatsApp/Llamada) y subir constancia.`
+                                });
+                            } else if (diasAnticipacion === 0 && diffDias <= 15) { // Alerta estándar para el resto si vencen pronto
+                                arrayAlertasTemp.push({
+                                    id: id, nombre: nombre, dni: dni,
+                                    tipoDoc: doc.nombre, claveDoc: doc.clave,
+                                    fecha: item.fecha, diff: diffDias,
+                                    motivo: `⏰ Vence en ${diffDias} días. Secretaria gestionar actualización.`
                                 });
                             }
                         }
@@ -1190,7 +1199,7 @@ function cerrarAlertaInicio() {
     if (modalAlerta) modalAlerta.style.display = 'none';
 }
 
-// 2. PANEL GENERAL
+// 2. PANEL GENERAL (Lectura correcta de archivos subidos reales)
 function abrirPanelGeneralGestiones() {
     let modal = document.getElementById('modal-panel-general');
     if (!modal) return;
@@ -1287,7 +1296,6 @@ function ejecutarAsignacionMasivaInterna() {
     let fechaAuditoria = new Date().toISOString();
 
     for (let id in pacs) {
-        // Mantiene o crea el item respetando que NO tiene archivo subido (archivo: '')
         updates[`${id}/${tipoDoc}`] = [{ fecha: nuevaFecha, descripcion: 'Asignación masiva vencimiento', archivo: '' }];
         updates[`${id}/ultimaModificacion`] = {
             usuario: usuario,
@@ -1297,12 +1305,12 @@ function ejecutarAsignacionMasivaInterna() {
     }
 
     database.child('pacientes').update(updates).then(() => {
-        alert("¡Fechas aplicadas correctamente sin alterar el estado de archivos!");
+        alert("¡Fechas aplicadas correctamente!");
         abrirPanelGeneralGestiones();
     });
 }
 
-// 3. LA FICHA INDIVIDUAL CON RELOJES DE PRESIÓN
+// 3. LA FICHA INDIVIDUAL
 function abrirLegajoCompletoPaciente(idPaciente) {
     let p = pacs[idPaciente];
     if (!p) return;
@@ -1329,7 +1337,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
     let hoy = new Date();
     hoy.setHours(0,0,0,0);
 
-    let infoAuditoria = p.ultimaModificacion ? `<div style="background:#f8fafc; border:1px solid #e2e8f0; padding:8px; border-radius:6px; margin-bottom:15px; font-size:11px; color:#64748b;"><b>Última modificación:</b> ${p.ultimaModificacion.fecha.replace('T', ' ').substring(0,16)} por <em>${p.ultimaModificacion.usuario}</em> (${p.ultimaModificacion.accion || 'Actualización'})</div>` : '';
+    let infoAuditoria = p.ultimaModificacion ? `<div style="background:#f8fafc; border:1px solid #e2e8f0; padding:8px; border-radius:6px; margin-bottom:15px; font-size:11px; color:#64748b;"><b>Última modificación:</b> ${p.ultimaModificacion.fecha.replace('T', ' ').substring(0,16)} por <em>${p.ultimaModificacion.usuario}</em></div>` : '';
 
     let htmlTabla = `
         ${infoAuditoria}
@@ -1348,16 +1356,14 @@ function abrirLegajoCompletoPaciente(idPaciente) {
         let docData = p[doc.clave];
         let tieneArchivo = documentoTieneArchivoSubido(docData);
         let listaActas = Array.isArray(docData) ? docData : (docData ? [docData] : []);
-
-        // Estado inteligente: Si tiene archivo, se fuerza 'Documento Subido'. Si no, toma el del workflow o 'Pendiente Padre'.
         let estadoActual = tieneArchivo ? 'Documento Subido' : (p[doc.clave + '_estado'] || (listaActas.length > 0 ? 'Pendiente Padre' : 'Pendiente Padre'));
 
         let htmlActasInternas = '';
         if (listaActas.length === 0) {
-            htmlActasInternas = `<span style="color:#e74c3c; font-weight:bold; font-size:11px;">❌ FALTA CARGAR ESTE DOCUMENTO - ¡SECRETARIA LLAMAR / WSP!</span>`;
+            htmlActasInternas = `<span style="color:#e74c3c; font-weight:bold; font-size:11px;">❌ FALTA CARGAR ESTE DOCUMENTO</span>`;
         } else {
             listaActas.forEach((acta, index) => {
-                let badgeEstadoActa = acta.archivo ? `<span style="color:green; font-weight:bold;">🟢 Archivo Subido (Cloudinary)</span>` : `<span style="color:#d97706; font-weight:bold;">📄 Solo Fecha Registrada (Falta Archivo)</span>`;
+                let badgeEstadoActa = acta.archivo ? `<span style="color:green; font-weight:bold;">🟢 Archivo Subido (Cloudinary)</span>` : `<span style="color:#2563eb; font-weight:bold;">📄 Solo Fecha Registrada (Falta Archivo)</span>`;
 
                 let htmlRelojGrande = '';
                 if (!acta.archivo && acta.fecha) {
@@ -1366,20 +1372,9 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                     let diff = Math.round((fV - hoy) / (1000 * 60 * 60 * 24));
                     
                     if (diff < 0) {
-                        htmlRelojGrande = `
-                            <div style="background:#fee2e2; border:1px solid #ef4444; color:#991b1b; padding:6px 8px; border-radius:6px; margin:6px 0; font-weight:bold; font-size:11px;">
-                                ⏰ <span>¡¡VENCIDO HACE ${Math.abs(diff)} DÍAS!! (Urgente reclamar al padre)</span>
-                            </div>`;
-                    } else if (diff <= 30) {
-                        htmlRelojGrande = `
-                            <div style="background:#fef3c7; border:1px solid #f59e0b; color:#92400e; padding:6px 8px; border-radius:6px; margin:6px 0; font-weight:bold; font-size:11px;">
-                                ⏰ <span>¡¡ATENCIÓN!! Vence en ${diff} días (Presionar para regularizar)</span>
-                            </div>`;
+                        htmlRelojGrande = `<div style="background:#fee2e2; border:1px solid #ef4444; color:#991b1b; padding:6px; border-radius:6px; margin:6px 0; font-weight:bold; font-size:11px;">⏰ ¡Vencido hace ${Math.abs(diff)} días!</div>`;
                     } else {
-                        htmlRelojGrande = `
-                            <div style="background:#f1f5f9; border:1px solid #cbd5e1; color:#334155; padding:4px 6px; border-radius:4px; margin:4px 0; font-size:11px;">
-                                ⏱️ Faltan ${diff} días para vencer (${acta.fecha})
-                            </div>`;
+                        htmlRelojGrande = `<div style="background:#f1f5f9; border:1px solid #cbd5e1; color:#334155; padding:4px; border-radius:4px; margin:4px 0; font-size:11px;">⏱️ Faltan ${diff} días (${acta.fecha})</div>`;
                     }
                 }
 
@@ -1400,14 +1395,8 @@ function abrirLegajoCompletoPaciente(idPaciente) {
 
         htmlTabla += `
             <tr style="border-bottom:1px solid #eee; vertical-align: top;">
-                <td style="padding:10px; font-weight:bold; color:#2c3e50;">
-                    ${doc.nombre}
-                </td>
-                <td style="padding:10px;">
-                    <div style="max-height: 180px; overflow-y: auto; padding-right: 4px;">
-                        ${htmlActasInternas}
-                    </div>
-                </td>
+                <td style="padding:10px; font-weight:bold; color:#2c3e50;">${doc.nombre}</td>
+                <td style="padding:10px;"><div style="max-height: 180px; overflow-y: auto;">${htmlActasInternas}</div></td>
                 <td style="padding:10px;">
                     <div style="display:flex; flex-direction:column; gap:6px;">
                         <div style="display:flex; gap:4px;">
@@ -1423,14 +1412,11 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                                 <option value="Documento Subido" ${estadoActual === 'Documento Subido' ? 'selected' : ''}>✅ Documento Subido</option>
                             </select>
                         </div>
-                        <button class="btn" onclick="enviarWspPadreDocumento('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#25d366; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold; display:flex; align-items:center; justify-content:center; gap:5px;">
-                            💬 Enviar Aviso WhatsApp
-                        </button>
+                        <button class="btn" onclick="enviarWspPadreDocumento('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#25d366; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">💬 Enviar Aviso WhatsApp</button>
                     </div>
                 </td>
             </tr>`;
 
-        // Turno exclusivo para CUD, P.M y RHC
         if (doc.critico) {
             let claveTurno = doc.clave + 'T';
             let fechaTurno = p[claveTurno] || '';
@@ -1439,11 +1425,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                 let fT = new Date(fechaTurno);
                 fT.setHours(0,0,0,0);
                 let diffT = Math.round((fT - hoy) / (1000 * 60 * 60 * 24));
-                if (diffT < 0) {
-                    htmlRelojTurno = `<span style="background:#fee2e2; color:#991b1b; padding:2px 6px; border-radius:4px; font-weight:bold; margin-left:10px;">⏰ Turno vencido hace ${Math.abs(diffT)} días</span>`;
-                } else {
-                    htmlRelojTurno = `<span style="background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; font-weight:bold; margin-left:10px;">⏰ Faltan ${diffT} días para el turno</span>`;
-                }
+                htmlRelojTurno = diffT < 0 ? `<span style="background:#fee2e2; color:#991b1b; padding:2px 6px; border-radius:4px; font-weight:bold; margin-left:10px;">⏰ Turno vencido hace ${Math.abs(diffT)} días</span>` : `<span style="background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:4px; font-weight:bold; margin-left:10px;">⏰ Faltan ${diffT} días para el turno</span>`;
             }
 
             htmlTabla += `
@@ -1465,114 +1447,70 @@ function abrirLegajoCompletoPaciente(idPaciente) {
 // 4. FUNCIONES DE ACCIÓN
 function enviarWspPadreDocumento(idPaciente, docClave, nombreDoc) {
     let p = pacs[idPaciente];
-    let tel = p.tel || prompt("No se encontró el teléfono guardado en p.tel. Ingrese el número:", "");
+    let tel = p.tel || prompt("No se encontró el teléfono guardado. Ingrese el número:", "");
     if (!tel) return;
-    
     let numeroLimpiado = tel.replace(/\D/g, '');
     let mensaje = `Estimados padres de ${idPaciente}: Nos comunicamos desde la clínica para recordarles la gestión y actualización de ${nombreDoc}. Por favor, manténgannos al tanto a la brevedad. Equipo de Esencial Salud Srl.`;
-
-    let urlWsp = `https://api.whatsapp.com/send?phone=${numeroLimpiado}&text=${encodeURIComponent(mensaje)}`;
-    window.open(urlWsp, '_blank');
+    window.open(`https://api.whatsapp.com/send?phone=${numeroLimpiado}&text=${encodeURIComponent(mensaje)}`, '_blank');
 }
 
 function agregarActaPrompt(idPaciente, docClave) {
     let fecha = prompt("Ingrese la fecha de vencimiento (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
     if (!fecha) return;
-    let descripcion = prompt("Ingrese la descripción o número de acta (Ej. Vencimiento anual):") || "Vencimiento regulado";
+    let descripcion = prompt("Ingrese la descripción o número de acta:") || "Vencimiento regulado";
 
     let p = pacs[idPaciente];
     let actual = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [p[docClave]] : []);
-
-    // Agregamos con archivo vacío para que la fecha actúe como alerta pero NO como subido
     actual.push({ fecha: fecha, descripcion: descripcion, archivo: '' });
 
-    let usuario = obtenerUsuarioActual();
     database.child(`pacientes/${idPaciente}`).update({
         [docClave]: actual,
-        ultimaModificacion: {
-            usuario: usuario,
-            fecha: new Date().toISOString(),
-            accion: `Agregó fecha en ${docClave}`
-        }
-    }).then(() => {
-        abrirLegajoCompletoPaciente(idPaciente);
-    });
+        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Agregó fecha en ${docClave}` }
+    }).then(() => abrirLegajoCompletoPaciente(idPaciente));
 }
 
 function actualizarFechaActaItem(idPaciente, docClave, index, nuevaFecha) {
     let p = pacs[idPaciente];
     if (!p || !Array.isArray(p[docClave])) return;
-
     let actual = [...p[docClave]];
     actual[index].fecha = nuevaFecha;
 
-    let usuario = obtenerUsuarioActual();
     database.child(`pacientes/${idPaciente}`).update({
         [docClave]: actual,
-        ultimaModificacion: {
-            usuario: usuario,
-            fecha: new Date().toISOString(),
-            accion: `Modificó fecha en ${docClave}`
-        }
-    }).then(() => {
-        console.log("Fecha actualizada.");
+        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Modificó fecha en ${docClave}` }
     });
 }
 
 function eliminarActaDeItem(idPaciente, docClave, index) {
     if (!confirm("¿Está seguro de eliminar este registro?")) return;
-
     let p = pacs[idPaciente];
     if (!p || !Array.isArray(p[docClave])) return;
-
     let actual = [...p[docClave]];
     actual.splice(index, 1);
 
-    let usuario = obtenerUsuarioActual();
     database.child(`pacientes/${idPaciente}`).update({
         [docClave]: actual,
-        ultimaModificacion: {
-            usuario: usuario,
-            fecha: new Date().toISOString(),
-            accion: `Eliminó registro de ${docClave}`
-        }
-    }).then(() => {
-        abrirLegajoCompletoPaciente(idPaciente);
-    });
+        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Eliminó registro de ${docClave}` }
+    }).then(() => abrirLegajoCompletoPaciente(idPaciente));
 }
 
 function actualizarEstadoWorkflow(idPaciente, docClave, nuevoEstado) {
-    let usuario = obtenerUsuarioActual();
     database.child(`pacientes/${idPaciente}`).update({
         [`${docClave}_estado`]: nuevoEstado,
-        ultimaModificacion: {
-            usuario: usuario,
-            fecha: new Date().toISOString(),
-            accion: `Cambió estado workflow de ${docClave} a ${nuevoEstado}`
-        }
-    }).then(() => {
-        console.log("Estado actualizado.");
+        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Cambió estado workflow` }
     });
 }
 
 function actualizarTurnoConAuditoria(idPaciente, claveTurno, valorFecha) {
-    let usuario = obtenerUsuarioActual();
     database.child(`pacientes/${idPaciente}`).update({
         [claveTurno]: valorFecha,
-        ultimaModificacion: {
-            usuario: usuario,
-            fecha: new Date().toISOString(),
-            accion: `Modificó turno ${claveTurno}`
-        }
-    }).then(() => {
-        console.log("Turno actualizado.");
+        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Modificó turno` }
     });
 }
 
 async function subirDocModuloDirecto(idPaciente, docClave, input) {
     if(!input.files[0]) return;
     const file = input.files[0];
-    
     let fechaActa = prompt("Ingrese la fecha asociada a este documento (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
     if (!fechaActa) return;
     let descripcion = prompt("Descripción del archivo:", file.name) || "Documento adjunto";
@@ -1582,35 +1520,26 @@ async function subirDocModuloDirecto(idPaciente, docClave, input) {
     formData.append('upload_preset', 'clinic_preset');
 
     try {
-        alert("Subiendo archivo a Cloudinary... por favor espere.");
+        alert("Subiendo archivo a Cloudinary...");
         const resp = await fetch('https://api.cloudinary.com/v1_1/duscmxxws/auto/upload', { method: 'POST', body: formData });
         const data = await resp.json();
         
         if(data.secure_url) {
             let p = pacs[idPaciente];
             let actualArray = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [p[docClave]] : []);
-
-            // Aquí SÍ guardamos el archivo real, lo que marca el documento como subido oficialmente
             actualArray.push({ fecha: fechaActa, descripcion: descripcion, archivo: data.secure_url });
 
-            let usuario = obtenerUsuarioActual();
             database.child(`pacientes/${idPaciente}`).update({
                 [docClave]: actualArray,
                 [`${docClave}_estado`]: 'Documento Subido',
-                ultimaModificacion: {
-                    usuario: usuario,
-                    fecha: new Date().toISOString(),
-                    accion: `Subió archivo adjunto a ${docClave}`
-                }
+                ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Subió archivo adjunto` }
             }).then(() => {
-                alert("¡Archivo subido y marcado como 'Documento Subido' con éxito!");
+                alert("¡Archivo subido con éxito!");
                 abrirLegajoCompletoPaciente(idPaciente);
             });
-        } else {
-            alert("Error al obtener la URL segura de Cloudinary.");
         }
     } catch (e) { 
-        alert("Error de red al subir archivo: " + e.message); 
+        alert("Error de red: " + e.message); 
     }
 }
 </script>         
