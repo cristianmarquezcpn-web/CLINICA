@@ -382,7 +382,7 @@
         pacs = d.pacientes || {}; 
         msgs = d.mensajes || {};
         render(); renderLista(); renderMapa(); renderChat();
-	liberarFormularioAlta();
+	liberarFormularioAlta(); verificarAlertasAlIniciar();
     });
 
     function cerrar() { document.querySelectorAll('#modal, #panel-fac, #panel-renov, #panel-saei, #overlay, #modal-masivo, #panel-borrado').forEach(e=>e.style.display="none"); }
