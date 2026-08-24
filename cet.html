@@ -1576,8 +1576,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                 </div>`;
         }
 
-        let botonWspHtml = esDocumentoCritico ? `<button class="btn" onclick="enviarWspPresionPadre('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#15803d; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; width:100%; margin-top:6px;">💬 Enviar WhatsApp Urgente</button>` : '';
-
+        let botonWspHtml = doc.gestionPadre ? `<button class="btn" onclick="enviarWspPresionPadre('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#15803d; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; width:100%; margin-top:6px;">💬 Enviar WhatsApp Urgente</button>` : '';
         htmlTabla += `
             <tr style="border-bottom:1px solid #cbd5e1; vertical-align: top; background:#fff;">
                 <td style="padding:10px; font-weight:bold; color:#7f1d1d;">${doc.nombre}</td>
@@ -1617,7 +1616,7 @@ function abrirLegajoCompletoPaciente(idPaciente) {
     contenedorDetalle.innerHTML = htmlTabla;
     modalLegajo.style.display = 'flex';
 }
-function enviarWspPadreDocumento(idPaciente, docClave, nombreDoc) {
+function enviarWspPresionPadre(idPaciente, docClave, nombreDoc) {
     let p = pacs[idPaciente];
     let tel = p.tel || prompt("Teléfono del padre / tutor:", "");
     if (!tel) return;
