@@ -1352,6 +1352,9 @@ function cerrarAlertaInicio() {
 // 1. ALERTAS DE INICIO
 // 1. ALERTAS DE INICIO (Optimizado con setTimeout para liberar el hilo principal)
 function verificarAlertasAlIniciar() {
+	let listaAlertas = document.getElementById('lista-alertas-inicio');
+    console.log("CONTENEDOR ENCONTRADO:", listaAlertas);
+    console.log("PACIENTES CARGADOS:", Object.keys(pacs).length);
     setTimeout(() => {
         let listaAlertas = document.getElementById('lista-alertas-inicio');
         if (!listaAlertas) return;
