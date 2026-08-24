@@ -69,6 +69,7 @@
 <div class="header">
     <strong>SISTEMA DE REHABILITACIÓN</strong>
     <div style="display:flex; gap:8px">
+		<button class="btn" style="background:#6c5ce7" onclick="abrirPanelGeneralGestiones()">📊 GESTIÓN CUD</button>
 		<button class="btn" style="background:var(--rosado); color:white;" onclick="abrirAgendaGeneral()">📅 AGENDA</button>
         <button class="btn" style="background:var(--verde)" onclick="abrirPanelFac()">📂 VALIDAR</button>
         <button class="btn" style="background:var(--azul)" onclick="abrirPanelRenov()">📄 RENOVACIONES</button>
@@ -300,7 +301,44 @@
         box-shadow: 0 0 70px rgba(0,0,0,0.7);
     }
 </style>
+<div id="modal-seguimiento-legajo" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:25px; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.5); z-index:1000; width:90%; max-width:650px; max-height:90vh; overflow-y:auto;">
+    <h3 id="seg-titulo-legajo" style="color:#2c3e50; margin-top:0; border-bottom:2px solid #eee; padding-bottom:10px;">📋 Gestión de Documento</h3>
+    
+    <div id="seg-semaforo-box" style="padding:12px; border-radius:8px; text-align:center; font-weight:bold; color:white; margin-bottom:15px; font-size:14px; text-transform:uppercase; letter-spacing:1px;">
+        Calculando estado...
+    </div>
+    
+    <div style="background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #e9ecef; margin-bottom:15px; font-size:13px;">
+        <p style="margin:0 0 10px 0;"><b>📁 Última subida en sistema:</b> <span id="seg-fecha-subida" style="color:#7f8c8d;"></span></p>
+        <div>
+            <label style="font-weight:bold; color:#2c3e50;">📅 Fecha Límite / Vencimiento:</label>
+            <input type="date" id="seg-fecha-limite" onchange="guardarFechaLimiteGestion()" style="padding:5px; border:1px solid #ccc; border-radius:4px; margin-left:8px;">
+            <small id="seg-info-fecha" style="display:block; color:#7f8c8d; margin-top:4px; font-style:italic;"></small>
+        </div>
+    </div>
 
+    <!-- ZONA EXCLUSIVA PARA PADRES (CUD, RHC, PM) -->
+    <div id="seg-seccion-gestion" style="display:none;">
+        <div style="background:#eef6fc; padding:12px; border-radius:8px; margin-bottom:15px; border:1px solid #c9e1f5;">
+            <label style="font-size:12px; font-weight:bold; color:#2980b9;">⏰ Promesa de Turno (Alerta 48/72hs):</label>
+            <input type="date" id="seg-fecha-turno-padre" onchange="guardarFechaTurnoPadre()" style="width:100%; padding:6px; margin-top:5px; border:1px solid #b3d4f0; border-radius:4px;">
+            <div id="seg-alerta-turno" style="font-weight:bold; margin-top:6px; font-size:12px;"></div>
+        </div>
+
+        <h4 style="margin:0 0 8px 0; color:#34495e; font-size:14px;">💬 Bitácora Familiar</h4>
+        <div id="seg-lista-gestion" style="max-height:180px; overflow-y:auto; border:1px solid #ddd; padding:10px; border-radius:6px; background:#fff; margin-bottom:10px; font-size:12px;"></div>
+        
+        <div style="background:#f4f6f7; padding:12px; border-radius:8px; border:1px solid #bdc3c7; margin-bottom:15px;">
+            <input type="text" id="seg-nuevo-mensaje" placeholder="Ej: Me comuniqué con la madre, avisa que asiste el viernes..." style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; margin-bottom:8px; box-sizing:border-box;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <input type="file" id="seg-file-adjunto" style="font-size:11px; max-width:200px;">
+                <button class="btn" style="background:#27ae60; color:white; padding:8px 16px; font-weight:bold; border-radius:6px;" onclick="agregarNotaConAdjunto()">➕ Registrar</button>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn" onclick="cerrarModalSeguimiento()" style="background:#2c3e50; color:white; width:100%; margin-top:10px; padding:10px; border-radius:6px; font-weight:bold; letter-spacing:1px;">CERRAR VENTANA</button>
+</div>
 <script>
     const firebaseConfig = { apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8", authDomain: "clinicaintegral-5c488.firebaseapp.com", databaseURL: "https://clinicaintegral-5c488-default-rtdb.firebaseio.com", projectId: "clinicaintegral-5c488", storageBucket: "clinicaintegral-5c488.firebasestorage.app", messagingSenderId: "184090967634", appId: "1:184090967634:web:09715937b33ea48288698b" };
     firebase.initializeApp(firebaseConfig);
@@ -433,7 +471,8 @@
         const g = document.getElementById('f-grid-main'); g.innerHTML = ""; 
         legajosDef.forEach(l => { 
             const link = p[l.id + "_link"] || ""; 
-            const tiene = (p[l.id] || link);
+			const tieneArchivoReal = documentoTieneArchivoSubido(p[l.id], p, l.id);
+            const tiene = (tieneArchivoReal || link);
             g.innerHTML += `<div style="background:#f9f9f9; padding:5px; border:1px solid #ddd; text-align:center">
                 <b>${l.n}</b>
                 <div id="st-${l.id}" style="font-size:8px; color:${tiene?'green':'#aaa'}">${tiene?'● CARGADO':'○ VACÍO'}</div>
@@ -912,21 +951,28 @@ function generarFilas(t, s) {
     }
 }
     
-    function abrirPanelRenov() { 
-        const c = document.getElementById('lista-renovaciones-completa'); c.innerHTML = ""; 
-        const listaPacientes = Object.keys(pacs).sort();
-        const total = listaPacientes.length;
-        c.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; background:#eee; padding:10px; border-radius:8px; margin-bottom:10px"><strong style="font-size:14px">TOTAL: ${total} LEGAJOS</strong><button class="btn" style="background:var(--verde)" onclick="descargarInformeExcel()">📊 DESCARGAR INFORME EXCEL</button></div>`;
-        listaPacientes.forEach((n, index) => { 
-            let b = ""; 
-            legajosDef.forEach(l => { 
-                const cargado = (pacs[n][l.id] || pacs[n][l.id+'_link']) ? "cargado" : ""; 
-                b += `<button onclick="verArchP('${l.id}','${n}')" title="${l.n}" style="background:${cargado?'var(--azul)':'#ccc'}; border:none; color:white; font-size:7px; width:18px; height:18px; margin:1px">${l.s}</button>`; 
-            }); 
-            c.innerHTML += `<div style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee; align-items:center"><span><b>${index + 1}.</b> ${n}</span><div>${b}</div></div>`; 
-        }); 
-        document.getElementById('panel-renov').style.display="block"; document.getElementById('overlay').style.display="block"; 
-    }
+function abrirPanelRenov() {  
+    const c = document.getElementById('lista-renovaciones-completa'); 
+    c.innerHTML = "";  
+    const listaPacientes = Object.keys(pacs).sort();
+    const total = listaPacientes.length;
+    
+    c.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; background:#eee; padding:10px; border-radius:8px; margin-bottom:10px"><strong style="font-size:14px">TOTAL: ${total} LEGAJOS</strong><button class="btn" style="background:var(--verde)" onclick="descargarInformeExcel()">📊 DESCARGAR INFORME EXCEL</button></div>`;
+    
+    listaPacientes.forEach((n, index) => {  
+        let b = "";  
+        legajosDef.forEach(l => {  
+            // USAMOS LA VALIDACIÓN REAL DE ARCHIVO SUBIDO
+            let tieneArchivo = documentoTieneArchivoSubido(pacs[n][l.id], pacs[n], l.id);
+            let cargado = (tieneArchivo || pacs[n][l.id+'_link']) ? "cargado" : ""; 
+            b += `<button onclick="verArchP('${l.id}','${n}')" title="${l.n}" style="background:${cargado?'var(--azul)':'#ccc'}; border:none; color:white; font-size:7px; width:18px; height:18px; margin:1px">${l.s}</button>`; 
+        });      
+        c.innerHTML += `<div style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee; align-items:center"><span><b>${index + 1}.</b> ${n}</span><div>${b}</div></div>`;  
+    }); 
+    
+    document.getElementById('panel-renov').style.display = "block"; 
+    document.getElementById('overlay').style.display = "block";  
+}
 
     function descargarInformeExcel() {
         const data = [];
@@ -1236,6 +1282,781 @@ auth.onAuthStateChanged((user) => {
         window.location.href = "index.html";
     }
 });
+// DOCUMENTOS DEL SISTEMA (Con CUD a 60 días, P.M y RHC a 45 días, únicos con gestión crítica/padre/turno)
+const DOCUMENTOS_SISTEMA = [
+    { clave: 'infMenF', nombre: 'Informe Mensual', gestionPadre: false },
+    { clave: 'infoF', nombre: 'Informe Semestral', criticoSemestral: true, gestionPadre: false },
+    { clave: 'pmF', nombre: 'Plan Médico (P.M)', critico: true, diasAnticipacion: 45, gestionPadre: true },
+    { clave: 'rhcF', nombre: 'RHC', critico: true, diasAnticipacion: 45, gestionPadre: true },
+    { clave: 'confF', nombre: 'CONF', gestionPadre: false },
+    { clave: 'iiieF', nombre: 'I.I / I.E', gestionPadre: false },
+    { clave: 'planF', nombre: 'Plan de Trabajo', gestionPadre: false },
+    { clave: 'presuF', nombre: 'Presupuesto', gestionPadre: false },
+    { clave: 'fimDoc', nombre: 'FIM', gestionPadre: false },
+    { clave: 'cud', nombre: 'CUD', critico: true, diasAnticipacion: 60, gestionPadre: true }
+];
+
+function obtenerUsuarioActual() {
+    return window.usuarioLogueadoEmail || localStorage.getItem('usuarioClinica') || 'secretaria@clinica.com';
+}
+
+// VALIDACIÓN ESTRICTA DE ARCHIVO: Soporta tanto strings directos, arrays/historiales como estructuras con sufijo _link de Firebase
+function documentoTieneArchivoSubido(docData, p = null, docClave = '') {
+    // 1. Revisar si hay un campo dinámico de tipo `_link` en el objeto principal del paciente (ej: cudDoc_link, planF_link, infoF_link, etc.)
+    if (p && docClave) {
+        let claveLinkDirecto = docClave + '_link';
+        if (p[claveLinkDirecto] && typeof p[claveLinkDirecto] === 'string' && p[claveLinkDirecto].trim() !== '' && p[claveLinkDirecto].startsWith('http')) {
+            return true;
+        }
+        // Casos especiales de mapeo alternativo en Firebase
+        if (docClave === 'cud' && p.cudDoc_link && typeof p.cudDoc_link === 'string' && p.cudDoc_link.startsWith('http')) return true;
+        if (docClave === 'infMenF' && (
+            (p.inf_mensual_m3_link && p.inf_mensual_m3_link.startsWith('http')) ||
+            (p.inf_mensual_m4_link && p.inf_mensual_m4_link.startsWith('http')) ||
+            (p.inf_mensual_m5_link && p.inf_mensual_m5_link.startsWith('http'))
+        )) return true;
+    }
+
+    if (!docData) return false;
+    
+    if (typeof docData === 'string' && docData.trim() !== '' && docData.startsWith('http')) {
+        return true;
+    }
+
+    if (Array.isArray(docData)) {
+        return docData.some(item => {
+            if (!item) return false;
+            if (typeof item === 'string' && item.trim() !== '' && item.startsWith('http')) return true;
+            return (item.archivo && typeof item.archivo === 'string' && item.archivo.trim() !== '' && item.archivo.startsWith('http')) ||
+                   (item.url && typeof item.url === 'string' && item.url.trim() !== '' && item.url.startsWith('http'));
+        });
+    }
+
+    if (typeof docData === 'object') {
+        return (docData.archivo && typeof docData.archivo === 'string' && docData.archivo.trim() !== '' && docData.archivo.startsWith('http')) ||
+               (docData.url && typeof docData.url === 'string' && docData.url.trim() !== '' && docData.url.startsWith('http'));
+    }
+
+    return false;
+}
+
+function cerrarPanelGeneral() {
+    let modal = document.getElementById('modal-panel-general');
+    if (modal) modal.style.display = 'none';
+}
+
+function cerrarAlertaInicio() {
+    let modalAlerta = document.getElementById('modal-alerta-inicio');
+    if (modalAlerta) modalAlerta.style.display = 'none';
+}
+// 1. ALERTAS DE INICIO
+// 1. ALERTAS DE INICIO (Optimizado con setTimeout para liberar el hilo principal)
+function verificarAlertasAlIniciar() {
+    setTimeout(() => {
+        let listaAlertas = document.getElementById('lista-alertas-inicio');
+        if (!listaAlertas) return;
+        
+        listaAlertas.innerHTML = '';
+        let contadorAlertas = 0;
+        let hayAlertasCriticasRojas = false; // Bandera para activar la sirena global en el inicio
+        let hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        let arrayAlertasTemp = [];
+
+        for (let id in pacs) {
+            let p = pacs[id];
+            let nombre = id;
+            let dni = p.dni || 'S/D';
+
+            DOCUMENTOS_SISTEMA.forEach(doc => {
+                let docData = p[doc.clave];
+                let tieneArchivoReal = documentoTieneArchivoSubido(docData, p, doc.clave);
+                if (tieneArchivoReal) return;
+
+                let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
+
+                // A. Evaluación de vencimiento o ausencia total del documento
+                let diasAnticipacionCritica = doc.diasAnticipacion || 15;
+                let fechaPlana = p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http') ? p[doc.clave] : null;
+
+                if (lista.length === 0 && !fechaPlana) {
+                    hayAlertasCriticasRojas = true;
+                    if (doc.gestionPadre) {
+                        arrayAlertasTemp.push({
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                            mensaje: `🚨 SECRETARIA: Falta cargar ${doc.nombre.toUpperCase()}. Llamar al padre urgente para que gestione el turno.`
+                        });
+                    } else {
+                        arrayAlertasTemp.push({
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                            mensaje: `🚨 CONTROL INTERNO: Falta cargar y subir ${doc.nombre.toUpperCase()} en el legajo.`
+                        });
+                    }
+                } else {
+                    let fechasAEvaluar = [];
+                    if (fechaPlana) fechasAEvaluar.push({ fecha: fechaPlana });
+                    lista.forEach(item => { if (item.fecha) fechasAEvaluar.push(item); });
+
+                    if (fechasAEvaluar.length === 0) {
+                        hayAlertasCriticasRojas = true;
+                        arrayAlertasTemp.push({
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                            mensaje: `🚨 ATENCIÓN: Falta subir el archivo digital de ${doc.nombre.toUpperCase()} al sistema.`
+                        });
+                    }
+
+                    fechasAEvaluar.forEach(item => {
+                        let fVenc = item.fecha ? new Date(item.fecha) : null;
+                        if (fVenc) fVenc.setHours(0, 0, 0, 0);
+                        if (!fVenc) return;
+
+                        let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
+
+                        if (diffDias < 0) {
+                            hayAlertasCriticasRojas = true;
+                            let msg = doc.gestionPadre ? 
+                                `🚨 ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días. Llamar al padre urgente para regularizar.` :
+                                `🚨 ${doc.nombre.toUpperCase()} INTERNO VENCIDO hace ${Math.abs(diffDias)} días. ¡Subir versión actualizada!`;
+                            arrayAlertasTemp.push({
+                                id: id, nombre: nombre, dni: dni,
+                                tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'rojo',
+                                mensaje: msg
+                            });
+                        } else if (diffDias <= diasAnticipacionCritica) {
+                            let msg = doc.gestionPadre ? 
+                                `⏰ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Secretaria: llamar al padre para que saque turno.` :
+                                `⏱️ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Preparar renovación.`;
+                            arrayAlertasTemp.push({
+                                id: id, nombre: nombre, dni: dni,
+                                tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'naranja',
+                                mensaje: msg
+                            });
+                        }
+                    });
+                }
+
+                // B. GESTIÓN DE TURNOS CRÍTICOS (EXCLUSIVO PARA CUD, P.M Y RHC) - Alerta de 48 a 72 hs antes
+                if (doc.critico && doc.gestionPadre) {
+                    let claveTurno = doc.clave + 'T';
+                    let fechaTurno = p[claveTurno];
+                    
+                    if (!fechaTurno) {
+                        hayAlertasCriticasRojas = true;
+                        arrayAlertasTemp.push({
+                            id: id, nombre: nombre, dni: dni,
+                            tipoDoc: `Turno ${doc.nombre}`, diff: -500, prioridadVisual: 'rojo',
+                            mensaje: `🚨 SECRETARIA: El paciente no tiene turno asignado para ${doc.nombre}. Llamar al padre YA.`
+                        });
+                    } else if (fechaTurno) {
+                        let fT = new Date(fechaTurno);
+                        fT.setHours(0, 0, 0, 0);
+                        let diffT = Math.round((fT - hoy) / (1000 * 60 * 60 * 24));
+                        
+                        if (diffT >= 2 && diffT <= 3) {
+                            hayAlertasCriticasRojas = true;
+                            arrayAlertasTemp.push({
+                                id: id, nombre: nombre, dni: dni,
+                                tipoDoc: `Turno ${doc.nombre}`, diff: diffT, prioridadVisual: 'rojo',
+                                mensaje: `⚡ RECORDATORIO A PADRES (${diffT} días): El turno para ${doc.nombre} es inminente. Llamar para confirmar asistencia.`
+                            });
+                        }
+                    }
+                }
+            });
+        }
+
+        arrayAlertasTemp.sort((a, b) => a.diff - b.diff);
+
+        arrayAlertasTemp.forEach(alerta => {
+            contadorAlertas++;
+            let colorBorde = alerta.prioridadVisual === 'rojo' ? '#e74c3c' : '#f39c12';
+            let fondoItem = alerta.prioridadVisual === 'rojo' ? '#fdf2f2' : '#fef9e7';
+
+            listaAlertas.innerHTML += `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #eee; background:${fondoItem}; margin-bottom:6px; border-radius:4px; border-left: 5px solid ${colorBorde};">
+                    <div>
+                        <b style="color:#2c3e50; font-size:13px;">${alerta.nombre}</b> <small style="color:#555;">(DNI: ${alerta.dni})</small><br>
+                        <span style="color:#c0392b; font-weight:bold; font-size:11px;">📄 ${alerta.tipoDoc}</span><br>
+                        <span style="color:#222; font-size:11px; font-weight:bold;">${alerta.mensaje}</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <button class="btn" style="background:#2c3e50; color:white; font-size:11px; padding:6px 12px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;" onclick="cerrarAlertaInicio(); abrirLegajoCompletoPaciente('${alerta.id}')">Ver Legajo</button>
+                    </div>
+                </div>`;
+        });
+
+        let modalAlerta = document.getElementById('modal-alerta-inicio');
+        if (modalAlerta && contadorAlertas > 0) {
+            modalAlerta.style.display = 'flex';
+            if (hayAlertasCriticasRojas) {
+                let sirenaGlobal = inyectarEfectoSirena();
+                sirenaGlobal.style.display = 'block';
+            }
+        }
+    }, 200);
+}
+// 2. PANEL GENERAL CON CONTEO REAL DE ARCHIVOS CLOUDINARY
+function abrirPanelGeneralGestiones() {
+    let modal = document.getElementById('modal-panel-general');
+    if (!modal) return;
+
+    let opcionesHtml = '';
+    DOCUMENTOS_SISTEMA.forEach(doc => {
+        opcionesHtml += `<option value="${doc.clave}">${doc.nombre}</option>`;
+    });
+
+    let barraMasivaHtml = document.getElementById('barra-masiva-interna');
+    if (!barraMasivaHtml) {
+        let htmlMasivo = `
+            <div id="barra-masiva-interna" style="background:#f8f9fa; padding:12px; border-radius:8px; border:1px solid #e9ecef; margin-bottom:15px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <span style="font-size:12px; font-weight:bold; color:#2c3e50;">⚡ Aplicar fecha masiva:</span>
+                <select id="masivo-tipo-doc" style="padding:5px; border:1px solid #ccc; border-radius:4px; font-size:11px;">
+                    ${opcionesHtml}
+                </select>
+                <input type="date" id="masivo-fecha-input" style="padding:4px; border:1px solid #ccc; border-radius:4px; font-size:11px;">
+                <button class="btn" onclick="ejecutarAsignacionMasivaInterna()" style="background:#27ae60; color:white; padding:5px 12px; font-size:11px; font-weight:bold; border-radius:4px;">Aplicar Fecha</button>
+            </div>`;
+        let headerModal = modal.querySelector('div');
+        if (headerModal) headerModal.insertAdjacentHTML('afterend', htmlMasivo);
+    } else {
+        document.getElementById('masivo-tipo-doc').innerHTML = opcionesHtml;
+    }
+
+    let tbody = document.getElementById('body-tabla-panel-general');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    let hoy = new Date();
+    hoy.setHours(0,0,0,0);
+
+    for (let id in pacs) {
+        if (id.startsWith('SALA_')) continue;
+
+        let p = pacs[id];
+        let nombre = id;
+        let dni = p.dni || 'S/D';
+        let archivosRealesSubidos = 0;
+        let tienePendientes = false;
+
+        DOCUMENTOS_SISTEMA.forEach(doc => {
+            let dData = p[doc.clave];
+            let tieneArchivo = documentoTieneArchivoSubido(dData, p, doc.clave);
+
+            if (tieneArchivo) {
+                archivosRealesSubidos++;
+            } else {
+                tienePendientes = true;
+            }
+        });
+
+        let badgeEstado = (archivosRealesSubidos === DOCUMENTOS_SISTEMA.length && !tienePendientes) ? 
+            `<span style="background:#27ae60; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🟢 Al día (${archivosRealesSubidos}/10)</span>` : 
+            `<span style="background:#e74c3c; color:white; padding:3px 6px; border-radius:3px; font-size:10px; font-weight:bold;">🔴 FALTAN ARCHIVOS (${archivosRealesSubidos}/10)</span>`;
+
+        tbody.innerHTML += `
+            <tr style="border-bottom:1px solid #eee; background:#fff;">
+                <td style="padding:8px; font-weight:bold; color:#2c3e50;">${nombre}</td>
+                <td style="padding:8px; color:#555;">DNI: ${dni}</td>
+                <td style="padding:8px;">${badgeEstado}</td>
+                <td style="padding:8px; font-size:11px;">Cloudinary: <b>${archivosRealesSubidos}</b> de 10</td>
+                <td style="padding:8px;">
+                    <button class="btn" style="background:#2980b9; color:white; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;" onclick="abrirLegajoCompletoPaciente('${id}')">📂 Ver Ficha</button>
+                </td>
+            </tr>`;
+    }
+
+    modal.style.display = 'block';
+}
+function ejecutarAsignacionMasivaInterna() {
+    let tipoDoc = document.getElementById('masivo-tipo-doc').value;
+    let nuevaFecha = document.getElementById('masivo-fecha-input').value;
+    if (!nuevaFecha) { alert("Elegí una fecha."); return; }
+
+    let docObj = DOCUMENTOS_SISTEMA.find(d => d.clave === tipoDoc);
+    if (!confirm(`¿Aplicar fecha ${nuevaFecha} a todos los pacientes en ${docObj.nombre}?`)) return;
+
+    let updates = {};
+    let usuario = obtenerUsuarioActual();
+    let fechaAuditoria = new Date().toISOString();
+
+    for (let id in pacs) {
+        // AQUÍ ESTABA EL DETALLE: Lo guardamos en la clave oficial de vencimiento
+        updates[`${id}/${tipoDoc}_vencimiento`] = nuevaFecha;
+        updates[`${id}/${tipoDoc}_estado`] = 'Pendiente Padre';
+        updates[`${id}/ultimaModificacion`] = {
+            usuario: usuario,
+            fecha: fechaAuditoria,
+            accion: `Asignación masiva de fecha en ${docObj.nombre}`
+        };
+    }
+
+    database.child('pacientes').update(updates).then(() => {
+        alert("¡Fechas aplicadas!");
+        abrirPanelGeneralGestiones();
+    });
+}
+// --- 2. APERTURA DE EXPEDIENTE CON RELOJ DINÁMICO (CAMBIO DE COLOR SEGÚN PLAZOS) ---
+function abrirLegajoCompletoPaciente(idPaciente) {
+    let p = pacs[idPaciente];
+    if (!p) return;
+
+    let modalLegajo = document.getElementById('modal-legajo-completo');
+    if (!modalLegajo) {
+        let div = document.createElement('div');
+        div.id = 'modal-legajo-completo';
+        div.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;';
+        div.innerHTML = `
+            <div style="background:white; width:92%; max-width:1050px; max-height:92vh; border-radius:8px; padding:20px; overflow-y:auto; box-shadow:0 4px 25px rgba(231,76,60,0.4); border: 2px solid #e74c3c;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #e74c3c; padding-bottom:10px; margin-bottom:15px; background:#fdf2f2; padding:10px; border-radius:6px;">
+                    <h2 id="legajo-titulo-nombre" style="margin:0; color:#c0392b; font-size:18px; font-weight:bold;"></h2>
+                    <button onclick="document.getElementById('modal-legajo-completo').style.display='none'; document.getElementById('efecto-sirena-global').style.display='none';" style="background:#c0392b; color:white; border:none; padding:6px 14px; border-radius:4px; cursor:pointer; font-weight:bold;">✖ CERRAR EXPEDIENTE</button>
+                </div>
+                <div id="legajo-contenido-detalle"></div>
+            </div>`;
+        document.body.appendChild(div);
+        modalLegajo = div;
+    }
+
+    let hoy = new Date();
+    hoy.setHours(0,0,0,0);
+    let tieneAlertaCriticaEnLegajo = false;
+
+    // Evaluamos los plazos específicos para cada documento del sistema
+    DOCUMENTOS_SISTEMA.forEach(doc => {
+        let docData = p[doc.clave];
+        let tieneArchivo = documentoTieneArchivoSubido(docData, p, doc.clave);
+        let fechaVencOficial = p[doc.clave + '_vencimiento'] || (typeof docData === 'string' && !docData.startsWith('http') ? docData : null);
+        
+        let umbralPlazo = (doc.clave === 'cud') ? 60 : (['pm', 'rhc'].includes(doc.clave) ? 45 : 30);
+
+        if (!tieneArchivo) {
+            if (!fechaVencOficial) {
+                tieneAlertaCriticaEnLegajo = true;
+            } else {
+                let fVenc = new Date(fechaVencOficial);
+                if (!isNaN(fVenc)) {
+                    fVenc.setHours(0,0,0,0);
+                    let diasRestantes = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
+                    if (diasRestantes <= umbralPlazo) {
+                        tieneAlertaCriticaEnLegajo = true;
+                    }
+                } else {
+                    tieneAlertaCriticaEnLegajo = true;
+                }
+            }
+        }
+    });
+
+    let sirena = inyectarEfectoSirena();
+    sirena.style.display = tieneAlertaCriticaEnLegajo ? 'block' : 'none';
+
+    document.getElementById('legajo-titulo-nombre').innerText = `📂 EXPEDIENTE TAD / LEGAJO CRÍTICO: ${idPaciente} (DNI: ${p.dni || 'S/D'})`;
+    let contenedorDetalle = document.getElementById('legajo-contenido-detalle');
+
+    // --- BITÁCORA TAD ---
+    let historialModificaciones = p.historialModificaciones || [];
+    if (historialModificaciones.length === 0 && p.ultimaModificacion) {
+        historialModificaciones = [p.ultimaModificacion];
+    }
+    let ultimasCinco = historialModificaciones.slice(-5).reverse();
+
+    let htmlBitacoraTad = `
+        <div style="background:#1e293b; color:#f8fafc; border:1px solid #334155; padding:12px; border-radius:6px; margin-bottom:20px; font-size:11px;">
+            <h3 style="margin:0 0 8px 0; color:#38bdf8; font-size:12px; text-transform:uppercase; letter-spacing:1px;">📋 Bitácora TAD (Trazabilidad de Gestiones y Contactos Secretaría)</h3>
+            <div style="display:flex; flex-direction:column; gap:4px;">`;
+    
+    if (ultimasCinco.length === 0) {
+        htmlBitacoraTad += `<div style="color:#f87171; font-weight:bold;">⚠️ NO HAY REGISTROS DE AUDITORÍA CARGADOS EN ESTE EXPEDIENTE.</div>`;
+    } else {
+        ultimasCinco.forEach((mod, idx) => {
+            let fechaFmt = mod.fecha ? mod.fecha.replace('T', ' ').substring(0,19) : 'Fecha s/d';
+            htmlBitacoraTad += `
+                <div style="background:#0f172a; padding:6px 10px; border-radius:4px; border-left:3px solid #38bdf8; display:flex; justify-content:space-between; align-items:center;">
+                    <span><b>#${idx+1} [${fechaFmt}]</b> - <em>${mod.accion || 'Gestión registrada'}</em></span>
+                    <span style="color:#94a3b8; background:#1e293b; padding:2px 6px; border-radius:3px;">👤 ${mod.usuario || 'Secretaría'}</span>
+                </div>`;
+        });
+    }
+    htmlBitacoraTad += `</div></div>`;
+
+    let htmlTabla = `
+        ${htmlBitacoraTad}
+        <h4 style="margin-bottom:8px; color:#c0392b; font-weight:bold;">⚡ CONTROL DOCUMENTAL OBLIGATORIO Y EXIGENCIA DE ACTAS DE CONTACTO:</h4>
+        <table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:20px;">
+            <thead>
+                <tr style="background:#fee2e2; border-bottom:2px solid #ef4444; text-align:left; color:#991b1b;">
+                    <th style="padding:8px; width:22%;">Documento / Plazo</th>
+                    <th style="padding:8px; width:38%;">Estado, Reloj y Vigencia</th>
+                    <th style="padding:8px; width:40%;">Workflow, Historial de Actas & Subida Unificada</th>
+                </tr>
+            </thead>
+            <tbody>`;
+
+    DOCUMENTOS_SISTEMA.forEach(doc => {
+        let docData = p[doc.clave];
+        let tieneArchivo = documentoTieneArchivoSubido(docData, p, doc.clave);
+        let fechaVencOficial = p[doc.clave + '_vencimiento'] || (typeof docData === 'string' && !docData.startsWith('http') ? docData : null);
+        let listaActas = Array.isArray(p[doc.clave + '_actas']) ? p[doc.clave + '_actas'] : [];
+        
+        let umbralPlazo = (doc.clave === 'cud') ? 60 : (['pm', 'rhc'].includes(doc.clave) ? 45 : 30);
+        let esDocumentoCritico = ['cud', 'pm', 'rhc'].includes(doc.clave);
+        let htmlActasInternas = '';
+
+        if (tieneArchivo) {
+            htmlActasInternas = `
+                <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px; border-radius:6px; font-size:11px;">
+                    <span style="color:#16a34a; font-weight:bold; background:#dcfce7; padding:3px 8px; border-radius:3px;">🟢 DOCUMENTO AL DÍA / ARCHIVO OK</span>
+                    <div style="margin-top:6px; color:#166534; font-weight:bold;">📄 Archivo digital verificado</div>
+                </div>`;
+        } else {
+            let fVenc = fechaVencOficial ? new Date(fechaVencOficial) : null;
+            if (fVenc) fVenc.setHours(0,0,0,0);
+            
+            let diasRestantes = fVenc ? Math.round((fVenc - hoy)/(1000*60*60*24)) : null;
+            let estaEnZonaRojas = diasRestantes !== null && diasRestantes <= umbralPlazo;
+            let estaVencido = diasRestantes !== null && diasRestantes < 0;
+
+            let estiloFondo = estaEnZonaRojas ? '#fef2f2' : '#f8f9fa';
+            let estiloBorde = estaEnZonaRojas ? '#f87171' : '#cbd5e1';
+
+            let textoReloj = '';
+            let mensajePresionPadre = '';
+
+            if (diasRestantes === null) {
+                textoReloj = `<span style="color:#991b1b; font-weight:bold;">🚨 FALTA CARGAR FECHA DE VENCIMIENTO</span>`;
+            } else if (estaVencido) {
+                textoReloj = `<span style="color:#dc2626; font-weight:bold; font-size:12px;">🚨 ¡VENCIDO HACE ${Math.abs(diasRestantes)} DÍAS!</span>`;
+                if (esDocumentoCritico) {
+                    mensajePresionPadre = `<div style="background:#fee2e2; border:1px solid #ef4444; color:#991b1b; padding:6px; border-radius:4px; font-weight:bold; margin-top:6px; font-size:10px;">
+                        🚨 ¡PLAZO VENCIDO! Exigir al padre la documentación de ${doc.nombre} de inmediato.
+                    </div>`;
+                }
+            } else if (estaEnZonaRojas) {
+                textoReloj = `<span style="color:#dc2626; font-weight:bold;">⏰ Quedan ${diasRestantes} días (¡Plazo crítico menor a ${umbralPlazo} días!)</span>`;
+                if (esDocumentoCritico) {
+                    mensajePresionPadre = `<div style="background:#fef2f2; border:1px solid #f87171; color:#991b1b; padding:6px; border-radius:4px; font-weight:bold; margin-top:6px; font-size:10px;">
+                        📢 ¡ZONA CRÍTICA! <br>👉 <b>Acción obligatoria:</b> Llamar al padre y enviar WhatsApp urgente para que gestione el ${doc.nombre}.
+                    </div>`;
+                }
+            } else {
+                textoReloj = `<span style="color:#334155;">⏱️ Faltan ${diasRestantes} días (Plazo normal)</span>`;
+            }
+
+            htmlActasInternas = `
+                <div style="background:${estiloFondo}; border:1px solid ${estiloBorde}; padding:8px; border-radius:6px; font-size:11px;">
+                    <div style="margin-bottom:4px;"><b>Reloj:</b> ${textoReloj}</div>
+                    <div style="margin-top:4px; font-size:10px; color:#64748b;">Fecha Vencimiento Oficial:</div>
+                    <input type="date" value="${fechaVencOficial || ''}" onchange="actualizarVencimientoOficial('${idPaciente}', '${doc.clave}', this.value)" style="padding:2px; font-size:10px; border:1px solid #ccc; border-radius:3px; margin-top:2px; background:#fff; width:100%;">
+                    <div style="margin-top:6px;"><span style="color:#dc2626; font-weight:bold; background:#fee2e2; padding:2px 6px; border-radius:3px;">🚨 FALTA SUBIR COMPROBANTE DIGITAL</span></div>
+                    ${mensajePresionPadre}
+                </div>`;
+        }
+
+        // Renderizado del historial de actas
+        let htmlHistorialActasDoc = '';
+        if (listaActas.length > 0) {
+            listaActas.forEach((acta, idx) => {
+                htmlHistorialActasDoc += `
+                    <div style="background:#f8fafc; border-left:3px solid #0284c7; padding:4px 6px; margin-bottom:3px; border-radius:2px; font-size:10px;">
+                        <b>#${idx+1} [${acta.fecha}]</b>: ${acta.texto}
+                        ${acta.archivoLink ? `<a href="${acta.archivoLink}" target="_blank" style="color:#2563eb; font-weight:bold; margin-left:4px;">[Ver]</a>` : ''}
+                    </div>`;
+            });
+        } else {
+            htmlHistorialActasDoc = `<div style="color:#94a3b8; font-style:italic; font-size:10px; margin-bottom:4px;">Sin actas registradas para este ítem.</div>`;
+        }
+
+        let estadoActual = tieneArchivo ? 'Documento Subido' : (p[doc.clave + '_estado'] || 'Pendiente Padre');
+        let fechaTurnoSolicitado = p[doc.clave + '_fecha_turno'] || '';
+
+        // Bloque dinámico para la fecha de turno si está seleccionado
+        let htmlBloqueTurno = '';
+        if (estadoActual === 'Turno Solicitado') {
+            let fTurno = fechaTurnoSolicitado ? new Date(fechaTurnoSolicitado) : null;
+            if (fTurno) fTurno.setHours(0,0,0,0);
+            
+            let diasParaTurno = fTurno ? Math.round((fTurno - hoy)/(1000*60*60*24)) : null;
+            let avisoAlertaTurno = '';
+            
+            if (diasParaTurno === null) {
+                avisoAlertaTurno = `<div style="color:#b91c1c; font-weight:bold; margin-top:3px;">🚨 FALTA CARGAR LA FECHA DEL TURNO</div>`;
+            } else if (diasParaTurno <= 3 && diasParaTurno >= 0) {
+                avisoAlertaTurno = `<div style="background:#fee2e2; color:#b91c1c; padding:4px; border-radius:3px; font-weight:bold; margin-top:3px;">⚡ ¡ATENCIÓN! Quedan ${diasParaTurno} días para el turno. ¡Llamar al padre urgente para recordar!</div>`;
+            } else if (diasParaTurno < 0) {
+                avisoAlertaTurno = `<div style="background:#fee2e2; color:#991b1b; padding:4px; border-radius:3px; font-weight:bold; margin-top:3px;">🚨 El turno ya pasó hace ${Math.abs(diasParaTurno)} días. Verificar asistencia.</div>`;
+            } else {
+                avisoAlertaTurno = `<div style="color:#15803d; font-weight:bold; margin-top:3px;">📅 Turno agendado en ${diasParaTurno} días.</div>`;
+            }
+
+            htmlBloqueTurno = `
+                <div style="margin-top:5px; background:#f0fdf4; border:1px solid #bbf7d0; padding:5px; border-radius:4px; font-size:10px;">
+                    <label style="font-weight:bold; color:#166534;">Fecha del Turno Otorgado:</label>
+                    <input type="date" value="${fechaTurnoSolicitado}" onchange="actualizarFechaTurno('${idPaciente}', '${doc.clave}', this.value)" style="width:100%; margin-top:2px; font-size:10px; padding:2px; border:1px solid #16a34a; border-radius:3px; background:#fff;">
+                    ${avisoAlertaTurno}
+                </div>`;
+        }
+
+        let botonWspHtml = doc.gestionPadre ? `<button class="btn" onclick="enviarWspPresionPadre('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#15803d; color:white; border:none; padding:5px 8px; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; width:100%; margin-top:6px;">💬 Enviar WhatsApp Urgente</button>` : '';
+        htmlTabla += `
+            <tr style="border-bottom:1px solid #cbd5e1; vertical-align: top; background:#fff;">
+                <td style="padding:10px; font-weight:bold; color:#7f1d1d;">${doc.nombre}</td>
+                <td style="padding:10px;"><div style="max-height: 280px; overflow-y: auto;">${htmlActasInternas}</div></td>
+                <td style="padding:10px;">
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <div style="max-height:120px; overflow-y:auto; border:1px solid #e2e8f0; padding:4px; border-radius:4px; background:#fff;">
+                            <div style="font-weight:bold; font-size:10px; color:#334155; margin-bottom:2px;">Historial de Actas:</div>
+                            ${htmlHistorialActasDoc}
+                        </div>
+                        
+                        <div style="background:#f1f5f9; padding:6px; border-radius:4px; border:1px solid #cbd5e1;">
+                            <div style="font-size:10px; font-weight:bold; color:#0f172a; margin-bottom:3px;">➕ Registrar Acta + Subir Archivo:</div>
+                            <input type="text" id="texto_acta_${idPaciente}_${doc.clave}" placeholder="Detalle de gestión..." style="width:100%; font-size:10px; padding:3px; margin-bottom:3px; border:1px solid #ccc; border-radius:3px;">
+                            <div style="display:flex; gap:4px; align-items:center;">
+                                <input type="file" id="file_acta_${idPaciente}_${doc.clave}" style="font-size:9px; flex:1;">
+                                <button class="btn" onclick="guardarActaConArchivoUnificado('${idPaciente}', '${doc.clave}')" style="background:#16a34a; color:white; border:none; padding:4px 8px; border-radius:3px; cursor:pointer; font-size:10px; font-weight:bold;">💾 Guardar</button>
+                            </div>
+                        </div>
+
+                        <div style="background:#fee2e2; border:1px solid #f87171; padding:5px; border-radius:4px; font-size:10px;">
+                            <span style="color:#991b1b; font-weight:bold;">Control TAD:</span>
+                            <select onchange="actualizarEstadoWorkflow('${idPaciente}', '${doc.clave}', this.value)" style="width:100%; margin-top:2px; font-size:10px; padding:2px; border:1px solid #ef4444; border-radius:3px; font-weight:bold;">
+                                <option value="Pendiente Padre" ${estadoActual === 'Pendiente Padre' ? 'selected' : ''}>⏳ Pendiente Padre (Alerta Activa)</option>
+                                <option value="Turno Solicitado" ${estadoActual === 'Turno Solicitado' ? 'selected' : ''}>📅 Turno Solicitado</option>
+                                <option value="Documento Subido" ${estadoActual === 'Documento Subido' ? 'selected' : ''}>✅ Documento Subido y Verificado</option>
+                            </select>
+                            ${htmlBloqueTurno}
+                        </div>
+                        ${botonWspHtml}
+                    </div>
+                </td>
+            </tr>`;
+    });
+
+    htmlTabla += `</tbody></table>`;
+    contenedorDetalle.innerHTML = htmlTabla;
+    modalLegajo.style.display = 'flex';
+}
+function enviarWspPresionPadre(idPaciente, docClave, nombreDoc) {
+    let p = pacs[idPaciente];
+    let tel = p.tel || prompt("Teléfono del padre / tutor:", "");
+    if (!tel) return;
+    let numeroLimpiado = tel.replace(/\D/g, '');
+
+    // Buscamos la fecha límite correspondiente (del documento o del acta/plazo asignado)
+    let docData = p[docClave];
+    let fechaLimiteStr = "";
+    
+    let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
+    if (lista.length > 0 && lista[lista.length - 1].fecha) {
+        fechaLimiteStr = lista[lista.length - 1].fecha;
+    } else if (typeof p[docClave] === 'string' && !p[docClave].startsWith('http')) {
+        fechaLimiteStr = p[docClave];
+    } else {
+        fechaLimiteStr = "a la brevedad";
+    }
+
+    // Si la fecha está en formato YYYY-MM-DD, la pasamos a DD/MM/YYYY para que quede más prolija en el mensaje
+    let fechaFormateada = fechaLimiteStr;
+    if (fechaLimiteStr.includes('-')) {
+        let partes = fechaLimiteStr.split('-');
+        if (partes.length === 3) fechaFormateada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+    }
+
+    let mensaje = "";
+
+    // Mensaje diferenciado según si es CUD o el resto de la documentación
+    if (docClave.toLowerCase().includes('cud')) {
+        mensaje = `*AVISO ADMINISTRATIVO URGENTE* - Esencial Salud S.R.L.\n\n` +
+                  `Estimada familia de *${idPaciente}*:\n\n` +
+                  `Desde la administración de la clínica nos comunicamos con usted para solicitar la presentación del *${nombreDoc}* actualizado. ` +
+                  `Este documento es indispensable para poder llevar adelante el proceso de renovación y auditoría de las prestaciones.\n\n` +
+                  `⚠️ Le informamos que el plazo límite estipulado para su entrega vence el *${fechaFormateada}*. ` +
+                  `De no contar con el mismo en tiempo y forma, lamentablemente *no podremos garantizar la continuidad de las prestaciones ni la reserva del lugar para el año que viene*.\n\n` +
+                  `Quedamos a la espera del archivo o comprobante digital.\n` +
+                  `_Gestión de Legajos y Auditoría - Esencial Salud S.R.L._`;
+    } else {
+        mensaje = `*AVISO ADMINISTRATIVO URGENTE* - Esencial Salud S.R.L.\n\n` +
+                  `Estimada familia de *${idPaciente}*:\n\n` +
+                  `Desde la administración de la clínica le recordamos que necesitamos contar con la documentación correspondiente a *${nombreDoc}* ` +
+                  `para poder iniciar el proceso reglamentario de renovación.\n\n` +
+                  `⚠️ Solicitamos la presentación del mismo con fecha límite hasta el *${fechaFormateada}*. ` +
+                  `Aclaramos que, vencido dicho plazo sin la documentación requerida, *no nos es posible garantizar la disponibilidad del lugar ni la continuidad de las terapias para el próximo año*.\n\n` +
+                  `Agradecemos su colaboración y quedamos a la espera.\n` +
+                  `_Gestión de Legajos y Auditoría - Esencial Salud S.R.L._`;
+    }
+
+    window.open(`https://api.whatsapp.com/send?phone=${numeroLimpiado}&text=${encodeURIComponent(mensaje)}`, '_blank');
+}
+
+function agregarActaPrompt(idPaciente, docClave) {
+    let fecha = prompt("Ingrese la fecha de este contacto/acta (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
+    if (!fecha) return;
+    let descripcion = prompt("Detalle de la gestión o contacto realizado:", "Llamado telefónico al padre") || "Control periódico";
+
+    let p = pacs[idPaciente];
+    let actual = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [p[docClave]] : []);
+    actual.push({ fecha: fecha, descripcion: descripcion, archivo: '' });
+
+    database.child(`pacientes/${idPaciente}`).update({
+        [docClave]: actual,
+        [`${docClave}_estado`]: 'Pendiente Padre',
+        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Agregó nueva acta en ${docClave}` }
+    }).then(() => abrirLegajoCompletoPaciente(idPaciente));
+}
+
+function actualizarFechaActaItem(idPaciente, docClave, index, nuevaFecha) {
+    let p = pacs[idPaciente];
+    if (!p || !Array.isArray(p[docClave])) return;
+    let actual = [...p[docClave]];
+    actual[index].fecha = nuevaFecha;
+
+    database.child(`pacientes/${idPaciente}`).update({
+        [docClave]: actual,
+        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Modificó fecha de acta` }
+    });
+}
+
+function eliminarActaDeItem(idPaciente, docClave, index) {
+    if (!confirm("¿Borrar este registro de acta?")) return;
+    let p = pacs[idPaciente];
+    if (!p || !Array.isArray(p[docClave])) return;
+    let actual = [...p[docClave]];
+    actual.splice(index, 1);
+
+    database.child(`pacientes/${idPaciente}`).update({
+        [docClave]: actual,
+        ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Eliminó registro de acta` }
+    }).then(() => abrirLegajoCompletoPaciente(idPaciente));
+}
+function actualizarEstadoWorkflow(idPaciente, docClave, nuevoEstado) {
+    // 1. Actualizamos el dato localmente de forma instantánea (evita el lag)
+    if (pacs[idPaciente]) {
+        pacs[idPaciente][`${docClave}_estado`] = nuevoEstado;
+    }
+
+    // 2. Redibujamos SOLO el expediente abierto al instante
+    abrirLegajoCompletoPaciente(idPaciente);
+
+    // 3. Enviamos a Firebase de fondo (sin el .then() que traba la pantalla)
+    database.child(`pacientes/${idPaciente}`).update({
+        [`${docClave}_estado`]: nuevoEstado,
+        ultimaModificacion: { 
+            usuario: obtenerUsuarioActual(), 
+            fecha: new Date().toISOString(), 
+            accion: `Modificó workflow a ${nuevoEstado}` 
+        }
+    }).catch(error => {
+        console.error("Error al guardar en Firebase en segundo plano:", error);
+    });
+}
+function actualizarFechaTurno(idPaciente, docClave, nuevaFecha) {
+    if (!pacs[idPaciente]) return;
+    pacs[idPaciente][docClave + '_fecha_turno'] = nuevaFecha;
+    
+    database.child(`pacientes/${idPaciente}`).update({
+        [`${docClave}_fecha_turno`]: nuevaFecha,
+        ultimaModificacion: { 
+            usuario: obtenerUsuarioActual(), 
+            fecha: new Date().toISOString(), 
+            accion: `Actualizó fecha de turno para ${docClave}` 
+        }
+    }).then(() => {
+        abrirLegajoCompletoPaciente(idPaciente);
+    });
+}
+async function subirDocModuloDirecto(idPaciente, docClave, input) {
+    if(!input.files[0]) return;
+    const file = input.files[0];
+    let fechaActa = prompt("Fecha asociada al documento (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
+    if (!fechaActa) return;
+    let descripcion = prompt("Descripción del archivo:", file.name) || "Archivo subido";
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'clinic_preset');
+
+    try {
+        alert("Subiendo a Cloudinary...");
+        const resp = await fetch('https://api.cloudinary.com/v1_1/duscmxxws/auto/upload', { method: 'POST', body: formData });
+        const data = await resp.json();
+        
+        if(data.secure_url) {
+            let p = pacs[idPaciente];
+            let actualArray = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [p[docClave]] : []);
+            actualArray.push({ fecha: fechaActa, descripcion: descripcion, archivo: data.secure_url });
+
+            database.child(`pacientes/${idPaciente}`).update({
+                [docClave]: actualArray,
+                [`${docClave}_estado`]: 'Documento Subido',
+                ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Subió archivo real y registró acta` }
+            }).then(() => {
+                alert("¡Subido con éxito!");
+                abrirLegajoCompletoPaciente(idPaciente);
+            });
+        }
+    } catch (e) { 
+        alert("Error: " + e.message); 
+    }
+}
+// --- EFECTO VISUAL DE SIRENA / ALERTA CRÍTICA EN PANTALLA ---
+function inyectarEfectoSirena() {
+    let overlaySirena = document.getElementById('sirena-emergencia-global');
+    if (!overlaySirena) {
+        let div = document.createElement('div');
+        div.id = 'sirena-emergencia-global';
+        div.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none; z-index: 99999;
+            box-shadow: inset 0 0 80px rgba(231, 76, 60, 0.9);
+            animation: parpadeoSirena 1s infinite alternate;
+            display: none;
+        `;
+        // Inyectamos la animación CSS de la sirena
+        let style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes parpadeoSirena {
+                0% { border: 6px solid rgba(231, 76, 60, 0.2); background: rgba(231, 76, 60, 0.03); }
+                100% { border: 6px solid rgba(231, 76, 60, 0.95); background: rgba(231, 76, 60, 0.12); }
+            }
+        `;
+        document.head.appendChild(style);
+        document.body.appendChild(div);
+        overlaySirena = div;
+    }
+    return overlaySirena;
+}
+
+// --- RELOJ VIOLENTO CON SEGUNDERO PARA EL LEGAJO Y PANELES ---
+function iniciarRelojViolentoPresion(elementoId, fechaLimiteIso) {
+    let el = document.getElementById(elementoId);
+    if (!el) return;
+
+    function actualizar() {
+        let ahora = new Date();
+        let limite = new Date(fechaLimiteIso);
+        let diffMs = limite - ahora;
+
+        if (diffMs <= 0) {
+            el.innerHTML = `🚨 ¡PLAZO FATAL VENCIDO HACE ${Math.abs(Math.floor(diffMs/(1000*60*60*24)))} DÍAS! SUBIR ACTA URGENTE`;
+            el.style.background = '#7f1d1d';
+            el.style.color = '#fff';
+            return;
+        }
+
+        let dias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        let horas = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        let minutos = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        let segundos = Math.floor((diffMs % (1000 * 60)) / 1000);
+
+        el.innerHTML = `⚡ TIEMPO RESTANTE DE GESTIÓN: <b style="font-size:13px; color:#fff; background:#b91c1c; padding:2px 6px; border-radius:3px;">${dias}d ${horas}h ${minutos}m ${segundos}s</b>`;
+    }
+
+    actualizar();
+    setInterval(actualizar, 1000);
+}    	
 </script>
 </body>
 </html>
