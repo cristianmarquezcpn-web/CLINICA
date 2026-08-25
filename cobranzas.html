@@ -655,11 +655,33 @@ await db.ref(`cobranzas/${id}`).update({
     }
 
 function cargarManual() {
-    // 1. Obra Social (Si cancelás acá, salís)
+    // 1. Tipo de Comprobante (Selector)
+    const tipoCompElegido = prompt("📄 Tipo de Comprobante (A / B / NC A / NC B):", "A");
+    if (!tipoCompElegido) return;
+    
+    let tipoCompFinal = 6; // por defecto B (o lo que corresponda)
+    let esNC = false;
+    const tUpper = tipoCompElegido.toUpperCase().trim();
+    
+    if (tUpper === "A") {
+        tipoCompFinal = 1;
+    } else if (tUpper === "B") {
+        tipoCompFinal = 6;
+    } else if (tUpper === "NC A" || tUpper === "NCA") {
+        tipoCompFinal = 3;
+        esNC = true;
+    } else if (tUpper === "NC B" || tUpper === "NCB") {
+        tipoCompFinal = 8;
+        esNC = true;
+    } else {
+        tipoCompFinal = 6;
+    }
+
+    // 2. Obra Social (Si cancelás acá, salís)
     const os = prompt("🏢 Obra Social (Nombre):", "");
     if (!os) return; 
 
-    // 2. CUIT (Si cancelás, salís)
+    // 3. CUIT (Si cancelás, salís)
     const cuitOS = prompt("🆔 CUIT de la Obra Social:", "");
     if (cuitOS === null) return; 
 
@@ -678,39 +700,39 @@ function cargarManual() {
 
     const fechaHoy = new Date().toLocaleDateString('es-AR');
 
-    // 3. Fecha Emisión
+    // 4. Fecha Emisión
     const fechaEmi = prompt("📅 Fecha de Emisión (DD/MM/AAAA):", fechaHoy);
     if (!fechaEmi) return;
     const fEmiISO = formatearAISO(fechaEmi);
 
-    // 3b. NUEVO: Período Desde
+    // 4b. Período Desde
     const pDesde = prompt("🗓️ Período de Prestación - DESDE (DD/MM/AAAA):", "01" + fechaHoy.slice(2));
     if (pDesde === null) return;
     const fDesdeISO = formatearAISO(pDesde);
 
-    // 3c. NUEVO: Período Hasta
+    // 4c. Período Hasta
     const pHasta = prompt("🗓️ Período de Prestación - HASTA (DD/MM/AAAA):", fechaHoy);
     if (pHasta === null) return;
     const fHastaISO = formatearAISO(pHasta);
 
-    // 4. Punto de Venta
+    // 5. Punto de Venta
     const ptoVta = prompt("📍 Punto de Venta (ej: 5):", "5");
     if (ptoVta === null) return;
 
-    // 5. Número
+    // 6. Número
     const nroFactura = prompt("📄 Número de Comprobante (ej: 9):", "");
     if (!nroFactura) return;
 
-    // 6. Paciente
+    // 7. Paciente
     const paciente = prompt("👤 Nombre del Paciente:", "");
     if (paciente === null) return;
 
-    // 7. Monto (Reemplaza coma por punto por si las dudas)
+    // 8. Monto (Reemplaza coma por punto por si las dudas)
     const totalInput = prompt("💵 Monto Bruto Facturado (Total):", "0");
     if (totalInput === null) return;
     const totalVal = parseFloat(totalInput.replace(',', '.')) || 0;
     
-    // 8. Módulo
+    // 9. Módulo
     const modElegido = prompt("📦 Módulo (CD / CET / REHAB / SAEI):", "CD");
     if (modElegido === null) return;
     const moduloFinal = modElegido.toUpperCase() || "CD";
@@ -723,13 +745,14 @@ function cargarManual() {
         nro_comp: parseInt(nroFactura) || 0,
         id_paciente: paciente.toUpperCase(),
         fecha_emision: fEmiISO,
-        periodo_desde: fDesdeISO, // <-- GUARDADO
-        periodo_hasta: fHastaISO, // <-- GUARDADO
+        periodo_desde: fDesdeISO,
+        periodo_hasta: fHastaISO,
         total: totalVal,
         modulo: moduloFinal,
-        tipo_comp: 11 
+		tipo_comp: tipoCompFinal,
+		es_nc: esNC,
     }).then(() => {
-        alert("✅ Factura manual guardada con sus períodos.");
+        alert("✅ Comprobante manual guardado correctamente.");
         renderizarTodo();
     });
 }
