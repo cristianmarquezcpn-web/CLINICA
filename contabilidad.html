@@ -827,36 +827,34 @@ window.exportarLibroDiarioCompleto = function(data) {
 
     // 2. Menú de opciones ampliado
     const opcion = prompt(
-        "¿Cómo deseas agrupar las cuentas para la exportación?\n\n" +
-        "1 - Agrupar TODAS las cuentas.\n" +
-        "2 - Agrupar las SELECCIONADAS (por checkbox).\n" +
+        "¿Cómo deseas agrupar los asientos para la exportación?\n\n" +
+        "1 - Agrupar TODOS los asientos.\n" +
+        "2 - Agrupar los SELECCIONADOS (por checkbox).\n" +
         "3 - Exportar TODO individual (sin agrupar).\n" +
-        "4 - Agrupar una o MÁS cuentas (separadas por comas, ej: 'Banco, Caja').", 
+        "4 - Agrupar por una o MÁS cuentas (separadas por comas, ej: 'Banco, Caja').", 
         "1"
     );
 
     if (opcion === null) return; // Si cancela, no hace nada
 
-    let aAgrupar = [];
+    let asientosAUnificar = [];
     let individuales = [];
 
     if (opcion === "1") {
-        aAgrupar = todosLosAsientos;
+        asientosAUnificar = todosLosAsientos;
         individuales = [];
     } else if (opcion === "2") {
         const seleccionados = Array.from(document.querySelectorAll('.selector-asiento:checked')).map(cb => cb.value);
-        aAgrupar = todosLosAsientos.filter(a => seleccionados.includes(a.id_origen));
+        asientosAUnificar = todosLosAsientos.filter(a => seleccionados.includes(a.id_origen));
         individuales = todosLosAsientos.filter(a => !seleccionados.includes(a.id_origen));
     } else if (opcion === "4") {
-        // Pedimos los términos separados por comas
-        const filtroCuentas = prompt("Ingresá los códigos o nombres de las cuentas a agrupar separados por coma (ej: 'Banco, 1.1.1, Caja'):");
+        const filtroCuentas = prompt("Ingresá los códigos o nombres de las cuentas para agrupar sus asientos (ej: 'Banco, 1.1.1, Caja'):");
         if (!filtroCuentas) return;
         
-        // Convertimos el texto ingresado en un array de palabras clave en minúscula
         const terminosBusqueda = filtroCuentas.split(',').map(t => t.toLowerCase().trim()).filter(t => t.length > 0);
 
-        // Filtramos los asientos que contengan alguna de las cuentas buscadas
-        aAgrupar = todosLosAsientos.filter(a => 
+        // Identificamos los asientos que contengan alguna de esas cuentas en sus líneas
+        asientosAUnificar = todosLosAsientos.filter(a => 
             a.asientos.some(linea => 
                 terminosBusqueda.some(termino => 
                     (linea.codigo && linea.codigo.toLowerCase().includes(termino)) || 
@@ -864,38 +862,56 @@ window.exportarLibroDiarioCompleto = function(data) {
                 )
             )
         );
-        individuales = todosLosAsientos.filter(a => !aAgrupar.includes(a));
+        individuales = todosLosAsientos.filter(a => !asientosAUnificar.includes(a));
     } else {
-        // Por defecto o opción 3: Todo individual
-        aAgrupar = [];
+        asientosAUnificar = [];
         individuales = todosLosAsientos;
     }
 
-    // 3. Acumulación (agrupamos por código de cuenta)
-    const resumen = {};
-    aAgrupar.forEach(a => {
-        a.asientos.forEach(linea => {
-            const cod = linea.codigo;
-            if (!resumen[cod]) {
-                resumen[cod] = { cuenta: linea.cuenta, codigo: cod, debe: 0, haber: 0 };
-            }
-            resumen[cod].debe += parseFloat(linea.debe || 0);
-            resumen[cod].haber += parseFloat(linea.haber || 0);
+    // 3. Acumulación respetando los bloques de asientos (agrupando por clave de cuentas idénticas dentro del asiento)
+    const resumenAsientos = {};
+    
+    asientosAUnificar.forEach(a => {
+        // Creamos una firma única para el asiento basada en sus líneas (cuenta + debe/haber o código)
+        // Esto agrupa asientos que tienen exactamente la misma composición contable
+        const firmaAsiento = a.asientos.map(l => `${l.codigo}_${l.cuenta}`).sort().join('|');
+        
+        if (!resumenAsientos[firmaAsiento]) {
+            // Copiamos la estructura base del primer asiento encontrado
+            resumenAsientos[firmaAsiento] = {
+                asientos: a.asientos.map(l => ({
+                    codigo: l.codigo,
+                    cuenta: l.cuenta,
+                    debe: 0,
+                    haber: 0
+                }))
+            };
+        }
+        
+        // Sumamos los importes línea por línea dentro de ese mismo tipo de asiento
+        a.asientos.forEach((linea, index) => {
+            resumenAsientos[firmaAsiento].asientos[index].debe += parseFloat(linea.debe || 0);
+            resumenAsientos[firmaAsiento].asientos[index].haber += parseFloat(linea.haber || 0);
         });
     });
 
-    // 4. Generación de CSV (con BOM para que Excel lea bien las tildes)
+    // Función auxiliar para formatear números con coma para Excel en español
+    const fmt = (num) => Number(num).toFixed(2).replace('.', ',');
+
+    // 4. Generación de CSV (con BOM para tildes y separador de punto y coma)
     let csv = "\ufeffTipo;Codigo;Cuenta;Debe;Haber\n";
     
-    // Primero: Filas AGRUPADAS
-    Object.values(resumen).forEach(row => {
-        csv += `AGRUPADO;${row.codigo};${row.cuenta};${row.debe.toFixed(2)};${row.haber.toFixed(2)}\n`;
+    // Primero: Asientos AGRUPADOS (respetando sus líneas originales pero con sumas consolidadas)
+    Object.values(resumenAsientos).forEach(grupo => {
+        grupo.asientos.forEach(linea => {
+            csv += `AGRUPADO;${linea.codigo};${linea.cuenta};${fmt(linea.debe)};${fmt(linea.haber)}\n`;
+        });
     });
 
-    // Segundo: Filas INDIVIDUALES
+    // Segundo: Filas INDIVIDUALES (tal cual venían)
     individuales.forEach(a => {
         a.asientos.forEach(linea => {
-            csv += `INDIVIDUAL;${linea.codigo};${linea.cuenta};${parseFloat(linea.debe || 0).toFixed(2)};${parseFloat(linea.haber || 0).toFixed(2)}\n`;
+            csv += `INDIVIDUAL;${linea.codigo};${linea.cuenta};${fmt(linea.debe)};${fmt(linea.haber)}\n`;
         });
     });
 
