@@ -301,8 +301,6 @@
         box-shadow: 0 0 70px rgba(0,0,0,0.7);
     }
 </style>
-<!-- BOTÓN PARA ABRIR EL PANEL GENERAL DESDE EL MENÚ -->
-<button class="btn" style="background:#6c5ce7; color:white; padding:8px 15px; margin:5px; border-radius:5px; font-weight:bold;" onclick="abrirPanelGeneralGestiones()">📊 Panel General de Gestiones y CUD</button>
 
 <!-- 🚨 CARTEL DE AVISO OBLIGATORIO AL INICIAR EL PROGRAMA -->
 <div id="modal-alerta-inicio" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; justify-content:center; align-items:center;">
@@ -1412,8 +1410,12 @@ function verificarAlertasAlIniciar() {
             let dni = p.dni || 'S/D';
 
             DOCUMENTOS_SISTEMA.forEach(doc => {
-                if (doc.clave === 'iiieF' || doc.clave === 'fimDoc') {
-                    return;
+                // EXCLUSIÓN TOTAL: Solo Informe Mensual (infMenF) y FIM (fimDoc) no generan ninguna alerta
+                if (
+                    doc.clave === 'infMenF' || 
+                    doc.clave === 'fimDoc'
+                ) {
+                    return; // Salta este documento y no hace ninguna verificación
                 }
 
                 let docData = p[doc.clave];
@@ -1423,6 +1425,7 @@ function verificarAlertasAlIniciar() {
                 let diasAnticipacionCritica = doc.diasAnticipacion || 15;
                 let fechaPlana = p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http') ? p[doc.clave] : null;
 
+                // A. Evaluación de vencimiento o ausencia total del documento
                 if (lista.length === 0 && !fechaPlana) {
                     if (!tieneArchivoReal) {
                         hayAlertasCriticasRojas = true;
@@ -1488,6 +1491,7 @@ function verificarAlertasAlIniciar() {
                     });
                 }
 
+                // B. GESTIÓN DE TURNOS CRÍTICOS
                 if (doc.critico && doc.gestionPadre) {
                     let claveTurno = doc.clave + 'T';
                     let fechaTurno = p[claveTurno];
@@ -1865,9 +1869,9 @@ function abrirLegajoCompletoPaciente(idPaciente) {
                             <div style="display:flex; gap:4px; align-items:center;">
                                 <input type="file" id="file_acta_${idPaciente}_${doc.clave}" style="font-size:9px; flex:1;">
                                 <button class="btn" onclick="guardarActaConArchivoUnificado('${idPaciente}', '${doc.clave}')" style="background:#16a34a; color:white; border:none; padding:4px 8px; border-radius:3px; cursor:pointer; font-size:10px; font-weight:bold;">💾 Guardar</button>
-                            </div>
-                        </div>
-
+                            	</div>
+								<button class="btn" onclick="verTodasLasActas('${idPaciente}', '${doc.clave}', '${doc.nombre}')" style="background:#0284c7; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer; font-size:9px; font-weight:bold; margin-top:4px;">🔍 Ver Historial Completo de Actas</button>
+							</div>
                         <div style="background:#fee2e2; border:1px solid #f87171; padding:5px; border-radius:4px; font-size:10px;">
                             <span style="color:#991b1b; font-weight:bold;">Control TAD:</span>
                             <select onchange="actualizarEstadoWorkflow('${idPaciente}', '${doc.clave}', this.value)" style="width:100%; margin-top:2px; font-size:10px; padding:2px; border:1px solid #ef4444; border-radius:3px; font-weight:bold;">
@@ -2076,7 +2080,117 @@ function inyectarEfectoSirena() {
     }
     return overlaySirena;
 }
+// --- NUEVA FUNCIÓN UNIFICADA PARA GUARDAR ACTAS Y ARCHIVOS ---
+async function guardarActaConArchivoUnificado(idPaciente, docClave) {
+    let inputTexto = document.getElementById(`texto_acta_${idPaciente}_${docClave}`);
+    let inputFile = document.getElementById(`file_acta_${idPaciente}_${docClave}`);
 
+    let textoGestion = inputTexto ? inputTexto.value.trim() : '';
+    let archivo = inputFile ? inputFile.files[0] : null;
+
+    if (!textoGestion && !archivo) {
+        alert("Por favor, ingresa al menos un detalle de la gestión o selecciona un archivo.");
+        return;
+    }
+
+    let fechaActual = new Date().toISOString().split('T')[0];
+    let p = pacs[idPaciente];
+    if (!p) return;
+
+    let claveActas = docClave + '_actas';
+    let listaActas = Array.isArray(p[claveActas]) ? [...p[claveActas]] : [];
+
+    let linkArchivo = '';
+
+    // Si hay archivo adjunto, lo subimos a Cloudinary primero
+    if (archivo) {
+        const formData = new FormData();
+        formData.append('file', archivo);
+        formData.append('upload_preset', 'clinic_preset');
+
+        try {
+            alert("Subiendo archivo adjunto...");
+            const resp = await fetch('https://api.cloudinary.com/v1_1/duscmxxws/auto/upload', { method: 'POST', body: formData });
+            const data = await resp.json();
+            if (data.secure_url) {
+                linkArchivo = data.secure_url;
+            }
+        } catch (e) {
+            alert("Error al subir el archivo: " + e.message);
+            return;
+        }
+    }
+
+    // Agregamos la nueva acta a la lista
+    listaActas.push({
+        fecha: fechaActual,
+        texto: textoGestion || `Archivo subido: ${archivo.name}`,
+        archivoLink: linkArchivo
+    });
+
+    // Actualizamos localmente
+    p[claveActas] = listaActas;
+
+    // Guardamos en Firebase
+    database.child(`pacientes/${idPaciente}`).update({
+        [claveActas]: listaActas,
+        [`${docClave}_estado`]: linkArchivo ? 'Documento Subido' : p[`${docClave}_estado`],
+        ultimaModificacion: {
+            usuario: obtenerUsuarioActual ? obtenerUsuarioActual() : 'Secretaría',
+            fecha: new Date().toISOString(),
+            accion: `Registró nueva acta en ${docClave}`
+        }
+    }).then(() => {
+        alert("¡Acta guardada con éxito!");
+        abrirLegajoCompletoPaciente(idPaciente); // Refresca el legajo al instante
+    }).catch(error => {
+        console.error("Error al guardar acta en Firebase:", error);
+        alert("Error al guardar en la base de datos.");
+    });
+}
+
+// --- NUEVA FUNCIÓN PARA VER TODAS LAS ACTAS DE UN DOCUMENTO ---
+function verTodasLasActas(idPaciente, docClave, nombreDoc) {
+    let p = pacs[idPaciente];
+    if (!p) return;
+
+    let listaActas = Array.isArray(p[docClave + '_actas']) ? p[docClave + '_actas'] : [];
+
+    let modalId = 'modal-ver-actas-todas';
+    let modal = document.getElementById(modalId);
+    if (!modal) {
+        let div = document.createElement('div');
+        div.id = modalId;
+        div.style.cssText = 'display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:10000; justify-content:center; align-items:center;';
+        document.body.appendChild(div);
+        modal = div;
+    }
+
+    let htmlContenido = `
+        <div style="background:white; width:90%; max-width:600px; max-height:85vh; border-radius:8px; padding:20px; overflow-y:auto; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #0284c7; padding-bottom:8px; margin-bottom:15px;">
+                <h3 style="margin:0; color:#0369a1; font-size:16px;">📜 Historial Completo de Actas: ${nombreDoc}</h3>
+                <button onclick="document.getElementById('${modalId}').style.display='none'" style="background:#ef4444; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-weight:bold;">✖ Cerrar</button>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">`;
+
+    if (listaActas.length === 0) {
+        htmlContenido += `<p style="color:#64748b; font-style:italic;">No hay actas registradas para este documento.</p>`;
+    } else {
+        listaActas.forEach((acta, idx) => {
+            htmlContenido += `
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:4px solid #0284c7; padding:10px; border-radius:4px;">
+                    <div style="font-size:11px; color:#64748b; margin-bottom:2px;"><b>#${idx + 1}</b> - Fecha: <b>${acta.fecha}</b></div>
+                    <div style="font-size:12px; color:#1e293b; margin-bottom:6px;">${acta.texto}</div>
+                    ${acta.archivoLink ? `<a href="${acta.archivoLink}" target="_blank" style="display:inline-block; background:#0284c7; color:white; padding:4px 8px; border-radius:3px; text-decoration:none; font-size:10px; font-weight:bold;">📥 Ver Archivo Adjunto</a>` : ''}
+                </div>`;
+        });
+    }
+
+    htmlContenido += `</div></div>`;
+    modal.innerHTML = htmlContenido;
+    modal.style.display = 'flex';
+}
 // --- RELOJ VIOLENTO CON SEGUNDERO PARA EL LEGAJO Y PANELES ---
 function iniciarRelojViolentoPresion(elementoId, fechaLimiteIso) {
     let el = document.getElementById(elementoId);
