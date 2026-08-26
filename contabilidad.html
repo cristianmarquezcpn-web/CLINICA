@@ -284,6 +284,9 @@
     <button class="btn-accion" onclick="exportarLibroDiarioCompleto(window.dataActual)" style="background: var(--p);">
     📥 EXPORTAR DIARIO (AGRUPADO + INDIVIDUAL)
     </button>
+    <div style="margin: 12px 0; display: flex; gap: 10px; align-items: center;">
+        <input type="text" id="filtro-libro-diario" placeholder="🔍 Filtrar por cuenta, descripción o fecha..." oninput="filtrarLibroDiario()" style="width: 100%; max-width: 400px; padding: 8px 12px; font-size: 12px; border: 1px solid var(--borde, #cbd5e1); border-radius: 6px; background: var(--fondo-input, #fff); color: var(--texto, #0f172a);">
+    </div>    
     <div class="tabla-contenedor">
         <table>
             <thead>
@@ -788,7 +791,30 @@ window.gestionarConfirmacion = async function(uid) {
             window.abrirModalCrearCuenta(catInput.value);
         }
     }
-};     
+};
+window.filtrarLibroDiario = function() {
+    const textoFiltro = document.getElementById('filtro-libro-diario').value.toLowerCase().trim();
+    const tbodyDiario = document.getElementById('tabla-diario');
+    if (!tbodyDiario) return;
+
+    const filas = tbodyDiario.getElementsByTagName('tr');
+
+    // Como cada asiento en tu libro diario puede ocupar varias líneas (tr) en la tabla,
+    // agrupamos o evaluamos fila por fila. Si escribís texto, ocultamos las filas que no coincidan.
+    for (let i = 0; i < filas.length; i++) {
+        let fila = filas[i];
+        // Si la tabla dice "No se registran asientos", la salteamos
+        if (fila.cells.length <= 1) continue;
+
+        let textoFila = fila.innerText.toLowerCase();
+        
+        if (textoFila.includes(textoFiltro)) {
+            fila.style.display = "";
+        } else {
+            fila.style.display = "none";
+        }
+    }
+};        
 window.exportarLibroDiarioCompleto = function(data) { 
     // 1. Validación de seguridad: usamos los datos recibidos o el respaldo global
     const datosParaExportar = data || window.dataActual;
