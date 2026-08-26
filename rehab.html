@@ -1390,7 +1390,6 @@ function cerrarAlertaInicio() {
     if (modalAlerta) modalAlerta.style.display = 'none';
 }
 // 1. ALERTAS DE INICIO
-// 1. ALERTAS DE INICIO (Optimizado con setTimeout para liberar el hilo principal)
 function verificarAlertasAlIniciar() {
 	let listaAlertas = document.getElementById('lista-alertas-inicio');
     console.log("CONTENEDOR ENCONTRADO:", listaAlertas);
@@ -1401,7 +1400,7 @@ function verificarAlertasAlIniciar() {
         
         listaAlertas.innerHTML = '';
         let contadorAlertas = 0;
-        let hayAlertasCriticasRojas = false; // Bandera para activar la sirena global en el inicio
+        let hayAlertasCriticasRojas = false;
         let hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
 
@@ -1413,30 +1412,33 @@ function verificarAlertasAlIniciar() {
             let dni = p.dni || 'S/D';
 
             DOCUMENTOS_SISTEMA.forEach(doc => {
+                if (doc.clave === 'iiieF' || doc.clave === 'fimDoc') {
+                    return;
+                }
+
                 let docData = p[doc.clave];
                 let tieneArchivoReal = documentoTieneArchivoSubido(docData, p, doc.clave);
-                if (tieneArchivoReal) return;
 
                 let lista = Array.isArray(docData) ? docData : (docData ? [docData] : []);
-
-                // A. Evaluación de vencimiento o ausencia total del documento
                 let diasAnticipacionCritica = doc.diasAnticipacion || 15;
                 let fechaPlana = p[doc.clave] && typeof p[doc.clave] === 'string' && !p[doc.clave].startsWith('http') ? p[doc.clave] : null;
 
                 if (lista.length === 0 && !fechaPlana) {
-                    hayAlertasCriticasRojas = true;
-                    if (doc.gestionPadre) {
-                        arrayAlertasTemp.push({
-                            id: id, nombre: nombre, dni: dni,
-                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
-                            mensaje: `🚨 SECRETARIA: Falta cargar ${doc.nombre.toUpperCase()}. Llamar al padre urgente para que gestione el turno.`
-                        });
-                    } else {
-                        arrayAlertasTemp.push({
-                            id: id, nombre: nombre, dni: dni,
-                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
-                            mensaje: `🚨 CONTROL INTERNO: Falta cargar y subir ${doc.nombre.toUpperCase()} en el legajo.`
-                        });
+                    if (!tieneArchivoReal) {
+                        hayAlertasCriticasRojas = true;
+                        if (doc.gestionPadre) {
+                            arrayAlertasTemp.push({
+                                id: id, nombre: nombre, dni: dni,
+                                tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                                mensaje: `🚨 SECRETARIA: Falta cargar ${doc.nombre.toUpperCase()}. Llamar al padre urgente para que gestione el turno.`
+                            });
+                        } else {
+                            arrayAlertasTemp.push({
+                                id: id, nombre: nombre, dni: dni,
+                                tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                                mensaje: `🚨 CONTROL INTERNO: Falta cargar y subir ${doc.nombre.toUpperCase()} en el legajo.`
+                            });
+                        }
                     }
                 } else {
                     let fechasAEvaluar = [];
@@ -1444,12 +1446,14 @@ function verificarAlertasAlIniciar() {
                     lista.forEach(item => { if (item.fecha) fechasAEvaluar.push(item); });
 
                     if (fechasAEvaluar.length === 0) {
-                        hayAlertasCriticasRojas = true;
-                        arrayAlertasTemp.push({
-                            id: id, nombre: nombre, dni: dni,
-                            tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
-                            mensaje: `🚨 ATENCIÓN: Falta subir el archivo digital de ${doc.nombre.toUpperCase()} al sistema.`
-                        });
+                        if (!tieneArchivoReal) {
+                            hayAlertasCriticasRojas = true;
+                            arrayAlertasTemp.push({
+                                id: id, nombre: nombre, dni: dni,
+                                tipoDoc: doc.nombre, diff: -999, prioridadVisual: 'rojo',
+                                mensaje: `🚨 ATENCIÓN: Falta subir el archivo digital de ${doc.nombre.toUpperCase()} al sistema.`
+                            });
+                        }
                     }
 
                     fechasAEvaluar.forEach(item => {
@@ -1460,15 +1464,17 @@ function verificarAlertasAlIniciar() {
                         let diffDias = Math.round((fVenc - hoy) / (1000 * 60 * 60 * 24));
 
                         if (diffDias < 0) {
-                            hayAlertasCriticasRojas = true;
-                            let msg = doc.gestionPadre ? 
-                                `🚨 ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días. Llamar al padre urgente para regularizar.` :
-                                `🚨 ${doc.nombre.toUpperCase()} INTERNO VENCIDO hace ${Math.abs(diffDias)} días. ¡Subir versión actualizada!`;
-                            arrayAlertasTemp.push({
-                                id: id, nombre: nombre, dni: dni,
-                                tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'rojo',
-                                mensaje: msg
-                            });
+                            if (!tieneArchivoReal) {
+                                hayAlertasCriticasRojas = true;
+                                let msg = doc.gestionPadre ? 
+                                    `🚨 ${doc.nombre.toUpperCase()} VENCIDO hace ${Math.abs(diffDias)} días. Llamar al padre urgente para regularizar.` :
+                                    `🚨 ${doc.nombre.toUpperCase()} INTERNO VENCIDO hace ${Math.abs(diffDias)} días. ¡Subir versión actualizada!`;
+                                arrayAlertasTemp.push({
+                                    id: id, nombre: nombre, dni: dni,
+                                    tipoDoc: doc.nombre, diff: diffDias, prioridadVisual: 'rojo',
+                                    mensaje: msg
+                                });
+                            }
                         } else if (diffDias <= diasAnticipacionCritica) {
                             let msg = doc.gestionPadre ? 
                                 `⏰ ${doc.nombre.toUpperCase()} vence en ${diffDias} días. Secretaria: llamar al padre para que saque turno.` :
@@ -1482,7 +1488,6 @@ function verificarAlertasAlIniciar() {
                     });
                 }
 
-                // B. GESTIÓN DE TURNOS CRÍTICOS (EXCLUSIVO PARA CUD, P.M Y RHC) - Alerta de 48 a 72 hs antes
                 if (doc.critico && doc.gestionPadre) {
                     let claveTurno = doc.clave + 'T';
                     let fechaTurno = p[claveTurno];
