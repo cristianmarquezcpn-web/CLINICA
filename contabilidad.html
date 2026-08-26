@@ -815,8 +815,8 @@ window.filtrarLibroDiario = function() {
         }
     }
 };        
-window.exportarLibroDiarioCompleto = function(data) { 
-    // 1. Validación de seguridad: usamos los datos recibidos o el respaldo global
+window.exportarLibroDiarioCompleto = function(data) {
+    // 1. Validación de seguridad
     const datosParaExportar = data || window.dataActual;
     
     if (!datosParaExportar || !datosParaExportar.diario) {
@@ -824,11 +824,52 @@ window.exportarLibroDiarioCompleto = function(data) {
     }
     
     const todosLosAsientos = datosParaExportar.diario;
-    const seleccionados = Array.from(document.querySelectorAll('.selector-asiento:checked')).map(cb => cb.value);
-    
-    // 2. Separación de datos: Lo seleccionado vs Lo que queda individual
-    const aAgrupar = todosLosAsientos.filter(a => seleccionados.includes(a.id_origen));
-    const individuales = todosLosAsientos.filter(a => !seleccionados.includes(a.id_origen));
+
+    // 2. Menú de opciones ampliado
+    const opcion = prompt(
+        "¿Cómo deseas agrupar las cuentas para la exportación?\n\n" +
+        "1 - Agrupar TODAS las cuentas.\n" +
+        "2 - Agrupar las SELECCIONADAS (por checkbox).\n" +
+        "3 - Exportar TODO individual (sin agrupar).\n" +
+        "4 - Agrupar una o MÁS cuentas (separadas por comas, ej: 'Banco, Caja').", 
+        "1"
+    );
+
+    if (opcion === null) return; // Si cancela, no hace nada
+
+    let aAgrupar = [];
+    let individuales = [];
+
+    if (opcion === "1") {
+        aAgrupar = todosLosAsientos;
+        individuales = [];
+    } else if (opcion === "2") {
+        const seleccionados = Array.from(document.querySelectorAll('.selector-asiento:checked')).map(cb => cb.value);
+        aAgrupar = todosLosAsientos.filter(a => seleccionados.includes(a.id_origen));
+        individuales = todosLosAsientos.filter(a => !seleccionados.includes(a.id_origen));
+    } else if (opcion === "4") {
+        // Pedimos los términos separados por comas
+        const filtroCuentas = prompt("Ingresá los códigos o nombres de las cuentas a agrupar separados por coma (ej: 'Banco, 1.1.1, Caja'):");
+        if (!filtroCuentas) return;
+        
+        // Convertimos el texto ingresado en un array de palabras clave en minúscula
+        const terminosBusqueda = filtroCuentas.split(',').map(t => t.toLowerCase().trim()).filter(t => t.length > 0);
+
+        // Filtramos los asientos que contengan alguna de las cuentas buscadas
+        aAgrupar = todosLosAsientos.filter(a => 
+            a.asientos.some(linea => 
+                terminosBusqueda.some(termino => 
+                    (linea.codigo && linea.codigo.toLowerCase().includes(termino)) || 
+                    (linea.cuenta && linea.cuenta.toLowerCase().includes(termino))
+                )
+            )
+        );
+        individuales = todosLosAsientos.filter(a => !aAgrupar.includes(a));
+    } else {
+        // Por defecto o opción 3: Todo individual
+        aAgrupar = [];
+        individuales = todosLosAsientos;
+    }
 
     // 3. Acumulación (agrupamos por código de cuenta)
     const resumen = {};
@@ -864,7 +905,7 @@ window.exportarLibroDiarioCompleto = function(data) {
     link.href = URL.createObjectURL(blob);
     link.download = "Libro_Diario_Completo.csv";
     link.click();
-};  
+};
 window.onload = inicializarModulo;
 </script>
 </body>
