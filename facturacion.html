@@ -2011,46 +2011,66 @@ window.confirmarEnvioAFIP = async function(event) {
     const btn = event ? event.target : document.getElementById('btnConfirmarModal');
     if(btn) btn.disabled = true;
 
-    // 1. Tomamos el primer paciente seleccionado para actualizar el encabezado
-    // (Asumimos que si editaste el modal, esas son las fechas que quieres para todos)
-    const primerIndex = window.datosParaConfirmar[0].idx;
-    const nuevaDesde = document.getElementById(`mDesde_${primerIndex}`).value;
-    const nuevaHasta = document.getElementById(`mHasta_${primerIndex}`).value;
-    const nuevaVto = document.getElementById(`mVto_${primerIndex}`).value;
-
-    // 2. ACTUALIZAMOS EL ENCABEZADO (La fuente de la verdad para enviarAFIP_WS)
-    document.getElementById('per_desde').value = nuevaDesde;
-    document.getElementById('per_hasta').value = nuevaHasta;
-    document.getElementById('vto_pago').value = nuevaVto;
-
-    // 3. Actualizamos los otros datos en la tabla (si es necesario)
-    window.datosParaConfirmar.forEach(item => {
-    const index = item.idx;
-    const fila = item.fila;
-    
-    // Solo actualiza la tabla de fondo SI LA FILA EXISTE EN EL DOM
-    if (fila) {
-        fila.querySelector('.sel-tipo').value = document.getElementById(`mTipo_${index}`).value;
-        fila.querySelector('.cuit-val').value = document.getElementById(`mCuit_${index}`).value;
-        fila.querySelector('.rs-val').value = document.getElementById(`mRs_${index}`).value;
-        fila.querySelector('.dom-val').value = document.getElementById(`mDom_${index}`).value;
-        fila.querySelector('.neto-edit').value = document.getElementById(`mNeto_${index}`).value;
-        fila.querySelector('.exento-edit').value = document.getElementById(`mExento_${index}`).value;
-        fila.querySelector('.sel-ali').value = document.getElementById(`mAli_${index}`).value;
-        fila.querySelector('.det-val').value = document.getElementById(`mDet_${index}`).value;
-        window.recalcularTotales(fila.querySelector('.neto-edit'));
+    // Validación de seguridad por si el arreglo está vacío
+    if (!window.datosParaConfirmar || window.datosParaConfirmar.length === 0) {
+        alert("No hay datos para procesar.");
+        if(btn) btn.disabled = false;
+        return;
     }
-});
+
+    // 1. Tomamos el primer elemento para actualizar el encabezado global
+    const primerIndex = window.datosParaConfirmar[0].idx;
+    const inputDesde = document.getElementById(`mDesde_${primerIndex}`);
+    const inputHasta = document.getElementById(`mHasta_${primerIndex}`);
+    const inputVto = document.getElementById(`mVto_${primerIndex}`);
+
+    if (inputDesde && document.getElementById('per_desde')) document.getElementById('per_desde').value = inputDesde.value;
+    if (inputHasta && document.getElementById('per_hasta')) document.getElementById('per_hasta').value = inputHasta.value;
+    if (inputVto && document.getElementById('vto_pago')) document.getElementById('vto_pago').value = inputVto.value;
+
+    // 2. Sincronizamos de vuelta los cambios editados del modal hacia la tabla principal de fondo
+    window.datosParaConfirmar.forEach(item => {
+        const index = item.idx;
+        const fila = item.fila;
+        
+        if (fila) {
+            const setVal = (selector, valId) => {
+                const el = fila.querySelector(selector);
+                const valInput = document.getElementById(valId);
+                if (el && valInput) el.value = valInput.value;
+            };
+
+            setVal('.sel-tipo', `mTipo_${index}`);
+            setVal('.cuit-val', `mCuit_${index}`);
+            setVal('.rs-val', `mRs_${index}`);
+            setVal('.dom-val', `mDom_${index}`);
+            setVal('.neto-edit', `mNeto_${index}`);
+            setVal('.exento-edit', `mExento_${index}`);
+            setVal('.sel-ali', `mAli_${index}`);
+            setVal('.det-val', `mDet_${index}`);
+
+            // Recalcula totales de la fila si la función existe
+            const netoInput = fila.querySelector('.neto-edit');
+            if (netoInput && typeof window.recalcularTotales === 'function') {
+                window.recalcularTotales(netoInput);
+            }
+        }
+    });
     
-    document.getElementById('modalConfirmacion').style.display = 'none';
+    // Cerramos el modal visualmente
+    const modal = document.getElementById('modalConfirmacion');
+    if (modal) modal.style.display = 'none';
     
-    // 4. Ahora sí, al ejecutar esto, leerá los campos del encabezado ya corregidos
-    await enviarAFIP_WS(); 
+    // 3. Ejecutamos el envío a AFIP (que ya leerá los inputs de la tabla actualizada y el encabezado)
+    if (typeof enviarAFIP_WS === 'function') {
+        await enviarAFIP_WS();
+    } else {
+        console.warn("La función enviarAFIP_WS no está definida.");
+    }
     
     if(btn) btn.disabled = false;
     window.datosParaConfirmar = [];
 };
-
 const MESESCFO = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
 'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 
