@@ -2017,73 +2017,128 @@ window.confirmarEnvioAFIP = async function(event) {
         return;
     }
 
-    // 1. Sincronizamos los datos y tildamos físicamente las filas correspondientes en la tabla principal
-    window.datosParaConfirmar.forEach(item => {
-        const index = item.idx;
-        let fila = item.fila;
-        
-        // Si viene del Lote Masivo y no tiene la fila asignada, la buscamos en la tabla por ID o CUIT
-        if (!fila && (item.id || item.cuit)) {
-            const filasTabla = document.querySelectorAll('tr');
-            for (const f of filasTabla) {
-                const textoFila = f.innerText || '';
-                const chkFila = f.querySelector('.ck');
-                const idFila = chkFila ? chkFila.getAttribute('data-id') : '';
-                
-                if ((item.id && idFila === String(item.id)) || (item.cuit && textoFila.includes(item.cuit))) {
-                    fila = f;
-                    break;
+    let cacheCondicionesIVA = {};
+    try {
+        const snapshot = await db.ref('config/obras_sociales').once('value');
+        const todasLasObras = snapshot.val();
+        if (todasLasObras) {
+            for (let key in todasLasObras) {
+                let cuitFB = String(todasLasObras[key].cuit || "").replace(/\D/g, '').trim();
+                if (cuitFB) {
+                    cacheCondicionesIVA[cuitFB] = todasLasObras[key].condicion_iva || "IVA Sujeto Exento";
                 }
             }
         }
+    } catch(e) {}
+
+    const ptoVtaGlobal = parseInt(document.getElementById('punto_vta')?.value) || 5;
+    const condVenta = document.getElementById('cond_venta')?.value || "Cuenta Corriente";
+
+    for (const item of window.datosParaConfirmar) {
+        const index = item.idx;
         
-        if (fila) {
-            const setVal = (selector, valId) => {
-                const el = fila.querySelector(selector);
-                const valInput = document.getElementById(valId);
-                if (el && valInput) el.value = valInput.value;
-            };
+        const tipoInput = document.getElementById(`mTipo_${index}`);
+        const cuitInput = document.getElementById(`mCuit_${index}`);
+        const rsInput = document.getElementById(`mRs_${index}`);
+        const domInput = document.getElementById(`mDom_${index}`);
+        const netoInput = document.getElementById(`mNeto_${index}`);
+        const exentoInput = document.getElementById(`mExento_${index}`);
+        const aliInput = document.getElementById(`mAli_${index}`);
+        const detInput = document.getElementById(`mDet_${index}`);
+        const desdeInput = document.getElementById(`mDesde_${index}`);
+        const hastaInput = document.getElementById(`mHasta_${index}`);
+        const vtoInput = document.getElementById(`mVto_${index}`);
 
-            setVal('.sel-tipo', `mTipo_${index}`);
-            setVal('.cuit-val', `mCuit_${index}`);
-            setVal('.rs-val', `mRs_${index}`);
-            setVal('.dom-val', `mDom_${index}`);
-            setVal('.neto-edit', `mNeto_${index}`);
-            setVal('.exento-edit', `mExento_${index}`);
-            setVal('.sel-ali', `mAli_${index}`);
-            setVal('.det-val', `mDet_${index}`);
+        const tipo = parseInt(tipoInput ? tipoInput.value : item.tipo) || 6;
+        const cuitCapturado = (cuitInput ? cuitInput.value : item.cuit || "").replace(/\D/g, '');
+        const razonCapturada = (rsInput ? rsInput.value : item.rs || "").toUpperCase();
+        const domCapturada = (domInput ? domInput.value : item.dom || "").toUpperCase();
+        const montoNeto = parseFloat(netoInput ? netoInput.value : item.neto) || 0;
+        const montoExento = parseFloat(exentoInput ? exentoInput.value : item.exento) || 0;
+        const alicuota = parseFloat(aliInput ? aliInput.value : item.ali) || 0;
+        const descripcion = (detInput ? detInput.value : item.detalle || "").toUpperCase();
+        
+        const fDesde = desdeInput ? desdeInput.value : "";
+        const fHasta = hastaInput ? hastaInput.value : "";
+        const fVto = vtoInput ? vtoInput.value : "";
 
-            // 🔑 EL TRUCO CLAVE: Tildamos el checkbox para que enviarAFIP_WS lo detecte al instante
-            const checkbox = fila.querySelector('.ck');
-            if (checkbox) {
-                checkbox.checked = true;
-            }
+        const idDelPaciente = item.id || item.nombrePaciente || "PACIENTE";
+        const nombreModulo = (item.modulo || "REHAB").toUpperCase();
 
-            const netoInput = fila.querySelector('.neto-edit');
-            if (netoInput && typeof window.recalcularTotales === 'function') {
-                window.recalcularTotales(netoInput);
-            }
+        if (!cuitCapturado || cuitCapturado.length < 10) {
+            alert(`⚠️ Error en ${idDelPaciente}: El CUIT está vacío o es inválido.`);
+            continue;
         }
-    });
 
-    // 2. Tomamos las fechas del primer elemento para actualizar el encabezado global
-    const primerIndex = window.datosParaConfirmar[0].idx;
-    const inputDesde = document.getElementById(`mDesde_${primerIndex}`);
-    const inputHasta = document.getElementById(`mHasta_${primerIndex}`);
-    const inputVto = document.getElementById(`mVto_${primerIndex}`);
+        const condicionFiscal = cacheCondicionesIVA[cuitCapturado] || "IVA Sujeto Exento";
 
-    if (inputDesde && document.getElementById('per_desde')) document.getElementById('per_desde').value = inputDesde.value;
-    if (inputHasta && document.getElementById('per_hasta')) document.getElementById('per_hasta').value = inputHasta.value;
-    if (inputVto && document.getElementById('vto_pago')) document.getElementById('vto_pago').value = inputVto.value;
-    
-    // 3. Cerramos el modal visualmente
+        const pedido = {
+            id_paciente: idDelPaciente,
+            id_paciente_db: idDelPaciente,
+            modulo: nombreModulo,
+            razon_social: razonCapturada,
+            cuit: cuitCapturado,
+            domicilio: domCapturada,
+            iva_condicion: condicionFiscal,
+            tipo: tipo,
+            descripcion: descripcion || "PRESTACION DE SERVICIOS",
+            total: montoNeto + (montoNeto * (alicuota / 100)) + montoExento,
+            alicuota: alicuota,
+            neto: montoNeto,
+            exento: montoExento,
+            ptoVta: ptoVtaGlobal,
+            periodo_desde: fDesde,
+            periodo_hasta: fHasta,
+            vto_pago: fVto,
+            condicion_venta: condVenta,
+            estado: 'PENDIENTE',
+            fecha_peticion: new Date().toISOString()
+        };
+
+        try {
+            await db.ref('/cola_facturacion').push(pedido);
+            
+            await db.ref(`${nombreModulo.toLowerCase()}/pacientes/${idDelPaciente}`).update({
+                facturado: 'PROCESANDO'
+            });
+
+            // 🎨 ACTUALIZACIÓN VISUAL EN LA TABLA PRINCIPAL (Pone la fila amarilla/en proceso)
+            let fila = item.fila;
+            if (!fila && (idDelPaciente || cuitCapturado)) {
+                const filasTabla = document.querySelectorAll('tr');
+                for (const f of filasTabla) {
+                    const textoFila = f.innerText || '';
+                    const chkFila = f.querySelector('.ck');
+                    const idFila = chkFila ? chkFila.getAttribute('data-id') : '';
+                    if ((idDelPaciente && idFila === String(idDelPaciente)) || (cuitCapturado && textoFila.includes(cuitCapturado))) {
+                        fila = f;
+                        break;
+                    }
+                }
+            }
+
+            if (fila) {
+                fila.style.opacity = "0.5";
+                fila.style.background = "#fff9c4"; // Amarillo intermedio de proceso
+                const ck = fila.querySelector('.ck');
+                if (ck) ck.checked = false;
+            }
+
+        } catch (e) {
+            console.error("Error al enviar a la cola:", e);
+        }
+    }
+
     const modal = document.getElementById('modalConfirmacion');
     if (modal) modal.style.display = 'none';
     
-    // 4. Disparamos tu función original intacta (ahora sí encontrará los checkboxes marcados)
-    if (typeof enviarAFIP_WS === 'function') {
-        await enviarAFIP_WS();
-    }
+    alert("🚀 Facturas enviadas al motor. En segundos aparecerán en gris con su PDF.");
+    
+    setTimeout(() => {
+        if (typeof window.procesarTodo === "function") {
+            window.procesarTodo();
+        }
+    }, 5000);
     
     if(btn) btn.disabled = false;
     window.datosParaConfirmar = [];
