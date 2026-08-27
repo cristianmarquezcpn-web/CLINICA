@@ -2049,7 +2049,9 @@ window.confirmarEnvioAFIP = async function(event) {
             setVal('.sel-ali', `mAli_${index}`);
             setVal('.det-val', `mDet_${index}`);
 
-            // Recalcula totales de la fila si la función existe
+            const checkbox = fila.querySelector('.ck, input[type="checkbox"]');
+            if (checkbox) checkbox.checked = true;
+			// Recalcula totales de la fila si la función existe
             const netoInput = fila.querySelector('.neto-edit');
             if (netoInput && typeof window.recalcularTotales === 'function') {
                 window.recalcularTotales(netoInput);
