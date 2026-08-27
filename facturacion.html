@@ -2067,7 +2067,8 @@ window.confirmarEnvioAFIP = async function(event) {
         const fVto = vtoInput ? vtoInput.value : "";
 
         const idDelPaciente = item.id || (item.datos ? (item.datos.id || item.datos.nombrePaciente) : null) || item.nombrePaciente || "PACIENTE";
-		const nombreModulo = (item.modulo || (item.datos ? item.datos.modulo : null) || "REHAB").toUpperCase();
+		const pacienteEncontrado = (window.dataFull || []).find(p => (p.id || p.id_db) === idDelPaciente);
+		const nombreModulo = (item.modulo || (item.datos ? item.datos.modulo : null) || (pacienteEncontrado ? pacienteEncontrado.modulo : null) || "REHAB").toUpperCase();
 
         if (!cuitCapturado || cuitCapturado.length < 10) {
             alert(`⚠️ Error en ${idDelPaciente}: El CUIT está vacío o es inválido.`);
