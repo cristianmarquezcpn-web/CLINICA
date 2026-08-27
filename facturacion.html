@@ -1965,8 +1965,12 @@ window.abrirModalValidacion = function() {
             cobHasta: cobHasta
         };
 
-        window.datosParaConfirmar.push({datos: v, fila: fila, idx: index});
-        
+       window.datosParaConfirmar.push({
+            datos: v, 
+            fila: fila, 
+            idx: index,
+            modulo: pacienteDB && pacienteDB.modulo ? pacienteDB.modulo : "REHAB"
+        });
         html += `
         <div style="border:1px solid #ddd; padding:10px; margin-bottom:15px; border-radius:5px; background:#fdfdfd;">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
