@@ -2080,114 +2080,119 @@ window.marcarTodasOS = function(marcar) {
 // MODAL DE CONFIRMACIÓN FINAL
 // ============================================================
 function abrirModalCFO(lote, nombreMes, anio, adv, fechasCalc) {
-    let html = `
-    <div style="background:#f0f4ff;padding:12px;border-radius:8px;margin-bottom:15px;
-                border-left:5px solid #8e44ad;display:flex;justify-content:space-between;
-                align-items:center;flex-wrap:wrap;gap:10px;">
-      <div>
-        <b style="color:#6c3483;">🎯 LOTE PREPARADO — PERÍODO PRESTACIONAL: ${nombreMes} ${anio}</b><br>
-        <small>${lote.length} pacientes · Total general: <b id="totalGeneralLote">${lote.reduce((s,e)=>s+e.monto,0).toLocaleString('es-AR')}</b> ARS</small>
-      </div>
-      <div>
-        <button id="btnMuteVoz" onclick="toggleVozSilencio()" style="padding:4px 8px;font-size:11px;background:#e74c3c;color:white;border:none;border-radius:4px;cursor:pointer;">🔊 Voz Activa</button>
-      </div>
-    </div>`;
+    let html = `
+    <div style="background:#f0f4ff;padding:12px;border-radius:8px;margin-bottom:15px;
+                border-left:5px solid #8e44ad;display:flex;justify-content:space-between;
+                align-items:center;flex-wrap:wrap;gap:10px;">
+      <div>
+        <b style="color:#6c3483;">🎯 LOTE PREPARADO — PERÍODO PRESTACIONAL: ${nombreMes} ${anio}</b><br>
+        <small>${lote.length} pacientes · Total general: <b id="totalGeneralLote">${lote.reduce((s,e)=>s+e.monto,0).toLocaleString('es-AR')}</b> ARS</small>
+      </div>
+      <div>
+        <button id="btnMuteVoz" onclick="toggleVozSilencio()" style="padding:4px 8px;font-size:11px;background:#e74c3c;color:white;border:none;border-radius:4px;cursor:pointer;">🔊 Voz Activa</button>
+      </div>
+    </div>`;
 
-    if (adv.length) {
-        html += `<div style="background:#fff3e0;padding:8px 12px;border-radius:5px;margin-bottom:12px;border:1px solid #ff9800;font-size:12px;">
-          <b>⚠️ ADVERTENCIAS:</b><br>${adv.map(a => `• ${a.paciente}: ${a.msg}`).join('<br>')}</div>`;
-    }
+    if (adv.length) {
+        html += `<div style="background:#fff3e0;padding:8px 12px;border-radius:5px;margin-bottom:12px;border:1px solid #ff9800;font-size:12px;">
+          <b>⚠️ ADVERTENCIAS:</b><br>${adv.map(a => `• ${a.paciente}: ${a.msg}`).join('<br>')}</div>`;
+    }
 
-    window.datosParaConfirmar = [];
+    window.datosParaConfirmar = [];
 
-    lote.forEach((e, i) => {
-        const cobDesdeFmt = e.cobDesde ? e.cobDesde.split('-').reverse().join('/') : 'S/F';
-        const cobHastaFmt = e.cobHasta ? e.cobHasta.split('-').reverse().join('/') : 'S/F';
+    // CONTENEDOR GRID: Organiza las tarjetas de los pacientes en 2 columnas
+    html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">`;
 
-        // Intentamos ubicar la fila en el DOM si ya existe en la tabla principal
-        const filaTab = document.querySelector(`tr[data-id="${e.id}"]`) || null;
+    lote.forEach((e, i) => {
+        const cobDesdeFmt = e.cobDesde ? e.cobDesde.split('-').reverse().join('/') : 'S/F';
+        const cobHastaFmt = e.cobHasta ? e.cobHasta.split('-').reverse().join('/') : 'S/F';
 
-        window.datosParaConfirmar.push({
-            datos: e,
-            fila: filaTab,
-            idx: i
-        });
+        const filaTab = document.querySelector(`tr[data-id="${e.id}"]`) || null;
 
-        html += `
-        <div style="border:1px solid #ddd;padding:12px;margin-bottom:15px;border-radius:6px;background:#fdfdfd;">
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
-            <b style="color:#2c3e50;">${e.rs} (${e.nombrePaciente || e.id})</b>
-            <span style="font-size:12px;color:#2c3e50;">📅 Autorización: <b>${cobDesdeFmt}</b> al <b>${cobHastaFmt}</b></span>
-          </div>
-          <div style="font-size:11px;color:#888;margin-bottom:8px;font-weight:bold;">
-            MÓDULO: ${window.NOMBRES_MODULOS && window.NOMBRES_MODULOS[e.modulo] ? window.NOMBRES_MODULOS[e.modulo] : e.modulo} | Total: <span id="lblMontoItem${i}">${e.monto.toLocaleString('es-AR')}</span> ARS
-          </div>
-          
-          <div style="display:grid;grid-template-columns: 1fr 1fr; gap: 15px;">
-            <!-- Columna Izquierda -->
-            <div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">
-                <label>Tipo: <input value="${e.tipo}" id="mTipo_${i}" style="width:100%"></label>
-                <label>CUIT: <input value="${e.cuit}" id="mCuit_${i}" style="width:100%;${!e.cuit||e.cuit.length<10?'border:2px solid red':''}"></label>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;margin-top:6px;">
-                <label>R.Social: <input value="${e.rs}" id="mRs_${i}" style="width:100%"></label>
-                <label>Domicilio: <input value="${e.dom}" id="mDom_${i}" style="width:100%"></label>
-                <label>Período Desde: <input type="date" id="mDesde_${i}" value="${fechasCalc.desde}" style="width:100%"></label>
-                <label>Período Hasta: <input type="date" id="mHasta_${i}" value="${fechasCalc.hasta}" style="width:100%"></label>
-                <label>Vto. Pago: <input type="date" id="mVto_${i}" value="${fechasCalc.vto}" style="width:100%"></label>
-              </div>
-            </div>
+        window.datosParaConfirmar.push({
+            datos: e,
+            fila: filaTab,
+            idx: i
+        });
 
-            <!-- Columna Derecha -->
-            <div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">
-                <label>Alícuota:
-                  <select id="mAli_${i}" style="width:100%">
-                    <option value="0" ${e.ali==0?'selected':''}>Exento</option>
-                    <option value="10.5" ${e.ali==10.5?'selected':''}>10.5%</option>
-                    <option value="21" ${e.ali==21?'selected':''}>21%</option>
-                  </select>
-                </label>
-                <label>Neto: <input type="number" value="${e.neto}" id="mNeto_${i}" style="width:100%"></label>
-              </div>
-              <div style="font-size:12px;margin-top:6px;">
-                <label>Exento: <input type="number" value="${e.exento}" id="mExento_${i}" style="width:100%"></label>
-              </div>
-              <div style="margin-top:6px;">
-                <label style="font-size:12px;font-weight:bold;display:block;">Detalle a Facturar:</label>
-                <textarea id="mDet_${i}" style="width:100%;height:100px;font-family:monospace;font-size:11px;padding:5px;">${e.detalle}</textarea>
-              </div>
-            </div>
-          </div>
-        </div>`;
-    });
+        html += `
+        <div style="border:1px solid #dcdde1;padding:12px;border-radius:8px;background:#fdfdfd;box-shadow:0 2px 5px rgba(0,0,0,0.02);display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:6px;">
+              <b style="color:#2c3e50;font-size:13px;">${e.rs} <span style="color:#7f8c8d;font-size:11px;">(${e.nombrePaciente || e.id})</span></b>
+              <span style="font-size:11px;color:#2c3e50;">📅 <b>${cobDesdeFmt}</b> al <b>${cobHastaFmt}</b></span>
+            </div>
+            <div style="font-size:11px;color:#888;margin-bottom:8px;font-weight:bold;background:#f5f6fa;padding:3px 6px;border-radius:4px;">
+              MÓDULO: ${window.NOMBRES_MODULOS && window.NOMBRES_MODULOS[e.modulo] ? window.NOMBRES_MODULOS[e.modulo] : e.modulo} | Total: <span id="lblMontoItem${i}">${e.monto.toLocaleString('es-AR')}</span> ARS
+            </div>
+              
+            <div style="display:grid;grid-template-columns: 1fr 1fr; gap: 10px;">
+              <!-- Columna Izquierda -->
+              <div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
+                  <label>Tipo: <input value="${e.tipo}" id="mTipo_${i}" style="width:100%;padding:3px;"></label>
+                  <label>CUIT: <input value="${e.cuit}" id="mCuit_${i}" style="width:100%;padding:3px;${!e.cuit||e.cuit.length<10?'border:2px solid red':''}"></label>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;font-size:11px;margin-top:6px;">
+                  <label>R.Social: <input value="${e.rs}" id="mRs_${i}" style="width:100%;padding:3px;"></label>
+                  <label>Domicilio: <input value="${e.dom}" id="mDom_${i}" style="width:100%;padding:3px;"></label>
+                  <label>Período Desde: <input type="date" id="mDesde_${i}" value="${fechasCalc.desde}" style="width:100%;padding:3px;"></label>
+                  <label>Período Hasta: <input type="date" id="mHasta_${i}" value="${fechasCalc.hasta}" style="width:100%;padding:3px;"></label>
+                  <label>Vto. Pago: <input type="date" id="mVto_${i}" value="${fechasCalc.vto}" style="width:100%;padding:3px;"></label>
+                </div>
+              </div>
 
-    let modalContent = document.getElementById('modalContent');
-    let modalGlobal = document.getElementById('modalConfirmacion');
+              <!-- Columna Derecha -->
+              <div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
+                  <label>Alícuota:
+                    <select id="mAli_${i}" style="width:100%;padding:3px;">
+                      <option value="0" ${e.ali==0?'selected':''}>Exento</option>
+                      <option value="10.5" ${e.ali==10.5?'selected':''}>10.5%</option>
+                      <option value="21" ${e.ali==21?'selected':''}>21%</option>
+                    </select>
+                  </label>
+                  <label>Neto: <input type="number" value="${e.neto}" id="mNeto_${i}" style="width:100%;padding:3px;"></label>
+                </div>
+                <div style="font-size:11px;margin-top:6px;">
+                  <label>Exento: <input type="number" value="${e.exento}" id="mExento_${i}" style="width:100%;padding:3px;"></label>
+                </div>
+                <div style="margin-top:6px;">
+                  <label style="font-size:11px;font-weight:bold;display:block;">Detalle a Facturar:</label>
+                  <textarea id="mDet_${i}" style="width:100%;height:55px;font-family:monospace;font-size:10px;padding:4px;">${e.detalle}</textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    });
 
-    if (!modalGlobal) {
-        modalGlobal = document.createElement('div');
-        modalGlobal.id = 'modalConfirmacion';
-        modalGlobal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:20000;display:none;overflow-y:auto;padding:20px;';
-        modalGlobal.innerHTML = `<div style="background:white;max-width:1000px;margin:30px auto;padding:20px;border-radius:8px;"><div id="modalContent"></div><div style="text-align:right;margin-top:15px;"><button onclick="document.getElementById('modalConfirmacion').style.display='none'" style="padding:8px 15px;background:#e74c3c;color:white;border:none;border-radius:4px;cursor:pointer;margin-right:10px;">Cancelar</button><button id="btnConfirmarModal" onclick="confirmarEnvioAFIP(event)" style="padding:8px 15px;background:#27ae60;color:white;border:none;border-radius:4px;cursor:pointer;">Confirmar y Enviar a AFIP</button></div></div>`;
-        document.body.appendChild(modalGlobal);
-        modalContent = document.getElementById('modalContent');
-    } else {
-        // Asegurar que tenga el botón correcto de confirmación si ya existía
-        let footerModal = modalGlobal.querySelector('div[style*="text-align:right"]');
-        if (footerModal) {
-            footerModal.innerHTML = `<button onclick="document.getElementById('modalConfirmacion').style.display='none'" style="padding:8px 15px;background:#e74c3c;color:white;border:none;border-radius:4px;cursor:pointer;margin-right:10px;">Cancelar</button><button id="btnConfirmarModal" onclick="confirmarEnvioAFIP(event)" style="padding:8px 15px;background:#27ae60;color:white;border:none;border-radius:4px;cursor:pointer;">Confirmar y Enviar a AFIP</button>`;
-        }
-    }
+    html += `</div>`; // Cierra el contenedor grid de dos columnas
 
-    modalContent.innerHTML = html;
-    modalGlobal.style.display = 'block';
+    let modalContent = document.getElementById('modalContent');
+    let modalGlobal = document.getElementById('modalConfirmacion');
 
-    // Opcional: iniciar voz si la tenías activa
-    if (typeof iniciarAsistenteVozModal === 'function') {
-        iniciarAsistenteVozModal(lote);
-    }
+    if (!modalGlobal) {
+        modalGlobal = document.createElement('div');
+        modalGlobal.id = 'modalConfirmacion';
+        modalGlobal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:20000;display:none;overflow-y:auto;padding:20px;';
+        // SE AMPLIÓ EL ANCHO MÁXIMO A 1200px PARA QUE ENTRÉN LAS DOS COLUMNAS
+        modalGlobal.innerHTML = `<div style="background:white;max-width:1200px;margin:20px auto;padding:20px;border-radius:8px;"><div id="modalContent"></div><div style="text-align:right;margin-top:15px;border-top:1px solid #eee;padding-top:12px;"><button onclick="document.getElementById('modalConfirmacion').style.display='none'" style="padding:8px 15px;background:#e74c3c;color:white;border:none;border-radius:4px;cursor:pointer;margin-right:10px;">Cancelar</button><button id="btnConfirmarModal" onclick="confirmarEnvioAFIP(event)" style="padding:8px 15px;background:#27ae60;color:white;border:none;border-radius:4px;cursor:pointer;">Confirmar y Enviar a AFIP</button></div></div>`;
+        document.body.appendChild(modalGlobal);
+        modalContent = document.getElementById('modalContent');
+    } else {
+        let footerModal = modalGlobal.querySelector('div[style*="text-align:right"]');
+        if (footerModal) {
+            footerModal.innerHTML = `<button onclick="document.getElementById('modalConfirmacion').style.display='none'" style="padding:8px 15px;background:#e74c3c;color:white;border:none;border-radius:4px;cursor:pointer;margin-right:10px;">Cancelar</button><button id="btnConfirmarModal" onclick="confirmarEnvioAFIP(event)" style="padding:8px 15px;background:#27ae60;color:white;border:none;border-radius:4px;cursor:pointer;">Confirmar y Enviar a AFIP</button>`;
+        }
+    }
+
+    modalContent.innerHTML = html;
+    modalGlobal.style.display = 'block';
+
+    if (typeof iniciarAsistenteVozModal === 'function') {
+        iniciarAsistenteVozModal(lote);
+    }
 }
 async function mostrarPanelFiltros() {
     const hoy = new Date();
@@ -2715,6 +2720,8 @@ let vozSilenciada = false;
 let recognitionGlobal = null;
 let indicePacienteActual = 0;
 let datosLoteActual = [];
+let velocidadLectura = 1.5; // Velocidad ajustada a 1.5x para ir más rápido
+let recEdicionActiva = null;
 
 function toggleVozSilencio() {
     vozSilenciada = !vozSilenciada;
@@ -2723,10 +2730,19 @@ function toggleVozSilencio() {
     if (btn) btn.innerHTML = vozSilenciada ? '🔇 Voz Silenciada' : '🔊 Voz Activa';
 }
 
+function cambiarVelocidadVoz() {
+    velocidadLectura = velocidadLectura === 1.5 ? 1.0 : 1.5;
+    const btnVel = document.getElementById('btnVelVoz');
+    if (btnVel) btnVel.innerHTML = `⚡ Velocidad: ${velocidadLectura}x`;
+}
+
 function detenerTodoElHabla() {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     if (recognitionGlobal) {
         try { recognitionGlobal.stop(); recognitionGlobal = null; } catch(e) {}
+    }
+    if (recEdicionActiva) {
+        try { recEdicionActiva.stop(); recEdicionActiva = null; } catch(e) {}
     }
 }
 
@@ -2739,6 +2755,23 @@ function iniciarAsistenteVozModal(loteDatos) {
 
     if (datosLoteActual.length === 0) return;
 
+    // Agregar barra de controles de voz si no existe en el modal
+    let contenedorControlVoz = document.getElementById('controlesVozExtra');
+    if (!contenedorControlVoz) {
+        const modalDiv = document.querySelector('#modalConfirmacion > div');
+        if (modalDiv) {
+            const barra = document.createElement('div');
+            barra.id = 'controlesVozExtra';
+            barra.style.cssText = 'margin: 10px 0; display: flex; gap: 10px; align-items: center; background: #e8f4fd; padding: 8px; border-radius: 6px; font-size: 12px;';
+            barra.innerHTML = `
+                <span><b>🎤 Asistente por Voz:</b></span>
+                <button id="btnVelVoz" onclick="cambiarVelocidadVoz()" style="padding:4px 8px;background:#2980b9;color:white;border:none;border-radius:4px;cursor:pointer;">⚡ Velocidad: 1.5x</button>
+                <button id="btnManualDictado" onclick="dispararDictadoManual()" style="padding:4px 8px;background:#27ae60;color:white;border:none;border-radius:4px;cursor:pointer; display:none;">🎙️ Presionar para Dictar Campo</button>
+            `;
+            modalDiv.insertBefore(barra, modalDiv.firstChild);
+        }
+    }
+
     leerPacienteActual();
 }
 
@@ -2749,8 +2782,14 @@ function leerPacienteActual() {
 
     detenerTodoElHabla();
 
+    // Ocultar botón manual de dictado mientras lee el sistema
+    const btnManual = document.getElementById('btnManualDictado');
+    if (btnManual) btnManual.style.display = 'none';
+
     if (indicePacienteActual >= datosLoteActual.length) {
-        synth.speak(new SpeechSynthesisUtterance("Fin del lote. Diga aceptar para confirmar o cancelar para salir."));
+        const utterFin = new SpeechSynthesisUtterance("Fin del lote. Diga aceptar para confirmar o cancelar para salir.");
+        utterFin.rate = velocidadLectura;
+        synth.speak(utterFin);
         escucharComandosGlobales();
         return;
     }
@@ -2759,14 +2798,15 @@ function leerPacienteActual() {
     const nroItem = indicePacienteActual + 1;
     const totalItems = datosLoteActual.length;
 
-    const textoLectura = `Paciente ${nroItem} de ${totalItems}. Razón social: ${p.rs || 'Sin datos'}. CUIT: ${p.cuit || 'Sin CUIT'}. Tipo: ${p.tipo || 'B'}. Domicilio: ${p.dom || 'Sin domicilio'}. Monto Neto: ${p.neto || 0} pesos. Exento: ${p.exento || 0} pesos. Alícuota: ${p.ali || 0} por ciento. Detalle: ${p.detalle || 'Sin detalle'}. Diga siguiente, repetir, cambiar detalle, cambiar monto, cambiar exento, cambiar cuit, cambiar domicilio, cambiar fechas, cambiar vencimiento, aceptar o cancelar.`;
+    const textoLectura = `Paciente ${nroItem} de ${totalItems}. Razón social: ${p.rs || 'Sin datos'}. CUIT: ${p.cuit || 'Sin CUIT'}. Tipo: ${p.tipo || 'B'}. Domicilio: ${p.dom || 'Sin domicilio'}. Monto Neto: ${p.neto || 0} pesos. Exento: ${p.exento || 0} pesos. Alícuota: ${p.ali || 0} por ciento. Detalle: ${p.detalle || 'Sin detalle'}. Diga siguiente, repetir, cambiar detalle, cambiar monto, cambiar exento, cambiar cuit, cambiar domicilio, aceptar o cancelar.`;
 
     const utterance = new SpeechSynthesisUtterance(textoLectura);
+    utterance.rate = velocidadLectura; // Aplica la velocidad de 1.5x (o la elegida)
     
     utterance.onend = () => {
         setTimeout(() => {
             if (!vozSilenciada) escucharComandosGlobales();
-        }, 1200);
+        }, 800);
     };
 
     synth.speak(utterance);
@@ -2791,7 +2831,6 @@ function escucharComandosGlobales() {
         const dicho = event.results[0][0].transcript.toLowerCase();
         console.log("🗣️ Comando detectado:", dicho);
 
-        // 1. CANCELAR O SALIR (Freno absoluto inmediato)
         if (dicho.includes('cancela') || dicho.includes('cerrar') || dicho.includes('salir')) {
             detenerTodoElHabla();
             const modalEl = document.getElementById('modalConfirmacion');
@@ -2801,31 +2840,29 @@ function escucharComandosGlobales() {
 
         detenerTodoElHabla();
 
-        // 2. SIGUIENTE
         if (dicho.includes('siguiente') || dicho.includes('proximo') || dicho.includes('otro')) {
             indicePacienteActual++;
             leerPacienteActual();
             return;
         }
 
-        // 3. REPETIR
         if (dicho.includes('repetir') || dicho.includes('otra vez')) {
             leerPacienteActual();
             return;
         }
 
-        // 4. ACEPTAR
         if (dicho.includes('acepto') || dicho.includes('confirmar') || dicho.includes('ok')) {
             if (!vozSilenciada) {
                 const synth = window.speechSynthesis;
-                synth.speak(new SpeechSynthesisUtterance("Confirmando operación."));
+                const utter = new SpeechSynthesisUtterance("Confirmando operación.");
+                utter.rate = velocidadLectura;
+                synth.speak(utter);
             }
             const btnConfirmar = document.querySelector('button[onclick*="Confirmar"]') || document.querySelector('#modalConfirmacion button');
             if (btnConfirmar) btnConfirmar.click();
             return;
         }
 
-        // 5. CAMBIAR CAMPOS ESPECÍFICOS
         if (dicho.includes('cambiar') || dicho.includes('modificar')) {
             let campoKey = 'mDet_';
             let nombreCampoTxt = 'detalle';
@@ -2852,7 +2889,6 @@ function escucharComandosGlobales() {
                 nombreCampoTxt = 'razón social';
                 selectorInput = 'rs';
             } else if (dicho.includes('fecha') || dicho.includes('desde') || dicho.includes('hasta')) {
-                // Manejamos fecha desde y hasta combinadas o separadas
                 campoKey = dicho.includes('hasta') ? 'mHasta_' : 'mDesde_';
                 nombreCampoTxt = dicho.includes('hasta') ? 'fecha hasta' : 'fecha desde';
                 selectorInput = dicho.includes('hasta') ? 'cobHasta' : 'cobDesde';
@@ -2862,56 +2898,98 @@ function escucharComandosGlobales() {
                 selectorInput = 'vto';
             }
 
+            window.ultimoCampoModificar = { campoKey, nombreCampoTxt, selectorInput };
+
             if (!vozSilenciada) {
                 const synth = window.speechSynthesis;
-                synth.speak(new SpeechSynthesisUtterance(`Dictando ${nombreCampoTxt}. Hable.`));
+                const utter = new SpeechSynthesisUtterance(`Dictando ${nombreCampoTxt}. Haga clic en el botón verde de dictar o hable ahora.`);
+                utter.rate = velocidadLectura;
+                synth.speak(utter);
             }
 
-            // Pausa de 2 segundos para barrer el eco de la bocina por completo antes de escuchar
-            setTimeout(() => {
-                const recEdicion = new SpeechRecognition();
-                recEdicion.lang = 'es-AR';
-                recEdicion.continuous = false; // Modo corto y seguro para que no acumule eco ni repeticiones
-                recEdicion.interimResults = false;
+            // Mostrar el botón manual para que el usuario pueda hacer clic y dictar con tranquilidad sin límite de tiempo corto
+            const btnManual = document.getElementById('btnManualDictado');
+            if (btnManual) {
+                btnManual.style.display = 'inline-block';
+                btnManual.innerText = `🎙️ Dictar ${nombreCampoTxt} (Hacer clic)`;
+            }
 
-                recEdicion.onresult = (eDet) => {
-                    const textoDictado = eDet.results[0][0].transcript.trim();
-                    const idx = indicePacienteActual;
-                    const inputTarget = document.getElementById(`${campoKey}${idx}`);
-                    
-                    if (inputTarget) {
-                        inputTarget.value = textoDictado;
-                        if (datosLoteActual[idx]) {
-                            datosLoteActual[idx][selectorInput] = textoDictado;
-                        }
-                        
-                        if (!vozSilenciada) {
-                            const synth = window.speechSynthesis;
-                            synth.speak(new SpeechSynthesisUtterance("Actualizado."));
-                        }
-                    }
-                    setTimeout(() => { leerPacienteActual(); }, 1200);
-                };
-
-                recEdicion.onerror = () => {
-                    setTimeout(() => { leerPacienteActual(); }, 1000);
-                };
-
-                try { recEdicion.start(); } catch(e) {}
-            }, 2000);
+            setTimeout(() => { activarEscuchaEdicion(campoKey, selectorInput); }, 1500);
             return;
         }
 
         if (!vozSilenciada) {
             const synth = window.speechSynthesis;
-            synth.speak(new SpeechSynthesisUtterance("No le entendí. Diga siguiente, cambiar detalle, aceptar o cancelar."));
-            setTimeout(() => { escucharComandosGlobales(); }, 2500);
+            const utter = new SpeechSynthesisUtterance("No le entendí. Diga siguiente, cambiar detalle, aceptar o cancelar.");
+            utter.rate = velocidadLectura;
+            synth.speak(utter);
+            setTimeout(() => { escucharComandosGlobales(); }, 2000);
         }
     };
 
     recognition.onerror = () => {};
     recognition.onend = () => {};
-}           
+}
+
+function activarEscuchaEdicion(campoKey, selectorInput) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recEdicion = new SpeechRecognition();
+    recEdicion.lang = 'es-AR';
+    recEdicion.continuous = true; // CAMBIADO A TRUE: Permite hablar de corrido frases largas sin que se corte a las 4 palabras
+    recEdicion.interimResults = true; // Muestra resultados intermedios para evitar cierres anticipados
+    recEdicionActiva = recEdicion;
+
+    let textoAcumuladoFinal = "";
+
+    recEdicion.onresult = (eDet) => {
+        let textoTemporal = "";
+        for (let i = eDet.resultIndex; i < eDet.results.length; ++i) {
+            textoTemporal += eDet.results[i][0].transcript;
+        }
+        textoAcumuladoFinal = textoTemporal.trim();
+
+        const idx = indicePacienteActual;
+        const inputTarget = document.getElementById(`${campoKey}${idx}`);
+        if (inputTarget) {
+            inputTarget.value = textoAcumuladoFinal;
+        }
+    };
+
+    recEdicion.onerror = () => {};
+    
+    recEdicion.onend = () => {
+        // Al terminar el dictado (por silencio o al hacer clic en el botón de parar)
+        const idx = indicePacienteActual;
+        if (datosLoteActual[idx] && textoAcumuladoFinal) {
+            datosLoteActual[idx][selectorInput] = textoAcumuladoFinal;
+        }
+
+        const btnManual = document.getElementById('btnManualDictado');
+        if (btnManual) btnManual.style.display = 'none';
+
+        if (!vozSilenciada) {
+            const synth = window.speechSynthesis;
+            const utter = new SpeechSynthesisUtterance("Actualizado.");
+            utter.rate = velocidadLectura;
+            synth.speak(utter);
+        }
+        setTimeout(() => { leerPacienteActual(); }, 1200);
+    };
+
+    try { 
+        recEdicion.start(); 
+    } catch(e) {}
+}
+
+function dispararDictadoManual() {
+    if (recEdicionActiva) {
+        try { 
+            recEdicionActiva.stop(); // Si hace clic de nuevo, detiene la escucha y guarda lo dictado
+        } catch(e) {}
+    }
+}  
                 
 </script>
 </body>
