@@ -1947,7 +1947,8 @@ window.abrirModalValidacion = function() {
         const fila = ck.closest('tr');
         const id = ck.getAttribute('data-id');
 		const pacienteDB = (window.dataFull || []).find(p => (p.id || p.id_db) === id);
-        const cobDesde = pacienteDB && pacienteDB.cobertura_desde ? pacienteDB.cobertura_desde : '';
+        const moduloFila = ck.getAttribute('data-mod') || pacienteDB?.modulo || pacienteDB?.mod || "REHAB";
+		const cobDesde = pacienteDB && pacienteDB.cobertura_desde ? pacienteDB.cobertura_desde : '';
         const cobHasta = pacienteDB && pacienteDB.cobertura_hasta ? pacienteDB.cobertura_hasta : '';
 		const cobDesdeFmt = cobDesde ? cobDesde.split('-').reverse().join('/') : 'S/F';
         const cobHastaFmt = cobHasta ? cobHasta.split('-').reverse().join('/') : 'S/F';
@@ -1964,12 +1965,11 @@ window.abrirModalValidacion = function() {
 			cobDesde: cobDesde,
             cobHasta: cobHasta
         };
-
-       window.datosParaConfirmar.push({
+	   window.datosParaConfirmar.push({
             datos: v, 
             fila: fila, 
             idx: index,
-            modulo: pacienteDB && pacienteDB.modulo ? pacienteDB.modulo : "REHAB"
+            modulo: moduloFila
         });
         html += `
         <div style="border:1px solid #ddd; padding:10px; margin-bottom:15px; border-radius:5px; background:#fdfdfd;">
