@@ -2017,17 +2017,20 @@ window.confirmarEnvioAFIP = async function(event) {
         return;
     }
 
-    // 1. Sincronizamos los datos editados del modal hacia la tabla principal (Individual o Lote Masivo)
+    // 1. Sincronizamos los datos y tildamos físicamente las filas correspondientes en la tabla principal
     window.datosParaConfirmar.forEach(item => {
         const index = item.idx;
         let fila = item.fila;
         
-        // Si viene de lote masivo y no tiene la fila asignada físicamente, la buscamos en la tabla por ID o CUIT
+        // Si viene del Lote Masivo y no tiene la fila asignada, la buscamos en la tabla por ID o CUIT
         if (!fila && (item.id || item.cuit)) {
             const filasTabla = document.querySelectorAll('tr');
             for (const f of filasTabla) {
                 const textoFila = f.innerText || '';
-                if ((item.id && textoFila.includes(item.id)) || (item.cuit && textoFila.includes(item.cuit))) {
+                const chkFila = f.querySelector('.ck');
+                const idFila = chkFila ? chkFila.getAttribute('data-id') : '';
+                
+                if ((item.id && idFila === String(item.id)) || (item.cuit && textoFila.includes(item.cuit))) {
                     fila = f;
                     break;
                 }
@@ -2050,9 +2053,11 @@ window.confirmarEnvioAFIP = async function(event) {
             setVal('.sel-ali', `mAli_${index}`);
             setVal('.det-val', `mDet_${index}`);
 
-            // TRUCO INVISIBLE: Tildamos el checkbox de la fila para que enviarAFIP_WS lo detecte perfecto
+            // 🔑 EL TRUCO CLAVE: Tildamos el checkbox para que enviarAFIP_WS lo detecte al instante
             const checkbox = fila.querySelector('.ck');
-            if (checkbox) checkbox.checked = true;
+            if (checkbox) {
+                checkbox.checked = true;
+            }
 
             const netoInput = fila.querySelector('.neto-edit');
             if (netoInput && typeof window.recalcularTotales === 'function') {
@@ -2075,7 +2080,7 @@ window.confirmarEnvioAFIP = async function(event) {
     const modal = document.getElementById('modalConfirmacion');
     if (modal) modal.style.display = 'none';
     
-    // 4. Disparamos tu función intacta para que haga el trabajo pesado hacia AFIP
+    // 4. Disparamos tu función original intacta (ahora sí encontrará los checkboxes marcados)
     if (typeof enviarAFIP_WS === 'function') {
         await enviarAFIP_WS();
     }
