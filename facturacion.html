@@ -2062,8 +2062,8 @@ window.confirmarEnvioAFIP = async function(event) {
         const fHasta = hastaInput ? hastaInput.value : "";
         const fVto = vtoInput ? vtoInput.value : "";
 
-        const idDelPaciente = item.id || item.nombrePaciente || "PACIENTE";
-        const nombreModulo = (item.modulo || "REHAB").toUpperCase();
+        const idDelPaciente = item.id || (item.datos ? (item.datos.id || item.datos.nombrePaciente) : null) || item.nombrePaciente || "PACIENTE";
+		const nombreModulo = (item.modulo || (item.datos ? item.datos.modulo : null) || "REHAB").toUpperCase();
 
         if (!cuitCapturado || cuitCapturado.length < 10) {
             alert(`⚠️ Error en ${idDelPaciente}: El CUIT está vacío o es inválido.`);
@@ -2202,7 +2202,9 @@ function abrirModalCFO(lote, nombreMes, anio, adv, fechasCalc) {
         const filaTab = document.querySelector(`tr[data-id="${e.id}"]`) || null;
 
         window.datosParaConfirmar.push({
-            datos: e,
+            id: e.id,
+			modulo: e.modulo,
+			datos: e,
             fila: filaTab,
             idx: i
         });
