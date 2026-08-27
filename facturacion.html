@@ -2011,24 +2011,13 @@ window.confirmarEnvioAFIP = async function(event) {
     const btn = event ? event.target : document.getElementById('btnConfirmarModal');
     if(btn) btn.disabled = true;
 
-    // Validación de seguridad por si el arreglo está vacío
     if (!window.datosParaConfirmar || window.datosParaConfirmar.length === 0) {
         alert("No hay datos para procesar.");
         if(btn) btn.disabled = false;
         return;
     }
 
-    // 1. Tomamos el primer elemento para actualizar el encabezado global
-    const primerIndex = window.datosParaConfirmar[0].idx;
-    const inputDesde = document.getElementById(`mDesde_${primerIndex}`);
-    const inputHasta = document.getElementById(`mHasta_${primerIndex}`);
-    const inputVto = document.getElementById(`mVto_${primerIndex}`);
-
-    if (inputDesde && document.getElementById('per_desde')) document.getElementById('per_desde').value = inputDesde.value;
-    if (inputHasta && document.getElementById('per_hasta')) document.getElementById('per_hasta').value = inputHasta.value;
-    if (inputVto && document.getElementById('vto_pago')) document.getElementById('vto_pago').value = inputVto.value;
-
-    // 2. Sincronizamos de vuelta los cambios editados del modal hacia la tabla principal de fondo
+    // 1. Sincronizamos los datos editados del modal hacia la tabla principal
     window.datosParaConfirmar.forEach(item => {
         const index = item.idx;
         const fila = item.fila;
@@ -2049,25 +2038,34 @@ window.confirmarEnvioAFIP = async function(event) {
             setVal('.sel-ali', `mAli_${index}`);
             setVal('.det-val', `mDet_${index}`);
 
-            const checkbox = fila.querySelector('.ck, input[type="checkbox"]');
+            // TRUCO INVISIBLE: Tildamos temporalmente el checkbox para que enviarAFIP_WS lo detecte perfecto
+            const checkbox = fila.querySelector('.ck');
             if (checkbox) checkbox.checked = true;
-			// Recalcula totales de la fila si la función existe
+
             const netoInput = fila.querySelector('.neto-edit');
             if (netoInput && typeof window.recalcularTotales === 'function') {
                 window.recalcularTotales(netoInput);
             }
         }
     });
+
+    // 2. Tomamos las fechas del primer elemento para actualizar el encabezado global
+    const primerIndex = window.datosParaConfirmar[0].idx;
+    const inputDesde = document.getElementById(`mDesde_${primerIndex}`);
+    const inputHasta = document.getElementById(`mHasta_${primerIndex}`);
+    const inputVto = document.getElementById(`mVto_${primerIndex}`);
+
+    if (inputDesde && document.getElementById('per_desde')) document.getElementById('per_desde').value = inputDesde.value;
+    if (inputHasta && document.getElementById('per_hasta')) document.getElementById('per_hasta').value = inputHasta.value;
+    if (inputVto && document.getElementById('vto_pago')) document.getElementById('vto_pago').value = inputVto.value;
     
-    // Cerramos el modal visualmente
+    // 3. Cerramos el modal visualmente
     const modal = document.getElementById('modalConfirmacion');
     if (modal) modal.style.display = 'none';
     
-    // 3. Ejecutamos el envío a AFIP (que ya leerá los inputs de la tabla actualizada y el encabezado)
+    // 4. ¡DISPARAMOS TU FUNCIÓN INTACTA! (Ella hace todo el trabajo pesado hacia AFIP tal como venía haciéndolo)
     if (typeof enviarAFIP_WS === 'function') {
         await enviarAFIP_WS();
-    } else {
-        console.warn("La función enviarAFIP_WS no está definida.");
     }
     
     if(btn) btn.disabled = false;
