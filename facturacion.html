@@ -2017,10 +2017,22 @@ window.confirmarEnvioAFIP = async function(event) {
         return;
     }
 
-    // 1. Sincronizamos los datos editados del modal hacia la tabla principal
+    // 1. Sincronizamos los datos editados del modal hacia la tabla principal (Individual o Lote Masivo)
     window.datosParaConfirmar.forEach(item => {
         const index = item.idx;
-        const fila = item.fila;
+        let fila = item.fila;
+        
+        // Si viene de lote masivo y no tiene la fila asignada físicamente, la buscamos en la tabla por ID o CUIT
+        if (!fila && (item.id || item.cuit)) {
+            const filasTabla = document.querySelectorAll('tr');
+            for (const f of filasTabla) {
+                const textoFila = f.innerText || '';
+                if ((item.id && textoFila.includes(item.id)) || (item.cuit && textoFila.includes(item.cuit))) {
+                    fila = f;
+                    break;
+                }
+            }
+        }
         
         if (fila) {
             const setVal = (selector, valId) => {
@@ -2038,7 +2050,7 @@ window.confirmarEnvioAFIP = async function(event) {
             setVal('.sel-ali', `mAli_${index}`);
             setVal('.det-val', `mDet_${index}`);
 
-            // TRUCO INVISIBLE: Tildamos temporalmente el checkbox para que enviarAFIP_WS lo detecte perfecto
+            // TRUCO INVISIBLE: Tildamos el checkbox de la fila para que enviarAFIP_WS lo detecte perfecto
             const checkbox = fila.querySelector('.ck');
             if (checkbox) checkbox.checked = true;
 
@@ -2063,7 +2075,7 @@ window.confirmarEnvioAFIP = async function(event) {
     const modal = document.getElementById('modalConfirmacion');
     if (modal) modal.style.display = 'none';
     
-    // 4. ¡DISPARAMOS TU FUNCIÓN INTACTA! (Ella hace todo el trabajo pesado hacia AFIP tal como venía haciéndolo)
+    // 4. Disparamos tu función intacta para que haga el trabajo pesado hacia AFIP
     if (typeof enviarAFIP_WS === 'function') {
         await enviarAFIP_WS();
     }
