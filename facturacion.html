@@ -2815,19 +2815,31 @@ RESOL. ${resolucionAplicada}`;
 
     abrirModalCFO(lote, nombreMes, anioFacturar, adv, fechasCalculadas);
 }
-
 // ============================================================
 // 🎙️ ASISTENTE DE VOZ PARA FACTURACIÓN
+// VERSIÓN ESTABLE
 // ============================================================
 
 let vozSilenciada = false;
+
 let recognitionGlobal = null;
-let indicePacienteActual = 0;
-let datosLoteActual = [];
-let velocidadLectura = 1.5;
 let recEdicionActiva = null;
 
+let indicePacienteActual = 0;
+let datosLoteActual = [];
+
+let velocidadLectura = 1.5;
+
 window.ultimoCampoModificar = null;
+
+
+// ============================================================
+// 🔐 ESTADO INTERNO DEL ASISTENTE
+// ============================================================
+
+let asistenteVozActivo = false;
+let dictadoEnCurso = false;
+let detenerDictadoSolicitado = false;
 
 
 // ============================================================
@@ -2835,6 +2847,7 @@ window.ultimoCampoModificar = null;
 // ============================================================
 
 function toggleVozSilencio() {
+
     vozSilenciada = !vozSilenciada;
 
     detenerTodoElHabla();
@@ -2842,6 +2855,7 @@ function toggleVozSilencio() {
     const btn = document.getElementById('btnMuteVoz');
 
     if (btn) {
+
         btn.innerHTML = vozSilenciada
             ? '🔇 Voz Silenciada'
             : '🔊 Voz Activa';
@@ -2850,18 +2864,21 @@ function toggleVozSilencio() {
 
 
 // ============================================================
-// ⚡ VELOCIDAD
+// ⚡ VELOCIDAD DE LECTURA
 // ============================================================
 
 function cambiarVelocidadVoz() {
 
     velocidadLectura =
-        velocidadLectura === 1.5 ? 1.0 : 1.5;
+        velocidadLectura === 1.5
+            ? 1.0
+            : 1.5;
 
     const btnVel =
         document.getElementById('btnVelVoz');
 
     if (btnVel) {
+
         btnVel.innerHTML =
             `⚡ Velocidad: ${velocidadLectura}x`;
     }
@@ -2874,48 +2891,113 @@ function cambiarVelocidadVoz() {
 
 function detenerTodoElHabla() {
 
+    asistenteVozActivo = false;
+
+    detenerDictadoSolicitado = true;
+
+    // --------------------------------------------------------
+    // SÍNTESIS
+    // --------------------------------------------------------
+
     if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
+
+        try {
+            window.speechSynthesis.cancel();
+        } catch (e) {}
     }
+
+
+    // --------------------------------------------------------
+    // RECONOCIMIENTO GLOBAL
+    // --------------------------------------------------------
 
     if (recognitionGlobal) {
 
-        try {
-            recognitionGlobal.onend = null;
-            recognitionGlobal.onerror = null;
-            recognitionGlobal.onresult = null;
-            recognitionGlobal.stop();
-        } catch (e) {}
+        const rec = recognitionGlobal;
 
         recognitionGlobal = null;
+
+        try {
+
+            rec.onresult = null;
+            rec.onerror = null;
+            rec.onend = null;
+
+            rec.stop();
+
+        } catch (e) {}
     }
+
+
+    // --------------------------------------------------------
+    // DICTADO
+    // --------------------------------------------------------
 
     if (recEdicionActiva) {
 
-        try {
-
-            if (
-                recEdicionActiva
-                    ._detenerDefinitivamente
-            ) {
-
-                recEdicionActiva
-                    ._detenerDefinitivamente();
-
-            } else {
-
-                recEdicionActiva.stop();
-            }
-
-        } catch (e) {}
+        const rec = recEdicionActiva;
 
         recEdicionActiva = null;
+
+        try {
+
+            rec.onresult = null;
+            rec.onerror = null;
+            rec.onend = null;
+
+            rec.stop();
+
+        } catch (e) {}
     }
+
+
+    dictadoEnCurso = false;
+
+    ocultarBotonDictado();
 }
 
 
 // ============================================================
-// 🎙️ INICIAR ASISTENTE DEL MODAL
+// 🎛️ BOTÓN DE DICTADO
+// ============================================================
+
+function mostrarBotonDictado(nombreCampo) {
+
+    const btn =
+        document.getElementById(
+            'btnManualDictado'
+        );
+
+    if (!btn) return;
+
+    btn.style.display = 'inline-block';
+
+    btn.innerText =
+        `🎙️ Dictar ${nombreCampo}`;
+
+    btn.style.background =
+        '#27ae60';
+}
+
+
+function ocultarBotonDictado() {
+
+    const btn =
+        document.getElementById(
+            'btnManualDictado'
+        );
+
+    if (!btn) return;
+
+    btn.style.display = 'none';
+
+    btn.innerText =
+        '🎙️ Dictar';
+}
+
+
+// ============================================================
+// 🎙️ INICIAR ASISTENTE
 // ============================================================
 
 function iniciarAsistenteVozModal(loteDatos) {
@@ -2924,17 +3006,39 @@ function iniciarAsistenteVozModal(loteDatos) {
 
     detenerTodoElHabla();
 
+    asistenteVozActivo = true;
+
+    detenerDictadoSolicitado = false;
+
     datosLoteActual =
-        (loteDatos || []).map(item =>
-            item && item.datos
-                ? item.datos
-                : item
-        );
+        (loteDatos || []).map(item => {
+
+            if (
+                item &&
+                item.datos
+            ) {
+                return item.datos;
+            }
+
+            return item;
+        });
 
     indicePacienteActual = 0;
 
-    if (!datosLoteActual.length) return;
 
+    if (!datosLoteActual.length) {
+
+        console.warn(
+            'No hay datos para leer.'
+        );
+
+        return;
+    }
+
+
+    // ========================================================
+    // CREAR BARRA DE VOZ
+    // ========================================================
 
     let contenedorControlVoz =
         document.getElementById(
@@ -2966,13 +3070,14 @@ function iniciarAsistenteVozModal(loteDatos) {
                 align-items:center;
                 flex-wrap:wrap;
                 background:#e8f4fd;
-                padding:8px;
+                padding:10px;
                 border-radius:6px;
                 font-size:12px;
             `;
 
 
             barra.innerHTML = `
+
                 <span>
                     <b>🎤 Asistente por Voz:</b>
                 </span>
@@ -2981,7 +3086,7 @@ function iniciarAsistenteVozModal(loteDatos) {
                     id="btnVelVoz"
                     onclick="cambiarVelocidadVoz()"
                     style="
-                        padding:4px 8px;
+                        padding:5px 9px;
                         background:#2980b9;
                         color:white;
                         border:none;
@@ -2992,11 +3097,12 @@ function iniciarAsistenteVozModal(loteDatos) {
                     ⚡ Velocidad: 1.5x
                 </button>
 
+
                 <button
                     id="btnManualDictado"
                     onclick="dispararDictadoManual()"
                     style="
-                        padding:5px 10px;
+                        padding:6px 12px;
                         background:#27ae60;
                         color:white;
                         border:none;
@@ -3023,64 +3129,109 @@ function iniciarAsistenteVozModal(loteDatos) {
 
 
 // ============================================================
+// 🔊 HABLAR
+// ============================================================
+
+function hablarTexto(texto, callback) {
+
+    if (vozSilenciada) {
+
+        if (callback) callback();
+
+        return;
+    }
+
+
+    if (!window.speechSynthesis) {
+
+        if (callback) callback();
+
+        return;
+    }
+
+
+    try {
+
+        window.speechSynthesis.cancel();
+
+    } catch (e) {}
+
+
+    const utter =
+        new SpeechSynthesisUtterance(texto);
+
+    utter.lang = 'es-AR';
+
+    utter.rate =
+        velocidadLectura;
+
+    utter.pitch = 1;
+
+    utter.volume = 1;
+
+
+    utter.onend = () => {
+
+        if (callback) {
+
+            setTimeout(
+                callback,
+                500
+            );
+        }
+    };
+
+
+    utter.onerror = () => {
+
+        if (callback) {
+
+            setTimeout(
+                callback,
+                500
+            );
+        }
+    };
+
+
+    window.speechSynthesis.speak(utter);
+}
+
+
+// ============================================================
 // 📖 LEER PACIENTE ACTUAL
 // ============================================================
 
 function leerPacienteActual() {
 
+    if (!asistenteVozActivo) return;
+
     if (vozSilenciada) return;
 
-    const synth =
-        window.speechSynthesis;
 
-    if (!synth) return;
+    detenerDictadoSolicitado = false;
 
-    detenerTodoElHabla();
+    ocultarBotonDictado();
 
-
-    const btnManual =
-        document.getElementById(
-            'btnManualDictado'
-        );
-
-    if (btnManual) {
-        btnManual.style.display =
-            'none';
-    }
-
-
-    // --------------------------------------------------------
-    // FIN DEL LOTE
-    // --------------------------------------------------------
 
     if (
         indicePacienteActual >=
         datosLoteActual.length
     ) {
 
-        const utterFin =
-            new SpeechSynthesisUtterance(
-                'Fin del lote. Diga aceptar para confirmar o cancelar para salir.'
-            );
+        hablarTexto(
+            'Fin del lote. Diga aceptar para confirmar o cancelar para salir.',
+            () => {
 
-        utterFin.lang = 'es-AR';
-        utterFin.rate =
-            velocidadLectura;
+                if (
+                    asistenteVozActivo &&
+                    !vozSilenciada
+                ) {
 
-
-        utterFin.onend = () => {
-
-            if (!vozSilenciada) {
-
-                setTimeout(
-                    escucharComandosGlobales,
-                    500
-                );
+                    escucharComandosGlobales();
+                }
             }
-        };
-
-
-        synth.speak(utterFin);
+        );
 
         return;
     }
@@ -3095,16 +3246,20 @@ function leerPacienteActual() {
     const nroItem =
         indicePacienteActual + 1;
 
+
     const totalItems =
         datosLoteActual.length;
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // CUIT
-    // --------------------------------------------------------
-    // NO se modifica la lógica fiscal.
-    // Solamente se determina qué leer por voz.
-    // --------------------------------------------------------
+    // ========================================================
+    // IMPORTANTE:
+    // NO TOCAMOS EL VALOR FISCAL.
+    //
+    // El CUIT sigue viniendo del sistema.
+    // Acá solamente se utiliza para lectura.
+    // ========================================================
 
     const cuitMostrar =
         p.cuit &&
@@ -3114,63 +3269,86 @@ function leerPacienteActual() {
 
 
     const textoLectura = `
-        Paciente ${nroItem} de ${totalItems}.
-        Razón social: ${p.rs || 'Sin datos'}.
-        CUIT: ${cuitMostrar}.
-        Tipo: ${p.tipo || 'B'}.
-        Domicilio: ${p.dom || 'Sin domicilio'}.
-        Monto Neto: ${p.neto || 0} pesos.
-        Exento: ${p.exento || 0} pesos.
-        Alícuota: ${p.ali || 0} por ciento.
-        Detalle: ${p.detalle || 'Sin detalle'}.
 
-        Diga siguiente,
+        Paciente ${nroItem} de ${totalItems}.
+
+        Razón social:
+        ${p.rs || 'Sin datos'}.
+
+        CUIT:
+        ${cuitMostrar}.
+
+        Tipo:
+        ${p.tipo || 'B'}.
+
+        Domicilio:
+        ${p.dom || 'Sin domicilio'}.
+
+        Monto neto:
+        ${p.neto || 0} pesos.
+
+        Exento:
+        ${p.exento || 0} pesos.
+
+        Alícuota:
+        ${p.ali || 0} por ciento.
+
+        Detalle:
+        ${p.detalle || 'Sin detalle'}.
+
+        Diga:
+
+        siguiente,
+
         repetir,
-        cambiar detalle,
+
         cambiar monto,
+
         cambiar exento,
+
+        cambiar detalle,
+
         cambiar CUIT,
+
         cambiar domicilio,
+
         cambiar razón social,
-        aceptar
+
+        aceptar,
+
         o cancelar.
     `;
 
 
-    const utterance =
-        new SpeechSynthesisUtterance(
-            textoLectura
-        );
+    hablarTexto(
+        textoLectura,
+        () => {
 
+            if (
+                asistenteVozActivo &&
+                !vozSilenciada
+            ) {
 
-    utterance.lang = 'es-AR';
-    utterance.rate =
-        velocidadLectura;
-
-
-    utterance.onend = () => {
-
-        if (!vozSilenciada) {
-
-            setTimeout(
-                escucharComandosGlobales,
-                700
-            );
+                escucharComandosGlobales();
+            }
         }
-    };
-
-
-    synth.speak(utterance);
+    );
 }
 
 
 // ============================================================
-// 🎧 COMANDOS GLOBALES
+// 🎧 ESCUCHAR COMANDOS
 // ============================================================
 
 function escucharComandosGlobales() {
 
+    if (!asistenteVozActivo) return;
+
     if (vozSilenciada) return;
+
+
+    // Si ya hay reconocimiento activo,
+    // no creamos otro.
 
     if (recognitionGlobal) return;
 
@@ -3182,8 +3360,8 @@ function escucharComandosGlobales() {
 
     if (!SpeechRecognition) {
 
-        console.warn(
-            'Este navegador no soporta reconocimiento de voz.'
+        alert(
+            'Tu navegador no soporta reconocimiento de voz. Utilizá Google Chrome.'
         );
 
         return;
@@ -3197,48 +3375,76 @@ function escucharComandosGlobales() {
     recognition.lang =
         'es-AR';
 
+
     recognition.continuous =
         false;
+
 
     recognition.interimResults =
         false;
 
+
     recognition.maxAlternatives =
-        1;
+        3;
 
 
     recognitionGlobal =
         recognition;
 
 
-    try {
-        recognition.start();
-    } catch (e) {
-        recognitionGlobal = null;
-        return;
-    }
+    let resultadoProcesado = false;
 
+
+    // ========================================================
+    // RESULTADO
+    // ========================================================
 
     recognition.onresult =
         (event) => {
 
-            if (
-                !event.results ||
-                !event.results.length
-            ) {
+            if (resultadoProcesado) {
                 return;
             }
 
+            resultadoProcesado = true;
 
-            const dicho =
-                event.results[0][0]
-                    .transcript
-                    .toLowerCase()
-                    .trim();
+
+            let dicho = '';
+
+
+            // ------------------------------------------------
+            // Tomamos la mejor alternativa
+            // ------------------------------------------------
+
+            if (
+                event.results &&
+                event.results[0]
+            ) {
+
+                dicho =
+                    event.results[0][0]
+                        .transcript
+                        .toLowerCase()
+                        .trim();
+            }
 
 
             console.log(
-                '🗣️ Comando detectado:',
+                '🗣️ COMANDO DETECTADO:',
+                dicho
+            );
+
+
+            // ------------------------------------------------
+            // Normalizar
+            // ------------------------------------------------
+
+            dicho =
+                normalizarTextoVoz(dicho);
+
+
+            console.log(
+                '🧠 COMANDO NORMALIZADO:',
                 dicho
             );
 
@@ -3248,100 +3454,251 @@ function escucharComandosGlobales() {
             } catch (e) {}
 
 
-            recognitionGlobal = null;
-
-
-            // ------------------------------------------------
-            // CANCELAR
-            // ------------------------------------------------
-
             if (
-                dicho.includes('cancelar') ||
-                dicho.includes('cancela') ||
-                dicho.includes('cerrar') ||
-                dicho.includes('salir')
+                recognitionGlobal ===
+                recognition
             ) {
 
-                detenerTodoElHabla();
+                recognitionGlobal =
+                    null;
+            }
 
 
-                const modalEl =
-                    document.getElementById(
-                        'modalConfirmacion'
+            procesarComandoVoz(dicho);
+        };
+
+
+    // ========================================================
+    // ERROR
+    // ========================================================
+
+    recognition.onerror =
+        (event) => {
+
+            console.log(
+                '⚠️ Error reconocimiento:',
+                event.error
+            );
+
+
+            if (
+                recognitionGlobal ===
+                recognition
+            ) {
+
+                recognitionGlobal =
+                    null;
+            }
+
+
+            // No castigamos errores normales.
+            if (
+                event.error ===
+                    'no-speech'
+            ) {
+
+                if (
+                    asistenteVozActivo &&
+                    !vozSilenciada
+                ) {
+
+                    setTimeout(
+                        escucharComandosGlobales,
+                        400
                     );
-
-
-                if (modalEl) {
-                    modalEl.style.display =
-                        'none';
                 }
 
                 return;
             }
 
 
-            // ------------------------------------------------
-            // SIGUIENTE
-            // ------------------------------------------------
-
             if (
-                dicho.includes('siguiente') ||
-                dicho.includes('próximo') ||
-                dicho.includes('proximo') ||
-                dicho.includes('otro')
+                event.error ===
+                    'aborted'
             ) {
-
-                indicePacienteActual++;
-
-                leerPacienteActual();
 
                 return;
             }
 
 
-            // ------------------------------------------------
-            // REPETIR
-            // ------------------------------------------------
-
             if (
-                dicho.includes('repetir') ||
-                dicho.includes('otra vez')
+                event.error ===
+                    'not-allowed' ||
+                event.error ===
+                    'service-not-allowed'
             ) {
 
-                leerPacienteActual();
+                alert(
+                    'Chrome no tiene permiso para usar el micrófono.'
+                );
+
+                asistenteVozActivo =
+                    false;
 
                 return;
             }
+        };
 
 
-            // ------------------------------------------------
-            // ACEPTAR
-            // ------------------------------------------------
+    // ========================================================
+    // FIN
+    // ========================================================
+
+    recognition.onend =
+        () => {
 
             if (
-                dicho.includes('aceptar') ||
-                dicho.includes('acepto') ||
-                dicho.includes('confirmar') ||
-                dicho === 'ok'
+                recognitionGlobal ===
+                recognition
             ) {
 
-                if (!vozSilenciada) {
+                recognitionGlobal =
+                    null;
+            }
+        };
 
-                    const utter =
-                        new SpeechSynthesisUtterance(
-                            'Confirmando operación.'
-                        );
 
-                    utter.lang =
-                        'es-AR';
+    // ========================================================
+    // START
+    // ========================================================
 
-                    utter.rate =
-                        velocidadLectura;
+    try {
 
-                    window.speechSynthesis
-                        .speak(utter);
-                }
+        recognition.start();
 
+        console.log(
+            '🎧 Escuchando comando...'
+        );
+
+    } catch (e) {
+
+        console.log(
+            '⚠️ No se pudo iniciar reconocimiento:',
+            e
+        );
+
+
+        if (
+            recognitionGlobal ===
+            recognition
+        ) {
+
+            recognitionGlobal =
+                null;
+        }
+
+
+        setTimeout(
+            escucharComandosGlobales,
+            600
+        );
+    }
+}
+
+
+// ============================================================
+// 🧠 NORMALIZAR TEXTO
+// ============================================================
+
+function normalizarTextoVoz(texto) {
+
+    if (!texto) return '';
+
+
+    return texto
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[¿?¡!.,;:]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+
+// ============================================================
+// 🧠 PROCESAR COMANDO
+// ============================================================
+
+function procesarComandoVoz(dicho) {
+
+    if (!dicho) {
+
+        volverAEscucharComando();
+        return;
+    }
+
+
+    // ========================================================
+    // CANCELAR
+    // ========================================================
+
+    if (
+        contieneAlguna(
+            dicho,
+            [
+                'cancelar',
+                'cancela',
+                'cerrar',
+                'salir',
+                'anular'
+            ]
+        )
+    ) {
+
+        asistenteVozActivo =
+            false;
+
+        detenerTodoElHabla();
+
+
+        const modalEl =
+            document.getElementById(
+                'modalConfirmacion'
+            );
+
+
+        if (modalEl) {
+
+            modalEl.style.display =
+                'none';
+        }
+
+
+        return;
+    }
+
+
+    // ========================================================
+    // ACEPTAR
+    // ========================================================
+
+    if (
+        contieneAlguna(
+            dicho,
+            [
+                'aceptar',
+                'acepto',
+                'confirmar',
+                'confirmo',
+                'confirmar factura',
+                'ok'
+            ]
+        )
+    ) {
+
+        asistenteVozActivo =
+            false;
+
+        detenerTodoElHabla();
+
+
+        hablarTexto(
+            'Confirmando operación.'
+        );
+
+
+        setTimeout(
+            () => {
 
                 const btnConfirmar =
                     document.querySelector(
@@ -3353,322 +3710,363 @@ function escucharComandosGlobales() {
 
 
                 if (btnConfirmar) {
+
                     btnConfirmar.click();
-                }
 
-                return;
-            }
+                } else {
 
-
-            // ------------------------------------------------
-            // CAMBIAR / MODIFICAR
-            // ------------------------------------------------
-
-            if (
-                dicho.includes('cambiar') ||
-                dicho.includes('modificar')
-            ) {
-
-                let campoKey =
-                    'mDet_';
-
-                let nombreCampoTxt =
-                    'detalle';
-
-                let selectorInput =
-                    'detalle';
-
-
-                // --------------------------------------------
-                // MONTO NETO
-                // --------------------------------------------
-
-                if (
-                    dicho.includes(
-                        'monto neto'
-                    ) ||
-                    (
-                        dicho.includes('monto') &&
-                        !dicho.includes('exento')
-                    )
-                ) {
-
-                    campoKey =
-                        'mNeto_';
-
-                    nombreCampoTxt =
-                        'monto neto';
-
-                    selectorInput =
-                        'neto';
-                }
-
-
-                // --------------------------------------------
-                // EXENTO
-                // --------------------------------------------
-
-                else if (
-                    dicho.includes('exento')
-                ) {
-
-                    campoKey =
-                        'mExento_';
-
-                    nombreCampoTxt =
-                        'monto exento';
-
-                    selectorInput =
-                        'exento';
-                }
-
-
-                // --------------------------------------------
-                // CUIT
-                // --------------------------------------------
-
-                else if (
-                    dicho.includes('cuit')
-                ) {
-
-                    campoKey =
-                        'mCuit_';
-
-                    nombreCampoTxt =
-                        'CUIT';
-
-                    selectorInput =
-                        'cuit';
-                }
-
-
-                // --------------------------------------------
-                // DOMICILIO
-                // --------------------------------------------
-
-                else if (
-                    dicho.includes('domicilio')
-                ) {
-
-                    campoKey =
-                        'mDom_';
-
-                    nombreCampoTxt =
-                        'domicilio';
-
-                    selectorInput =
-                        'dom';
-                }
-
-
-                // --------------------------------------------
-                // RAZÓN SOCIAL
-                // --------------------------------------------
-
-                else if (
-                    dicho.includes('razón social') ||
-                    dicho.includes('razon social') ||
-                    dicho.includes('nombre')
-                ) {
-
-                    campoKey =
-                        'mRs_';
-
-                    nombreCampoTxt =
-                        'razón social';
-
-                    selectorInput =
-                        'rs';
-                }
-
-
-                // --------------------------------------------
-                // FECHA DESDE
-                // --------------------------------------------
-
-                else if (
-                    dicho.includes('fecha') &&
-                    dicho.includes('desde')
-                ) {
-
-                    campoKey =
-                        'mDesde_';
-
-                    nombreCampoTxt =
-                        'fecha desde';
-
-                    selectorInput =
-                        'cobDesde';
-                }
-
-
-                // --------------------------------------------
-                // FECHA HASTA
-                // --------------------------------------------
-
-                else if (
-                    dicho.includes('fecha') &&
-                    dicho.includes('hasta')
-                ) {
-
-                    campoKey =
-                        'mHasta_';
-
-                    nombreCampoTxt =
-                        'fecha hasta';
-
-                    selectorInput =
-                        'cobHasta';
-                }
-
-
-                // --------------------------------------------
-                // VENCIMIENTO
-                // --------------------------------------------
-
-                else if (
-                    dicho.includes('vencimiento') ||
-                    dicho.includes('vto')
-                ) {
-
-                    campoKey =
-                        'mVto_';
-
-                    nombreCampoTxt =
-                        'vencimiento de pago';
-
-                    selectorInput =
-                        'vto';
-                }
-
-
-                window.ultimoCampoModificar = {
-                    campoKey,
-                    nombreCampoTxt,
-                    selectorInput
-                };
-
-
-                const btnManual =
-                    document.getElementById(
-                        'btnManualDictado'
+                    console.warn(
+                        'No se encontró el botón de confirmar.'
                     );
-
-
-                if (btnManual) {
-
-                    btnManual.style.display =
-                        'inline-block';
-
-                    btnManual.innerText =
-                        `🎙️ Dictar ${nombreCampoTxt}`;
                 }
 
-
-                if (!vozSilenciada) {
-
-                    const utter =
-                        new SpeechSynthesisUtterance(
-                            `Campo ${nombreCampoTxt} seleccionado. Presione el botón verde para comenzar a dictar.`
-                        );
+            },
+            500
+        );
 
 
-                    utter.lang =
-                        'es-AR';
-
-                    utter.rate =
-                        velocidadLectura;
+        return;
+    }
 
 
-                    window.speechSynthesis
-                        .speak(utter);
-                }
+    // ========================================================
+    // SIGUIENTE
+    // ========================================================
+
+    if (
+        contieneAlguna(
+            dicho,
+            [
+                'siguiente',
+                'proximo',
+                'otro paciente',
+                'otro'
+            ]
+        )
+    ) {
+
+        indicePacienteActual++;
+
+        leerPacienteActual();
+
+        return;
+    }
 
 
-                // IMPORTANTE:
-                // NO arrancamos el reconocimiento
-                // automáticamente.
-                //
-                // El usuario pulsa el botón verde.
-                return;
-            }
+    // ========================================================
+    // REPETIR
+    // ========================================================
+
+    if (
+        contieneAlguna(
+            dicho,
+            [
+                'repetir',
+                'otra vez',
+                'repeti',
+                'repetir paciente'
+            ]
+        )
+    ) {
+
+        leerPacienteActual();
+
+        return;
+    }
 
 
-            // ------------------------------------------------
-            // NO ENTENDIDO
-            // ------------------------------------------------
+    // ========================================================
+    // CAMBIAR CAMPO
+    // ========================================================
 
-            if (!vozSilenciada) {
+    if (
+        dicho.includes('cambiar') ||
+        dicho.includes('modificar') ||
+        dicho.includes('editar')
+    ) {
 
-                const utter =
-                    new SpeechSynthesisUtterance(
-                        'No le entendí. Diga siguiente, repetir, cambiar monto, cambiar exento, cambiar detalle, aceptar o cancelar.'
-                    );
+        seleccionarCampoPorVoz(dicho);
 
-
-                utter.lang =
-                    'es-AR';
-
-                utter.rate =
-                    velocidadLectura;
+        return;
+    }
 
 
-                utter.onend = () => {
+    // ========================================================
+    // SI NO ENTENDIÓ
+    // ========================================================
 
-                    if (!vozSilenciada) {
-
-                        setTimeout(
-                            escucharComandosGlobales,
-                            800
-                        );
-                    }
-                };
+    console.log(
+        '❌ Comando no reconocido:',
+        dicho
+    );
 
 
-                window.speechSynthesis
-                    .speak(utter);
-            }
-        };
+    hablarTexto(
+        'No entendí el comando. Diga siguiente, repetir, cambiar monto, cambiar exento, cambiar detalle, aceptar o cancelar.',
+        () => {
 
-
-    recognition.onerror =
-        (event) => {
-
-            console.log(
-                '⚠️ Error comando:',
-                event.error
-            );
-
-
-            if (
-                recognitionGlobal ===
-                recognition
-            ) {
-                recognitionGlobal = null;
-            }
-
-
-            // No mostramos errores normales
-            if (
-                event.error ===
-                    'no-speech' ||
-                event.error ===
-                    'aborted'
-            ) {
-                return;
-            }
-        };
-
-
-    recognition.onend = () => {
-
-        if (
-            recognitionGlobal ===
-            recognition
-        ) {
-            recognitionGlobal = null;
+            volverAEscucharComando();
         }
+    );
+}
+
+
+// ============================================================
+// 🔎 CONTIENE ALGUNA
+// ============================================================
+
+function contieneAlguna(texto, palabras) {
+
+    return palabras.some(
+        palabra =>
+            texto === palabra ||
+            texto.includes(palabra)
+    );
+}
+
+
+// ============================================================
+// 🔄 VOLVER A ESCUCHAR
+// ============================================================
+
+function volverAEscucharComando() {
+
+    if (!asistenteVozActivo) return;
+
+    if (vozSilenciada) return;
+
+
+    setTimeout(
+        () => {
+
+            if (
+                asistenteVozActivo &&
+                !vozSilenciada
+            ) {
+
+                escucharComandosGlobales();
+            }
+
+        },
+        500
+    );
+}
+
+
+// ============================================================
+// 🎯 SELECCIONAR CAMPO
+// ============================================================
+
+function seleccionarCampoPorVoz(dicho) {
+
+    let campoKey =
+        'mDet_';
+
+    let nombreCampoTxt =
+        'detalle';
+
+    let selectorInput =
+        'detalle';
+
+
+    // ========================================================
+    // MONTO NETO
+    // ========================================================
+
+    if (
+        dicho.includes('monto neto') ||
+        dicho.includes('monto') ||
+        dicho.includes('neto')
+    ) {
+
+        campoKey =
+            'mNeto_';
+
+        nombreCampoTxt =
+            'monto neto';
+
+        selectorInput =
+            'neto';
+    }
+
+
+    // ========================================================
+    // EXENTO
+    // ========================================================
+
+    else if (
+        dicho.includes('exento')
+    ) {
+
+        campoKey =
+            'mExento_';
+
+        nombreCampoTxt =
+            'monto exento';
+
+        selectorInput =
+            'exento';
+    }
+
+
+    // ========================================================
+    // CUIT
+    // ========================================================
+
+    else if (
+        dicho.includes('cuit')
+    ) {
+
+        campoKey =
+            'mCuit_';
+
+        nombreCampoTxt =
+            'CUIT';
+
+        selectorInput =
+            'cuit';
+    }
+
+
+    // ========================================================
+    // DOMICILIO
+    // ========================================================
+
+    else if (
+        dicho.includes('domicilio')
+    ) {
+
+        campoKey =
+            'mDom_';
+
+        nombreCampoTxt =
+            'domicilio';
+
+        selectorInput =
+            'dom';
+    }
+
+
+    // ========================================================
+    // RAZÓN SOCIAL
+    // ========================================================
+
+    else if (
+        dicho.includes('razon social') ||
+        dicho.includes('nombre')
+    ) {
+
+        campoKey =
+            'mRs_';
+
+        nombreCampoTxt =
+            'razón social';
+
+        selectorInput =
+            'rs';
+    }
+
+
+    // ========================================================
+    // FECHA DESDE
+    // ========================================================
+
+    else if (
+        dicho.includes('fecha desde') ||
+        dicho.includes('desde')
+    ) {
+
+        campoKey =
+            'mDesde_';
+
+        nombreCampoTxt =
+            'fecha desde';
+
+        selectorInput =
+            'cobDesde';
+    }
+
+
+    // ========================================================
+    // FECHA HASTA
+    // ========================================================
+
+    else if (
+        dicho.includes('fecha hasta') ||
+        dicho.includes('hasta')
+    ) {
+
+        campoKey =
+            'mHasta_';
+
+        nombreCampoTxt =
+            'fecha hasta';
+
+        selectorInput =
+            'cobHasta';
+    }
+
+
+    // ========================================================
+    // VENCIMIENTO
+    // ========================================================
+
+    else if (
+        dicho.includes('vencimiento') ||
+        dicho.includes('vto')
+    ) {
+
+        campoKey =
+            'mVto_';
+
+        nombreCampoTxt =
+            'vencimiento de pago';
+
+        selectorInput =
+            'vto';
+    }
+
+
+    // ========================================================
+    // GUARDAR CAMPO
+    // ========================================================
+
+    window.ultimoCampoModificar = {
+
+        campoKey,
+        nombreCampoTxt,
+        selectorInput
     };
+
+
+    console.log(
+        '🎯 Campo seleccionado:',
+        window.ultimoCampoModificar
+    );
+
+
+    // ========================================================
+    // MOSTRAR BOTÓN
+    // ========================================================
+
+    mostrarBotonDictado(
+        nombreCampoTxt
+    );
+
+
+    // ========================================================
+    // AVISAR
+    // ========================================================
+
+    hablarTexto(
+        `Campo ${nombreCampoTxt} seleccionado. Presione el botón verde para comenzar a dictar.`,
+        () => {
+
+            // NO escuchamos automáticamente.
+            //
+            // El usuario tiene que apretar el botón.
+        }
+    );
 }
 
 
@@ -3682,27 +4080,25 @@ function numeroDesdeTexto(texto) {
 
 
     let t =
-        texto
-            .toLowerCase()
+        normalizarTextoVoz(texto);
+
+
+    t =
+        t
+            .replace(/\bpesos?\b/g, '')
+            .replace(/\bpeso\b/g, '')
+            .replace(/\bcon\b/g, ' ')
+            .replace(/\by\b/g, ' ')
+            .replace(/\s+/g, ' ')
             .trim();
 
 
-    // --------------------------------------------
-    // Limpiar palabras que no forman parte
-    // del número.
-    // --------------------------------------------
-
-    t = t
-        .replace(/\bpesos?\b/g, '')
-        .replace(/\bcon\b/g, ' ')
-        .replace(/\by\b/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+    if (!t) return null;
 
 
-    // --------------------------------------------
-    // Si ya viene como número
-    // --------------------------------------------
+    // ========================================================
+    // NÚMERO DIRECTO
+    // ========================================================
 
     const numeroDirecto =
         t.match(
@@ -3712,31 +4108,89 @@ function numeroDesdeTexto(texto) {
 
     if (numeroDirecto) {
 
-        let limpio =
-            t.replace(/\$/g, '')
-             .replace(/\./g, '')
-             .replace(/,/g, '.')
-             .trim();
+        let numeroTexto =
+            numeroDirecto[0]
+                .replace(/\$/g, '')
+                .trim();
 
 
-        const numero =
-            parseFloat(limpio);
+        let valor;
 
 
-        if (!isNaN(numero)) {
-            return numero;
+        // 150.500,25
+
+        if (
+            numeroTexto.includes('.') &&
+            numeroTexto.includes(',')
+        ) {
+
+            valor =
+                parseFloat(
+                    numeroTexto
+                        .replace(/\./g, '')
+                        .replace(',', '.')
+                );
+        }
+
+
+        // 150.500
+        //
+        // En facturación argentina
+        // lo interpretamos como 150500.
+
+        else if (
+            numeroTexto.includes('.')
+        ) {
+
+            valor =
+                parseFloat(
+                    numeroTexto
+                        .replace(/\./g, '')
+                );
+        }
+
+
+        // 150500,50
+
+        else if (
+            numeroTexto.includes(',')
+        ) {
+
+            valor =
+                parseFloat(
+                    numeroTexto
+                        .replace(',', '.')
+                );
+        }
+
+
+        else {
+
+            valor =
+                parseFloat(
+                    numeroTexto
+                );
+        }
+
+
+        if (!isNaN(valor)) {
+
+            return valor;
         }
     }
 
 
-    // --------------------------------------------
-    // Diccionario
-    // --------------------------------------------
+    // ========================================================
+    // PALABRAS
+    // ========================================================
 
     const unidades = {
+
         cero: 0,
+
         uno: 1,
         una: 1,
+
         dos: 2,
         tres: 3,
         cuatro: 4,
@@ -3745,18 +4199,21 @@ function numeroDesdeTexto(texto) {
         siete: 7,
         ocho: 8,
         nueve: 9,
+
         diez: 10,
         once: 11,
         doce: 12,
         trece: 13,
         catorce: 14,
         quince: 15,
+
         dieciseis: 16,
-        dieciséis: 16,
         diecisiete: 17,
         dieciocho: 18,
         diecinueve: 19,
+
         veinte: 20,
+
         treinta: 30,
         cuarenta: 40,
         cincuenta: 50,
@@ -3764,8 +4221,10 @@ function numeroDesdeTexto(texto) {
         setenta: 70,
         ochenta: 80,
         noventa: 90,
+
         cien: 100,
         ciento: 100,
+
         doscientos: 200,
         trescientos: 300,
         cuatrocientos: 400,
@@ -3777,23 +4236,20 @@ function numeroDesdeTexto(texto) {
     };
 
 
-    const escalas = {
-        mil: 1000,
-        millón: 1000000,
-        millones: 1000000
-    };
-
-
     const palabras =
         t.split(/\s+/);
 
 
     let total = 0;
     let grupo = 0;
-    let encontroNumero = false;
+
+    let encontroNumero =
+        false;
 
 
-    for (let palabra of palabras) {
+    for (
+        let palabra of palabras
+    ) {
 
         palabra =
             palabra
@@ -3803,6 +4259,10 @@ function numeroDesdeTexto(texto) {
 
         if (!palabra) continue;
 
+
+        // ----------------------------------------------------
+        // UNIDADES
+        // ----------------------------------------------------
 
         if (
             Object.prototype.hasOwnProperty.call(
@@ -3814,46 +4274,67 @@ function numeroDesdeTexto(texto) {
             grupo +=
                 unidades[palabra];
 
-            encontroNumero = true;
+            encontroNumero =
+                true;
 
             continue;
         }
 
+
+        // ----------------------------------------------------
+        // MIL
+        // ----------------------------------------------------
 
         if (
             palabra === 'mil'
         ) {
 
-            if (grupo === 0) {
+            if (
+                grupo === 0
+            ) {
+
                 grupo = 1;
             }
+
 
             total +=
                 grupo * 1000;
 
+
             grupo = 0;
 
-            encontroNumero = true;
+            encontroNumero =
+                true;
 
             continue;
         }
 
 
+        // ----------------------------------------------------
+        // MILLÓN
+        // ----------------------------------------------------
+
         if (
-            palabra === 'millón' ||
+            palabra === 'millon' ||
             palabra === 'millones'
         ) {
 
-            if (grupo === 0) {
+            if (
+                grupo === 0
+            ) {
+
                 grupo = 1;
             }
+
 
             total +=
                 grupo * 1000000;
 
+
             grupo = 0;
 
-            encontroNumero = true;
+            encontroNumero =
+                true;
 
             continue;
         }
@@ -3864,6 +4345,7 @@ function numeroDesdeTexto(texto) {
 
 
     if (!encontroNumero) {
+
         return null;
     }
 
@@ -3873,7 +4355,7 @@ function numeroDesdeTexto(texto) {
 
 
 // ============================================================
-// 💰 EXTRAER MONTO DE UNA FRASE
+// 💰 EXTRAER MONTO
 // ============================================================
 
 function extraerMontoDeFrase(texto) {
@@ -3882,12 +4364,12 @@ function extraerMontoDeFrase(texto) {
 
 
     let t =
-        texto.toLowerCase().trim();
+        normalizarTextoVoz(texto);
 
 
-    // --------------------------------------------
-    // Primero buscamos números escritos
-    // --------------------------------------------
+    // ========================================================
+    // BUSCAR NÚMERO ESCRITO
+    // ========================================================
 
     const matchNumerico =
         t.match(
@@ -3903,8 +4385,6 @@ function extraerMontoDeFrase(texto) {
                 .trim();
 
 
-        // Si contiene punto y coma,
-        // asumimos formato argentino.
         let valor;
 
 
@@ -3919,20 +4399,20 @@ function extraerMontoDeFrase(texto) {
                         .replace(/\./g, '')
                         .replace(',', '.')
                 );
+        }
 
-        } else if (
+        else if (
             numeroTexto.includes('.')
         ) {
 
-            // En montos argentinos:
-            // 150.500 = ciento cincuenta mil quinientos
             valor =
                 parseFloat(
                     numeroTexto
                         .replace(/\./g, '')
                 );
+        }
 
-        } else if (
+        else if (
             numeroTexto.includes(',')
         ) {
 
@@ -3941,30 +4421,34 @@ function extraerMontoDeFrase(texto) {
                     numeroTexto
                         .replace(',', '.')
                 );
+        }
 
-        } else {
+        else {
 
             valor =
-                parseFloat(numeroTexto);
+                parseFloat(
+                    numeroTexto
+                );
         }
 
 
         if (!isNaN(valor)) {
+
             return valor;
         }
     }
 
 
-    // --------------------------------------------
-    // Número hablado
-    // --------------------------------------------
+    // ========================================================
+    // NÚMERO HABLADO
+    // ========================================================
 
     return numeroDesdeTexto(t);
 }
 
 
 // ============================================================
-// 💰 FORMATEAR MONTO PARA INPUT
+// 💰 FORMATEAR MONTO
 // ============================================================
 
 function formatearMontoParaInput(numero) {
@@ -3974,23 +4458,17 @@ function formatearMontoParaInput(numero) {
         numero === undefined ||
         isNaN(numero)
     ) {
+
         return '';
     }
 
 
-    // Para campos de facturación dejamos
-    // el valor numérico puro.
-    //
-    // Ejemplo:
-    // 150500
-    //
-    // No ponemos "$" ni "pesos".
     return String(numero);
 }
 
 
 // ============================================================
-// 🎙️ DICTADO DE CAMPO
+// 🎙️ ACTIVAR DICTADO DE CAMPO
 // ============================================================
 
 function activarEscuchaEdicion(
@@ -4013,44 +4491,51 @@ function activarEscuchaEdicion(
     }
 
 
-    // --------------------------------------------------------
-    // DETENER RECONOCIMIENTO DE COMANDOS
-    // --------------------------------------------------------
+    // ========================================================
+    // DETENER COMANDOS
+    // ========================================================
 
     if (recognitionGlobal) {
 
-        try {
-            recognitionGlobal.stop();
-        } catch (e) {}
+        const rec =
+            recognitionGlobal;
 
-        recognitionGlobal = null;
+        recognitionGlobal =
+            null;
+
+        try {
+
+            rec.onresult = null;
+            rec.onerror = null;
+            rec.onend = null;
+
+            rec.stop();
+
+        } catch (e) {}
     }
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // DETENER DICTADO ANTERIOR
-    // --------------------------------------------------------
+    // ========================================================
 
     if (recEdicionActiva) {
 
+        const rec =
+            recEdicionActiva;
+
+        recEdicionActiva =
+            null;
+
         try {
 
-            if (
-                recEdicionActiva
-                    ._detenerDefinitivamente
-            ) {
+            rec.onresult = null;
+            rec.onerror = null;
+            rec.onend = null;
 
-                recEdicionActiva
-                    ._detenerDefinitivamente();
-
-            } else {
-
-                recEdicionActiva.stop();
-            }
+            rec.stop();
 
         } catch (e) {}
-
-        recEdicionActiva = null;
     }
 
 
@@ -4067,8 +4552,12 @@ function activarEscuchaEdicion(
     if (!inputTarget) {
 
         console.warn(
-            'No se encontró el campo:',
+            '❌ No se encontró:',
             `${campoKey}${idx}`
+        );
+
+        alert(
+            `No encontré el campo ${campoKey}${idx} en el formulario.`
         );
 
         return;
@@ -4076,7 +4565,7 @@ function activarEscuchaEdicion(
 
 
     // ========================================================
-    // DETERMINAR SI ES CAMPO NUMÉRICO
+    // ¿ES MONTO?
     // ========================================================
 
     const esCampoMonto =
@@ -4085,14 +4574,47 @@ function activarEscuchaEdicion(
 
 
     // ========================================================
-    // VARIABLES DE DICTADO
+    // VARIABLES
     // ========================================================
 
-    let textoAcumulado = '';
+    let textoAcumulado =
+        '';
 
-    let reconocimientoActivo = true;
+    let reconocimientoActivo =
+        true;
 
-    let reiniciando = false;
+    let reiniciando =
+        false;
+
+
+    dictadoEnCurso =
+        true;
+
+    detenerDictadoSolicitado =
+        false;
+
+
+    // ========================================================
+    // BOTÓN
+    // ========================================================
+
+    const btnManual =
+        document.getElementById(
+            'btnManualDictado'
+        );
+
+
+    if (btnManual) {
+
+        btnManual.style.display =
+            'inline-block';
+
+        btnManual.innerText =
+            `🛑 Detener dictado`;
+
+        btnManual.style.background =
+            '#c0392b';
+    }
 
 
     // ========================================================
@@ -4101,18 +4623,23 @@ function activarEscuchaEdicion(
 
     function crearReconocimiento() {
 
-        if (
-            !reconocimientoActivo ||
-            vozSilenciada
-        ) {
+        if (!reconocimientoActivo) {
             return;
         }
 
 
-        if (reiniciando) return;
+        if (vozSilenciada) {
+            return;
+        }
 
 
-        reiniciando = true;
+        if (reiniciando) {
+            return;
+        }
+
+
+        reiniciando =
+            true;
 
 
         const rec =
@@ -4123,8 +4650,17 @@ function activarEscuchaEdicion(
             'es-AR';
 
 
-        // Chrome suele funcionar mejor
-        // reiniciando sesiones cortas.
+        // ----------------------------------------------------
+        // IMPORTANTE
+        // ----------------------------------------------------
+        //
+        // Chrome suele funcionar mejor con sesiones
+        // false que con continuous=true.
+        //
+        // Nosotros hacemos el "continuous" manualmente
+        // reiniciando la sesión.
+        // ----------------------------------------------------
+
         rec.continuous =
             false;
 
@@ -4141,15 +4677,18 @@ function activarEscuchaEdicion(
             rec;
 
 
-        // ----------------------------------------------------
-        // RESULTADOS
-        // ----------------------------------------------------
+        // ====================================================
+        // RESULTADO
+        // ====================================================
 
         rec.onresult =
             (event) => {
 
-                let finales = '';
-                let parcial = '';
+                let finales =
+                    '';
+
+                let parcial =
+                    '';
 
 
                 for (
@@ -4183,7 +4722,7 @@ function activarEscuchaEdicion(
 
 
                 // --------------------------------------------
-                // GUARDAR SOLAMENTE FINALES
+                // GUARDAR FINALES
                 // --------------------------------------------
 
                 if (
@@ -4196,7 +4735,7 @@ function activarEscuchaEdicion(
 
 
                 // --------------------------------------------
-                // TEXTO A MOSTRAR
+                // TEXTO TOTAL
                 // --------------------------------------------
 
                 const textoMostrar =
@@ -4206,8 +4745,14 @@ function activarEscuchaEdicion(
                     ).trim();
 
 
+                console.log(
+                    '🎙️ Dictando:',
+                    textoMostrar
+                );
+
+
                 // --------------------------------------------
-                // CAMPO DE TEXTO
+                // CAMPO TEXTO
                 // --------------------------------------------
 
                 if (!esCampoMonto) {
@@ -4218,7 +4763,7 @@ function activarEscuchaEdicion(
 
 
                 // --------------------------------------------
-                // CAMPO NUMÉRICO
+                // CAMPO MONTO
                 // --------------------------------------------
 
                 else {
@@ -4242,7 +4787,7 @@ function activarEscuchaEdicion(
 
 
                 // --------------------------------------------
-                // AVISAR AL SISTEMA
+                // AVISAR AL FORMULARIO
                 // --------------------------------------------
 
                 inputTarget.dispatchEvent(
@@ -4266,9 +4811,9 @@ function activarEscuchaEdicion(
             };
 
 
-        // ----------------------------------------------------
+        // ====================================================
         // ERROR
-        // ----------------------------------------------------
+        // ====================================================
 
         rec.onerror =
             (event) => {
@@ -4290,16 +4835,27 @@ function activarEscuchaEdicion(
                         false;
 
 
+                    dictadoEnCurso =
+                        false;
+
+
+                    recEdicionActiva =
+                        null;
+
+
                     alert(
-                        'El navegador no tiene permiso para usar el micrófono.'
+                        'Chrome no tiene permiso para usar el micrófono.'
                     );
+
+
+                    ocultarBotonDictado();
                 }
             };
 
 
-        // ----------------------------------------------------
-        // FIN DE SESIÓN
-        // ----------------------------------------------------
+        // ====================================================
+        // FIN DA SESSÃO
+        // ====================================================
 
         rec.onend =
             () => {
@@ -4308,33 +4864,63 @@ function activarEscuchaEdicion(
                     false;
 
 
+                // ------------------------------------------------
+                // SI EL USUARIO APRETÓ DETENER
+                // ------------------------------------------------
+
                 if (
+                    detenerDictadoSolicitado ||
                     !reconocimientoActivo ||
                     vozSilenciada
                 ) {
+
+                    finalizarDictado();
+
                     return;
                 }
 
 
-                // Chrome cerró una sesión.
-                // Reabrimos automáticamente.
+                // ------------------------------------------------
+                // CHROME CORTÓ LA SESIÓN
+                // ------------------------------------------------
+                //
+                // NO terminamos el dictado.
+                //
+                // Lo reiniciamos.
+                // ------------------------------------------------
+
                 setTimeout(
-                    crearReconocimiento,
+                    () => {
+
+                        if (
+                            reconocimientoActivo &&
+                            !detenerDictadoSolicitado &&
+                            !vozSilenciada
+                        ) {
+
+                            crearReconocimiento();
+                        }
+
+                    },
                     250
                 );
             };
 
 
-        // ----------------------------------------------------
+        // ====================================================
         // START
-        // ----------------------------------------------------
+        // ====================================================
 
         try {
 
             rec.start();
 
+            reiniciando =
+                false;
+
+
             console.log(
-                '🎙️ Dictado iniciado'
+                '🎙️ SESIÓN DE DICTADO INICIADA'
             );
 
         } catch (e) {
@@ -4344,13 +4930,23 @@ function activarEscuchaEdicion(
 
 
             console.log(
-                'No se pudo iniciar:',
+                '⚠️ Error al iniciar dictado:',
                 e
             );
 
 
             setTimeout(
-                crearReconocimiento,
+                () => {
+
+                    if (
+                        reconocimientoActivo &&
+                        !detenerDictadoSolicitado
+                    ) {
+
+                        crearReconocimiento();
+                    }
+
+                },
                 500
             );
         }
@@ -4358,180 +4954,175 @@ function activarEscuchaEdicion(
 
 
     // ========================================================
-    // 🛑 DETENER DEFINITIVAMENTE Y GUARDAR
+    // FINALIZAR DICTADO
     // ========================================================
 
-    const detenerDefinitivamente =
-        () => {
+    function finalizarDictado() {
 
-            reconocimientoActivo =
-                false;
-
-
-            if (recEdicionActiva) {
-
-                try {
-
-                    recEdicionActiva.onend =
-                        null;
-
-                    recEdicionActiva.onerror =
-                        null;
-
-                    recEdicionActiva.stop();
-
-                } catch (e) {}
-            }
+        reconocimientoActivo =
+            false;
 
 
-            // ------------------------------------------------
-            // OBTENER VALOR FINAL
-            // ------------------------------------------------
-
-            let valorFinal =
-                inputTarget.value
-                    .trim();
+        detenerDictadoSolicitado =
+            true;
 
 
-            // ------------------------------------------------
-            // CONVERSIÓN FINAL DE MONTO
-            // ------------------------------------------------
-
-            if (esCampoMonto) {
-
-                const monto =
-                    extraerMontoDeFrase(
-                        textoAcumulado ||
-                        valorFinal
-                    );
+        dictadoEnCurso =
+            false;
 
 
-                if (
-                    monto !== null
-                ) {
-
-                    valorFinal =
-                        formatearMontoParaInput(
-                            monto
-                        );
-
-                    inputTarget.value =
-                        valorFinal;
-                }
-            }
+        const rec =
+            recEdicionActiva;
 
 
-            // ------------------------------------------------
-            // GUARDAR EN DATOS DEL LOTE
-            // ------------------------------------------------
-
-            if (
-                datosLoteActual[idx]
-            ) {
-
-                datosLoteActual[idx][
-                    selectorInput
-                ] =
-                    valorFinal;
-            }
+        recEdicionActiva =
+            null;
 
 
-            // ------------------------------------------------
-            // BOTÓN
-            // ------------------------------------------------
+        if (rec) {
 
-            const btnManual =
-                document.getElementById(
-                    'btnManualDictado'
+            try {
+
+                rec.onend =
+                    null;
+
+                rec.onerror =
+                    null;
+
+                rec.onresult =
+                    null;
+
+                rec.stop();
+
+            } catch (e) {}
+        }
+
+
+        // ====================================================
+        // OBTENER VALOR FINAL
+        // ====================================================
+
+        let valorFinal =
+            inputTarget.value
+                .trim();
+
+
+        // ====================================================
+        // MONTO
+        // ====================================================
+
+        if (esCampoMonto) {
+
+            const monto =
+                extraerMontoDeFrase(
+                    textoAcumulado ||
+                    valorFinal
                 );
 
 
-            if (btnManual) {
+            if (
+                monto !== null
+            ) {
 
-                btnManual.style.display =
-                    'none';
-            }
-
-
-            recEdicionActiva =
-                null;
-
-
-            // ------------------------------------------------
-            // ACTUALIZAR SISTEMA
-            // ------------------------------------------------
-
-            inputTarget.dispatchEvent(
-                new Event(
-                    'input',
-                    {
-                        bubbles: true
-                    }
-                )
-            );
-
-
-            inputTarget.dispatchEvent(
-                new Event(
-                    'change',
-                    {
-                        bubbles: true
-                    }
-                )
-            );
-
-
-            // ------------------------------------------------
-            // CONFIRMACIÓN
-            // ------------------------------------------------
-
-            if (!vozSilenciada) {
-
-                const utter =
-                    new SpeechSynthesisUtterance(
-                        'Actualizado.'
+                valorFinal =
+                    formatearMontoParaInput(
+                        monto
                     );
 
 
-                utter.lang =
-                    'es-AR';
-
-                utter.rate =
-                    velocidadLectura;
-
-
-                utter.onend =
-                    () => {
-
-                        if (
-                            !vozSilenciada
-                        ) {
-
-                            setTimeout(
-                                leerPacienteActual,
-                                700
-                            );
-                        }
-                    };
-
-
-                window.speechSynthesis
-                    .speak(utter);
-
-            } else {
-
-                leerPacienteActual();
+                inputTarget.value =
+                    valorFinal;
             }
-        };
+        }
 
 
-    recEdicionActiva
-        ._detenerDefinitivamente =
-            detenerDefinitivamente;
+        // ====================================================
+        // GUARDAR
+        // ====================================================
+
+        if (
+            datosLoteActual[idx]
+        ) {
+
+            datosLoteActual[idx][
+                selectorInput
+            ] =
+                valorFinal;
+        }
+
+
+        // ====================================================
+        // EVENTOS
+        // ====================================================
+
+        inputTarget.dispatchEvent(
+            new Event(
+                'input',
+                {
+                    bubbles: true
+                }
+            )
+        );
+
+
+        inputTarget.dispatchEvent(
+            new Event(
+                'change',
+                {
+                    bubbles: true
+                }
+            )
+        );
+
+
+        // ====================================================
+        // BOTÓN
+        // ====================================================
+
+        ocultarBotonDictado();
+
+
+        // ====================================================
+        // CONFIRMACIÓN
+        // ====================================================
+
+        if (!vozSilenciada) {
+
+            hablarTexto(
+                'Actualizado.',
+                () => {
+
+                    if (
+                        asistenteVozActivo &&
+                        !vozSilenciada
+                    ) {
+
+                        leerPacienteActual();
+                    }
+                }
+            );
+
+        } else {
+
+            leerPacienteActual();
+        }
+    }
 
 
     // ========================================================
-    // INICIAR
+    // EXPONER FUNCIÓN AL BOTÓN
+    // ========================================================
+
+    recEdicionActiva =
+        null;
+
+
+    window._detenerDictadoActual =
+        finalizarDictado;
+
+
+    // ========================================================
+    // ARRANCAR
     // ========================================================
 
     crearReconocimiento();
@@ -4539,75 +5130,97 @@ function activarEscuchaEdicion(
 
 
 // ============================================================
-// 🟢 BOTÓN MANUAL
+// 🟢 BOTÓN MANUAL DE DICTADO
 // ============================================================
 
 function dispararDictadoManual() {
 
-    // --------------------------------------------------------
-    // SI ESTÁ DICTANDO → DETENER Y GUARDAR
-    // --------------------------------------------------------
+    // ========================================================
+    // SI YA ESTÁ DICTANDO
+    // ========================================================
 
-    if (recEdicionActiva) {
+    if (dictadoEnCurso) {
+
+        detenerDictadoSolicitado =
+            true;
+
 
         if (
-            recEdicionActiva
-                ._detenerDefinitivamente
+            window._detenerDictadoActual
         ) {
 
-            recEdicionActiva
-                ._detenerDefinitivamente();
+            window._detenerDictadoActual();
 
         } else {
 
-            try {
-                recEdicionActiva.stop();
-            } catch (e) {}
+            if (recEdicionActiva) {
+
+                try {
+
+                    recEdicionActiva.stop();
+
+                } catch (e) {}
+            }
         }
+
 
         return;
     }
 
 
-    // --------------------------------------------------------
-    // SI NO ESTÁ DICTANDO → INICIAR
-    // --------------------------------------------------------
+    // ========================================================
+    // SI NO ESTÁ DICTANDO
+    // ========================================================
 
     if (
-        window.ultimoCampoModificar
+        !window.ultimoCampoModificar
     ) {
 
-        const {
-            campoKey,
-            selectorInput,
-            nombreCampoTxt
-        } =
-            window.ultimoCampoModificar;
-
-
-        const btn =
-            document.getElementById(
-                'btnManualDictado'
-            );
-
-
-        if (btn) {
-
-            btn.style.display =
-                'inline-block';
-
-
-            btn.innerText =
-                `🛑 Detener ${nombreCampoTxt}`;
-        }
-
-
-        activarEscuchaEdicion(
-            campoKey,
-            selectorInput
+        console.warn(
+            'No hay campo seleccionado.'
         );
+
+        return;
     }
-}                
+
+
+    const {
+        campoKey,
+        selectorInput
+    } =
+        window.ultimoCampoModificar;
+
+
+    activarEscuchaEdicion(
+        campoKey,
+        selectorInput
+    );
+}
+
+
+// ============================================================
+// 🧹 LIMPIAR ASISTENTE AL CERRAR MODAL
+// ============================================================
+
+function cerrarAsistenteVoz() {
+
+    detenerTodoElHabla();
+
+    asistenteVozActivo =
+        false;
+
+    datosLoteActual =
+        [];
+
+    indicePacienteActual =
+        0;
+
+    window.ultimoCampoModificar =
+        null;
+
+    window._detenerDictadoActual =
+        null;
+}
 </script>
 </body>
 </html>
