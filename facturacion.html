@@ -2116,7 +2116,8 @@ window.confirmarEnvioAFIP = async function(event) {
             vto_pago: fVto,
             condicion_venta: condVenta,
             estado: 'PENDIENTE',
-            fecha_peticion: new Date().toISOString()
+            fecha_peticion: new Date().toISOString(),
+			...datosAsociadosExtra
         };
 
         try {
