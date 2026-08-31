@@ -2076,7 +2076,26 @@ window.confirmarEnvioAFIP = async function(event) {
         }
 
         const condicionFiscal = cacheCondicionesIVA[cuitCapturado] || "IVA Sujeto Exento";
+        let datosAsociadosExtra = {};
+        if (tipo === 8 || tipo === 3) {
+            // Intentamos buscar los inputs tanto en la fila original de la tabla como en el modal por si los renderiza ahí
+            const pvAsoc = item.fila?.querySelector('.aso-pv')?.value || document.getElementById(`mAssoPv_${index}`)?.value;
+            const numAsoc = item.fila?.querySelector('.aso-num')?.value || document.getElementById(`mAssoNum_${index}`)?.value;
+            const fecAsoc = item.fila?.querySelector('.aso-fec')?.value || document.getElementById(`mAssoFec_${index}`)?.value;
 
+            if (!numAsoc || !fecAsoc) {
+                alert(`❌ Faltan datos de la factura original para la NC de ${idDelPaciente}`);
+                if(btn) btn.disabled = false;
+                return;
+            }
+
+            datosAsociadosExtra = {
+                tipo_asoc: (tipo === 8) ? 6 : 1,
+                pv_asoc: parseInt(pvAsoc) || ptoVtaGlobal,
+                nro_asoc: parseInt(numAsoc),
+                asoc_fecha: fecAsoc
+            };
+        }
         const pedido = {
             id_paciente: idDelPaciente,
             id_paciente_db: idDelPaciente,
