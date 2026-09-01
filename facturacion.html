@@ -2737,11 +2737,12 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 }
             }
 
-            const tieneDependencia = detAnterior.includes('DEPEND') || p.dependencia === true || p.conDependencia === true;
+			const tieneDependencia = detAnterior.includes('DEPEND') || detAnterior.includes('DEP.') || detAnterior.includes('C/DEP') || p.dependencia === true || p.conDependencia === true;
             let montoDependencia = 0;
             let montoTotal = montoBase;
 
-            if (tieneDependencia) {
+            // SOLO CALCULAMOS SI TIENE DEPENDENCIA Y EL MONTO BASE ES VALIDO
+            if (tieneDependencia && montoBase > 0) {
                 montoDependencia = Math.round((montoBase * 0.35) * 100) / 100;
                 montoTotal = Math.round((montoBase + montoDependencia) * 100) / 100;
             }
@@ -2771,7 +2772,7 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 detalleNuevo = detalleNuevo.replace(/\n\s*\n/g, '\n').trim();
                 detalleNuevo += `\nRESOLUCIÓN ${resolucionAplicada}`;
 
-                // Limpiamos montos viejos para recalcular con los nuevos (CORREGIDO: faltaba el '=' en VALOR TOTAL)
+                // Limpiamos montos viejos para recalcular con los nuevos
                 detalleNuevo = detalleNuevo.replace(/VALOR PRESTACI[OÓ]N[:\s]*\$?[\s\d\.,]+/gi, '');
                 detalleNuevo = detalleNuevo.replace(/VALOR PRESTACION[:\s]*\$?[\s\d\.,]+/gi, '');
                 detalleNuevo = detalleNuevo.replace(/VALOR TOTAL[:\s]*\$?[\s\d\.,]+/gi, '');
@@ -2779,15 +2780,16 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 detalleNuevo = detalleNuevo.replace(/DEPENDENCIA[:\s]*\$?[\s\d\.,]+/gi, '');
                 detalleNuevo = detalleNuevo.replace(/\n\s*\n/g, '\n').trim();
 
-                // AQUÍ ESTÁ LA CLAVE: Usamos 'tieneDependencia' y validamos que el monto sea mayor a 0
+                // AQUÍ ESTÁ EL CAMBIO SOLICITADO: Si tiene dependencia Y el monto de dependencia es mayor a 0, imprime el desglose. Si es 0 u omitido, pone únicamente el VALOR total limpio.
                 if (tieneDependencia && montoDependencia > 0) {
                     detalleNuevo += `\nVALOR PRESTACIÓN: $ ${montoBaseFmtNew}\nDEPENDENCIA: $ ${montoDepFmtNew}\nVALOR TOTAL: $ ${montoTotalFmtNew}`;
                 } else {
                     detalleNuevo += `\nVALOR: $ ${montoTotalFmtNew}`;
                 }
             } else {
-                // Si no hay factura anterior, se arma desde cero respetando si la variable 'tieneDependencia' es true y el monto es mayor a 0
+                // Si no hay factura anterior, se arma desde cero respetando tu estructura original
                 const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
+                
                 if (tieneDependencia && montoDependencia > 0) {
                     const depFmt = montoDependencia.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     const totFmt = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
