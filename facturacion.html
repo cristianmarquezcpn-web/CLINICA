@@ -2771,16 +2771,16 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 detalleNuevo = detalleNuevo.replace(/\n\s*\n/g, '\n').trim();
                 detalleNuevo += `\nRESOLUCIÓN ${resolucionAplicada}`;
 
-                // Limpiamos montos viejos para recalcular con los nuevos
+                // Limpiamos montos viejos para recalcular con los nuevos (CORREGIDO: faltaba el '=' en VALOR TOTAL)
                 detalleNuevo = detalleNuevo.replace(/VALOR PRESTACI[OÓ]N[:\s]*\$?[\s\d\.,]+/gi, '');
                 detalleNuevo = detalleNuevo.replace(/VALOR PRESTACION[:\s]*\$?[\s\d\.,]+/gi, '');
-                detalleNuevo.replace(/VALOR TOTAL[:\s]*\$?[\s\d\.,]+/gi, '');
+                detalleNuevo = detalleNuevo.replace(/VALOR TOTAL[:\s]*\$?[\s\d\.,]+/gi, '');
                 detalleNuevo = detalleNuevo.replace(/VALOR[:\s]*\$?[\s\d\.,]+/gi, '');
                 detalleNuevo = detalleNuevo.replace(/DEPENDENCIA[:\s]*\$?[\s\d\.,]+/gi, '');
                 detalleNuevo = detalleNuevo.replace(/\n\s*\n/g, '\n').trim();
 
-                // AQUÍ ESTÁ LA CLAVE: Solo agregamos las líneas de dependencia si el comprobante ANTERIOR ya las tenía explícitamente
-               if ((detAnterior.includes('DEPENDENCIA') || detAnterior.includes('VALOR PRESTACIÓN')) && montoDependencia > 0) {
+                // AQUÍ ESTÁ LA CLAVE: Usamos 'tieneDependencia' y validamos que el monto sea mayor a 0
+                if (tieneDependencia && montoDependencia > 0) {
                     detalleNuevo += `\nVALOR PRESTACIÓN: $ ${montoBaseFmtNew}\nDEPENDENCIA: $ ${montoDepFmtNew}\nVALOR TOTAL: $ ${montoTotalFmtNew}`;
                 } else {
                     detalleNuevo += `\nVALOR: $ ${montoTotalFmtNew}`;
