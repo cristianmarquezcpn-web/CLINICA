@@ -2780,15 +2780,15 @@ async function ejecutarLoteMulti(filtros, todosPacientes, osConfig) {
                 detalleNuevo = detalleNuevo.replace(/\n\s*\n/g, '\n').trim();
 
                 // AQUÍ ESTÁ LA CLAVE: Solo agregamos las líneas de dependencia si el comprobante ANTERIOR ya las tenía explícitamente
-                if (detAnterior.includes('DEPENDENCIA') || detAnterior.includes('VALOR PRESTACIÓN')) {
+               if ((detAnterior.includes('DEPENDENCIA') || detAnterior.includes('VALOR PRESTACIÓN')) && montoDependencia > 0) {
                     detalleNuevo += `\nVALOR PRESTACIÓN: $ ${montoBaseFmtNew}\nDEPENDENCIA: $ ${montoDepFmtNew}\nVALOR TOTAL: $ ${montoTotalFmtNew}`;
                 } else {
                     detalleNuevo += `\nVALOR: $ ${montoTotalFmtNew}`;
                 }
             } else {
-                // Si no hay factura anterior, se arma desde cero respetando si la variable 'tieneDependencia' es true para este paciente puntual
+                // Si no hay factura anterior, se arma desde cero respetando si la variable 'tieneDependencia' es true y el monto es mayor a 0
                 const dniTxt = p.dni ? `\nD.N.I. ${p.dni}` : '';
-                if (tieneDependencia) {
+                if (tieneDependencia && montoDependencia > 0) {
                     const depFmt = montoDependencia.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     const totFmt = montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     detalleNuevo = `PRESTADOR: ESENCIAL S.R.L.
@@ -2803,6 +2803,7 @@ VALOR TOTAL: $ ${totFmt}`;
                     detalleNuevo = `${nombrePaciente.toUpperCase()}${dniTxt}
 PERÍODO PRESTACIONAL: ${nombreMes} ${anioFacturar}
 ${prestacion}
+VALOR: $ ${montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 RESOL. ${resolucionAplicada}`;
                 }
             }
