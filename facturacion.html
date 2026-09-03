@@ -1764,20 +1764,26 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
 window.habilitarParaRefacturar = async function(idPaciente, moduloFila) {
     if(confirm("¿Habilitar para editar y refacturar este mes?")) {
         try {
-            const modTarget = (moduloFila || '').toLowerCase();
+            // Buscamos el módulo de donde se pueda: del parámetro, o buscando en dataFull que coincida el ID
+            let modTarget = (moduloFila || '').toLowerCase();
             
-            // Buscamos el paciente que coincida tanto en ID como en el módulo exacto de la fila
-            const p = window.dataFull.find(x => {
+            let p = window.dataFull.find(x => {
                 const matchId = (x.id || x.id_db) == idPaciente;
                 const matchMod = modTarget ? ((x.modulo || x.mod || '').toLowerCase() === modTarget) : true;
                 return matchId && matchMod;
             });
+
+            // Si por alguna razón no lo encontró con el módulo exacto, busca solo por ID al primero que halle
+            if (!p) {
+                p = window.dataFull.find(x => (x.id || x.id_db) == idPaciente);
+            }
             
-            if (!p || (!p.modulo && !p.mod && !modTarget)) {
+            const nombreMod = (modTarget || (p ? (p.modulo || p.mod) : '')).toLowerCase();
+
+            if (!nombreMod) {
                 return alert("❌ ERROR CRÍTICO: No se pudo determinar el módulo.");
             }
 
-            const nombreMod = (p.modulo || p.mod || modTarget).toLowerCase();
             const rutaBase = `${nombreMod}/pacientes/${idPaciente}`;
 
             const datosLimpios = {
@@ -1790,9 +1796,11 @@ window.habilitarParaRefacturar = async function(idPaciente, moduloFila) {
 
             await db.ref(rutaBase).update(datosLimpios);
 
-            p.facturado = "NO";
-            p.ultima_factura = null;
-            p.cae = null;
+            if (p) {
+                p.facturado = "NO";
+                p.ultima_factura = null;
+                p.cae = null;
+            }
 
             alert(`✅ DESBLOQUEADO: Carpeta '${nombreMod}'.`);
             if (typeof window.render === 'function') window.render();
