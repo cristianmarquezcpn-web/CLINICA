@@ -630,7 +630,7 @@ const facturado = esDeEsteMes && tieneCAE;
             style="background:#2ecc71; font-size:8px; padding:4px; color:white; border:none; cursor:pointer;">
         PDF</button>
     <button style="background:#e67e22; font-size:8px; padding:4px; color:white; border:none; margin-left:2px; cursor:pointer;" 
-            onclick="window.habilitarParaRefacturar('${p.id}')">Refac</button>
+            onclick="window.habilitarParaRefacturar('${p.id}', '${p.modulo}')">Refac</button>
 </div>`;
 }
         const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
@@ -1761,16 +1761,23 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
 };
 // --- FUNCIÓN GLOBAL PARA REFACTURAR ---
 // --- FUNCIÓN GLOBAL PARA REFACTURAR ---
-window.habilitarParaRefacturar = async function(idPaciente) {
+window.habilitarParaRefacturar = async function(idPaciente, moduloFila) {
     if(confirm("¿Habilitar para editar y refacturar este mes?")) {
         try {
-            const p = window.dataFull.find(x => (x.id || x.id_db) == idPaciente);
+            const modTarget = (moduloFila || '').toLowerCase();
             
-            if (!p || (!p.modulo && !p.mod)) {
+            // Buscamos el paciente que coincida tanto en ID como en el módulo exacto de la fila
+            const p = window.dataFull.find(x => {
+                const matchId = (x.id || x.id_db) == idPaciente;
+                const matchMod = modTarget ? ((x.modulo || x.mod || '').toLowerCase() === modTarget) : true;
+                return matchId && matchMod;
+            });
+            
+            if (!p || (!p.modulo && !p.mod && !modTarget)) {
                 return alert("❌ ERROR CRÍTICO: No se pudo determinar el módulo.");
             }
 
-            const nombreMod = (p.modulo || p.mod).toLowerCase();
+            const nombreMod = (p.modulo || p.mod || modTarget).toLowerCase();
             const rutaBase = `${nombreMod}/pacientes/${idPaciente}`;
 
             const datosLimpios = {
