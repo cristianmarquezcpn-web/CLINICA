@@ -630,7 +630,7 @@ const facturado = esDeEsteMes && tieneCAE;
             style="background:#2ecc71; font-size:8px; padding:4px; color:white; border:none; cursor:pointer;">
         PDF</button>
     <button style="background:#e67e22; font-size:8px; padding:4px; color:white; border:none; margin-left:2px; cursor:pointer;" 
-            onclick="window.habilitarParaRefacturar('${p.id}', '${p.modulo}')">Refac</button>
+            onclick="window.habilitarParaRefacturar('${p.id}')">Refac</button>
 </div>`;
 }
         const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
@@ -1761,27 +1761,21 @@ window.fijarDatoPermanente = async function(idPaciente, valor, campo) {
 };
 // --- FUNCIÓN GLOBAL PARA REFACTURAR ---
 // --- FUNCIÓN GLOBAL PARA REFACTURAR ---
-window.habilitarParaRefacturar = async function(idPaciente, moduloFila) {
+window.habilitarParaRefacturar = async function(idPaciente) {
     if(confirm("¿Habilitar para editar y refacturar este mes?")) {
         try {
-            // Buscamos el módulo de donde se pueda: del parámetro, o buscando en dataFull que coincida el ID
-            let modTarget = (moduloFila || '').toLowerCase();
+            // Buscamos directamente el paciente en el array global por su ID
+            const p = window.dataFull.find(x => (x.id || x.id_db) == idPaciente);
             
-            let p = window.dataFull.find(x => {
-                const matchId = (x.id || x.id_db) == idPaciente;
-                const matchMod = modTarget ? ((x.modulo || x.mod || '').toLowerCase() === modTarget) : true;
-                return matchId && matchMod;
-            });
-
-            // Si por alguna razón no lo encontró con el módulo exacto, busca solo por ID al primero que halle
             if (!p) {
-                p = window.dataFull.find(x => (x.id || x.id_db) == idPaciente);
+                return alert("❌ ERROR CRÍTICO: No se encontró al paciente en la lista local.");
             }
-            
-            const nombreMod = (modTarget || (p ? (p.modulo || p.mod) : '')).toLowerCase();
+
+            // Extraemos el módulo directamente de los datos del paciente (probando todas las variantes posibles)
+            const nombreMod = (p.modulo || p.mod || "").trim().toLowerCase();
 
             if (!nombreMod) {
-                return alert("❌ ERROR CRÍTICO: No se pudo determinar el módulo.");
+                return alert("❌ ERROR CRÍTICO: El paciente no tiene un módulo asignado.");
             }
 
             const rutaBase = `${nombreMod}/pacientes/${idPaciente}`;
@@ -1796,13 +1790,11 @@ window.habilitarParaRefacturar = async function(idPaciente, moduloFila) {
 
             await db.ref(rutaBase).update(datosLimpios);
 
-            if (p) {
-                p.facturado = "NO";
-                p.ultima_factura = null;
-                p.cae = null;
-            }
+            p.facturado = "NO";
+            p.ultima_factura = null;
+            p.cae = null;
 
-            alert(`✅ DESBLOQUEADO: Carpeta '${nombreMod}'.`);
+            alert(`✅ DESBLOQUEADO: Carpeta '${nombreMod.toUpperCase()}' para ${idPaciente}.`);
             if (typeof window.render === 'function') window.render();
 
         } catch (e) {
@@ -1811,7 +1803,6 @@ window.habilitarParaRefacturar = async function(idPaciente, moduloFila) {
         }
     }
 };
-
 // --- 1. SELECCIONAR TODOS ---
 window.seleccionarTodos = function(master) {
     const filas = document.querySelectorAll('#tabla-body tr');
