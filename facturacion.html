@@ -1767,10 +1767,9 @@ window.habilitarParaRefacturar = async function(idPaciente, moduloFila) {
             const modTarget = (moduloFila || '').trim().toLowerCase();
             
             if (!modTarget) {
-                return alert("❌ ERROR CRÍTICO: No se pudo determinar el módulo de esta fila.");
+                return alert("❌ ERROR CRÍTICO: No se pudo determinar el módulo.");
             }
 
-            // Buscamos el paciente exacto que coincida en ID y cuyo módulo (modulo o mod) coincida con la fila
             const p = window.dataFull.find(x => {
                 const matchId = (x.id || x.id_db || '').trim() === (idPaciente || '').trim();
                 const xMod = (x.modulo || x.mod || '').trim().toLowerCase();
@@ -1778,11 +1777,14 @@ window.habilitarParaRefacturar = async function(idPaciente, moduloFila) {
             });
 
             if (!p) {
-                return alert(`❌ ERROR CRÍTICO: No se encontró al paciente '${idPaciente}' en el módulo '${modTarget.toUpperCase()}'.`);
+                return alert(`❌ ERROR CRÍTICO: No se encontró al paciente en el módulo.`);
             }
 
             const rutaBase = `${modTarget}/pacientes/${idPaciente}`;
+            console.log("Ruta destino Firebase:", rutaBase);
 
+            // En Firebase, para limpiar campos de forma segura sin romper reglas de validación, 
+            // mandamos un objeto limpio. Si falla con null, probamos ponerlos vacíos.
             const datosLimpios = {
                 facturado: "NO",
                 ultima_factura: null,
@@ -1801,8 +1803,8 @@ window.habilitarParaRefacturar = async function(idPaciente, moduloFila) {
             if (typeof window.render === 'function') window.render();
 
         } catch (e) {
-            console.error("Error en Refacturación:", e);
-            alert("❌ Error en Firebase.");
+            console.error("DETALLE DEL ERROR FIREBASE:", e);
+            alert("❌ Error en Firebase: " + (e.message || JSON.stringify(e)));
         }
     }
 };
