@@ -61,6 +61,7 @@
 <div class="header">
     <strong>C.E.T. PRO - SISTEMA DE SALAS</strong>
     <div style="display:flex; gap:8px">
+        <button onclick="window.abrirCronograma()" style="background:#8e44ad; color:white; padding:6px 12px; border-radius:4px; border:none; font-weight:bold; cursor:pointer; margin-left:5px;">📋 Agenda y Vencimientos</button>
         <button class="btn" style="background:#6c5ce7" onclick="abrirPanelGeneralGestiones()">📊 GESTIÓN CUD</button>
         <button class="btn" style="background:var(--violeta)" onclick="abrirModuloSalas()">🏫 SALA POR TURNO</button>
         <button class="btn" style="background:var(--verde)" onclick="abrirPanelFac()">📂 VALIDAR</button>
@@ -297,6 +298,138 @@
     </div>
 
     <button class="btn" onclick="cerrarModalSeguimiento()" style="background:#2c3e50; color:white; width:100%; margin-top:20px; padding:10px; border-radius:6px; font-weight:bold; letter-spacing:1px;">CERRAR VENTANA</button>
+</div>
+<div id="modal-cronograma" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;">
+    <div style="background:white; padding:25px; border-radius:10px; width:98%; max-width:1200px; max-height:92vh; overflow-y:auto; box-shadow:0 5px 25px rgba(0,0,0,0.3);">
+        
+        <!-- Encabezado -->
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #34495e; padding-bottom:10px; margin-bottom:15px;">
+            <h2 style="margin:0; color:#2c3e50; font-size:18px;">📅 Agenda General, Admisiones y Vencimientos Institucionales</h2>
+            <button onclick="document.getElementById('modal-cronograma').style.display='none'" style="background:#e74c3c; color:white; border:none; padding:5px 10px; border-radius:4px; font-weight:bold; cursor:pointer;">✕ Cerrar</button>
+        </div>
+
+        <!-- Pestañas de Navegación -->
+        <div style="display:flex; gap:8px; margin-bottom:15px; flex-wrap:wrap;">
+            <button onclick="window.cambiarTabAgenda('admision')" id="btn-tab-admision" style="background:#2980b9; color:white; border:none; padding:8px 12px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">👥 Entrevistas y Admisión</button>
+            <button onclick="window.cambiarTabAgenda('eventos')" id="btn-tab-eventos" style="background:#bdc3c7; color:white; border:none; padding:8px 12px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">🎉 Actos, Jornadas y Ateneos</button>
+            <button onclick="window.cambiarTabAgenda('tramites')" id="btn-tab-tramites" style="background:#bdc3c7; color:white; border:none; padding:8px 12px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">📑 Vencimientos de Trámites (Clínica)</button>
+        </div>
+
+        <!-- SECCIÓN 1: ADMISIONES Y ENTREVISTAS (Con Checklist exacto) -->
+        <div id="seccion-admision" style="display:block;">
+            <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #dcdde1; margin-bottom:15px;">
+                <h4 style="margin:0 0 10px 0; color:#2c3e50; font-size:14px;">📝 Registrar Entrevista de Admisión</h4>
+                
+                <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                    <input type="text" id="adm-titulo" placeholder="Asunto (Ej: Admisión inicial)" style="flex:2; min-width:200px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                    <input type="date" id="adm-fecha" style="padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                    <input type="time" id="adm-hora" style="padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                </div>
+
+                <div style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+                    <input type="text" id="adm-nombre" placeholder="Nombre del Aspirante / Paciente" style="flex:1; min-width:180px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                    <input type="text" id="adm-tutor" placeholder="Padres / Tutores" style="flex:1; min-width:180px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                    <input type="text" id="adm-contacto" placeholder="Teléfono" style="width:130px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                </div>
+
+                <!-- Checklist Oficial Solicitado -->
+                <div style="background:#fff; padding:10px; border:1px solid #bdc3c7; border-radius:4px; margin-bottom:10px;">
+                    <div style="font-weight:bold; font-size:12px; color:#2c3e50; margin-bottom:6px;">Requisitos obligatorios para la entrevista:</div>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:6px; font-size:11px;">
+                        <label><input type="checkbox" class="chk-adm" value="Fotocopia D.N.I. del aspirante"> Fotocopia D.N.I. del aspirante</label>
+                        <label><input type="checkbox" class="chk-adm" value="Fotocopia D.N.I. de padres/tutores"> Fotocopia D.N.I. de padres y/o tutores</label>
+                        <label><input type="checkbox" class="chk-adm" value="Fotocopia C.U.D. vigente"> Fotocopia C.U.D. (Certificado Único de Discapacidad)</label>
+                        <label><input type="checkbox" class="chk-adm" value="Carnet Obra Social / Prepaga"> Carnet o constancia de Obra Social / Prepaga</label>
+                        <label><input type="checkbox" class="chk-adm" value="Informes de terapias previas"> Informes previos / establecimiento educativo</label>
+                        <label><input type="checkbox" class="chk-adm" value="Estudios médicos / legajo clínico"> Estudios médicos / legajo clínico</label>
+                    </div>
+                </div>
+
+                <button onclick="window.guardarAdmision()" style="background:#27ae60; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">💾 Guardar Admisión</button>
+            </div>
+            <div id="lista-admisiones"><p style="text-align:center; color:#7f8c8d;">Cargando...</p></div>
+        </div>
+
+        <!-- SECCIÓN 2: ACTOS, JORNADAS Y ATENEOS -->
+        <div id="seccion-eventos" style="display:none;">
+            <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #dcdde1; margin-bottom:15px;">
+                <h4 style="margin:0 0 10px 0; color:#2c3e50; font-size:14px;">🎉 Registrar Acto, Jornada o Ateneo</h4>
+                <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                    <select id="ev-tipo" style="width:140px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                        <option value="Acto Escolar">Acto Escolar</option>
+                        <option value="Jornada">Jornada</option>
+                        <option value="Ateneo">Ateneo</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                    <input type="text" id="ev-titulo" placeholder="Título o Descripción del evento" style="flex:2; min-width:200px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                    <input type="date" id="ev-fecha" style="padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                    <input type="time" id="ev-hora" style="padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                </div>
+                <button onclick="window.guardarEvento()" style="background:#2980b9; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">💾 Guardar Evento</button>
+            </div>
+            <div id="lista-eventos"><p style="text-align:center; color:#7f8c8d;">Cargando...</p></div>
+        </div>
+
+        <!-- SECCIÓN 3: VENCIMIENTOS DE TRÁMITES INSTITUCIONALES (Con tus 12 ítems y edición) -->
+        <div id="seccion-tramites" style="display:none;">
+            <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #dcdde1; margin-bottom:15px;">
+                <h4 style="margin:0 0 8px 0; color:#2c3e50; font-size:14px;">📑 Carga y Actualización de Trámites e Habilitaciones</h4>
+                <p style="font-size:11px; color:#555; margin-top:0;">Seleccioná el trámite, cargá sus fechas de vencimiento y guardá o actualizá sus datos (organismo, gestor, requisitos, demora, profesional y contacto).</p>
+                
+                <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                    <select id="tra-doc" style="flex:2; min-width:240px; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;" onchange="window.completarDatosPreset(this.value)">
+                        <option value="">-- Seleccionar Trámite / Documentación --</option>
+                        <option value="Certificado de Municipalidad">Certificado de Municipalidad</option>
+                        <option value="Certificado Electrico">Certificado Electrico</option>
+                        <option value="Contrato de Alquiler">Contrato de Alquiler</option>
+                        <option value="Habilitacion de Salud Publica">Habilitacion de Salud Publica</option>
+                        <option value="Contrato de Seguro de R.C.">Contrato de Seguro de R.C.</option>
+                        <option value="Contrato de Servicio de Emergencias Medicas">Contrato de Servicio de Emergencias Medicas</option>
+                        <option value="Habilitacion de Bomberos">Habilitacion de Bomberos</option>
+                        <option value="Control de Calidad de Agua">Control de Calidad de Agua</option>
+                        <option value="Constancia de Limpieza de Tanques de Agua">Constancia de Limpieza de Tanques de Agua</option>
+                        <option value="Exencion como Generador de Residuos Patogenicos">Exencion como Generador de Residuos Patogenicos</option>
+                        <option value="Matafuegos">Matafuegos</option>
+                        <option value="Junta de Discapacidad">Junta de Discapacidad</option>
+                    </select>
+                    <input type="text" id="tra-organismo" placeholder="Organismo" style="flex:1; min-width:160px; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                    <input type="text" id="tra-gestor" placeholder="Gestor / Encargado" style="flex:1; min-width:140px; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                </div>
+
+                <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:130px;">
+                        <label style="font-size:10px; font-weight:bold;">Vencimiento C.E.T.:</label>
+                        <input type="date" id="tra-vto-cet" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                    </div>
+                    <div style="flex:1; min-width:130px;">
+                        <label style="font-size:10px; font-weight:bold;">Vencimiento C.D.:</label>
+                        <input type="date" id="tra-vto-cd" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                    </div>
+                    <div style="flex:1; min-width:100px;">
+                        <label style="font-size:10px; font-weight:bold;">Tiempo / Demora:</label>
+                        <input type="text" id="tra-demora" placeholder="Ej: 20 días" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                    </div>
+                    <div style="flex:1; min-width:130px;">
+                        <label style="font-size:10px; font-weight:bold;">Profesional:</label>
+                        <input type="text" id="tra-prof" placeholder="Profesional a buscar" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                    </div>
+                    <div style="flex:1; min-width:110px;">
+                        <label style="font-size:10px; font-weight:bold;">Contacto:</label>
+                        <input type="text" id="tra-contacto" placeholder="Teléfono" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom:10px;">
+                    <textarea id="tra-requisitos" placeholder="Documentación necesaria para realizar el trámite..." style="width:100%; height:40px; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:12px;"></textarea>
+                </div>
+
+                <button onclick="window.guardarTramiteInstitucional()" style="background:#8e44ad; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">💾 Guardar / Actualizar Trámite</button>
+            </div>
+
+            <div id="lista-tramites"><p style="text-align:center; color:#7f8c8d;">Cargando...</p></div>
+        </div>
+
+    </div>
 </div>    
 <script>
     const firebaseConfig = { apiKey: "AIzaSyAugXXx_b_wKFByhDbLZslk2HA_UTzrzd8", authDomain: "clinicaintegral-5c488.firebaseapp.com", databaseURL: "https://clinicaintegral-5c488-default-rtdb.firebaseio.com", projectId: "clinicaintegral-5c488", storageBucket: "clinicaintegral-5c488.firebasestorage.app", messagingSenderId: "184090967634", appId: "1:184090967634:web:09715937b33ea48288698b" };
@@ -1833,7 +1966,219 @@ function iniciarRelojViolentoPresion(elementoId, fechaLimiteIso) {
 
     actualizar();
     setInterval(actualizar, 1000);
-}    
+} 
+window.abrirCronograma = function() {
+    const modal = document.getElementById('modal-cronograma');
+    if (modal) {
+        modal.style.display = 'flex';
+        window.cambiarTabAgenda('admision');
+    }
+};
+
+window.cambiarTabAgenda = function(tab) {
+    ['admision', 'eventos', 'tramites'].forEach(t => {
+        document.getElementById(`seccion-${t}`).style.display = (t === tab) ? 'block' : 'none';
+        document.getElementById(`btn-tab-${t}`).style.background = (t === tab) ? '#2980b9' : '#bdc3c7';
+    });
+    if (tab === 'admision') window.cargarAdmisiones();
+    if (tab === 'eventos') window.cargarEventos();
+    if (tab === 'tramites') window.cargarTramites();
+};
+
+// --- DATOS POR DEFECTO DE LOS TRÁMITES (Basados en tu planilla) ---
+const presetsTrámites = {
+    "Certificado de Municipalidad": { organismo: "Municipalidad", gestor: "Particular", requisitos: "", demora: "", profesional: "", contacto: "" },
+    "Certificado Electrico": { organismo: "Municipalidad", gestor: "Electricista Matriculado", requisitos: "Medicion de puesta a tierra - DDJJ - Contrato de Alquiler - Libre de Deuda Inmueble - Plano Electrico", demora: "25 días", profesional: "Marquez Gabriel", contacto: "264-6710424" },
+    "Contrato de Alquiler": { organismo: "Escribania y Aforo", gestor: "Leonardo Yossa", requisitos: "", demora: "30 días", profesional: "", contacto: "" },
+    "Habilitacion de Salud Publica": { organismo: "Centro Civico-3er Piso-Salud Publica", gestor: "Coordinadoras", requisitos: "Escaneado los requisitos", demora: "30 días", profesional: "", contacto: "" },
+    "Contrato de Seguro de R.C.": { organismo: "Rio Uruguay Seguros", gestor: "Particular", requisitos: "Presentarse personalmente en la aseguradora para la renovacion", demora: "en el dia", profesional: "", contacto: "" },
+    "Contrato de Servicio de Emergencias Medicas": { organismo: "S.M.I.", gestor: "Particular", requisitos: "", demora: "en el dia", profesional: "", contacto: "" },
+    "Habilitacion de Bomberos": { organismo: "Bomberos", gestor: "Lic. en Higiene y Seguridad", requisitos: "Contrato de Alquiler aforado - Final de Obra - Certificado Electrico - Informe Detectores de Humo - Cert. del Matriculado Electrico - Constancia de ARCA - 3 copias firmadas de formulario", demora: "20 días", profesional: "Iragorre Gabriela", contacto: "264-4981631" },
+    "Control de Calidad de Agua": { organismo: "Laboratorio Graffigna / o de la Provincia", gestor: "Particular", requisitos: "Llevar una botella grande y 2 envases de laboratorio con la muestra de la canilla", demora: "15 días", profesional: "", contacto: "" },
+    "Constancia de Limpieza de Tanques de Agua": { organismo: "Jana Mip", gestor: "Particular", requisitos: "", demora: "en el dia", profesional: "Sosa Guevara Franco", contacto: "264-6710601" },
+    "Exencion como Generador de Residuos Patogenicos": { organismo: "Centro Civico-3er Piso-Medio Ambiente", gestor: "Particular", requisitos: "Se solicita por correo electronico y con numero de expediente. Direccion: evelinherrera@sanjuan.gov.ar", demora: "16 días", profesional: "", contacto: "" },
+    "Matafuegos": { organismo: "Matafuegos Manini", gestor: "Particular", requisitos: "", demora: "5 días", profesional: "Matafuegos Manini", contacto: "264-4228312" },
+    "Junta de Discapacidad": { organismo: "Direccion de Discapacidad", gestor: "Rep. Legal o Autorizados", requisitos: "", demora: "", profesional: "", contacto: "" }
+};
+
+window.completarDatosPreset = function(nombre) {
+    if (!nombre || !presetsTrámites[nombre]) return;
+    const p = presetsTrámites[nombre];
+    document.getElementById('tra-organismo').value = p.organismo;
+    document.getElementById('tra-gestor').value = p.gestor;
+    document.getElementById('tra-requisitos').value = p.requisitos;
+    document.getElementById('tra-demora').value = p.demora;
+    document.getElementById('tra-prof').value = p.profesional;
+    document.getElementById('tra-contacto').value = p.contacto;
+};
+
+// --- ADMISIONES ---
+window.guardarAdmision = async function() {
+    const titulo = document.getElementById('adm-titulo').value.trim();
+    const fecha = document.getElementById('adm-fecha').value;
+    const hora = document.getElementById('adm-hora').value || "00:00";
+    const nombre = document.getElementById('adm-nombre').value.trim();
+    const tutor = document.getElementById('adm-tutor').value.trim();
+    const contacto = document.getElementById('adm-contacto').value.trim();
+
+    if (!titulo || !fecha || !nombre) return alert("⚠️ Completa los campos obligatorios.");
+
+    const docs = [];
+    document.querySelectorAll('.chk-adm:checked').forEach(chk => docs.push(chk.value));
+
+    try {
+        await db.ref('admisiones').push({ titulo, fecha, hora, nombre, tutor, contacto, docs, creado: new Date().toISOString() });
+        document.getElementById('adm-titulo').value = '';
+        document.getElementById('adm-nombre').value = '';
+        document.getElementById('adm-tutor').value = '';
+        document.getElementById('adm-contacto').value = '';
+        document.querySelectorAll('.chk-adm').forEach(chk => chk.checked = false);
+        alert("✅ Guardado.");
+        window.cargarAdmisiones();
+    } catch(e) { alert("❌ Error al guardar."); }
+};
+
+window.cargarAdmisiones = async function() {
+    const cont = document.getElementById('lista-admisiones');
+    try {
+        const snap = await db.ref('admisiones').once('value');
+        const data = snap.val();
+        if (!data) { cont.innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:15px;">No hay admisiones registradas.</p>`; return; }
+
+        let html = `<table style="width:100%; border-collapse:collapse; font-size:11px;">
+            <tr style="background:#ecf0f1; text-align:left; border-bottom:1px solid #bdc3c7;">
+                <th style="padding:6px;">Fecha / Hora</th><th style="padding:6px;">Aspirante / Tutor</th><th style="padding:6px;">Contacto</th><th style="padding:6px;">Documentación Presentada</th><th style="padding:6px; text-align:center;">Acción</th>
+            </tr>`;
+        Object.keys(data).forEach(k => {
+            const item = data[k];
+            let docsHtml = item.docs && item.docs.length > 0 ? item.docs.map(d => `<span style="background:#e8f8f5; color:#16a085; padding:2px 4px; border-radius:3px; font-size:9px; margin:1px; display:inline-block; border:1px solid #a3e4d7;">✓ ${d}</span>`).join('') : `<i style="color:#e74c3c;">Faltan requisitos</i>`;
+            html += `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px;">📅 ${item.fecha}<br>⏰ ${item.hora}</td><td style="padding:6px;"><b>${item.nombre}</b><br><small>Tutor: ${item.tutor || '-'}</small></td><td style="padding:6px;">📞 ${item.contacto || '-'}</td><td style="padding:6px;">${docsHtml}</td><td style="padding:6px; text-align:center;"><button onclick="window.eliminarAdmision('${k}')" style="background:#e74c3c; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer;">🗑️</button></td></tr>`;
+        });
+        html += `</table>`;
+        cont.innerHTML = html;
+    } catch(e) { cont.innerHTML = `<p style="color:red; text-align:center;">Error al cargar.</p>`; }
+};
+
+window.eliminarAdmision = async function(id) { if(confirm("¿Eliminar?")) { await db.ref(`admisiones/${id}`).remove(); window.cargarAdmisiones(); } };
+
+// --- EVENTOS (ACTOS Y JORNADAS) ---
+window.guardarEvento = async function() {
+    const tipo = document.getElementById('ev-tipo').value;
+    const titulo = document.getElementById('ev-titulo').value.trim();
+    const fecha = document.getElementById('ev-fecha').value;
+    const hora = document.getElementById('ev-hora').value || "00:00";
+    if (!titulo || !fecha) return alert("⚠️ Completa título y fecha.");
+    try {
+        await db.ref('eventos_institucionales').push({ tipo, titulo, fecha, hora });
+        document.getElementById('ev-titulo').value = '';
+        alert("✅ Evento guardado.");
+        window.cargarEventos();
+    } catch(e) { alert("❌ Error."); }
+};
+
+window.cargarEventos = async function() {
+    const cont = document.getElementById('lista-eventos');
+    try {
+        const snap = await db.ref('eventos_institucionales').once('value');
+        const data = snap.val();
+        if (!data) { cont.innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:15px;">No hay eventos.</p>`; return; }
+        let html = `<table style="width:100%; border-collapse:collapse; font-size:11px;">
+            <tr style="background:#ecf0f1; border-bottom:1px solid #bdc3c7;"><th style="padding:6px;">Fecha / Hora</th><th style="padding:6px;">Tipo</th><th style="padding:6px;">Descripción</th><th style="padding:6px; text-align:center;">Acción</th></tr>`;
+        Object.keys(data).forEach(k => {
+            const ev = data[k];
+            html += `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px;">📅 ${ev.fecha} ⏰ ${ev.hora}</td><td style="padding:6px;"><span style="background:#3498db; color:white; padding:2px 6px; border-radius:3px;">${ev.tipo}</span></td><td style="padding:6px; font-weight:bold;">${ev.titulo}</td><td style="padding:6px; text-align:center;"><button onclick="window.eliminarEvento('${k}')" style="background:#e74c3c; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer;">🗑️</button></td></tr>`;
+        });
+        html += `</table>`;
+        cont.innerHTML = html;
+    } catch(e) { cont.innerHTML = `<p style="color:red;">Error</p>`; }
+};
+
+window.eliminarEvento = async function(id) { if(confirm("¿Eliminar?")) { await db.ref(`eventos_institucionales/${id}`).remove(); window.cargarEventos(); } };
+
+// --- TRÁMITES Y VENCIMIENTOS (CON ALERTAS 60 Y 90 DÍAS) ---
+window.guardarTramiteInstitucional = async function() {
+    const documentacion = document.getElementById('tra-doc').value;
+    const organismo = document.getElementById('tra-organismo').value.trim();
+    const gestor = document.getElementById('tra-gestor').value.trim();
+    const vtocet = document.getElementById('tra-vto-cet').value;
+    const vtocd = document.getElementById('tra-vto-cd').value;
+    const demora = document.getElementById('tra-demora').value.trim();
+    const profesional = document.getElementById('tra-prof').value.trim();
+    const contacto = document.getElementById('tra-contacto').value.trim();
+    const requisitos = document.getElementById('tra-requisitos').value.trim();
+
+    if (!documentacion) return alert("⚠️ Selecciona el trámite a guardar.");
+
+    // Guardamos usando el nombre del trámite como clave única para actualizarlo siempre sin duplicar
+    const keyId = documentacion.replace(/[\s\.\/\#\$\[\]]/g, "_");
+
+    try {
+        await db.ref(`tramites_institucionales/${keyId}`).set({
+            documentacion, organismo, gestor, vtocet, vtocd, demora, profesional, contacto, requisitos, actualizado: new Date().toISOString()
+        });
+        alert("✅ Trámite actualizado correctamente.");
+        window.cargarTramites();
+    } catch(e) { alert("❌ Error al guardar."); }
+};
+
+function calcularAlertaFecha(fechaStr) {
+    if (!fechaStr) return { html: "-", color: "transparent" };
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const fechaVto = new Date(fechaStr + 'T00:00:00');
+    const dias = Math.ceil((fechaVto - hoy) / (1000 * 60 * 60 * 24));
+
+    if (dias < 0) return { html: `<br><span style="background:#c0392b; color:white; padding:1px 4px; border-radius:3px; font-size:9px; font-weight:bold;">🔴 VENCIDO (${Math.abs(dias)}d)</span>`, color: "#f5b7b1" };
+    if (dias <= 60) return { html: `<br><span style="background:#e74c3c; color:white; padding:1px 4px; border-radius:3px; font-size:9px; font-weight:bold;">🔴 ALERTA ROJA (${dias}d)</span>`, color: "#fadbd8" };
+    if (dias <= 90) return { html: `<br><span style="background:#f39c12; color:white; padding:1px 4px; border-radius:3px; font-size:9px; font-weight:bold;">🟡 ALERTA AMARILLA (${dias}d)</span>`, color: "#fcf3cf" };
+    return { html: `<br><span style="color:#27ae60; font-size:9px;">🟢 Vigente (${dias}d)</span>`, color: "transparent" };
+}
+
+window.cargarTramites = async function() {
+    const cont = document.getElementById('lista-tramites');
+    try {
+        const snap = await db.ref('tramites_institucionales').once('value');
+        const data = snap.val() || {};
+
+        let html = `<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:11px; white-space:nowrap;">
+            <tr style="background:#2c3e50; color:white; text-align:left;">
+                <th style="padding:6px;">Documentación / Trámite</th>
+                <th style="padding:6px;">Vto. C.E.T.</th>
+                <th style="padding:6px;">Vto. C.D.</th>
+                <th style="padding:6px;">Organismo / Gestor</th>
+                <th style="padding:6px;">Requisitos a Presentar</th>
+                <th style="padding:6px;">Profesional / Contacto</th>
+                <th style="padding:6px;">Demora</th>
+            </tr>`;
+
+        const listaItems = [
+            "Certificado de Municipalidad", "Certificado Electrico", "Contrato de Alquiler", 
+            "Habilitacion de Salud Publica", "Contrato de Seguro de R.C.", "Contrato de Servicio de Emergencias Medicas", 
+            "Habilitacion de Bomberos", "Control de Calidad de Agua", "Constancia de Limpieza de Tanques de Agua", 
+            "Exencion como Generador de Residuos Patogenicos", "Matafuegos", "Junta de Discapacidad"
+        ];
+
+        listaItems.forEach(nombreDoc => {
+            const keyId = nombreDoc.replace(/[\s\.\/\#\$\[\]]/g, "_");
+            const item = data[keyId] || { documentacion: nombreDoc, organismo: "-", gestor: "-", vtocet: "", vtocd: "", demora: "-", profesional: "-", contacto: "-", requisitos: "-" };
+            
+            const aCet = calcularAlertaFecha(item.vtocet);
+            const aCd = calcularAlertaFecha(item.vtocd);
+
+            html += `<tr style="border-bottom:1px solid #ddd;">
+                <td style="padding:6px; font-weight:bold; white-space:normal; max-width:180px;">${item.documentacion}</td>
+                <td style="padding:6px; background:${aCet.color};">${item.vtocet || '-'}${aCet.html}</td>
+                <td style="padding:6px; background:${aCd.color};">${item.vtocd || '-'}${aCd.html}</td>
+                <td style="padding:6px; white-space:normal;"><b>${item.organismo || '-'}</b><br><small>Gestor: ${item.gestor || '-'}</small></td>
+                <td style="padding:6px; white-space:normal; max-width:180px; color:#555;"><small>${item.requisitos || '-'}</small></td>
+                <td style="padding:6px; white-space:normal;">${item.profesional || '-'}<br><small>📞 ${item.contacto || '-'}</small></td>
+                <td style="padding:6px; font-weight:bold; color:#2980b9;">⏳ ${item.demora || '-'}</td>
+            </tr>`;
+        });
+
+        html += `</table></div>`;
+        cont.innerHTML = html;
+    } catch(e) { cont.innerHTML = `<p style="color:red;">Error al cargar trámites.</p>`; }
+};    
 </script>         
 </body>
 </html>
