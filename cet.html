@@ -1977,15 +1977,17 @@ window.abrirCronograma = function() {
 
 window.cambiarTabAgenda = function(tab) {
     ['admision', 'eventos', 'tramites'].forEach(t => {
-        document.getElementById(`seccion-${t}`).style.display = (t === tab) ? 'block' : 'none';
-        document.getElementById(`btn-tab-${t}`).style.background = (t === tab) ? '#2980b9' : '#bdc3c7';
+        const sec = document.getElementById(`seccion-${t}`);
+        const btn = document.getElementById(`btn-tab-${t}`);
+        if (sec) sec.style.display = (t === tab) ? 'block' : 'none';
+        if (btn) btn.style.background = (t === tab) ? '#2980b9' : '#bdc3c7';
     });
     if (tab === 'admision') window.cargarAdmisiones();
     if (tab === 'eventos') window.cargarEventos();
     if (tab === 'tramites') window.cargarTramites();
 };
 
-// --- DATOS POR DEFECTO DE LOS TRÁMITES (Basados en tu planilla) ---
+// --- PRESETS DE TRÁMITES ---
 const presetsTrámites = {
     "Certificado de Municipalidad": { organismo: "Municipalidad", gestor: "Particular", requisitos: "", demora: "", profesional: "", contacto: "" },
     "Certificado Electrico": { organismo: "Municipalidad", gestor: "Electricista Matriculado", requisitos: "Medicion de puesta a tierra - DDJJ - Contrato de Alquiler - Libre de Deuda Inmueble - Plano Electrico", demora: "25 días", profesional: "Marquez Gabriel", contacto: "264-6710424" },
@@ -1996,7 +1998,7 @@ const presetsTrámites = {
     "Habilitacion de Bomberos": { organismo: "Bomberos", gestor: "Lic. en Higiene y Seguridad", requisitos: "Contrato de Alquiler aforado - Final de Obra - Certificado Electrico - Informe Detectores de Humo - Cert. del Matriculado Electrico - Constancia de ARCA - 3 copias firmadas de formulario", demora: "20 días", profesional: "Iragorre Gabriela", contacto: "264-4981631" },
     "Control de Calidad de Agua": { organismo: "Laboratorio Graffigna / o de la Provincia", gestor: "Particular", requisitos: "Llevar una botella grande y 2 envases de laboratorio con la muestra de la canilla", demora: "15 días", profesional: "", contacto: "" },
     "Constancia de Limpieza de Tanques de Agua": { organismo: "Jana Mip", gestor: "Particular", requisitos: "", demora: "en el dia", profesional: "Sosa Guevara Franco", contacto: "264-6710601" },
-    "Exencion como Generador de Residuos Patogenicos": { organismo: "Centro Civico-3er Piso-Medio Ambiente", gestor: "Particular", requisitos: "Se solicita por correo electronico y con numero de expediente. Direccion: evelinherrera@sanjuan.gov.ar", demora: "16 días", profesional: "", contacto: "" },
+    "Exencion como Generador de Residuos Patogenicos": { organismo: "Centro Civico-3er Piso-Medio Ambiente", gestor: "Particular", requisitos: "Se solicita por correo electronico y con numero de expediente.", demora: "16 días", profesional: "", contacto: "" },
     "Matafuegos": { organismo: "Matafuegos Manini", gestor: "Particular", requisitos: "", demora: "5 días", profesional: "Matafuegos Manini", contacto: "264-4228312" },
     "Junta de Discapacidad": { organismo: "Direccion de Discapacidad", gestor: "Rep. Legal o Autorizados", requisitos: "", demora: "", profesional: "", contacto: "" }
 };
@@ -2004,15 +2006,16 @@ const presetsTrámites = {
 window.completarDatosPreset = function(nombre) {
     if (!nombre || !presetsTrámites[nombre]) return;
     const p = presetsTrámites[nombre];
-    document.getElementById('tra-organismo').value = p.organismo;
-    document.getElementById('tra-gestor').value = p.gestor;
-    document.getElementById('tra-requisitos').value = p.requisitos;
-    document.getElementById('tra-demora').value = p.demora;
-    document.getElementById('tra-prof').value = p.profesional;
-    document.getElementById('tra-contacto').value = p.contacto;
+    const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val; };
+    setVal('tra-organismo', p.organismo);
+    setVal('tra-gestor', p.gestor);
+    setVal('tra-requisitos', p.requisitos);
+    setVal('tra-demora', p.demora);
+    setVal('tra-prof', p.profesional);
+    setVal('tra-contacto', p.contacto);
 };
 
-// --- ADMISIONES ---
+// --- ADMISIONES (CON EDICIÓN DE CHECKLIST) ---
 window.guardarAdmision = async function() {
     const titulo = document.getElementById('adm-titulo').value.trim();
     const fecha = document.getElementById('adm-fecha').value;
@@ -2020,6 +2023,7 @@ window.guardarAdmision = async function() {
     const nombre = document.getElementById('adm-nombre').value.trim();
     const tutor = document.getElementById('adm-tutor').value.trim();
     const contacto = document.getElementById('adm-contacto').value.trim();
+    const editId = document.getElementById('adm-edit-id')?.value;
 
     if (!titulo || !fecha || !nombre) return alert("⚠️ Completa los campos obligatorios.");
 
@@ -2027,75 +2031,120 @@ window.guardarAdmision = async function() {
     document.querySelectorAll('.chk-adm:checked').forEach(chk => docs.push(chk.value));
 
     try {
-        await db.ref('admisiones').push({ titulo, fecha, hora, nombre, tutor, contacto, docs, creado: new Date().toISOString() });
+        const dataObj = { titulo, fecha, hora, nombre, tutor, contacto, docs, actualizado: new Date().toISOString() };
+        
+        if (editId) {
+            await db.ref(`admisiones/${editId}`).update(dataObj);
+            document.getElementById('adm-edit-id').value = '';
+            alert("✅ Admisión actualizada correctamente.");
+        } else {
+            await db.ref('admisiones').push(dataObj);
+            alert("✅ Admisión registrada correctamente.");
+        }
+
         document.getElementById('adm-titulo').value = '';
         document.getElementById('adm-nombre').value = '';
         document.getElementById('adm-tutor').value = '';
         document.getElementById('adm-contacto').value = '';
         document.querySelectorAll('.chk-adm').forEach(chk => chk.checked = false);
-        alert("✅ Guardado.");
         window.cargarAdmisiones();
-    } catch(e) { alert("❌ Error al guardar."); }
+    } catch(e) {
+        console.error(e);
+        alert("❌ Error al guardar en Firebase. Verificá tu conexión.");
+    }
 };
 
 window.cargarAdmisiones = async function() {
     const cont = document.getElementById('lista-admisiones');
+    if (!cont) return;
     try {
         const snap = await db.ref('admisiones').once('value');
         const data = snap.val();
-        if (!data) { cont.innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:15px;">No hay admisiones registradas.</p>`; return; }
+        if (!data) { 
+            cont.innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:15px;">No hay entrevistas de admisión registradas.</p>`; 
+            return; 
+        }
 
         let html = `<table style="width:100%; border-collapse:collapse; font-size:11px;">
             <tr style="background:#ecf0f1; text-align:left; border-bottom:1px solid #bdc3c7;">
-                <th style="padding:6px;">Fecha / Hora</th><th style="padding:6px;">Aspirante / Tutor</th><th style="padding:6px;">Contacto</th><th style="padding:6px;">Documentación Presentada</th><th style="padding:6px; text-align:center;">Acción</th>
+                <th style="padding:6px;">Fecha / Hora</th>
+                <th style="padding:6px;">Aspirante / Tutor</th>
+                <th style="padding:6px;">Contacto</th>
+                <th style="padding:6px;">Documentación Presentada</th>
+                <th style="padding:6px; text-align:center;">Acciones</th>
             </tr>`;
+
         Object.keys(data).forEach(k => {
             const item = data[k];
-            let docsHtml = item.docs && item.docs.length > 0 ? item.docs.map(d => `<span style="background:#e8f8f5; color:#16a085; padding:2px 4px; border-radius:3px; font-size:9px; margin:1px; display:inline-block; border:1px solid #a3e4d7;">✓ ${d}</span>`).join('') : `<i style="color:#e74c3c;">Faltan requisitos</i>`;
-            html += `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px;">📅 ${item.fecha}<br>⏰ ${item.hora}</td><td style="padding:6px;"><b>${item.nombre}</b><br><small>Tutor: ${item.tutor || '-'}</small></td><td style="padding:6px;">📞 ${item.contacto || '-'}</td><td style="padding:6px;">${docsHtml}</td><td style="padding:6px; text-align:center;"><button onclick="window.eliminarAdmision('${k}')" style="background:#e74c3c; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer;">🗑️</button></td></tr>`;
+            let docsHtml = item.docs && item.docs.length > 0 
+                ? item.docs.map(d => `<span style="background:#e8f8f5; color:#16a085; padding:2px 4px; border-radius:3px; font-size:9px; margin:1px; display:inline-block; border:1px solid #a3e4d7;">✓ ${d}</span>`).join('') 
+                : `<i style="color:#e74c3c;">Faltan requisitos</i>`;
+
+            html += `<tr style="border-bottom:1px solid #eee;">
+                <td style="padding:6px;">📅 ${item.fecha}<br>⏰ ${item.hora}</td>
+                <td style="padding:6px;"><b>${item.nombre}</b><br><small>Tutor: ${item.tutor || '-'}</small></td>
+                <td style="padding:6px;">📞 ${item.contacto || '-'}</td>
+                <td style="padding:6px;">${docsHtml}</td>
+                <td style="padding:6px; text-align:center; white-space:nowrap;">
+                    <button onclick="window.editarAdmision('${k}')" style="background:#f39c12; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer; margin-right:3px;" title="Editar / Actualizar Documentación">✏️</button>
+                    <button onclick="window.eliminarAdmision('${k}')" style="background:#e74c3c; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer;" title="Eliminar">🗑️</button>
+                </td>
+            </tr>`;
         });
         html += `</table>`;
         cont.innerHTML = html;
-    } catch(e) { cont.innerHTML = `<p style="color:red; text-align:center;">Error al cargar.</p>`; }
+    } catch(e) { 
+        console.error(e);
+        cont.innerHTML = `<p style="color:red; text-align:center;">Error al cargar admisiones.</p>`; 
+    }
 };
 
-window.eliminarAdmision = async function(id) { if(confirm("¿Eliminar?")) { await db.ref(`admisiones/${id}`).remove(); window.cargarAdmisiones(); } };
-
-// --- EVENTOS (ACTOS Y JORNADAS) ---
-window.guardarEvento = async function() {
-    const tipo = document.getElementById('ev-tipo').value;
-    const titulo = document.getElementById('ev-titulo').value.trim();
-    const fecha = document.getElementById('ev-fecha').value;
-    const hora = document.getElementById('ev-hora').value || "00:00";
-    if (!titulo || !fecha) return alert("⚠️ Completa título y fecha.");
+window.editarAdmision = async function(id) {
     try {
-        await db.ref('eventos_institucionales').push({ tipo, titulo, fecha, hora });
-        document.getElementById('ev-titulo').value = '';
-        alert("✅ Evento guardado.");
-        window.cargarEventos();
-    } catch(e) { alert("❌ Error."); }
-};
+        const snap = await db.ref(`admisiones/${id}`).once('value');
+        const item = snap.val();
+        if (!item) return;
 
-window.cargarEventos = async function() {
-    const cont = document.getElementById('lista-eventos');
-    try {
-        const snap = await db.ref('eventos_institucionales').once('value');
-        const data = snap.val();
-        if (!data) { cont.innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:15px;">No hay eventos.</p>`; return; }
-        let html = `<table style="width:100%; border-collapse:collapse; font-size:11px;">
-            <tr style="background:#ecf0f1; border-bottom:1px solid #bdc3c7;"><th style="padding:6px;">Fecha / Hora</th><th style="padding:6px;">Tipo</th><th style="padding:6px;">Descripción</th><th style="padding:6px; text-align:center;">Acción</th></tr>`;
-        Object.keys(data).forEach(k => {
-            const ev = data[k];
-            html += `<tr style="border-bottom:1px solid #eee;"><td style="padding:6px;">📅 ${ev.fecha} ⏰ ${ev.hora}</td><td style="padding:6px;"><span style="background:#3498db; color:white; padding:2px 6px; border-radius:3px;">${ev.tipo}</span></td><td style="padding:6px; font-weight:bold;">${ev.titulo}</td><td style="padding:6px; text-align:center;"><button onclick="window.eliminarEvento('${k}')" style="background:#e74c3c; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer;">🗑️</button></td></tr>`;
+        document.getElementById('adm-titulo').value = item.titulo || '';
+        document.getElementById('adm-fecha').value = item.fecha || '';
+        document.getElementById('adm-hora').value = item.hora || '';
+        document.getElementById('adm-nombre').value = item.nombre || '';
+        document.getElementById('adm-tutor').value = item.tutor || '';
+        document.getElementById('adm-contacto').value = item.contacto || '';
+
+        // Crear un input hidden para saber que estamos editando este ID
+        let editInput = document.getElementById('adm-edit-id');
+        if (!editInput) {
+            editInput = document.createElement('input');
+            editInput.type = 'hidden';
+            editInput.id = 'adm-edit-id';
+            document.body.appendChild(editInput);
+        }
+        editInput.value = id;
+
+        // Tildar los checkboxes que ya tenía presentados
+        document.querySelectorAll('.chk-adm').forEach(chk => {
+            chk.checked = item.docs && item.docs.includes(chk.value);
         });
-        html += `</table>`;
-        cont.innerHTML = html;
-    } catch(e) { cont.innerHTML = `<p style="color:red;">Error</p>`; }
+
+        // Cambiar a la pestaña de admisión por si estaba en otra
+        window.cambiarTabAgenda('admision');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        alert("✏️ Datos cargados en el formulario superior. Modificá lo necesario y volvé a hacer clic en 'Guardar Admisión' para actualizar.");
+    } catch(e) {
+        console.error(e);
+        alert("❌ Error al recuperar los datos de la admisión.");
+    }
 };
 
-window.eliminarEvento = async function(id) { if(confirm("¿Eliminar?")) { await db.ref(`eventos_institucionales/${id}`).remove(); window.cargarEventos(); } };
+window.eliminarAdmision = async function(id) { 
+    if(confirm("¿Eliminar registro de admisión?")) { 
+        await db.ref(`admisiones/${id}`).remove(); 
+        window.cargarAdmisiones(); 
+    } 
+};
 
-// --- TRÁMITES Y VENCIMIENTOS (CON ALERTAS 60 Y 90 DÍAS) ---
+// --- TRÁMITES INSTITUCIONALES (Con manejo seguro de errores) ---
 window.guardarTramiteInstitucional = async function() {
     const documentacion = document.getElementById('tra-doc').value;
     const organismo = document.getElementById('tra-organismo').value.trim();
@@ -2109,7 +2158,6 @@ window.guardarTramiteInstitucional = async function() {
 
     if (!documentacion) return alert("⚠️ Selecciona el trámite a guardar.");
 
-    // Guardamos usando el nombre del trámite como clave única para actualizarlo siempre sin duplicar
     const keyId = documentacion.replace(/[\s\.\/\#\$\[\]]/g, "_");
 
     try {
@@ -2118,7 +2166,10 @@ window.guardarTramiteInstitucional = async function() {
         });
         alert("✅ Trámite actualizado correctamente.");
         window.cargarTramites();
-    } catch(e) { alert("❌ Error al guardar."); }
+    } catch(e) { 
+        console.error(e);
+        alert("❌ Error al guardar en Firebase. Verificá los permisos de escritura."); 
+    }
 };
 
 function calcularAlertaFecha(fechaStr) {
@@ -2135,6 +2186,7 @@ function calcularAlertaFecha(fechaStr) {
 
 window.cargarTramites = async function() {
     const cont = document.getElementById('lista-tramites');
+    if (!cont) return;
     try {
         const snap = await db.ref('tramites_institucionales').once('value');
         const data = snap.val() || {};
@@ -2177,8 +2229,11 @@ window.cargarTramites = async function() {
 
         html += `</table></div>`;
         cont.innerHTML = html;
-    } catch(e) { cont.innerHTML = `<p style="color:red;">Error al cargar trámites.</p>`; }
-};    
+    } catch(e) { 
+        console.error(e);
+        if(cont) cont.innerHTML = `<p style="color:red; text-align:center;">Error al cargar trámites desde Firebase.</p>`; 
+    }
+};
 </script>         
 </body>
 </html>
