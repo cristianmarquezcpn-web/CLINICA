@@ -1967,6 +1967,10 @@ function iniciarRelojViolentoPresion(elementoId, fechaLimiteIso) {
     actualizar();
     setInterval(actualizar, 1000);
 } 
+// --- INICIALIZACIÓN DE LA BASE DE DATOS LOCAL PARA ESTE MÓDULO ---
+// (Si en tu archivo ya tenés definida otra variable para la DB, podés adaptarlo)
+const databaseRef = () => (typeof db !== 'undefined' ? db : firebase.database());
+
 window.abrirCronograma = function() {
     const modal = document.getElementById('modal-cronograma');
     if (modal) {
@@ -1987,7 +1991,7 @@ window.cambiarTabAgenda = function(tab) {
     if (tab === 'tramites') window.cargarTramites();
 };
 
-// --- PRESETS DE TRÁMITES ---
+// --- PRESETS DE TRÁMITES INSTITUCIONALES ---
 const presetsTrámites = {
     "Certificado de Municipalidad": { organismo: "Municipalidad", gestor: "Particular", requisitos: "", demora: "", profesional: "", contacto: "" },
     "Certificado Electrico": { organismo: "Municipalidad", gestor: "Electricista Matriculado", requisitos: "Medicion de puesta a tierra - DDJJ - Contrato de Alquiler - Libre de Deuda Inmueble - Plano Electrico", demora: "25 días", profesional: "Marquez Gabriel", contacto: "264-6710424" },
@@ -2015,7 +2019,7 @@ window.completarDatosPreset = function(nombre) {
     setVal('tra-contacto', p.contacto);
 };
 
-// --- ADMISIONES (CON EDICIÓN DE CHECKLIST) ---
+// --- MÓDULO DE ADMISIONES (CON SOPORTE DE EDICIÓN DE CHECKLIST) ---
 window.guardarAdmision = async function() {
     const titulo = document.getElementById('adm-titulo').value.trim();
     const fecha = document.getElementById('adm-fecha').value;
@@ -2034,11 +2038,11 @@ window.guardarAdmision = async function() {
         const dataObj = { titulo, fecha, hora, nombre, tutor, contacto, docs, actualizado: new Date().toISOString() };
         
         if (editId) {
-            await db.ref(`admisiones/${editId}`).update(dataObj);
+            await databaseRef().ref(`admisiones/${editId}`).update(dataObj);
             document.getElementById('adm-edit-id').value = '';
             alert("✅ Admisión actualizada correctamente.");
         } else {
-            await db.ref('admisiones').push(dataObj);
+            await databaseRef().ref('admisiones').push(dataObj);
             alert("✅ Admisión registrada correctamente.");
         }
 
@@ -2050,7 +2054,7 @@ window.guardarAdmision = async function() {
         window.cargarAdmisiones();
     } catch(e) {
         console.error(e);
-        alert("❌ Error al guardar en Firebase. Verificá tu conexión.");
+        alert("❌ Error al guardar en Firebase.");
     }
 };
 
@@ -2058,7 +2062,7 @@ window.cargarAdmisiones = async function() {
     const cont = document.getElementById('lista-admisiones');
     if (!cont) return;
     try {
-        const snap = await db.ref('admisiones').once('value');
+        const snap = await databaseRef().ref('admisiones').once('value');
         const data = snap.val();
         if (!data) { 
             cont.innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:15px;">No hay entrevistas de admisión registradas.</p>`; 
@@ -2086,7 +2090,7 @@ window.cargarAdmisiones = async function() {
                 <td style="padding:6px;">📞 ${item.contacto || '-'}</td>
                 <td style="padding:6px;">${docsHtml}</td>
                 <td style="padding:6px; text-align:center; white-space:nowrap;">
-                    <button onclick="window.editarAdmision('${k}')" style="background:#f39c12; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer; margin-right:3px;" title="Editar / Actualizar Documentación">✏️</button>
+                    <button onclick="window.editarAdmision('${k}')" style="background:#f39c12; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer; margin-right:3px;" title="Editar">✏️</button>
                     <button onclick="window.eliminarAdmision('${k}')" style="background:#e74c3c; color:white; border:none; padding:3px 6px; border-radius:3px; cursor:pointer;" title="Eliminar">🗑️</button>
                 </td>
             </tr>`;
@@ -2101,7 +2105,7 @@ window.cargarAdmisiones = async function() {
 
 window.editarAdmision = async function(id) {
     try {
-        const snap = await db.ref(`admisiones/${id}`).once('value');
+        const snap = await databaseRef().ref(`admisiones/${id}`).once('value');
         const item = snap.val();
         if (!item) return;
 
@@ -2112,7 +2116,6 @@ window.editarAdmision = async function(id) {
         document.getElementById('adm-tutor').value = item.tutor || '';
         document.getElementById('adm-contacto').value = item.contacto || '';
 
-        // Crear un input hidden para saber que estamos editando este ID
         let editInput = document.getElementById('adm-edit-id');
         if (!editInput) {
             editInput = document.createElement('input');
@@ -2122,29 +2125,25 @@ window.editarAdmision = async function(id) {
         }
         editInput.value = id;
 
-        // Tildar los checkboxes que ya tenía presentados
         document.querySelectorAll('.chk-adm').forEach(chk => {
             chk.checked = item.docs && item.docs.includes(chk.value);
         });
 
-        // Cambiar a la pestaña de admisión por si estaba en otra
         window.cambiarTabAgenda('admision');
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        alert("✏️ Datos cargados en el formulario superior. Modificá lo necesario y volvé a hacer clic en 'Guardar Admisión' para actualizar.");
     } catch(e) {
         console.error(e);
-        alert("❌ Error al recuperar los datos de la admisión.");
     }
 };
 
 window.eliminarAdmision = async function(id) { 
     if(confirm("¿Eliminar registro de admisión?")) { 
-        await db.ref(`admisiones/${id}`).remove(); 
+        await databaseRef().ref(`admisiones/${id}`).remove(); 
         window.cargarAdmisiones(); 
     } 
 };
 
-// --- TRÁMITES INSTITUCIONALES (Con manejo seguro de errores) ---
+// --- MÓDULO DE TRÁMITES INSTITUCIONALES ---
 window.guardarTramiteInstitucional = async function() {
     const documentacion = document.getElementById('tra-doc').value;
     const organismo = document.getElementById('tra-organismo').value.trim();
@@ -2161,34 +2160,22 @@ window.guardarTramiteInstitucional = async function() {
     const keyId = documentacion.replace(/[\s\.\/\#\$\[\]]/g, "_");
 
     try {
-        await db.ref(`tramites_institucionales/${keyId}`).set({
+        await databaseRef().ref(`tramites_institucionales/${keyId}`).set({
             documentacion, organismo, gestor, vtocet, vtocd, demora, profesional, contacto, requisitos, actualizado: new Date().toISOString()
         });
         alert("✅ Trámite actualizado correctamente.");
         window.cargarTramites();
     } catch(e) { 
         console.error(e);
-        alert("❌ Error al guardar en Firebase. Verificá los permisos de escritura."); 
+        alert("❌ Error al guardar en Firebase."); 
     }
 };
-
-function calcularAlertaFecha(fechaStr) {
-    if (!fechaStr) return { html: "-", color: "transparent" };
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    const fechaVto = new Date(fechaStr + 'T00:00:00');
-    const dias = Math.ceil((fechaVto - hoy) / (1000 * 60 * 60 * 24));
-
-    if (dias < 0) return { html: `<br><span style="background:#c0392b; color:white; padding:1px 4px; border-radius:3px; font-size:9px; font-weight:bold;">🔴 VENCIDO (${Math.abs(dias)}d)</span>`, color: "#f5b7b1" };
-    if (dias <= 60) return { html: `<br><span style="background:#e74c3c; color:white; padding:1px 4px; border-radius:3px; font-size:9px; font-weight:bold;">🔴 ALERTA ROJA (${dias}d)</span>`, color: "#fadbd8" };
-    if (dias <= 90) return { html: `<br><span style="background:#f39c12; color:white; padding:1px 4px; border-radius:3px; font-size:9px; font-weight:bold;">🟡 ALERTA AMARILLA (${dias}d)</span>`, color: "#fcf3cf" };
-    return { html: `<br><span style="color:#27ae60; font-size:9px;">🟢 Vigente (${dias}d)</span>`, color: "transparent" };
-}
 
 window.cargarTramites = async function() {
     const cont = document.getElementById('lista-tramites');
     if (!cont) return;
     try {
-        const snap = await db.ref('tramites_institucionales').once('value');
+        const snap = await databaseRef().ref('tramites_institucionales').once('value');
         const data = snap.val() || {};
 
         let html = `<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:11px; white-space:nowrap;">
@@ -2213,8 +2200,20 @@ window.cargarTramites = async function() {
             const keyId = nombreDoc.replace(/[\s\.\/\#\$\[\]]/g, "_");
             const item = data[keyId] || { documentacion: nombreDoc, organismo: "-", gestor: "-", vtocet: "", vtocd: "", demora: "-", profesional: "-", contacto: "-", requisitos: "-" };
             
-            const aCet = calcularAlertaFecha(item.vtocet);
-            const aCd = calcularAlertaFecha(item.vtocd);
+            const hoy = new Date(); hoy.setHours(0,0,0,0);
+            
+            const calcAlerta = (fechaStr) => {
+                if (!fechaStr) return { html: "-", color: "transparent" };
+                const fvto = new Date(fechaStr + 'T00:00:00');
+                const dias = Math.ceil((fvto - hoy) / (1000 * 60 * 60 * 24));
+                if (dias < 0) return { html: `<br><span style="background:#c0392b; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">🔴 VENCIDO (${Math.abs(dias)}d)</span>`, color: "#f5b7b1" };
+                if (dias <= 60) return { html: `<br><span style="background:#e74c3c; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">🔴 ROJA (${dias}d)</span>`, color: "#fadbd8" };
+                if (dias <= 90) return { html: `<br><span style="background:#f39c12; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">🟡 AMARILLA (${dias}d)</span>`, color: "#fcf3cf" };
+                return { html: `<br><span style="color:#27ae60; font-size:9px;">🟢 Vigente (${dias}d)</span>`, color: "transparent" };
+            };
+
+            const aCet = calcAlerta(item.vtocet);
+            const aCd = calcAlerta(item.vtocd);
 
             html += `<tr style="border-bottom:1px solid #ddd;">
                 <td style="padding:6px; font-weight:bold; white-space:normal; max-width:180px;">${item.documentacion}</td>
@@ -2231,8 +2230,14 @@ window.cargarTramites = async function() {
         cont.innerHTML = html;
     } catch(e) { 
         console.error(e);
-        if(cont) cont.innerHTML = `<p style="color:red; text-align:center;">Error al cargar trámites desde Firebase.</p>`; 
+        if(cont) cont.innerHTML = `<p style="color:red; text-align:center;">Error al cargar trámites.</p>`; 
     }
+};
+
+// Stub preventivo por si se llama a eventos desde las solapas
+window.cargarEventos = function() {
+    const cont = document.getElementById('lista-eventos');
+    if (cont) cont.innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:15px;">Módulo de Actos y Jornadas disponible próximamente.</p>`;
 };
 </script>         
 </body>
