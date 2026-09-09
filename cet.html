@@ -1968,7 +1968,6 @@ function iniciarRelojViolentoPresion(elementoId, fechaLimiteIso) {
     setInterval(actualizar, 1000);
 } 
 // --- INICIALIZACIÓN DE LA BASE DE DATOS LOCAL PARA ESTE MÓDULO ---
-// (Si en tu archivo ya tenés definida otra variable para la DB, podés adaptarlo)
 const databaseRef = () => (typeof db !== 'undefined' ? db : firebase.database());
 
 window.abrirCronograma = function() {
@@ -2004,7 +2003,8 @@ const presetsTrámites = {
     "Constancia de Limpieza de Tanques de Agua": { organismo: "Jana Mip", gestor: "Particular", requisitos: "", demora: "en el dia", profesional: "Sosa Guevara Franco", contacto: "264-6710601" },
     "Exencion como Generador de Residuos Patogenicos": { organismo: "Centro Civico-3er Piso-Medio Ambiente", gestor: "Particular", requisitos: "Se solicita por correo electronico y con numero de expediente.", demora: "16 días", profesional: "", contacto: "" },
     "Matafuegos": { organismo: "Matafuegos Manini", gestor: "Particular", requisitos: "", demora: "5 días", profesional: "Matafuegos Manini", contacto: "264-4228312" },
-    "Junta de Discapacidad": { organismo: "Direccion de Discapacidad", gestor: "Rep. Legal o Autorizados", requisitos: "", demora: "", profesional: "", contacto: "" }
+    "Junta de Discapacidad": { organismo: "Direccion de Discapacidad", gestor: "Rep. Legal o Autorizados", requisitos: "", demora: "", profesional: "", contacto: "" },
+    "Factibilidad de funcionamiento": { organismo: "Planeamiento", gestor: "Ing. Armando Moreno", requisitos: "", demora: "20 días", profesional: "Armando Moreno", contacto: "264-4101750" }
 };
 
 window.completarDatosPreset = function(nombre) {
@@ -2171,6 +2171,40 @@ window.guardarTramiteInstitucional = async function() {
     }
 };
 
+window.editarTramite = async function(nombreDoc) {
+    const selDoc = document.getElementById('tra-doc');
+    if (selDoc) {
+        selDoc.value = nombreDoc;
+    }
+    
+    const keyId = nombreDoc.replace(/[\s\.\/\#\$\[\]]/g, "_");
+    try {
+        const snap = await databaseRef().ref(`tramites_institucionales/${keyId}`).once('value');
+        const item = snap.val();
+        
+        const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val || ''; };
+        
+        if (item) {
+            setVal('tra-organismo', item.organismo);
+            setVal('tra-gestor', item.gestor);
+            setVal('tra-vto-cet', item.vtocet);
+            setVal('tra-vto-cd', item.vtocd);
+            setVal('tra-demora', item.demora);
+            setVal('tra-prof', item.profesional);
+            setVal('tra-contacto', item.contacto);
+            setVal('tra-requisitos', item.requisitos);
+        } else {
+            window.completarDatosPreset(nombreDoc);
+            setVal('tra-vto-cet', '');
+            setVal('tra-vto-cd', '');
+        }
+        
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch(e) {
+        console.error(e);
+    }
+};
+
 window.cargarTramites = async function() {
     const cont = document.getElementById('lista-tramites');
     if (!cont) return;
@@ -2187,13 +2221,15 @@ window.cargarTramites = async function() {
                 <th style="padding:6px;">Requisitos a Presentar</th>
                 <th style="padding:6px;">Profesional / Contacto</th>
                 <th style="padding:6px;">Demora</th>
+                <th style="padding:6px; text-align:center;">Acción</th>
             </tr>`;
 
         const listaItems = [
             "Certificado de Municipalidad", "Certificado Electrico", "Contrato de Alquiler", 
             "Habilitacion de Salud Publica", "Contrato de Seguro de R.C.", "Contrato de Servicio de Emergencias Medicas", 
             "Habilitacion de Bomberos", "Control de Calidad de Agua", "Constancia de Limpieza de Tanques de Agua", 
-            "Exencion como Generador de Residuos Patogenicos", "Matafuegos", "Junta de Discapacidad"
+            "Exencion como Generador de Residuos Patogenicos", "Matafuegos", "Junta de Discapacidad",
+            "Factibilidad de funcionamiento"
         ];
 
         listaItems.forEach(nombreDoc => {
@@ -2223,6 +2259,9 @@ window.cargarTramites = async function() {
                 <td style="padding:6px; white-space:normal; max-width:180px; color:#555;"><small>${item.requisitos || '-'}</small></td>
                 <td style="padding:6px; white-space:normal;">${item.profesional || '-'}<br><small>📞 ${item.contacto || '-'}</small></td>
                 <td style="padding:6px; font-weight:bold; color:#2980b9;">⏳ ${item.demora || '-'}</td>
+                <td style="padding:6px; text-align:center;">
+                    <button onclick="window.editarTramite('${item.documentacion}')" style="background:#f39c12; color:white; border:none; padding:4px 8px; border-radius:3px; cursor:pointer;" title="Editar este trámite">✏️</button>
+                </td>
             </tr>`;
         });
 
