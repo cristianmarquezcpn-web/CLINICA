@@ -627,60 +627,28 @@ function cerrarReset() {
 }
 // Función para borrar un turno específico (Día a día)
 async function prepararBorradoIndividual() {
-    const dia = prompt("¿Día? (Ej: Lunes, Martes, Miércoles...)");
+    const dia = prompt("¿Día? (Ej: Lunes, Martes...)");
     if(!dia) return;
     
-    const cons = String(prompt("¿Consultorio? (Ej: 1)")).trim();
+    const cons = prompt("¿Consultorio? (Ej: 1)").trim();
     if(!cons) return;
     
     let hora = prompt("¿Hora? (Ej: 13:00 o 13)");
     if(!hora) return;
 
-    // Normalizar hora (ej: "13" -> "13:00")
     if (!hora.includes(':')) {
         hora = hora + ":00";
     }
 
-    if(confirm(`¿Borrar el turno del ${dia} a las ${hora} (Cons ${cons})?`)) {
-        let encontrado = false;
+    const clave = `${hora}-${cons}`; // Ejemplo: "13:00-1"
 
+    if(confirm(`¿Borrar el turno de rehab/turnos/${dia}/${clave}?`)) {
         try {
-            // Recorremos todos los pacientes en memoria (pacs)
-            for (let nombrePaciente in pacs) {
-                const paciente = pacs[nombrePaciente];
-                
-                // Verificamos si tiene horarios cargados para ese día
-                if (paciente.horarios && paciente.horarios[dia]) {
-                    // Filtramos los turnos para quitar el que coincida exactamente
-                    const horariosFiltrados = paciente.horarios[dia].filter(h => {
-                        const coincideCons = String(h.consultorio).trim() === cons;
-                        const coincideHora = String(h.hora).trim() === hora;
-                        
-                        if (coincideCons && coincideHora) {
-                            encontrado = true;
-                            return false; // Este lo removemos del array
-                        }
-                        return true; // Los demás se quedan
-                    });
-
-                    // Si encontramos coincidencia en este paciente, actualizamos Firebase
-                    if (encontrado) {
-                        paciente.horarios[dia] = horariosFiltrados;
-                        
-                        // Guardamos el cambio directamente en la ruta del paciente en Firebase
-                        await database.child('pacientes').child(nombrePaciente).set(paciente);
-                        
-                        alert(`✅ Turno borrado con éxito al paciente: ${nombrePaciente}`);
-                        location.reload();
-                        return;
-                    }
-                }
-            }
-
-            if (!encontrado) {
-                alert("❌ No se encontró ningún turno registrado con esos datos exactos.");
-            }
-
+            // Borrado directo en la ruta exactísima de Firebase
+            await database.child('rehab/turnos').child(dia).child(clave).remove();
+            
+            alert(`✅ Turno borrado con éxito de la ruta ${dia}/${clave}`);
+            location.reload();
         } catch(e) {
             console.error(e);
             alert("Error al intentar borrar: " + e.message);
