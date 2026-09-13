@@ -630,7 +630,6 @@ async function prepararBorradoIndividual() {
     let dia = prompt("¿Día? (Ej: Lunes, Martes...)");
     if(!dia) return;
     
-    // Normalizar el día para que la primera letra sea mayúscula (ej: "lunes" -> "Lunes")
     dia = dia.trim();
     dia = dia.charAt(0).toUpperCase() + dia.slice(1).toLowerCase();
     
@@ -644,22 +643,34 @@ async function prepararBorradoIndividual() {
         hora = hora + ":00";
     }
 
-    const clave = `${hora}-${cons}`; // Ejemplo: "13:00-1"
-    const rutaCompleta = `rehab/turnos/${dia}/${clave}`;
+    const clave = `${hora}-${cons}`; // Ej: "13:00-1"
+    const refTurno = database.child('rehab/turnos').child(dia).child(clave);
 
-    console.log("Intentando borrar en la ruta:", rutaCompleta);
-
-    if(confirm(`¿Borrar el turno de ${rutaCompleta}?`)) {
-        try {
-            // Borrado directo en la ruta exacta de Firebase
-            await database.child('rehab/turnos').child(dia).child(clave).remove();
-            
-            alert(`✅ Turno borrado con éxito de la ruta ${dia}/${clave}`);
-            location.reload();
-        } catch(e) {
-            console.error(e);
-            alert("Error al intentar borrar: " + e.message);
+    try {
+        // 1. Primero consultamos si el turno realmente existe en Firebase
+        const snapshot = await refTurno.once('value');
+        
+        if (!snapshot.exists()) {
+            alert(`❌ En Firebase NO existe ningún turno en la ruta: ${dia} -> ${clave}`);
+            return;
         }
+
+        const pacienteActual = snapshot.val();
+        console.log("Turno encontrado en Firebase:", pacienteActual);
+
+        // 2. Si existe, pedimos confirmación mostrando quién está anotado
+        if (confirm(`¿Borrar el turno de ${dia} a las ${hora} (Cons ${cons}) que ocupa el paciente: "${pacienteActual}"?`)) {
+            
+            // 3. Borramos de verdad
+            await refTurno.remove();
+            
+            alert(`✅ ¡Turno borrado con éxito de Firebase!`);
+            location.reload();
+        }
+
+    } catch(e) {
+        console.error(e);
+        alert("Error al intentar borrar: " + e.message);
     }
 }
 // Función para resetear todo el turnero (Fin de mes)
