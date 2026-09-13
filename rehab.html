@@ -627,8 +627,12 @@ function cerrarReset() {
 }
 // Función para borrar un turno específico (Día a día)
 async function prepararBorradoIndividual() {
-    const dia = prompt("¿Día? (Ej: Lunes, Martes...)");
+    let dia = prompt("¿Día? (Ej: Lunes, Martes...)");
     if(!dia) return;
+    
+    // Normalizar el día para que la primera letra sea mayúscula (ej: "lunes" -> "Lunes")
+    dia = dia.trim();
+    dia = dia.charAt(0).toUpperCase() + dia.slice(1).toLowerCase();
     
     const cons = prompt("¿Consultorio? (Ej: 1)").trim();
     if(!cons) return;
@@ -641,10 +645,13 @@ async function prepararBorradoIndividual() {
     }
 
     const clave = `${hora}-${cons}`; // Ejemplo: "13:00-1"
+    const rutaCompleta = `rehab/turnos/${dia}/${clave}`;
 
-    if(confirm(`¿Borrar el turno de rehab/turnos/${dia}/${clave}?`)) {
+    console.log("Intentando borrar en la ruta:", rutaCompleta);
+
+    if(confirm(`¿Borrar el turno de ${rutaCompleta}?`)) {
         try {
-            // Borrado directo en la ruta exactísima de Firebase
+            // Borrado directo en la ruta exacta de Firebase
             await database.child('rehab/turnos').child(dia).child(clave).remove();
             
             alert(`✅ Turno borrado con éxito de la ruta ${dia}/${clave}`);
