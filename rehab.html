@@ -644,24 +644,21 @@ async function prepararBorradoIndividual() {
     }
 
     const clave = `${hora}-${cons}`; // Ej: "13:00-1"
-    const refTurno = database.child('rehab/turnos').child(dia).child(clave);
+    
+    // Apuntamos directo y explícitamente desde la raíz de la base de datos
+    const refTurno = firebase.database().ref('rehab/turnos').child(dia).child(clave);
 
     try {
-        // 1. Primero consultamos si el turno realmente existe en Firebase
         const snapshot = await refTurno.once('value');
         
         if (!snapshot.exists()) {
-            alert(`❌ En Firebase NO existe ningún turno en la ruta: ${dia} -> ${clave}`);
+            alert(`❌ No se encontró ningún turno en: Lunes -> ${clave}`);
             return;
         }
 
         const pacienteActual = snapshot.val();
-        console.log("Turno encontrado en Firebase:", pacienteActual);
 
-        // 2. Si existe, pedimos confirmación mostrando quién está anotado
-        if (confirm(`¿Borrar el turno de ${dia} a las ${hora} (Cons ${cons}) que ocupa el paciente: "${pacienteActual}"?`)) {
-            
-            // 3. Borramos de verdad
+        if (confirm(`¿Borrar el turno de ${dia} a las ${hora} (Cons ${cons}) de: "${pacienteActual}"?`)) {
             await refTurno.remove();
             
             alert(`✅ ¡Turno borrado con éxito de Firebase!`);
