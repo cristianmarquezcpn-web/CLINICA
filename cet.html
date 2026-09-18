@@ -2280,20 +2280,26 @@ window.cargarEventos = function() {
 };
 
 const DESTINOS_WHATSAPP_DUEÑOS = [
-    "5492644579476" 
+    "5492644579476"
 ];
 
 async function enviarWhatsAppTwilioCliente(telefonoDestino, mensaje) {
     const accountSid = "ACb9d486f40225107248c14d1ca8770961";
     const authToken = "62efd0550d4744ee87601975007c5f1c";
-    const fromWhatsApp = "whatsapp:+5492644458707"; // ej: whatsapp:+14155238886 o tu número aprobado
+    
+    // 🔑 Ajustado al número oficial del Sandbox de Twilio
+    const fromWhatsApp = "whatsapp:+14155238886";
 
     const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
     const credentials = btoa(`${accountSid}:${authToken}`);
     
+    // Evita doble '+' o falta de '+' en el destino
+    const telLimpio = telefonoDestino.trim().replace(/^whatsapp:\+?/, '');
+    const formattedTo = `whatsapp:+${telLimpio}`;
+
     const bodyParams = new URLSearchParams({
         From: fromWhatsApp,
-        To: `whatsapp:+${telefonoDestino}`,
+        To: formattedTo,
         Body: mensaje
     });
 
@@ -2309,29 +2315,35 @@ async function enviarWhatsAppTwilioCliente(telefonoDestino, mensaje) {
         const data = await response.json();
         if (!response.ok) {
             console.error("Error Twilio:", data);
-            alert("Error Twilio: " + JSON.stringify(data));
+            return { ok: false, data };
         } else {
             console.log("¡Enviado! SID:", data.sid);
-            alert("✅ ¡WhatsApp enviado con éxito! SID: " + data.sid);
+            return { ok: true, sid: data.sid, data };
         }
     } catch (e) {
         console.error("Error de red / CORS:", e);
-        alert("❌ Error de red/CORS en navegador: " + e.message);
+        return { ok: false, error: e.message };
     }
 }
 
-// 🚀 FUNCIÓN DE PRUEBA INMEDIATA (Ignora filtros de estado, hora y lock)
+// 🚀 FUNCIÓN DE PRUEBA INMEDIATA (Recorre todos los dueños)
 window.probarWhatsAppInmediato = async function() {
     console.log("Forzando prueba de WhatsApp...");
-    const telPrueba = DESTINOS_WHATSAPP_DUEÑOS[0];
-    if (!telPrueba) {
-        return alert("⚠️ Por favor poné un número en DESTINOS_WHATSAPP_DUEÑOS antes de probar.");
+    if (!DESTINOS_WHATSAPP_DUEÑOS || DESTINOS_WHATSAPP_DUEÑOS.length === 0) {
+        return alert("⚠️ Por favor poné al menos un número en DESTINOS_WHATSAPP_DUEÑOS antes de probar.");
     }
     
-    await enviarWhatsAppTwilioCliente(
-        telPrueba, 
-        "🧪 *TEST CLÍNICA*: Este es un mensaje de prueba directa para verificar que Twilio y el sistema comunican bien."
-    );
+    const mensajeTest = "🧪 *TEST CLÍNICA*: Este es un mensaje de prueba directa para verificar que Twilio y el sistema comunican bien.";
+    
+    for (const tel of DESTINOS_WHATSAPP_DUEÑOS) {
+        console.log(`Enviando a ${tel}...`);
+        const resultado = await enviarWhatsAppTwilioCliente(tel, mensajeTest);
+        if (resultado.ok) {
+            alert(`✅ ¡WhatsApp enviado a ${tel} con éxito! SID: ${resultado.sid}`);
+        } else {
+            alert(`❌ Error al enviar a ${tel}: ` + JSON.stringify(resultado.data || resultado.error));
+        }
+    }
 };
 </script>         
 </body>
