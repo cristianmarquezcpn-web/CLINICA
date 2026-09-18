@@ -2345,6 +2345,93 @@ window.probarWhatsAppInmediato = async function() {
         }
     }
 };
+// --- VERIFICADOR Y DISPARADOR DE VENCIMIENTOS INSTITUCIONALES ---
+window.verificarYDispararAlertasInstitucionales = async function() {
+    try {
+        const snap = await databaseRef().ref('tramites_institucionales').once('value');
+        const data = snap.val();
+        if (!data) return console.log("No hay trámites institucionales cargados.");
+
+        const hoy = new Date();
+        hoy.setHours(0,0,0,0);
+        
+        let lineasAlerta = [];
+
+        const listaItems = [
+            "Certificado de Municipalidad", "Certificado Electrico", "Contrato de Alquiler", 
+            "Habilitacion de Salud Publica", "Contrato de Seguro de R.C.", "Contrato de Servicio de Emergencias Medicas", 
+            "Habilitacion de Bomberos", "Control de Calidad de Agua", "Constancia de Limpieza de Tanques de Agua", 
+            "Exencion como Generador de Residuos Patogenicos", "Matafuegos", "Junta de Discapacidad",
+            "Factibilidad de funcionamiento"
+        ];
+
+        listaItems.forEach(nombreDoc => {
+            const keyId = nombreDoc.replace(/[\s\.\/\#\$\[\]]/g, "_");
+            const item = data[keyId];
+            if (!item) return;
+
+            const evaluarVto = (tipoLabel, fechaStr) => {
+                if (!fechaStr) return;
+                const fvto = new Date(fechaStr + 'T00:00:00');
+                const dias = Math.ceil((fvto - hoy) / (1000 * 60 * 60 * 24));
+
+                // Dispara si está vencido (dias < 0) o si faltan 45 días o menos (dias <= 45)
+                if (dias <= 45) {
+                    const estadoTexto = dias < 0 
+                        ? `🔴 *¡YA VENCIDO!* (hace ${Math.abs(dias)} días)` 
+                        : `🟡 *Vence en ${dias} días* (${fechaStr})`;
+
+                    lineasAlerta.push(
+                        `📌 *${item.documentacion}* [${tipoLabel}]\n` +
+                        `   ${estadoTexto}\n` +
+                        `   🏛️ Organismo: ${item.organismo || '-'}\n` +
+                        `   👤 Gestor/Prof: ${item.gestor || item.profesional || '-'}\n` +
+                        `   📞 Contacto: ${item.contacto || '-'}\n` +
+                        `   ⏳ Demora estimada: ${item.demora || '-'}`
+                    );
+                }
+            };
+
+            evaluarVto('CET', item.vtocet);
+            evaluarVto('CD', item.vtocd);
+        });
+
+        if (lineasAlerta.length === 0) {
+            console.log("🟢 No hay trámites institucionales próximos a vencer (≤45d) ni vencidos.");
+            return;
+        }
+
+        const mensajeFinal = 
+            `🚨 *REPORTE DIARIO DE VENCIMIENTOS INSTITUCIONALES* 🚨\n\n` +
+            lineasAlerta.join('\n\n------------------\n\n') +
+            `\n\n_Por favor gestionar con tiempo._`;
+
+        console.log("Disparando alerta institucional WhatsApp...");
+        
+        for (const tel of DESTINOS_WHATSAPP_DUEÑOS) {
+            await enviarWhatsAppTwilioCliente(tel, mensajeFinal);
+        }
+
+    } catch (e) {
+        console.error("Error verificando vencimientos institucionales:", e);
+    }
+};
+
+window.probarAlertasInstitucionalesInmediatas = () => {
+    window.verificarYDispararAlertasInstitucionales();
+};
+// Verificar una vez al día al cargar la interfaz si ya pasó la hora 9 AM y no se mandó hoy
+function programarChequeoDiario9AM() {
+    const ahora = new Date();
+    const horaActual = ahora.getHours();
+    const ultimoenvio = localStorage.getItem('ultimoEnvioInst_fecha');
+    const hoyStr = ahora.toISOString().split('T')[0];
+
+    if (horaActual >= 9 && ultimoenvio !== hoyStr) {
+        localStorage.setItem('ultimoEnvioInst_fecha', hoyStr);
+        window.verificarYDispararAlertasInstitucionales();
+    }
+}    
 </script>         
 </body>
 </html>
