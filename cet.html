@@ -2274,11 +2274,66 @@ window.cargarTramites = async function() {
     }
 };
 
-// Stub preventivo por si se llama a eventos desde las solapas
 window.cargarEventos = function() {
     const cont = document.getElementById('lista-eventos');
     if (cont) cont.innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:15px;">Módulo de Actos y Jornadas disponible próximamente.</p>`;
 };
+
+const DESTINOS_WHATSAPP_DUEÑOS = [
+    "5492644458707" 
+];
+
+async function enviarWhatsAppTwilioCliente(telefonoDestino, mensaje) {
+    const accountSid = "ACb9d486f40225107248c14d1ca8770961";
+    const authToken = "edabf8028b482063f772bd8a2ff2fac3";
+    const fromWhatsApp = "whatsapp:+2644458707"; // ej: whatsapp:+14155238886 o tu número aprobado
+
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const credentials = btoa(`${accountSid}:${authToken}`);
+    
+    const bodyParams = new URLSearchParams({
+        From: fromWhatsApp,
+        To: `whatsapp:+${telefonoDestino}`,
+        Body: mensaje
+    });
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Authorization": `Basic ${credentials}`,
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: bodyParams.toString()
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            console.error("Error Twilio:", data);
+            alert("Error Twilio: " + JSON.stringify(data));
+        } else {
+            console.log("¡Enviado! SID:", data.sid);
+            alert("✅ ¡WhatsApp enviado con éxito! SID: " + data.sid);
+        }
+    } catch (e) {
+        console.error("Error de red / CORS:", e);
+        alert("❌ Error de red/CORS en navegador: " + e.message);
+    }
+}
+
+// 🚀 FUNCIÓN DE PRUEBA INMEDIATA (Ignora filtros de estado, hora y lock)
+window.probarWhatsAppInmediato = async function() {
+    console.log("Forzando prueba de WhatsApp...");
+    // Mandamos un test directo al primer número de la lista para probar enlace con Twilio
+    const telPrueba = DESTINOS_WHATSAPP_DUEÑOS[0];
+    if (!telPrueba || telPrueba.includes("5492644579476")) {
+        return alert("⚠️ Por favor poné un número real de WhatsApp en DESTINOS_WHATSAPP_DUEÑOS antes de probar.");
+    }
+    
+    await enviarWhatsAppTwilioCliente(
+        telPrueba, 
+        "🧪 *TEST CLÍNICA*: Este es un mensaje de prueba directa para verificar que Twilio y el sistema comunican bien."
+    );
+};    
 </script>         
 </body>
 </html>
