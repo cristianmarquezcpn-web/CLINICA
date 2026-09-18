@@ -2323,17 +2323,16 @@ async function enviarWhatsAppTwilioCliente(telefonoDestino, mensaje) {
 // 🚀 FUNCIÓN DE PRUEBA INMEDIATA (Ignora filtros de estado, hora y lock)
 window.probarWhatsAppInmediato = async function() {
     console.log("Forzando prueba de WhatsApp...");
-    // Mandamos un test directo al primer número de la lista para probar enlace con Twilio
     const telPrueba = DESTINOS_WHATSAPP_DUEÑOS[0];
-    if (!telPrueba || telPrueba.includes("5492644579476")) {
-        return alert("⚠️ Por favor poné un número real de WhatsApp en DESTINOS_WHATSAPP_DUEÑOS antes de probar.");
+    if (!telPrueba) {
+        return alert("⚠️ Por favor poné un número en DESTINOS_WHATSAPP_DUEÑOS antes de probar.");
     }
     
     await enviarWhatsAppTwilioCliente(
         telPrueba, 
         "🧪 *TEST CLÍNICA*: Este es un mensaje de prueba directa para verificar que Twilio y el sistema comunican bien."
     );
-};    
+};
 </script>         
 </body>
 </html>
