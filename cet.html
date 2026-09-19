@@ -2232,48 +2232,51 @@ window.cargarTramites = async function() {
             "Factibilidad de funcionamiento"
         ];
 
+        const hoy = new Date(); 
+        hoy.setHours(0,0,0,0);
+
+        // Helper de cálculo fuera del loop para prolijidad
+        const calcAlerta = (fechaStr, estado) => {
+            if (estado === 'en_gestion') {
+                return { 
+                    html: `<br><span style="background:#2980b9; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">⚙️ EN GESTIÓN (Alerta frenada)</span>`, 
+                    color: "#ebf5fb" 
+                };
+            }
+            if (!fechaStr) return { html: "-", color: "transparent" };
+            const fvto = new Date(fechaStr + 'T00:00:00');
+            const dias = Math.ceil((fvto - hoy) / (1000 * 60 * 60 * 24));
+            if (dias < 0) return { html: `<br><span style="background:#c0392b; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">🔴 VENCIDO (${Math.abs(dias)}d)</span>`, color: "#f5b7b1" };
+            if (dias <= 60) return { html: `<br><span style="background:#e74c3c; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">🔴 ROJA (${dias}d)</span>`, color: "#fadbd8" };
+            if (dias <= 90) return { html: `<br><span style="background:#f39c12; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">🟡 AMARILLA (${dias}d)</span>`, color: "#fcf3cf" };
+            return { html: `<br><span style="color:#27ae60; font-size:9px;">🟢 Vigente (${dias}d)</span>`, color: "transparent" };
+        };
+
         listaItems.forEach(nombreDoc => {
             const keyId = nombreDoc.replace(/[\s\.\/\#\$\[\]]/g, "_");
-            const item = data[keyId] || { documentacion: nombreDoc, organismo: "-", gestor: "-", vtocet: "", vtocd: "", demora: "-", profesional: "-", contacto: "-", requisitos: "-" };
+            const item = data[keyId] || { documentacion: nombreDoc, organismo: "-", gestor: "-", vtocet: "", vtocd: "", demora: "-", profesional: "-", contacto: "-", requisitos: "-", estado: "" };
             
-            const hoy = new Date(); hoy.setHours(0,0,0,0);
-            
-            // Dentro de la tabla de cargarTramites(), reemplazamos la lógica de cálculo de alertas:
-            const calcAlerta = (fechaStr, estado) => {
-            if (estado === 'en_gestion') {
-            return { 
-            html: `<br><span style="background:#2980b9; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">⚙️ EN GESTIÓN (Alerta frenada)</span>`, 
-            color: "#ebf5fb" 
-            };
-        }
-            if (!fechaStr) return { html: "-", color: "transparent" };
-        const fvto = new Date(fechaStr + 'T00:00:00');
-        const dias = Math.ceil((fvto - hoy) / (1000 * 60 * 60 * 24));
-        if (dias < 0) return { html: `<br><span style="background:#c0392b; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">🔴 VENCIDO (${Math.abs(dias)}d)</span>`, color: "#f5b7b1" };
-        if (dias <= 60) return { html: `<br><span style="background:#e74c3c; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">🔴 ROJA (${dias}d)</span>`, color: "#fadbd8" };
-        if (dias <= 90) return { html: `<br><span style="background:#f39c12; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">🟡 AMARILLA (${dias}d)</span>`, color: "#fcf3cf" };
-        return { html: `<br><span style="color:#27ae60; font-size:9px;">🟢 Vigente (${dias}d)</span>`, color: "transparent" };
-    };
-            const aCet = calcAlerta(item.vtocet);
-            const aCd = calcAlerta(item.vtocd);
+            const aCet = calcAlerta(item.vtocet, item.estado);
+            const aCd = calcAlerta(item.vtocd, item.estado);
+            const enGestion = item.estado === 'en_gestion';
 
-           const enGestion = item.estado === 'en_gestion';
-html += `<tr style="border-bottom:1px solid #ddd;">
-    <td style="padding:6px; font-weight:bold; white-space:normal; max-width:180px;">${item.documentacion}</td>
-    <td style="padding:6px; background:${aCet.color};">${item.vtocet || '-'}${aCet.html}</td>
-    <td style="padding:6px; background:${aCd.color};">${item.vtocd || '-'}${aCd.html}</td>
-    <td style="padding:6px; white-space:normal;"><b>${item.organismo || '-'}</b><br><small>Gestor: ${item.gestor || '-'}</small></td>
-    <td style="padding:6px; white-space:normal; max-width:180px; color:#555;"><small>${item.requisitos || '-'}</small></td>
-    <td style="padding:6px; white-space:normal;">${item.profesional || '-'}<br><small>📞 ${item.contacto || '-'}</small></td>
-    <td style="padding:6px; font-weight:bold; color:#2980b9;">⏳ ${item.demora || '-'}</td>
-    <td style="padding:6px; text-align:center; white-space:nowrap;">
-        <button onclick="window.editarTramite('${item.documentacion}')" style="background:#f39c12; color:white; border:none; padding:4px 6px; border-radius:3px; cursor:pointer; margin-right:2px;" title="Editar">✏️</button>
-        ${enGestion 
-            ? `<button onclick="window.cambiarEstadoTramite('${item.documentacion}', 'vigente')" style="background:#27ae60; color:white; border:none; padding:4px 6px; border-radius:3px; cursor:pointer;" title="Reactivar alertas">▶️ Activar</button>` 
-            : `<button onclick="window.cambiarEstadoTramite('${item.documentacion}', 'en_gestion')" style="background:#2980b9; color:white; border:none; padding:4px 6px; border-radius:3px; cursor:pointer;" title="Poner en gestión y frenar alerta de WhatsApp">⏸️ En Gestión</button>`
-        }
-    </td>
-</tr>`;
+            html += `<tr style="border-bottom:1px solid #ddd;">
+                <td style="padding:6px; font-weight:bold; white-space:normal; max-width:180px;">${item.documentacion}</td>
+                <td style="padding:6px; background:${aCet.color};">${item.vtocet || '-'}${aCet.html}</td>
+                <td style="padding:6px; background:${aCd.color};">${item.vtocd || '-'}${aCd.html}</td>
+                <td style="padding:6px; white-space:normal;"><b>${item.organismo || '-'}</b><br><small>Gestor: ${item.gestor || '-'}</small></td>
+                <td style="padding:6px; white-space:normal; max-width:180px; color:#555;"><small>${item.requisitos || '-'}</small></td>
+                <td style="padding:6px; white-space:normal;">${item.profesional || '-'}<br><small>📞 ${item.contacto || '-'}</small></td>
+                <td style="padding:6px; font-weight:bold; color:#2980b9;">⏳ ${item.demora || '-'}</td>
+                <td style="padding:6px; text-align:center; white-space:nowrap;">
+                    <button onclick="window.editarTramite('${item.documentacion}')" style="background:#f39c12; color:white; border:none; padding:4px 6px; border-radius:3px; cursor:pointer; margin-right:2px;" title="Editar">✏️</button>
+                    ${enGestion 
+                        ? `<button onclick="window.cambiarEstadoTramite('${item.documentacion}', 'vigente')" style="background:#27ae60; color:white; border:none; padding:4px 6px; border-radius:3px; cursor:pointer;" title="Reactivar alertas">▶️ Activar</button>` 
+                        : `<button onclick="window.cambiarEstadoTramite('${item.documentacion}', 'en_gestion')" style="background:#2980b9; color:white; border:none; padding:4px 6px; border-radius:3px; cursor:pointer;" title="Poner en gestión y frenar alerta de WhatsApp">⏸️ En Gestión</button>`
+                    }
+                </td>
+            </tr>`;
+        });
 
         html += `</table></div>`;
         cont.innerHTML = html;
@@ -2282,7 +2285,6 @@ html += `<tr style="border-bottom:1px solid #ddd;">
         if(cont) cont.innerHTML = `<p style="color:red; text-align:center;">Error al cargar trámites.</p>`; 
     }
 };
-
 window.cargarEventos = function() {
     const cont = document.getElementById('lista-eventos');
     if (cont) cont.innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:15px;">Módulo de Actos y Jornadas disponible próximamente.</p>`;
