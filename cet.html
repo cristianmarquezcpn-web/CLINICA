@@ -2493,7 +2493,7 @@ window.guardarYExportarJornada = async function(exportar = true) {
     };
 
     try {
-        await databaseRef().ref(`jornadas/${jornadaKey}`).update(dataJornada);
+        await databaseRef().ref(`eventos_institucionales/${jornadaKey}`).update(dataJornada);
         await window.cargarHistoricoJornadasSelect(jornadaKey);
         alert(`✅ Jornada "${nombreEv}" (${fechaEv}) asociada, guardada y vinculada a seguro en Firebase.`);
 
