@@ -2390,12 +2390,11 @@ window.cargarEventos = function(jornadaDatos = null) {
             let apellidoRes = item.apellido || '';
             let nombreRes = item.nombre || '';
 
-            // Si el objeto no trae apellido/nombre explícitos, los deducimos de la key k de forma segura
             if (!apellidoRes && !nombreRes) {
                 if (k.includes(',')) {
                     const parts = k.split(',');
                     apellidoRes = (parts[0] || '').trim();
-                    nombreRes = (parts || '').trim();
+                    nombreRes = parts.slice(1).join(',').trim();
                 } else {
                     nombreRes = k;
                     apellidoRes = 'SIN APELLIDO';
@@ -2405,8 +2404,8 @@ window.cargarEventos = function(jornadaDatos = null) {
             return {
                 id: k,
                 dni: item.dni || '',
-                apellido: apellidoRes,
-                nombre: nombreRes,
+                apellido: apellidoRes || 'SIN APELLIDO',
+                nombre: nombreRes || k,
                 fechaNac: item.nac || '',
                 nacionalidad: item.nacionalidad || 'Argentina',
                 origenSeccion: k
