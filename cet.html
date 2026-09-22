@@ -2289,6 +2289,11 @@ window.cargarEventos = function() {
     const cont = document.getElementById('lista-eventos');
     if (cont) cont.innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:15px;">Módulo de Actos y Jornadas disponible próximamente.</p>`;
 };
+const DESTINOS_WHATSAPP_DUEÑOS = [
+    "5492644579476"
+];
+
+// 🛡️ SEGURO: Llama al Cloudflare Worker en vez de exponer Auth Token / SID en el frontend
 async function enviarWhatsAppTwilioCliente(telefonoDestino, mensaje) {
     const WORKER_URL = "https://shy-sky-a35f.cristianmarquezcpn.workers.dev";
     
