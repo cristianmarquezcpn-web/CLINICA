@@ -2289,50 +2289,35 @@ window.cargarEventos = function() {
     const cont = document.getElementById('lista-eventos');
     if (cont) cont.innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:15px;">Módulo de Actos y Jornadas disponible próximamente.</p>`;
 };
-
-const DESTINOS_WHATSAPP_DUEÑOS = [
-    "5492644579476"
-];
-
 async function enviarWhatsAppTwilioCliente(telefonoDestino, mensaje) {
-    const accountSid = "ACb9d486f40225107248c14d1ca8770961";
-    const authToken = "62efd0550d4744ee87601975007c5f1c";
+    const WORKER_URL = "https://shy-sky-a35f.cristianmarquezcpn.workers.dev";
     
-    // 🔑 Ajustado al número oficial del Sandbox de Twilio
-    const fromWhatsApp = "whatsapp:+14155238886";
-
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const credentials = btoa(`${accountSid}:${authToken}`);
-    
-    // Evita doble '+' o falta de '+' en el destino
+    // Limpiamos formato base por prolijidad
     const telLimpio = telefonoDestino.trim().replace(/^whatsapp:\+?/, '');
-    const formattedTo = `whatsapp:+${telLimpio}`;
-
-    const bodyParams = new URLSearchParams({
-        From: fromWhatsApp,
-        To: formattedTo,
-        Body: mensaje
-    });
+    const telefonoFinal = `+${telLimpio}`;
 
     try {
-        const response = await fetch(url, {
+        const response = await fetch(WORKER_URL, {
             method: "POST",
             headers: {
-                "Authorization": `Basic ${credentials}`,
-                "Content-Type": "application/x-www-form-urlencoded"
+                "Content-Type": "application/json"
             },
-            body: bodyParams.toString()
+            body: JSON.stringify({
+                telefono: telefonoFinal,
+                mensaje: mensaje
+            })
         });
+        
         const data = await response.json();
         if (!response.ok) {
-            console.error("Error Twilio:", data);
+            console.error("Error en Worker/Twilio:", data);
             return { ok: false, data };
         } else {
-            console.log("¡Enviado! SID:", data.sid);
+            console.log("¡Enviado via Worker! SID:", data.sid);
             return { ok: true, sid: data.sid, data };
         }
     } catch (e) {
-        console.error("Error de red / CORS:", e);
+        console.error("Error de red conectando al Worker:", e);
         return { ok: false, error: e.message };
     }
 }
@@ -2356,6 +2341,7 @@ window.probarWhatsAppInmediato = async function() {
         }
     }
 };
+
 // --- VERIFICADOR Y DISPARADOR DE VENCIMIENTOS INSTITUCIONALES ---
 window.verificarYDispararAlertasInstitucionales = async function() {
     try {
@@ -2399,11 +2385,11 @@ window.verificarYDispararAlertasInstitucionales = async function() {
 
                     lineasAlerta.push(
                         `📌 *${item.documentacion}* [${tipoLabel}]\n` +
-                        `   ${estadoTexto}\n` +
-                        `   🏛️ Organismo: ${item.organismo || '-'}\n` +
-                        `   👤 Gestor/Prof: ${item.gestor || item.profesional || '-'}\n` +
-                        `   📞 Contacto: ${item.contacto || '-'}\n` +
-                        `   ⏳ Demora estimada: ${item.demora || '-'}`
+                        `    ${estadoTexto}\n` +
+                        `    🏛️ Organismo: ${item.organismo || '-'}\n` +
+                        `    👤 Gestor/Prof: ${item.gestor || item.profesional || '-'}\n` +
+                        `    📞 Contacto: ${item.contacto || '-'}\n` +
+                        `    ⏳ Demora estimada: ${item.demora || '-'}`
                     );
                 }
             };
@@ -2432,10 +2418,11 @@ window.verificarYDispararAlertasInstitucionales = async function() {
         console.error("Error verificando vencimientos institucionales:", e);
     }
 };
+
 window.probarAlertasInstitucionalesInmediatas = () => {
     window.verificarYDispararAlertasInstitucionales();
 };
-// Verificar una vez al día al cargar la interfaz si ya pasó la hora 9 AM y no se mandó hoy
+
 function programarChequeoDiario9AM() {
     const ahora = new Date();
     const horaActual = ahora.getHours();
@@ -2446,7 +2433,7 @@ function programarChequeoDiario9AM() {
         localStorage.setItem('ultimoEnvioInst_fecha', hoyStr);
         window.verificarYDispararAlertasInstitucionales();
     }
-}    
+}
 </script>         
 </body>
 </html>
