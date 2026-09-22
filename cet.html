@@ -2143,8 +2143,6 @@ window.eliminarAdmision = async function(id) {
         window.cargarAdmisiones(); 
     } 
 };
-
-// --- MÓDULO DE TRÁMITES INSTITUCIONALES ---
 window.guardarTramiteInstitucional = async function() {
     const documentacion = document.getElementById('tra-doc').value;
     const organismo = document.getElementById('tra-organismo').value.trim();
@@ -2158,6 +2156,28 @@ window.guardarTramiteInstitucional = async function() {
 
     if (!documentacion) return alert("⚠️ Selecciona el trámite a guardar.");
 
+    const keyId = documentacion.replace(/[\s\.\/\#\$\[\]]/g, "_");
+    try {
+        await databaseRef().ref(`tramites_institucionales/${keyId}`).update({
+            documentacion,
+            organismo,
+            gestor,
+            vtocet,
+            vtocd,
+            demora,
+            profesional,
+            contacto,
+            requisitos,
+            actualizado: new Date().toISOString()
+        });
+        alert("✅ Trámite institucional actualizado correctamente.");
+        window.cargarTramites();
+    } catch(e) {
+        console.error(e);
+        alert("❌ Error al guardar en Firebase.");
+    }
+};
+window.cambiarEstadoTramite = async function(nombreDoc, nuevoEstado) {
     const keyId = nombreDoc.replace(/[\s\.\/\#\$\[\]]/g, "_");
     try {
         await databaseRef().ref(`tramites_institucionales/${keyId}`).update({
@@ -2167,10 +2187,9 @@ window.guardarTramiteInstitucional = async function() {
         window.cargarTramites();
     } catch(e) {
         console.error(e);
-        alert("❌ Error al actualizar estado.");
+        alert("❌ Error al cambiar estado.");
     }
 };
-
 window.editarTramite = async function(nombreDoc) {
     const selDoc = document.getElementById('tra-doc');
     if (selDoc) {
