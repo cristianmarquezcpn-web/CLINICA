@@ -2368,21 +2368,15 @@ window.cargarEventos = function(jornadaDatos = null) {
                     </tr>
                 </thead>
                 <tbody id="tbody-pacientes-jornada">
-                    <tr><td colspan="6" style="text-align:center; padding:20px; color:#7f8c8d;">Cargando padrón unificado...</td></tr>
+                    <tr><td colspan="6" style="text-align:center; padding:20px; color:#7f8c8d;">Cargando pacientes de CET...</td></tr>
                 </tbody>
             </table>
         </div>
     `;
 
-    // Cargar padrón unificado desde cd, cet y rehab
-    const rutas = ['cd/pacientes', 'cet/pacientes', 'rehab/pacientes'];
-    Promise.all(rutas.map(r => databaseRef().ref(r).once('value'))).then(snaps => {
-        let combinado = {};
-        snaps.forEach(snap => {
-            if (snap.val()) {
-                combinado = { ...combinado, ...snap.val() };
-            }
-        });
+    // Cargar exclusivo de CET
+    databaseRef().ref('cet/pacientes').once('value').then(snap => {
+        const combinado = snap.val() || {};
 
         window._padronJornada = Object.keys(combinado).map(k => {
             const item = combinado[k] || {};
@@ -2408,14 +2402,14 @@ window.cargarEventos = function(jornadaDatos = null) {
                 nombre: nombreRes || k,
                 fechaNac: item.nac || '',
                 nacionalidad: item.nacionalidad || 'Argentina',
-                origenSeccion: k
+                origenSeccion: 'cet'
             };
         });
 
         window.renderizarTablaPacientesJornada(window._padronJornada, pacientesGuardadosDnis, jornadaDatos ? true : false);
     }).catch(e => {
-        console.error(e);
-        document.getElementById('tbody-pacientes-jornada').innerHTML = `<tr><td colspan="6" style="color:red; text-align:center;">Error al cargar padrón unificado.</td></tr>`;
+        console.error("Error al cargar pacientes de CET:", e);
+        document.getElementById('tbody-pacientes-jornada').innerHTML = `<tr><td colspan="6" style="color:red; text-align:center;">Error al cargar pacientes de CET.</td></tr>`;
     });
 };
 window.renderizarTablaPacientesJornada = function(lista, preCheckedDnis = new Set(), marcarSiExiste = false) {
