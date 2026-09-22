@@ -2327,7 +2327,6 @@ window.initModuloEventos = async function() {
     await window.cargarHistoricoJornadasSelect();
     window.cargarEventos();
 };
-
 window.cargarEventos = function(jornadaDatos = null) {
     const cont = document.getElementById('lista-eventos');
     if (!cont) return;
@@ -2391,12 +2390,12 @@ window.cargarEventos = function(jornadaDatos = null) {
             let apellidoRes = item.apellido || '';
             let nombreRes = item.nombre || '';
 
-            // Si el objeto no trae apellido/nombre explícitos, los deducimos de la key k
+            // Si el objeto no trae apellido/nombre explícitos, los deducimos de la key k de forma segura
             if (!apellidoRes && !nombreRes) {
                 if (k.includes(',')) {
                     const parts = k.split(',');
-                    apellidoRes = parts[0] ? parts[0].trim() : '';
-                    nombreRes = parts ? parts.trim() : '';
+                    apellidoRes = (parts[0] || '').trim();
+                    nombreRes = (parts || '').trim();
                 } else {
                     nombreRes = k;
                     apellidoRes = 'SIN APELLIDO';
