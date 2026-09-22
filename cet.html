@@ -349,26 +349,43 @@
             </div>
             <div id="lista-admisiones"><p style="text-align:center; color:#7f8c8d;">Cargando...</p></div>
         </div>
+<!-- SECCIÓN 2: ACTOS, JORNADAS Y ATENEOS -->
+<div id="seccion-eventos" style="display:none;">
+    <!-- Barra de histórico integrada con el mismo diseño -->
+    <div style="background:#f8f9fa; padding:12px 15px; border-radius:6px; border:1px solid #dcdde1; margin-bottom:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <label style="font-size:12px; font-weight:bold; color:#2c3e50;">📂 Histórico / Jornadas:</label>
+        <select id="sel-historico-jornadas" onchange="window.cargarJornadaHistorica(this.value)" style="padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px; flex:1; min-width:200px;">
+            <option value="">-- Nueva / Seleccionar histórico --</option>
+        </select>
+        <button onclick="window.nuevaJornadaLimpia()" style="background:#7f8c8d; color:white; border:none; padding:7px 12px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">➕ Nueva</button>
+    </div>
 
-        <!-- SECCIÓN 2: ACTOS, JORNADAS Y ATENEOS -->
-        <div id="seccion-eventos" style="display:none;">
-            <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #dcdde1; margin-bottom:15px;">
-                <h4 style="margin:0 0 10px 0; color:#2c3e50; font-size:14px;">🎉 Registrar Acto, Jornada o Ateneo</h4>
-                <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
-                    <select id="ev-tipo" style="width:140px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
-                        <option value="Acto Escolar">Acto Escolar</option>
-                        <option value="Jornada">Jornada</option>
-                        <option value="Ateneo">Ateneo</option>
-                        <option value="Otro">Otro</option>
-                    </select>
-                    <input type="text" id="ev-titulo" placeholder="Título o Descripción del evento" style="flex:2; min-width:200px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
-                    <input type="date" id="ev-fecha" style="padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
-                    <input type="time" id="ev-hora" style="padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
-                </div>
-                <button onclick="window.guardarEvento()" style="background:#2980b9; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">💾 Guardar Evento</button>
-            </div>
-            <div id="lista-eventos"><p style="text-align:center; color:#7f8c8d;">Cargando...</p></div>
+    <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #dcdde1; margin-bottom:15px;">
+        <h4 style="margin:0 0 10px 0; color:#2c3e50; font-size:14px;">🎉 Registrar Acto, Jornada o Ateneo</h4>
+        <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+            <select id="ev-tipo" style="width:140px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+                <option value="Acto Escolar">Acto Escolar</option>
+                <option value="Jornada">Jornada</option>
+                <option value="Ateneo">Ateneo</option>
+                <option value="Otro">Otro</option>
+            </select>
+            <input type="text" id="ev-titulo" placeholder="Título o Descripción del evento" style="flex:2; min-width:200px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+            <input type="date" id="ev-fecha" style="padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+            <input type="time" id="ev-hora" style="padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
         </div>
+        <!-- Campos de aseguradora con id compatibles -->
+        <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+            <input type="text" id="ev-seguro" placeholder="Aseguradora (Ej: Río Uruguay / R.C.)" style="flex:1; min-width:180px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+            <input type="text" id="ev-poliza" placeholder="N° Póliza / Certificado" style="flex:1; min-width:140px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:12px;">
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button onclick="window.guardarYExportarJornada(true)" style="background:#27ae60; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">💾 Guardar Jornada y Descargar Nómina Excel</button>
+        </div>
+    </div>
+    
+    <!-- Contenedor donde se dibuja la tabla de padrón y checkboxes -->
+    <div id="lista-eventos"><p style="text-align:center; color:#7f8c8d;">Cargando...</p></div>
+</div>
 
         <!-- SECCIÓN 3: VENCIMIENTOS DE TRÁMITES INSTITUCIONALES (Con tus 12 ítems y edición) -->
         <div id="seccion-tramites" style="display:none;">
@@ -2304,10 +2321,241 @@ window.cargarTramites = async function() {
         if(cont) cont.innerHTML = `<p style="color:red; text-align:center;">Error al cargar trámites.</p>`; 
     }
 };
-window.cargarEventos = function() {
-    const cont = document.getElementById('lista-eventos');
-    if (cont) cont.innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:15px;">Módulo de Actos y Jornadas disponible próximamente.</p>`;
+// --- JAVASCRIPT COMPLETO DEL MÓDULO DE EVENTOS / JORNADAS ---
+
+window.initModuloEventos = async function() {
+    await window.cargarHistoricoJornadasSelect();
+    window.cargarEventos();
 };
+
+window.cargarEventos = function(jornadaDatos = null) {
+    const cont = document.getElementById('lista-eventos');
+    if (!cont) return;
+
+    const nombreVal = jornadaDatos ? jornadaDatos.nombre || '' : '';
+    const fechaVal = jornadaDatos ? jornadaDatos.fecha || '' : '';
+    const seguroVal = jornadaDatos ? jornadaDatos.seguro || '' : '';
+    const polizaVal = jornadaDatos ? jornadaDatos.poliza || '' : '';
+    const pacientesGuardadosDnis = new Set(jornadaDatos && jornadaDatos.pacientes ? jornadaDatos.pacientes.map(p => p.dni) : []);
+
+    // Sincronizar con los inputs estáticos del HTML superior
+    if (document.getElementById('ev-titulo')) document.getElementById('ev-titulo').value = nombreVal;
+    if (document.getElementById('ev-fecha')) document.getElementById('ev-fecha').value = fechaVal;
+    if (document.getElementById('ev-seguro')) document.getElementById('ev-seguro').value = seguroVal;
+    if (document.getElementById('ev-poliza')) document.getElementById('ev-poliza').value = polizaVal;
+
+    // Inyectar en #lista-eventos sólo el filtro y la tabla
+    cont.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:220px;">
+                <input type="text" id="ev-filtro" placeholder="🔍 Filtrar por nombre, apellido o DNI..." onkeyup="window.filtrarPacientesJornada()" style="width:100%; padding:6px; font-size:11px; border:1px solid #bdc3c7; border-radius:4px;">
+            </div>
+            <div style="display:flex; gap:5px; flex-wrap:wrap;">
+                <button onclick="window.toggleSeleccionarTodosJornada(true)" style="background:#2980b9; color:white; border:none; padding:6px 10px; border-radius:4px; font-size:11px; cursor:pointer;">✅ Seleccionar Todos</button>
+                <button onclick="window.toggleSeleccionarTodosJornada(false)" style="background:#7f8c8d; color:white; border:none; padding:6px 10px; border-radius:4px; font-size:11px; cursor:pointer;">❌ Deseleccionar</button>
+            </div>
+        </div>
+
+        <div style="overflow-x:auto; max-height:400px; border:1px solid #bdc3c7; border-radius:4px;">
+            <table style="width:100%; border-collapse:collapse; font-size:11px;" id="tabla-pacientes-jornada">
+                <thead>
+                    <tr style="background:#2c3e50; color:white; position:sticky; top:0;">
+                        <th style="padding:6px; text-align:center; width:30px;"><input type="checkbox" id="chk-all-jornada" onclick="window.toggleSeleccionarTodosJornada(this.checked)"></th>
+                        <th style="padding:6px;">DNI</th>
+                        <th style="padding:6px;">Apellido</th>
+                        <th style="padding:6px;">Nombre</th>
+                        <th style="padding:6px;">Fecha Nacimiento</th>
+                        <th style="padding:6px;">Nacionalidad</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-pacientes-jornada">
+                    <tr><td colspan="6" style="text-align:center; padding:20px; color:#7f8c8d;">Cargando padrón de pacientes...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    // Cargar pacientes desde Firebase
+    databaseRef().ref('pacientes').once('value').then(snap => {
+        const data = snap.val() || {};
+        window._padronJornada = Object.keys(data).map(k => ({
+            id: k,
+            dni: data[k].dni || data[k].DNI_ASEGURADO || '',
+            apellido: data[k].apellido || data[k].APELLIDO_ASEGURADO || '',
+            nombre: data[k].nombre || data[k].NOMBRE_ASEGURADO || '',
+            fechaNac: data[k].fechaNacimiento || data[k].FECHA_NAC_ASEGURADO || '',
+            nacionalidad: data[k].nacionalidad || data[k].NACIONALIDAD_ASEGURADO || 'Argentina'
+        }));
+        window.renderizarTablaPacientesJornada(window._padronJornada, pacientesGuardadosDnis, jornadaDatos ? true : false);
+    }).catch(e => {
+        console.error(e);
+        document.getElementById('tbody-pacientes-jornada').innerHTML = `<tr><td colspan="6" style="color:red; text-align:center;">Error al cargar padrón.</td></tr>`;
+    });
+};
+
+window.renderizarTablaPacientesJornada = function(lista, preCheckedDnis = new Set(), marcarSiExiste = false) {
+    const tbody = document.getElementById('tbody-pacientes-jornada');
+    if (!tbody) return;
+    if (lista.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:15px; color:#7f8c8d;">No se encontraron pacientes registrados.</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = lista.map((p) => {
+        const isChecked = marcarSiExiste ? preCheckedDnis.has(p.dni) : false;
+        return `
+            <tr class="row-paciente-jornada" style="border-bottom:1px solid #eee;">
+                <td style="padding:5px; text-align:center;">
+                    <input type="checkbox" class="chk-pac-jornada" ${isChecked ? 'checked' : ''} data-dni="${p.dni}" data-apellido="${p.apellido}" data-nombre="${p.nombre}" data-fnac="${p.fechaNac}" data-nac="${p.nacionalidad}">
+                </td>
+                <td style="padding:5px;">${p.dni}</td>
+                <td style="padding:5px; font-weight:bold;">${p.apellido}</td>
+                <td style="padding:5px;">${p.nombre}</td>
+                <td style="padding:5px;">${p.fechaNac}</td>
+                <td style="padding:5px;">${p.nacionalidad}</td>
+            </tr>
+        `;
+    }).join('');
+};
+
+window.filtrarPacientesJornada = function() {
+    const filtro = (document.getElementById('ev-filtro')?.value || '').toLowerCase();
+    if (!window._padronJornada) return;
+    const filtrados = window._padronJornada.filter(p => 
+        (p.dni && p.dni.toString().toLowerCase().includes(filtro)) ||
+        (p.apellido && p.apellido.toLowerCase().includes(filtro)) ||
+        (p.nombre && p.nombre.toLowerCase().includes(filtro))
+    );
+    window.renderizarTablaPacientesJornada(filtrados);
+};
+
+window.toggleSeleccionarTodosJornada = function(marcar) {
+    document.querySelectorAll('.chk-pac-jornada').forEach(chk => {
+        chk.checked = marcar;
+    });
+    const mainChk = document.getElementById('chk-all-jornada');
+    if (mainChk) mainChk.checked = marcar;
+};
+
+window.guardarYExportarJornada = async function(exportar = true) {
+    const nombreEv = (document.getElementById('ev-titulo')?.value || document.getElementById('ev-nombre')?.value || '').trim();
+    const fechaEv = document.getElementById('ev-fecha')?.value;
+    const seguroEv = document.getElementById('ev-seguro')?.value.trim();
+    const polizaEv = document.getElementById('ev-poliza')?.value.trim();
+
+    if (!nombreEv || !fechaEv) {
+        return alert("⚠️ Por favor completa el Título/Nombre y la Fecha de la jornada.");
+    }
+
+    const seleccionados = [];
+    document.querySelectorAll('.chk-pac-jornada:checked').forEach(chk => {
+        seleccionados.push({
+            dni: chk.getAttribute('data-dni'),
+            apellido: chk.getAttribute('data-apellido'),
+            nombre: chk.getAttribute('data-nombre'),
+            fechaNac: chk.getAttribute('data-fnac'),
+            nacionalidad: chk.getAttribute('data-nac')
+        });
+    });
+
+    if (seleccionados.length === 0) {
+        return alert("⚠️ Selecciona al menos un paciente para la nómina de esta jornada.");
+    }
+
+    // ID único basado en fecha + título/nombre para asociar por jornada en Firebase [cite: 9]
+    const jornadaKey = `${fechaEv}_${nombreEv.replace(/[\s\.\/\#\$\[\]]/g, "_")}`;
+
+    const dataJornada = {
+        nombre: nombreEv,
+        fecha: fechaEv,
+        seguro: seguroEv,
+        poliza: polizaEv,
+        pacientes: seleccionados,
+        creado: new Date().toISOString()
+    };
+
+    try {
+        await databaseRef().ref(`jornadas/${jornadaKey}`).update(dataJornada);
+        await window.cargarHistoricoJornadasSelect(jornadaKey);
+        alert(`✅ Jornada "${nombreEv}" (${fechaEv}) asociada, guardada y vinculada a seguro en Firebase.`);
+
+        if (exportar) {
+            window.descargarCSVNomina(seleccionados, nombreEv, fechaEv);
+        }
+    } catch(e) {
+        console.error(e);
+        alert("❌ Error al guardar la jornada en Firebase.");
+    }
+};
+
+window.descargarCSVNomina = function(seleccionados, eventoNombre, fechaStr) {
+    // Columnas exactas del modelo de referencia [cite: 9]
+    const headers = [
+        "DNI_ASEGURADO", "CUIL_ASEGURADO", "APELLIDO_ASEGURADO", "NOMBRE_ASEGURADO", 
+        "FECHA_NAC_ASEGURADO", "NACIONALIDAD_ASEGURADO", "DNI_BENEFICIARIO", "CUIL_BENEFICIARIO", 
+        "APELLIDO_O_RAZ_SOC_BENEFICIARIO", "NOMBRE_BENEFICIARIO", "FECHA_NAC_BENEFICIARIO", 
+        "NACIONALIDAD_BENEFICIARIO", "PORCENTAJE", "ORDEN_DE_PRIORIDAD"
+    ];
+
+    let rows = [headers.join(",")];
+
+    seleccionados.forEach(p => {
+        const rowData = [
+            `"${(p.dni || '').toString().replace(/"/g, '""')}"`,
+            `""`,
+            `"${(p.apellido || '').replace(/"/g, '""')}"`,
+            `"${(p.nombre || '').replace(/"/g, '""')}"`,
+            `"${p.fechaNac || ''}"`,
+            `"${p.nacionalidad || 'Argentina'}"`,
+            `""`, `""`, `""`, `""`, `""`, `""`, `""`, `""`
+        ];
+        rows.push(rowData.join(","));
+    });
+
+    const csvContent = "\uFEFF" + rows.join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Nomina_Seguro_${eventoNombre.replace(/\s+/g, '_')}_${fechaStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+window.cargarHistoricoJornadasSelect = async function(seleccionarKey = '') {
+    const sel = document.getElementById('sel-historico-jornadas');
+    if (!sel) return;
+    try {
+        const snap = await databaseRef().ref('jornadas').once('value');
+        const data = snap.val() || {};
+        window._historicoJornadas = data;
+        
+        let html = '<option value="">-- Nueva Jornada / Seleccionar histórico --</option>';
+        Object.keys(data).sort().reverse().forEach(key => {
+            const j = data[key];
+            const selAttr = key === seleccionarKey ? 'selected' : '';
+            html += `<option value="${key}" ${selAttr}>[${j.fecha}] ${j.nombre} (${j.seguro || 'Sin seguro'}) - ${j.pacientes ? j.pacientes.length : 0} pas.</option>`;
+        });
+        sel.innerHTML = html;
+    } catch(e) {
+        console.error("Error cargando histórico jornadas", e);
+    }
+};
+
+window.cargarJornadaHistorica = function(key) {
+    if (!key || !window._historicoJornadas || !window._historicoJornadas[key]) {
+        return window.cargarEventos();
+    }
+    const jornada = window._historicoJornadas[key];
+    window.cargarEventos(jornada);
+};
+
+window.nuevaJornadaLimpia = function() {
+    const sel = document.getElementById('sel-historico-jornadas');
+    if (sel) sel.value = '';
+    window.cargarEventos();
+};    
 const DESTINOS_WHATSAPP_DUEÑOS = [
     "5492644579476"
 ];
