@@ -349,7 +349,7 @@
             </div>
             <div id="lista-admisiones"><p style="text-align:center; color:#7f8c8d;">Cargando...</p></div>
         </div>
-<!-- SECCIÓN 2: ACTOS, JORNADAS Y ATENEOS -->
+        <!-- SECCIÓN 2: ACTOS, JORNADAS Y ATENEOS -->
 <div id="seccion-eventos" style="display:none;">
     <!-- Barra de histórico integrada con el mismo diseño -->
     <div style="background:#f8f9fa; padding:12px 15px; border-radius:6px; border:1px solid #dcdde1; margin-bottom:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
@@ -383,10 +383,12 @@
         </div>
     </div>
     
+    <!-- 👈 NUEVO: Contenedor para próximos eventos -->
+    <div id="contenedor-proximos-eventos" style="margin-bottom:15px;"></div>
+
     <!-- Contenedor donde se dibuja la tabla de padrón y checkboxes -->
     <div id="lista-eventos"><p style="text-align:center; color:#7f8c8d;">Cargando...</p></div>
 </div>
-
         <!-- SECCIÓN 3: VENCIMIENTOS DE TRÁMITES INSTITUCIONALES (Con tus 12 ítems y edición) -->
         <div id="seccion-tramites" style="display:none;">
             <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #dcdde1; margin-bottom:15px;">
@@ -2321,29 +2323,30 @@ window.cargarTramites = async function() {
         if(cont) cont.innerHTML = `<p style="color:red; text-align:center;">Error al cargar trámites.</p>`; 
     }
 };
-// --- JAVASCRIPT COMPLETO DEL MÓDULO DE EVENTOS / JORNADAS ---
-
 window.initModuloEventos = async function() {
     await window.cargarHistoricoJornadasSelect();
     window.cargarEventos();
 };
+
 window.cargarEventos = function(jornadaDatos = null) {
     const cont = document.getElementById('lista-eventos');
     if (!cont) return;
 
+    const tipoVal = jornadaDatos ? jornadaDatos.tipo || 'Jornada' : 'Jornada';
     const nombreVal = jornadaDatos ? jornadaDatos.nombre || '' : '';
     const fechaVal = jornadaDatos ? jornadaDatos.fecha || '' : '';
+    const horaVal = jornadaDatos ? jornadaDatos.hora || '' : '';
     const seguroVal = jornadaDatos ? jornadaDatos.seguro || '' : '';
     const polizaVal = jornadaDatos ? jornadaDatos.poliza || '' : '';
     const pacientesGuardadosDnis = new Set(jornadaDatos && jornadaDatos.pacientes ? jornadaDatos.pacientes.map(p => p.dni) : []);
 
-    // Sincronizar con los inputs estáticos del HTML superior
+    if (document.getElementById('ev-tipo')) document.getElementById('ev-tipo').value = tipoVal;
     if (document.getElementById('ev-titulo')) document.getElementById('ev-titulo').value = nombreVal;
     if (document.getElementById('ev-fecha')) document.getElementById('ev-fecha').value = fechaVal;
+    if (document.getElementById('ev-hora')) document.getElementById('ev-hora').value = horaVal;
     if (document.getElementById('ev-seguro')) document.getElementById('ev-seguro').value = seguroVal;
     if (document.getElementById('ev-poliza')) document.getElementById('ev-poliza').value = polizaVal;
 
-    // Inyectar en #lista-eventos sólo el filtro y la tabla
     cont.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px; flex-wrap:wrap;">
             <div style="flex:1; min-width:220px;">
@@ -2374,13 +2377,10 @@ window.cargarEventos = function(jornadaDatos = null) {
         </div>
     `;
 
-    // Cargar exclusivo de CET
     databaseRef().ref('cet/pacientes').once('value').then(snap => {
         const combinado = snap.val() || {};
-
         window._padronJornada = Object.keys(combinado).map(k => {
             const item = combinado[k] || {};
-            
             let apellidoRes = item.apellido || '';
             let nombreRes = item.nombre || '';
 
@@ -2412,6 +2412,7 @@ window.cargarEventos = function(jornadaDatos = null) {
         document.getElementById('tbody-pacientes-jornada').innerHTML = `<tr><td colspan="6" style="color:red; text-align:center;">Error al cargar pacientes de CET.</td></tr>`;
     });
 };
+
 window.renderizarTablaPacientesJornada = function(lista, preCheckedDnis = new Set(), marcarSiExiste = false) {
     const tbody = document.getElementById('tbody-pacientes-jornada');
     if (!tbody) return;
@@ -2456,8 +2457,10 @@ window.toggleSeleccionarTodosJornada = function(marcar) {
 };
 
 window.guardarYExportarJornada = async function(exportar = true) {
-    const nombreEv = (document.getElementById('ev-titulo')?.value || document.getElementById('ev-nombre')?.value || '').trim();
+    const tipoEv = document.getElementById('ev-tipo')?.value || 'Jornada';
+    const nombreEv = (document.getElementById('ev-titulo')?.value || '').trim();
     const fechaEv = document.getElementById('ev-fecha')?.value;
+    const horaEv = document.getElementById('ev-hora')?.value || '';
     const seguroEv = document.getElementById('ev-seguro')?.value.trim();
     const polizaEv = document.getElementById('ev-poliza')?.value.trim();
 
@@ -2480,12 +2483,13 @@ window.guardarYExportarJornada = async function(exportar = true) {
         return alert("⚠️ Selecciona al menos un paciente para la nómina de esta jornada.");
     }
 
-    // ID único basado en fecha + título/nombre para asociar por jornada en Firebase [cite: 9]
     const jornadaKey = `${fechaEv}_${nombreEv.replace(/[\s\.\/\#\$\[\]]/g, "_")}`;
 
     const dataJornada = {
+        tipo: tipoEv,
         nombre: nombreEv,
         fecha: fechaEv,
+        hora: horaEv,
         seguro: seguroEv,
         poliza: polizaEv,
         pacientes: seleccionados,
@@ -2493,9 +2497,9 @@ window.guardarYExportarJornada = async function(exportar = true) {
     };
 
     try {
-        await databaseRef().ref(`eventos_institucionales/${jornadaKey}`).update(dataJornada);
+        await databaseRef().ref(`jornadas/${jornadaKey}`).update(dataJornada);
         await window.cargarHistoricoJornadasSelect(jornadaKey);
-        alert(`✅ Jornada "${nombreEv}" (${fechaEv}) asociada, guardada y vinculada a seguro en Firebase.`);
+        alert(`✅ ${tipoEv} "${nombreEv}" (${fechaEv}) guardada en Firebase.`);
 
         if (exportar) {
             window.descargarCSVNomina(seleccionados, nombreEv, fechaEv);
@@ -2507,7 +2511,6 @@ window.guardarYExportarJornada = async function(exportar = true) {
 };
 
 window.descargarCSVNomina = function(seleccionados, eventoNombre, fechaStr) {
-    // Columnas exactas del modelo de referencia [cite: 9]
     const headers = [
         "DNI_ASEGURADO", "CUIL_ASEGURADO", "APELLIDO_ASEGURADO", "NOMBRE_ASEGURADO", 
         "FECHA_NAC_ASEGURADO", "NACIONALIDAD_ASEGURADO", "DNI_BENEFICIARIO", "CUIL_BENEFICIARIO", 
@@ -2515,7 +2518,7 @@ window.descargarCSVNomina = function(seleccionados, eventoNombre, fechaStr) {
         "NACIONALIDAD_BENEFICIARIO", "PORCENTAJE", "ORDEN_DE_PRIORIDAD"
     ];
 
-    let rows = [headers.join(",")];
+    let rows = [headers.join(";")];
 
     seleccionados.forEach(p => {
         const rowData = [
@@ -2527,7 +2530,7 @@ window.descargarCSVNomina = function(seleccionados, eventoNombre, fechaStr) {
             `"${p.nacionalidad || 'Argentina'}"`,
             `""`, `""`, `""`, `""`, `""`, `""`, `""`, `""`
         ];
-        rows.push(rowData.join(","));
+        rows.push(rowData.join(";"));
     });
 
     const csvContent = "\uFEFF" + rows.join("\n");
@@ -2544,19 +2547,24 @@ window.descargarCSVNomina = function(seleccionados, eventoNombre, fechaStr) {
 
 window.cargarHistoricoJornadasSelect = async function(seleccionarKey = '') {
     const sel = document.getElementById('sel-historico-jornadas');
-    if (!sel) return;
     try {
         const snap = await databaseRef().ref('jornadas').once('value');
         const data = snap.val() || {};
         window._historicoJornadas = data;
         
-        let html = '<option value="">-- Nueva Jornada / Seleccionar histórico --</option>';
-        Object.keys(data).sort().reverse().forEach(key => {
-            const j = data[key];
-            const selAttr = key === seleccionarKey ? 'selected' : '';
-            html += `<option value="${key}" ${selAttr}>[${j.fecha}] ${j.nombre} (${j.seguro || 'Sin seguro'}) - ${j.pacientes ? j.pacientes.length : 0} pas.</option>`;
-        });
-        sel.innerHTML = html;
+        if (sel) {
+            let html = '<option value="">-- Nueva Jornada / Seleccionar histórico --</option>';
+            Object.keys(data).sort().reverse().forEach(key => {
+                const j = data[key];
+                const selAttr = key === seleccionarKey ? 'selected' : '';
+                html += `<option value="${key}" ${selAttr}>[${j.fecha}] (${j.tipo || 'Jornada'}) ${j.nombre} - ${j.pacientes ? j.pacientes.length : 0} pas.</option>`;
+            });
+            sel.innerHTML = html;
+        }
+
+        if (typeof window.renderizarProximosEventos === 'function') {
+            window.renderizarProximosEventos();
+        }
     } catch(e) {
         console.error("Error cargando histórico jornadas", e);
     }
@@ -2569,12 +2577,54 @@ window.cargarJornadaHistorica = function(key) {
     const jornada = window._historicoJornadas[key];
     window.cargarEventos(jornada);
 };
+    
+window.renderizarProximosEventos = function() {
+    const contenedor = document.getElementById('contenedor-proximos-eventos');
+    if (!contenedor || !window._historicoJornadas) return;
+
+    const hoyStr = new Date().toISOString().split('T')[0];
+    const data = window._historicoJornadas;
+
+    const keysFuturas = Object.keys(data).filter(k => {
+        const j = data[k];
+        return j.fecha && j.fecha >= hoyStr;
+    }).sort((a, b) => data[a].fecha.localeCompare(data[b].fecha));
+
+    if (keysFuturas.length === 0) {
+        contenedor.innerHTML = `<p style="color: #666; font-style: italic;">No hay próximos eventos o jornadas cargadas desde hoy en adelante.</p>`;
+        return;
+    }
+
+    let html = '<div class="cards-grid-proximos" style="display: flex; flex-direction: column; gap: 12px;">';
+    keysFuturas.forEach(key => {
+        const j = data[key];
+        const cantPacientes = Array.isArray(j.pacientes) ? j.pacientes.length : 0;
+        
+        html += `
+            <div style="border: 1px solid #ccc; border-radius: 8px; padding: 12px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px;">
+                    <h3 style="margin: 0; font-size: 16px; color: #2c3e50;">📅 [${j.fecha}] ${j.hora ? `(${j.hora}) ` : ''} ${j.nombre} <span style="font-size:11px; color:#555; font-weight:normal;">[${j.tipo || 'Jornada'}]</span></h3>
+                    <span style="background: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">${cantPacientes} pacientes</span>
+                </div>
+                <p style="margin: 4px 0; font-size: 13px; color: #555;">
+                    <strong>Seguro:</strong> ${j.seguro || 'No especificado'} | <strong>Póliza:</strong> ${j.poliza || 'N/D'}
+                </p>
+                <div style="margin-top: 10px; display: flex; gap: 8px;">
+                    <button onclick="window.cargarJornadaHistorica('${key}')" style="padding: 6px 12px; font-size: 12px; cursor: pointer;">✏️ Editar / Ver en Formulario</button>
+                    ${cantPacientes > 0 ? `<button onclick="window.descargarCSVNomina(window._historicoJornadas['${key}'].pacientes || [], window._historicoJornadas['${key}'].nombre, window._historicoJornadas['${key}'].fecha)" style="padding: 6px 12px; font-size: 12px; cursor: pointer; background: #1976d2; color: white; border:none; border-radius:4px;">📥 Descargar Nómina Excel (;)</button>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    contenedor.innerHTML = html;
+};    
 
 window.nuevaJornadaLimpia = function() {
     const sel = document.getElementById('sel-historico-jornadas');
     if (sel) sel.value = '';
     window.cargarEventos();
-};    
+};
 const DESTINOS_WHATSAPP_DUEÑOS = [
     "5492644579476"
 ];
