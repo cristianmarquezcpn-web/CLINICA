@@ -539,135 +539,141 @@ window.actualizarPanelOS = function() {
     
     listaOS.innerHTML = htmlOS + "</div>";
 };
-     window.render = function() {
+window.render = function() {
     const b = document.getElementById('tabla-body');
     if (!b || !dataFull) return;
     b.innerHTML = "";
 
     const diccOS = (window.config && window.config.obras_sociales) ? window.config.obras_sociales : (window.dictOS || {});
     const listaNombresOS = Object.keys(diccOS);
-// 1. Definimos el tiempo FUERA del filter para no gastar memoria
-const hoy = new Date();
-const mesActual = hoy.getMonth() + 1; 
-const añoActual = hoy.getFullYear(); 
 
-dataFull
-    .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
-    .filter(p => {
-        // Usamos nombres claros:
-        const prestacion = (p.pres || "").toUpperCase();
-        const detalle = (p.detalle || "").toUpperCase();
-        
-        // Filtramos solo los pacientes que pertenecen a esta prestación
-        return (prestacion === "SAEI" || detalle.includes("SAEI"));
-    })    
-    .forEach(p => {
-        // --- IDENTIFICACIÓN DE FACTURA ---
-        // Seguimos usando 'ultima_factura' como el estándar de datos
-        const miFactura = p.ultima_factura || p.ultima_factura_saei || null;
-        const tieneCAE = !!(miFactura && miFactura.cae); 
-		const idPaciente = p.id || p.id_db || "S/N";
-        const nombreMod  = "saei"; 
+    // 1. Definimos el tiempo FUERA del filter para no gastar memoria
+    const hoy = new Date();
+    const mesActual = hoy.getMonth() + 1; 
+    const añoActual = hoy.getFullYear(); 
 
-        // --- COMPARACIÓN DE MES ---
-        // Extraemos el mes de la fecha de emisión (ej: "15/5/2026")
-        const partesFecha = (miFactura && miFactura.fecha_emision) ? miFactura.fecha_emision.split('/') : [];
-        
-        const esMismoMes = partesFecha.length === 3 && 
-                           parseInt(partesFecha[1]) === mesActual && 
-                           parseInt(partesFecha[2]) === añoActual;
+    dataFull
+        .sort((x, y) => (x.id || x.id_db || "").toString().localeCompare((y.id || y.id_db || "").toString()))
+        .filter(p => {
+            const prestacion = (p.pres || "").toUpperCase();
+            const detalle = (p.detalle || "").toUpperCase();
+            
+            // Filtramos solo los pacientes que pertenecen a esta prestación
+            return (prestacion === "SAEI" || detalle.includes("SAEI"));
+        })    
+        .forEach(p => {
+            // --- IDENTIFICACIÓN DE FACTURA ---
+            const miFactura = p.ultima_factura || p.ultima_factura_saei || null;
+            const tieneCAE = !!(miFactura && miFactura.cae); 
+            const idPaciente = p.id || p.id_db || "S/N";
+            const nombreMod  = "saei"; 
 
-        // La fila se bloquea y se pone gris SOLO si se facturó en el mes corriente
-        
-        let facturado = (p.facturado === "SI" || p.facturado_saei === "SI");
-        if (p.facturado === "NO" || p.facturado_saei === "NO") facturado = false;
-	    // --- RESCATE DE FECHAS PARA AFIP ---
-        const fDesde = (facturado && miFactura) ? (miFactura.periodo_desde || "") : (p.periodo_desde || "");
-        const fHasta = (facturado && miFactura) ? (miFactura.periodo_hasta || "") : (p.periodo_hasta || "");
-        const fVto   = (facturado && miFactura) ? (miFactura.vto_pago || "") : (p.vto_pago || "");
+            // --- COMPARACIÓN DE MES ---
+            const partesFecha = (miFactura && miFactura.fecha_emision) ? miFactura.fecha_emision.split('/') : [];
+            
+            const esMismoMes = partesFecha.length === 3 && 
+                               parseInt(partesFecha[1]) === mesActual && 
+                               parseInt(partesFecha[2]) === añoActual;
 
-        const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
-        let infoOS = {};
-        if (osPaciente) {
-            if (diccOS[osPaciente]) infoOS = diccOS[osPaciente];
-            else {
-                const coincidencia = listaNombresOS.find(nombre => 
-                    nombre.toUpperCase().includes(osPaciente) || osPaciente.includes(nombre.toUpperCase())
-                );
-                if (coincidencia) infoOS = diccOS[coincidencia];
+            // 🔑 Blindaje estricto en el render: solo está facturado SI hay CAE, es de este mes, 
+            // y no tiene un estado manual en "NO" / "no".
+            let facturado = false;
+            const estadoManual = (p.facturado || p.facturado_saei || "").toString().toUpperCase();
+            
+            if (estadoManual === "NO") {
+                facturado = false;
+            } else if (miFactura && miFactura.cae && esMismoMes) {
+                facturado = true;
             }
-        }
 
-        const rsFinal = (facturado && miFactura) ? (miFactura.receptor_nombre || miFactura.razon_social || osPaciente) : (p.razon_social || infoOS.razon_social || infoOS.nombre || osPaciente || "");
-        const cuitFinal = (facturado && miFactura) ? (miFactura.cuit || "") : (p.cuit || infoOS.cuit || p.obra_social_cuit || "");
-        const domFinal = (facturado && miFactura) ? (miFactura.domicilio || "SAN JUAN") : (p.domicilio || infoOS.domicilio || p.obra_social_domicilio || "SAN JUAN");
+            // --- RESCATE DE FECHAS PARA AFIP ---
+            const fDesde = (facturado && miFactura) ? (miFactura.periodo_desde || "") : (p.periodo_desde || "");
+            const fHasta = (facturado && miFactura) ? (miFactura.periodo_hasta || "") : (p.periodo_hasta || "");
+            const fVto   = (facturado && miFactura) ? (miFactura.vto_pago || "") : (p.vto_pago || "");
 
-        const mBase = parseFloat((facturado && miFactura) ? (miFactura.exento || miFactura.total) : (p.exento || p.total || p.monto_fijo || 0)) || 0;
-        const aFinal = parseFloat((facturado && miFactura) ? (miFactura.alicuota || 0) : 0) || 0;
-        const totalCalculated = (facturado && miFactura) ? (parseFloat(miFactura.total) || 0) : mBase;
+            const osPaciente = (p.os || p.obra_social_nombre || "").toUpperCase().trim();
+            let infoOS = {};
+            if (osPaciente) {
+                if (diccOS[osPaciente]) infoOS = diccOS[osPaciente];
+                else {
+                    const coincidencia = listaNombresOS.find(nombre => 
+                        nombre.toUpperCase().includes(osPaciente) || osPaciente.includes(nombre.toUpperCase())
+                    );
+                    if (coincidencia) infoOS = diccOS[coincidencia];
+                }
+            }
 
-        let tipoComp = 6; 
-        if (miFactura?.tipo_comp) tipoComp = parseInt(miFactura.tipo_comp);
+            const rsFinal = (facturado && miFactura) ? (miFactura.receptor_nombre || miFactura.razon_social || osPaciente) : (p.razon_social || infoOS.razon_social || infoOS.nombre || osPaciente || "");
+            const cuitFinal = (facturado && miFactura) ? (miFactura.cuit || "") : (p.cuit || infoOS.cuit || p.obra_social_cuit || "");
+            const domFinal = (facturado && miFactura) ? (miFactura.domicilio || "SAN JUAN") : (p.domicilio || infoOS.domicilio || p.obra_social_domicilio || "SAN JUAN");
+
+            const mBase = parseFloat((facturado && miFactura) ? (miFactura.exento || miFactura.total) : (p.exento || p.total || p.monto_fijo || 0)) || 0;
+            const aFinal = parseFloat((facturado && miFactura) ? (miFactura.alicuota || 0) : 0) || 0;
+            const totalCalculated = (facturado && miFactura) ? (parseFloat(miFactura.total) || 0) : mBase;
+
+            let tipoComp = 6; 
+            if (miFactura?.tipo_comp) tipoComp = parseInt(miFactura.tipo_comp);
+            
+            const tr = document.createElement('tr');
+            tr.style.background = facturado ? "#f4f4f4" : "#ffffff";
+            tr.style.color = facturado ? "#777" : "#000";
         
-        const tr = document.createElement('tr');
-        tr.style.background = facturado ? "#f4f4f4" : "#ffffff";
-        tr.style.color = facturado ? "#777" : "#000";
-		
-        let estadoVisual = facturado ? `<br><b style="color:green; font-size:9px;">FACTURADO</b>` : `<br><b style="color:orange; font-size:9px;">PENDIENTE</b>`;
-        
-        let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${facturado ? 'disabled' : ''}> ${estadoVisual}`;
-        const nombreParaBuscar = p.receptor_nombre || p.nombre || p.razon_social;
-        // Agregamos los campos ocultos que AFIP necesita leer
-        colAccion += `
-            <input type="hidden" class="f-desde" value="${fDesde}">
-            <input type="hidden" class="f-hasta" value="${fHasta}">
-            <input type="hidden" class="f-vto" value="${fVto}">
-        `;
-              
-        if (tieneCAE) {
-            colAccion += `<div style="margin-top:5px;"><button class="btn" style="background:var(--verde); font-size:8px; padding:4px; color:white; border:none;" onclick="window.descargarFactura('${miFactura.id || idPaciente}')">PDF</button>
-            <button class="btn" style="background:var(--naranja); font-size:8px; padding:4px; color:white; border:none;" onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button></div>`;
-        }
+            let estadoVisual = facturado ? `<br><b style="color:green; font-size:9px;">FACTURADO</b>` : `<br><b style="color:orange; font-size:9px;">PENDIENTE</b>`;
+            
+            let colAccion = `<input type="checkbox" class="ck" data-id="${idPaciente}" data-mod="${nombreMod}" ${facturado ? 'disabled' : ''}> ${estadoVisual}`;
+            const nombreParaBuscar = p.receptor_nombre || p.nombre || p.razon_social;
+            
+            // Agregamos los campos ocultos que AFIP necesita leer
+            colAccion += `
+                <input type="hidden" class="f-desde" value="${fDesde}">
+                <input type="hidden" class="f-hasta" value="${fHasta}">
+                <input type="hidden" class="f-vto" value="${fVto}">
+            `;
+                  
+            if (tieneCAE) {
+                colAccion += `<div style="margin-top:5px;"><button class="btn" style="background:var(--verde); font-size:8px; padding:4px; color:white; border:none;" onclick="window.descargarFactura('${miFactura.id || idPaciente}')">PDF</button>
+                <button class="btn" style="background:var(--naranja); font-size:8px; padding:4px; color:white; border:none;" onclick="window.habilitarParaRefacturar('${idPaciente}', '${nombreMod}', '${miFactura.id || ""}')">Refac</button></div>`;
+            }
 
-        const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
+            const displayAsociado = (tipoComp === 3 || tipoComp === 8) ? 'block' : 'none';
 
-        const htmlNC = `
-            <div class="asociado-box" style="display:${displayAsociado}; margin-top:5px; background:#fff3cd; padding:4px; border:1px dashed #e67e22;">
-                <input type="number" class="input-tab aso-pv" value="5" style="width:30px; font-size:10px;" ${facturado?'disabled':''}>
-                <input type="text" class="input-tab aso-num" placeholder="Num" style="width:50px; font-size:10px;" value="${miFactura?.comprobante_asociado || ''}" ${facturado?'disabled':''}>
-                <input type="date" class="input-tab aso-fec" style="width:85px; font-size:10px;" value="${miFactura?.fecha_asociada || ''}" ${facturado?'disabled':''}>
-            </div>`;
+            const htmlNC = `
+                <div class="asociado-box" style="display:${displayAsociado}; margin-top:5px; background:#fff3cd; padding:4px; border:1px dashed #e67e22;">
+                    <input type="number" class="input-tab aso-pv" value="5" style="width:30px; font-size:10px;" ${facturado?'disabled':''}>
+                    <input type="text" class="input-tab aso-num" placeholder="Num" style="width:50px; font-size:10px;" value="${miFactura?.comprobante_asociado || ''}" ${facturado?'disabled':''}>
+                    <input type="date" class="input-tab aso-fec" style="width:85px; font-size:10px;" value="${miFactura?.fecha_asociada || ''}" ${facturado?'disabled':''}>
+                </div>`;
 
-        tr.innerHTML = `
-            <td style="text-align:center">${colAccion}</td>
-            <td><small>SAEI</small><br><b>${idPaciente}</b></td>
-            <td>
-                <select class="input-tab sel-tipo" ${facturado?'disabled':''} onchange="window.gestionarTipoComp(this)">
-                    <option value="6" ${tipoComp === 6 ? 'selected' : ''}>Factura B</option>
-                    <option value="1" ${tipoComp === 1 ? 'selected' : ''}>Factura A</option>
-                    <option value="8" ${tipoComp === 8 ? 'selected' : ''}>NC B</option>
-                    <option value="3" ${tipoComp === 3 ? 'selected' : ''}>NC A</option>
-                </select>
-                ${htmlNC}
-            </td>
-            <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''} onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'cuit')"></td>
-            <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''} onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'razon_social')"></td>
-            <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''} onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'domicilio')"></td>
-            <td><textarea class="input-tab det-val" style="min-height:40px; width:100%; overflow:hidden; resize:none;" onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')" ${facturado?'disabled':''}>${p.detalle || 'PRESTACIÓN MÓDULO SAEI - PACIENTE: ' + idPaciente}</textarea></td>
-            <td><input type="number" class="input-tab neto-edit" value="${p.total && aFinal > 0 ? p.total : (aFinal > 0 ? mBase : 0)}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
-            <td>
-                <select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
-                    <option value="0" ${aFinal === 0 ? 'selected' : ''}>Exento</option>
-                    <option value="10.5" ${aFinal === 10.5 ? 'selected' : ''}>10.5%</option>
-                    <option value="21" ${aFinal === 21 ? 'selected' : ''}>21%</option>
-                </select>
-            </td>
-            <td><input type="number" class="input-tab exento-edit" value="${p.total || p.exento || mBase || 0}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)" onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'total')"></td>
-            <td style="text-align:right; font-weight:bold" class="total-render">$ ${totalCalculated.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
-        `;
-        b.appendChild(tr);
-    });
-};              
+            tr.innerHTML = `
+                <td style="text-align:center">${colAccion}</td>
+                <td><small>SAEI</small><br><b>${idPaciente}</b></td>
+                <td>
+                    <select class="input-tab sel-tipo" ${facturado?'disabled':''} onchange="window.gestionarTipoComp(this)">
+                        <option value="6" ${tipoComp === 6 ? 'selected' : ''}>Factura B</option>
+                        <option value="1" ${tipoComp === 1 ? 'selected' : ''}>Factura A</option>
+                        <option value="8" ${tipoComp === 8 ? 'selected' : ''}>NC B</option>
+                        <option value="3" ${tipoComp === 3 ? 'selected' : ''}>NC A</option>
+                    </select>
+                    ${htmlNC}
+                </td>
+                <td><input type="text" class="input-tab cuit-val" value="${cuitFinal}" ${facturado?'disabled':''} onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'cuit')"></td>
+                <td><input type="text" class="input-tab rs-val" value="${rsFinal}" ${facturado?'disabled':''} onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'razon_social')"></td>
+                <td><input type="text" class="input-tab dom-val" value="${domFinal}" ${facturado?'disabled':''} onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'domicilio')"></td>
+                <td><textarea class="input-tab det-val" style="min-height:40px; width:100%; overflow:hidden; resize:none;" onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'detalle')" ${facturado?'disabled':''}>${p.detalle || 'PRESTACIÓN MÓDULO SAEI - PACIENTE: ' + idPaciente}</textarea></td>
+                <td><input type="number" class="input-tab neto-edit" value="${p.total && aFinal > 0 ? p.total : (aFinal > 0 ? mBase : 0)}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)"></td>
+                <td>
+                    <select class="input-tab sel-ali" ${facturado?'disabled':''} onchange="window.recalcularTotales(this)">
+                        <option value="0" ${aFinal === 0 ? 'selected' : ''}>Exento</option>
+                        <option value="10.5" ${aFinal === 10.5 ? 'selected' : ''}>10.5%</option>
+                        <option value="21" ${aFinal === 21 ? 'selected' : ''}>21%</option>
+                    </select>
+                </td>
+                <td><input type="number" class="input-tab exento-edit" value="${p.total || p.exento || mBase || 0}" ${facturado?'disabled':''} oninput="window.recalcularTotales(this)" onblur="window.fijarDatoPermanente('${idPaciente}', this.value, 'total')"></td>
+                <td style="text-align:right; font-weight:bold" class="total-render">$ ${totalCalculated.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+            `;
+            b.appendChild(tr);
+        });
+};            
     window.recalcularTotales = function(el) {
     const tr = el.closest('tr');
     const netoInput = tr.querySelector('.neto-edit');
