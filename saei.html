@@ -410,7 +410,7 @@ async function procesarTodo() {
 
     const rutas = [
         { path: 'rehab/pacientes', mod: 'REHAB' },
-        { path: 'saei/pacientes', mod: 'SAEI' } // Ya apunta a minúsculas
+        { path: 'saei/pacientes', mod: 'SAEI' } 
     ];
 
     const promesas = rutas.map(obj => db.ref(obj.path).once('value'));
@@ -445,37 +445,42 @@ async function procesarTodo() {
                     }
                 }
 
+                // Limpiar ignorar_factura si es de un mes anterior
+                if (ultFact && !facturaEsDeEsteMes && p.ignorar_factura) {
+                    p.ignorar_factura = null; 
+                }
+
                 // Estado final: SI solo si hay CAE y es de este mes
                 let estadoFinal = (ultFact && ultFact.cae && facturaEsDeEsteMes) ? 'SI' : 'NO';
                 
-                // Si el paciente tiene 'NO' manual en cualquiera de sus variantes
                 if (p.facturado === 'NO' || p.facturado === 'no' || p.facturado_saei === 'NO' || p.facturado_saei === 'no') {
                     estadoFinal = 'NO';
                 }
 
-                // Si la factura NO es de este mes, forzamos rotundamente el estado a 'NO'
                 if (!facturaEsDeEsteMes) {
                     estadoFinal = 'NO';
                 }
 
-                // Asignación inicial
                 p.facturado = estadoFinal;
                 p.facturado_saei = estadoFinal;
 
-                if (mapaPacientes[idPac]) {
+                // 🔑 Clave unificada en minúsculas y sin espacios para evitar duplicados por Mayús/Minús
+                const claveUnica = idPac.trim().toLowerCase();
+
+                if (mapaPacientes[claveUnica]) {
                     if (ultFact) {
-                        mapaPacientes[idPac].ultima_factura = ultFact;
+                        mapaPacientes[claveUnica].ultima_factura = ultFact;
                     }
-                    Object.assign(mapaPacientes[idPac], p);
+                    Object.assign(mapaPacientes[claveUnica], p);
                     
-                    // 🔑 Blindaje: Forzamos el estado calculado después del Object.assign 
-                    // para evitar que los datos viejos de Firebase pisen el valor de octubre
-                    mapaPacientes[idPac].facturado = estadoFinal;
-                    mapaPacientes[idPac].facturado_saei = estadoFinal;
-                    
-                    mapaPacientes[idPac].mod = "SAEI"; 
+                    mapaPacientes[claveUnica].facturado = estadoFinal;
+                    mapaPacientes[claveUnica].facturado_saei = estadoFinal;
+                    if (!facturaEsDeEsteMes) {
+                        mapaPacientes[claveUnica].ignorar_factura = null;
+                    }
+                    mapaPacientes[claveUnica].mod = "SAEI"; 
                 } else {
-                    mapaPacientes[idPac] = {
+                    mapaPacientes[claveUnica] = {
                         ...p,
                         id: idPac,
                         pres: "SAEI",
@@ -484,6 +489,9 @@ async function procesarTodo() {
                         facturado: estadoFinal,
                         facturado_saei: estadoFinal
                     };
+                    if (!facturaEsDeEsteMes) {
+                        mapaPacientes[claveUnica].ignorar_factura = null;
+                    }
                 }
             }
         }
