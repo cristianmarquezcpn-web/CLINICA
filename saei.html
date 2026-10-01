@@ -453,6 +453,9 @@ async function procesarTodo() {
                     estadoFinal = 'NO';
                 }
 
+                // 🔑 Asignación correcta
+                p.facturado = estadoFinal;
+
                 if (mapaPacientes[idPac]) {
                     if (ultFact) {
                         mapaPacientes[idPac].ultima_factura = ultFact;
@@ -479,7 +482,7 @@ async function procesarTodo() {
     if (typeof render === "function") {
         render();
     }
-}	
+}
 window.actualizarPanelOS = function() {
     const listaOS = document.getElementById('lista-os');
     if(!listaOS) return;
