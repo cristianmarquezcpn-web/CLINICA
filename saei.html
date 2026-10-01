@@ -448,18 +448,25 @@ async function procesarTodo() {
                 // Estado final: SI solo si hay CAE y es de este mes
                 let estadoFinal = (ultFact && ultFact.cae && facturaEsDeEsteMes) ? 'SI' : 'NO';
                 
-                // Si el paciente tiene 'NO' manual o 'no' por refactorización
-                if (p.facturado === 'NO' || p.facturado === 'no' || p.facturado_saei === 'no') {
+                // Si el paciente tiene 'NO' manual (en cualquiera de sus variantes de campo)
+                if (p.facturado === 'NO' || p.facturado === 'no' || p.facturado_saei === 'NO' || p.facturado_saei === 'no') {
                     estadoFinal = 'NO';
                 }
 
-                // 🔑 Asignación correcta
+                // Si la factura NO es de este mes, forzamos rotundamente el estado a 'NO'
+                if (!facturaEsDeEsteMes) {
+                    estadoFinal = 'NO';
+                }
+
+                // 🔑 Asignación robusta a ambos campos del paciente para evitar desincronizaciones
                 p.facturado = estadoFinal;
+                p.facturado_saei = estadoFinal;
 
                 if (mapaPacientes[idPac]) {
                     if (ultFact) {
                         mapaPacientes[idPac].ultima_factura = ultFact;
                         mapaPacientes[idPac].facturado = estadoFinal;
+                        mapaPacientes[idPac].facturado_saei = estadoFinal;
                     }
                     Object.assign(mapaPacientes[idPac], p);
                     mapaPacientes[idPac].mod = "SAEI"; 
@@ -470,7 +477,8 @@ async function procesarTodo() {
                         pres: "SAEI",
                         mod: "SAEI",
                         ultima_factura: ultFact, 
-                        facturado: estadoFinal   
+                        facturado: estadoFinal,
+                        facturado_saei: estadoFinal
                     };
                 }
             }
