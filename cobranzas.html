@@ -148,6 +148,23 @@
     <p style="font-size: 12px; color: #95a5a6; margin:0;">Total Neto a Cobrar Real</p>
 </div>
     </div>
+	<div id="panelMemoria" style="display:none; position: fixed; bottom: 20px; right: 20px; background: #2c3e50; color: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 1000; width: 320px; font-family: sans-serif;">
+    <div style="font-weight: bold; margin-bottom: 8px; color: #f39c12; display: flex; justify-content: space-between; align-items: center;">
+        <span>🧮 Calculadora de Memoria</span>
+        <span onclick="document.getElementById('panelMemoria').style.display='none'" style="cursor:pointer; font-size: 14px;">✖</span>
+    </div>
+    <div id="listaMemoria" style="max-height: 100px; overflow-y: auto; font-size: 11px; margin-bottom: 8px; border-bottom: 1px solid #444; padding-bottom: 5px; color: #ecf0f1;">
+        <!-- Aquí se listan las filas seleccionadas -->
+    </div>
+    <div style="font-size: 13px; font-weight: bold; margin-bottom: 8px;">
+        Total Acumulado (Saldos): <span id="totalMemoria" style="color: #2ecc71;">$ 0,00</span>
+    </div>
+    <div style="display: flex; gap: 5px;">
+        <button onclick="window.operarMemoria('sumar')" style="flex:1; background:#27ae60; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">+ Sumar extra</button>
+        <button onclick="window.operarMemoria('restar')" style="flex:1; background:#e74c3c; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">- Restar</button>
+        <button onclick="window.limpiarMemoria()" style="background:#7f8c8d; color:white; border:none; padding:6px 10px; border-radius:4px; cursor:pointer; font-size:11px;">Limpiar</button>
+    </div>
+</div>
 
     <div class="card" style="padding: 0; overflow: hidden;">
         <h3 style="padding: 20px 20px 0 20px; border:none;">📄 Registro Detallado (Ordenado por O.S.)</h3>
@@ -456,6 +473,7 @@ if (!firebase.apps.length) {
 
             <td>
                 <button onclick="eliminarFactura('${id}')" style="background:none;border:none;cursor:pointer;font-size:14px" title="Borrar">🗑️</button>
+				<button onclick="window.agregarAMemoria('${id}', '${os.replace(/'/g, "")}', ${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Sumar a calculadora">🧮</button>
                 ${mostrarBotonCobro ? `<button onclick="registrarCobroFull('${id}', ${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Cobrar">💰</button>` : ''}
                 ${!esNC ? `<button onclick="vincularNC('${id}')" style="background:none;border:none;cursor:pointer;font-size:14px" title="Vincular con NC">🔗</button>` : ''}
                 <!-- Botón de gestión de comentarios dinámico -->
@@ -1660,6 +1678,47 @@ function descartarAviso(uid, periodo) {
         console.error("Error al descartar en la base de datos:", error);
     });
 }
+window.itemsMemoria = [];
+
+window.agregarAMemoria = function(id, nombreOS, saldo) {
+    // Evitamos duplicar la misma fila exacta
+    if (window.itemsMemoria.some(item => item.id === id)) {
+        alert("⚠️ Esta fila ya está en la memoria de cálculo.");
+        return;
+    }
+
+    window.itemsMemoria.push({ id, nombreOS, valor: saldo });
+    window.actualizarPanelMemoria();
+    document.getElementById('panelMemoria').style.display = 'block';
+};
+
+window.actualizarPanelMemoria = function() {
+    const contenedor = document.getElementById('listaMemoria');
+    contenedor.innerHTML = '';
+    let suma = 0;
+
+    window.itemsMemoria.forEach((item, idx) => {
+        suma += item.valor;
+        contenedor.innerHTML += `<div style="margin-bottom:3px;"><b>${idx+1}.</b> ${item.nombreOS} <span style="float:right; color:#3498db;">$${item.valor.toFixed(2)}</span></div>`;
+    });
+
+    document.getElementById('totalMemoria').innerText = `$ ${suma.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+};
+
+window.limpiarMemoria = function() {
+    window.itemsMemoria = [];
+    window.actualizarPanelMemoria();
+    document.getElementById('panelMemoria').style.display = 'none';
+};
+
+window.operarMemoria = function(tipo) {
+    let suma = window.itemsMemoria.reduce((acc, item) => acc + item.valor, 0);
+    let valorExtra = parseFloat(prompt(`Total actual acumulado: $${suma.toFixed(2)}\n\nIngrese el monto a ${tipo === 'sumar' ? 'SUMAR' : 'RESTAR'}:`, "0")) || 0;
+    
+    let resultadoFinal = tipo === 'sumar' ? suma + valorExtra : suma - valorExtra;
+    
+    alert(`🧮 Resultado de la operación:\n$ ${resultadoFinal.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`);
+};	
 </script>
 </body>
 </html>      
