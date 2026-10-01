@@ -448,7 +448,7 @@ async function procesarTodo() {
                 // Estado final: SI solo si hay CAE y es de este mes
                 let estadoFinal = (ultFact && ultFact.cae && facturaEsDeEsteMes) ? 'SI' : 'NO';
                 
-                // Si el paciente tiene 'NO' manual (en cualquiera de sus variantes de campo)
+                // Si el paciente tiene 'NO' manual en cualquiera de sus variantes
                 if (p.facturado === 'NO' || p.facturado === 'no' || p.facturado_saei === 'NO' || p.facturado_saei === 'no') {
                     estadoFinal = 'NO';
                 }
@@ -458,17 +458,21 @@ async function procesarTodo() {
                     estadoFinal = 'NO';
                 }
 
-                // 🔑 Asignación robusta a ambos campos del paciente para evitar desincronizaciones
+                // Asignación inicial
                 p.facturado = estadoFinal;
                 p.facturado_saei = estadoFinal;
 
                 if (mapaPacientes[idPac]) {
                     if (ultFact) {
                         mapaPacientes[idPac].ultima_factura = ultFact;
-                        mapaPacientes[idPac].facturado = estadoFinal;
-                        mapaPacientes[idPac].facturado_saei = estadoFinal;
                     }
                     Object.assign(mapaPacientes[idPac], p);
+                    
+                    // 🔑 Blindaje: Forzamos el estado calculado después del Object.assign 
+                    // para evitar que los datos viejos de Firebase pisen el valor de octubre
+                    mapaPacientes[idPac].facturado = estadoFinal;
+                    mapaPacientes[idPac].facturado_saei = estadoFinal;
+                    
                     mapaPacientes[idPac].mod = "SAEI"; 
                 } else {
                     mapaPacientes[idPac] = {
