@@ -159,11 +159,14 @@
     <div style="font-size: 13px; font-weight: bold; margin-bottom: 8px;">
         Total Acumulado (Saldos): <span id="totalMemoria" style="color: #2ecc71;">$ 0,00</span>
     </div>
-    <div style="display: flex; gap: 5px;">
-        <button onclick="window.operarMemoria('sumar')" style="flex:1; background:#27ae60; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">+ Sumar extra</button>
-        <button onclick="window.operarMemoria('restar')" style="flex:1; background:#e74c3c; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">- Restar</button>
-        <button onclick="window.limpiarMemoria()" style="background:#7f8c8d; color:white; border:none; padding:6px 10px; border-radius:4px; cursor:pointer; font-size:11px;">Limpiar</button>
-    </div>
+    <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+    <button onclick="window.operarMemoria('sumar')" style="flex:1; background:#27ae60; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">+ Sumar</button>
+    <button onclick="window.operarMemoria('restar')" style="flex:1; background:#e74c3c; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">- Restar</button>
+    <button onclick="window.operarMemoria('multiplicar')" style="flex:1; background:#2980b9; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">×</button>
+    <button onclick="window.operarMemoria('dividir')" style="flex:1; background:#8e44ad; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">÷</button>
+    <button onclick="window.operarMemoria('porcentaje')" style="flex:100%; background:#d35400; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">% Aplicar Porcentaje</button>
+    <button onclick="window.limpiarMemoria()" style="flex:100%; background:#c0392b; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">AC (Limpiar Todo)</button>
+</div>
 </div>
 
     <div class="card" style="padding: 0; overflow: hidden;">
@@ -1681,15 +1684,20 @@ function descartarAviso(uid, periodo) {
 window.itemsMemoria = [];
 
 window.agregarAMemoria = function(id, nombreOS, saldo) {
-    // Evitamos duplicar la misma fila exacta
-    if (window.itemsMemoria.some(item => item.id === id)) {
-        alert("⚠️ Esta fila ya está en la memoria de cálculo.");
-        return;
+    const index = window.itemsMemoria.findIndex(item => item.id === id);
+    
+    if (index !== -1) {
+        // Si ya estaba, la saca (toggle)
+        window.itemsMemoria.splice(index, 1);
+    } else {
+        // Si no estaba, la agrega
+        window.itemsMemoria.push({ id, nombreOS, valor: saldo });
     }
 
-    window.itemsMemoria.push({ id, nombreOS, valor: saldo });
     window.actualizarPanelMemoria();
-    document.getElementById('panelMemoria').style.display = 'block';
+    
+    // Muestra u oculta el panel según haya elementos
+    document.getElementById('panelMemoria').style.display = window.itemsMemoria.length > 0 ? 'block' : 'none';
 };
 
 window.actualizarPanelMemoria = function() {
@@ -1713,11 +1721,36 @@ window.limpiarMemoria = function() {
 
 window.operarMemoria = function(tipo) {
     let suma = window.itemsMemoria.reduce((acc, item) => acc + item.valor, 0);
-    let valorExtra = parseFloat(prompt(`Total actual acumulado: $${suma.toFixed(2)}\n\nIngrese el monto a ${tipo === 'sumar' ? 'SUMAR' : 'RESTAR'}:`, "0")) || 0;
-    
-    let resultadoFinal = tipo === 'sumar' ? suma + valorExtra : suma - valorExtra;
-    
-    alert(`🧮 Resultado de la operación:\n$ ${resultadoFinal.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`);
+    if (suma === 0) {
+        alert("⚠️ La memoria está en $0.");
+        return;
+    }
+
+    let textoOperacion = "";
+    switch(tipo) {
+        case 'sumar': textoOperacion = "Monto a SUMAR:"; break;
+        case 'restar': textoOperacion = "Monto a RESTAR:"; break;
+        case 'multiplicar': textoOperacion = "Multiplicador:"; break;
+        case 'dividir': textoOperacion = "Divisor:"; break;
+        case 'porcentaje': textoOperacion = "% a aplicar (ej: 21 o -21):"; break;
+    }
+
+    let valorExtra = parseFloat(prompt(`Total en memoria: $${suma.toFixed(2)}\n\n${textoOperacion}`, "0"));
+    if (isNaN(valorExtra)) return;
+
+    let resultadoFinal = suma;
+    switch(tipo) {
+        case 'sumar': resultadoFinal = suma + valorExtra; break;
+        case 'restar': resultadoFinal = suma - valorExtra; break;
+        case 'multiplicar': resultadoFinal = suma * valorExtra; break;
+        case 'dividir': 
+            if (valorExtra === 0) { alert("❌ No se puede dividir por cero."); return; }
+            resultadoFinal = suma / valorExtra; 
+            break;
+        case 'porcentaje': resultadoFinal = suma + (suma * (valorExtra / 100)); break;
+    }
+
+    alert(`🧮 Resultado:\n$ ${resultadoFinal.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`);
 };	
 </script>
 </body>
