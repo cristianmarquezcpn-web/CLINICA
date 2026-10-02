@@ -600,12 +600,12 @@ async function renderizarTodo() {
 
     const elemBolsaUnico = document.getElementById('totalBolsaSinAsignar');
     if (elemBolsaUnico) {
-        elemBolsaUnico.innerText = `$ ${totalBolsaCiegaLocal.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+        elemBolsaUnico.innerText = `$ ${totalBolsa.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
     }
 
     const elemDetalleBolsaUnico = document.getElementById('contenedorDetalleBolsa');
     if (elemDetalleBolsaUnico) {
-        elemDetalleBolsaUnico.innerHTML = htmlBolsaDetalleLocal || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
+        elemDetalleBolsaUnico.innerHTML = htmlBolsaDetalle || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
     }
     globalPendiente = Math.max(0, globalPendiente - totalBolsa);
     
