@@ -370,14 +370,12 @@ async function renderizarTodo() {
         const estaAnuladaPorNC = !!f.id_nc_vinculada;
         const saldo = (esNC || estaAnuladaPorNC) ? 0 : Math.max(0, f.netoCalc - pagado - debito); 
         
-        // Acumuladores globales (sin filtros)
         if (!esNC && !estaAnuladaPorNC) {
             globalFacturadoNeto += f.netoCalc;
             globalCobradoEfectivo += pagado;
             if (saldo > 0.5) globalPendienteBruto += saldo;
         }
 
-        // Validación de Filtros
         let cumpleFiltro = true;
         const pvBusca = f.punto_venta ? f.punto_venta.toString().padStart(5, '0') : '00000';
         const ncBusca = f.nro_comp ? f.nro_comp.toString().padStart(8, '0') : '00000000';
@@ -461,6 +459,8 @@ async function renderizarTodo() {
         const colorComentario = tieneComentario ? "#27ae60" : "#95a5a6";
         const iconoComentario = tieneComentario ? "💬" : "➕";
         const tituloComentario = tieneComentario ? f.comentario : "Agregar comentario";
+        const osEscapada = os.replace(/'/g, "\\'");
+        const comentarioEscapado = tieneComentario ? f.comentario.replace(/'/g, "\\'") : '';
 
         const tr = document.createElement('tr');
         if (esNC) tr.className = "nc-row";
@@ -498,10 +498,10 @@ async function renderizarTodo() {
 
             <td>
                 <button onclick="eliminarFactura('${id}')" style="background:none;border:none;cursor:pointer;font-size:14px" title="Borrar">🗑️</button>
-                <button onclick="window.agregarAMemoria('${id}', '${os.replace(/'/g, "")}', ${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Sumar a calculadora">🧮</button>
+                <button onclick="window.agregarAMemoria('${id}', '${osEscapada}', ${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Sumar a calculadora">🧮</button>
                 ${mostrarBotonCobro ? `<button onclick="registrarCobroFull('${id}',${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Cobrar">💰</button>` : ''}
                 ${!esNC ? `<button onclick="vincularNC('${id}')" style="background:none;border:none;cursor:pointer;font-size:14px" title="Vincular con NC">🔗</button>` : ''}
-                <button onclick="gestionarComentario('${id}', '${tieneComentario ? f.comentario.replace(/'/g, "\\'") : ''}')" 
+                <button onclick="gestionarComentario('${id}', '${comentarioEscapado}')" 
                         style="background:none; border:none; cursor:pointer; font-size:14px; color:${colorComentario}" 
                         title="${tituloComentario}">
                     ${iconoComentario}
@@ -621,10 +621,8 @@ async function renderizarTodo() {
     const hayFiltrosActivos = (txtBuscar !== "" || mesFiltro !== "");
 
     if (hayFiltrosActivos) {
-        // Si filtras por O.S. o mes, mostramos el pendiente exacto de esa selección sin restarle la bolsa general
         cashFlowFinal = filtradoPendienteBruto;
     } else {
-        // Si no hay filtros, se muestra el global restándole correctamente la bolsa general
         cashFlowFinal = Math.max(0, globalPendienteBruto - _totalBolsaCiego);
     }
     
