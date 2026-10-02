@@ -373,13 +373,13 @@ async function renderizarTodo() {
         }
     });
 
-  const pagosCiegosData = snapCiegos ? snapCiegos.val() || {} : {};
-    let totalBolsa = 0;
+    const pagosCiegosData = snapCiegos ? snapCiegos.val() || {} : {};
+    let totalBolsaCiega = 0;
     let htmlBolsaDetalle = "";
 
     Object.keys(pagosCiegosData).forEach(idCiego => {
         const item = pagosCiegosData[idCiego];
-        totalBolsa += parseFloat(item.monto) || 0;
+        totalBolsaCiega += parseFloat(item.monto) || 0;
         
         let fechaVisual = item.fecha;
         if (item.fecha && item.fecha.includes('-')) {
@@ -396,7 +396,7 @@ async function renderizarTodo() {
 
     const elemBolsa = document.getElementById('totalBolsaSinAsignar');
     if (elemBolsa) {
-        elemBolsa.innerText = `$ ${totalBolsa.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+        elemBolsa.innerText = `$ ${totalBolsaCiega.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
     }
 
     const elemDetalleBolsa = document.getElementById('contenedorDetalleBolsa');
@@ -405,10 +405,10 @@ async function renderizarTodo() {
     }
 
     // Actualización de las tarjetas superiores globales
-    let globalPendienteFinal = Math.max(0, globalPendienteReal - totalBolsa);
+    let globalPendienteFinal = Math.max(0, globalPendienteReal - totalBolsaCiega);
     document.getElementById('cashFlowNeto').innerText = `$ ${globalPendienteFinal.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
     
-    const totalEfectivoReal = globalCobradoEfectivo + totalBolsa;
+    const totalEfectivoReal = globalCobradoEfectivo + totalBolsaCiega;
     const porcentajeCobro = globalFacturadoNeto > 0 ? (totalEfectivoReal / globalFacturadoNeto) * 100 : 0;
     
     const elemPorcentaje = document.getElementById('porcentajeCobro');
@@ -514,7 +514,7 @@ async function renderizarTodo() {
             <td style="font-size:11px; font-weight:500;">${formatearFechaEmision(f.fecha_emision)}</td>
             <td style="white-space:nowrap;">
             <span style="font-weight:bold;">${esNC ? '🔙 NC' : comprobanteFormateado}</span>
-            ${f.id_nc_vinculada ? `<br><small style="color:#27ae60;">✅ Anulada por ${f.nro_nc_vinculada || 'NC'}</small>` : ''}   
+            ${f.id_nc_vinculada ? `<br><small style="color:#27ae60;">✅ Anulada por ${f.nro_nc_vinculada || 'NC'}</small>` : ''}    
             <br>
                 <small style="color:#7f8c8d; font-size:10px;">${periodoTexto}</small>
             </td>
@@ -630,7 +630,6 @@ async function renderizarTodo() {
             <span class="tag-mod">${m}</span> <strong style="color:#333">$${modulosNeto[m].toLocaleString('es-AR')}</strong></div>`;
     }
     divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
-    
     // --- PROCESAMIENTO DE LA BOLSA DE PAGOS CIEGOS ---
     const pagosCiegos = snapCiegos ? snapCiegos.val() || {} : {};
     let totalBolsa = 0;
@@ -668,7 +667,7 @@ async function renderizarTodo() {
     // --- ACTUALIZACIÓN DE LA TARJETA (CASH FLOW + PORCENTAJE) ---
     document.getElementById('cashFlowNeto').innerText = `$ ${globalPendiente.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
     
-    const totalEfectivoReal = globalCobradoEfectivo + totalBolsa;
+    const totalEfectivoReal = globalCobradoEfectivo + totalBolsaCiega;
     const porcentajeCobro = globalFacturadoNeto > 0 ? (totalEfectivoReal / globalFacturadoNeto) * 100 : 0;
     
     const elemPorcentaje = document.getElementById('porcentajeCobro');
