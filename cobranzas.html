@@ -311,9 +311,14 @@ async function renderizarTodo() {
     let agrupadoOS = {};
     let modulosNeto = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
     let statsJineteo = {};
-    let globalPendiente = 0;
+    
     let globalFacturadoNeto = 0;    
-    let globalCobradoEfectivo = 0;    
+    let globalCobradoEfectivo = 0;
+    let globalPendienteBruto = 0;
+
+    let filtradoFacturadoNeto = 0;
+    let filtradoCobradoEfectivo = 0;
+    let filtradoPendienteBruto = 0;
 
     function formatearFechaEmision(fechaRaw) {
         if (!fechaRaw) return 'S/D';
@@ -354,8 +359,26 @@ async function renderizarTodo() {
 
     facturasOrdenadasIds.forEach(id => {
         const f = facturas[id];
-        let cumpleFiltro = true;
+        
+        f.netoCalc = calcularNetoFila(f, pIIBB, pGS, pMin);
+        const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
 
+        const cobro = cobros[id] || null;
+        const pagado = cobro ? parseFloat(cobro.monto_cobrado || 0) : 0;
+        const debito = cobro ? parseFloat(cobro.monto_debito || 0) : 0; 
+
+        const estaAnuladaPorNC = !!f.id_nc_vinculada;
+        const saldo = (esNC || estaAnuladaPorNC) ? 0 : Math.max(0, f.netoCalc - pagado - debito); 
+        
+        // Acumuladores globales (sin filtros)
+        if (!esNC && !estaAnuladaPorNC) {
+            globalFacturadoNeto += f.netoCalc;
+            globalCobradoEfectivo += pagado;
+            if (saldo > 0.5) globalPendienteBruto += saldo;
+        }
+
+        // Validación de Filtros
+        let cumpleFiltro = true;
         const pvBusca = f.punto_venta ? f.punto_venta.toString().padStart(5, '0') : '00000';
         const ncBusca = f.nro_comp ? f.nro_comp.toString().padStart(8, '0') : '00000000';
         const compCompletoBusca = `${pvBusca}-${ncBusca}`;
@@ -386,19 +409,10 @@ async function renderizarTodo() {
 
         if (!cumpleFiltro) return; 
 
-        f.netoCalc = calcularNetoFila(f, pIIBB, pGS, pMin);
-        const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
-
-        const cobro = cobros[id] || null;
-        const pagado = cobro ? parseFloat(cobro.monto_cobrado || 0) : 0;
-        const debito = cobro ? parseFloat(cobro.monto_debito || 0) : 0; 
-
-        const estaAnuladaPorNC = !!f.id_nc_vinculada;
-        const saldo = (esNC || estaAnuladaPorNC) ? 0 : Math.max(0, f.netoCalc - pagado - debito); 
-        
         if (!esNC && !estaAnuladaPorNC) {
-            globalFacturadoNeto += f.netoCalc;
-            globalCobradoEfectivo += pagado;
+            filtradoFacturadoNeto += f.netoCalc;
+            filtradoCobradoEfectivo += pagado;
+            if (saldo > 0.5) filtradoPendienteBruto += saldo;
         }
 
         const os = f.receptor_nombre || "SIN O.S.";
@@ -476,7 +490,7 @@ async function renderizarTodo() {
             
             <td>
                 <input type="number" step="0.01" 
-                    value="${(f.retGS_manual !== undefined ? f.retGS_manual : (esNC || (Number(f.total) || 0) < (Number(pMin) || 0) ? 0 : (Number(f.total) || 0) * (Number(pGS) || 0))).toFixed(2)}" 
+                    value="${(f.retGS_manual !== undefined ? f.retGS_manual : (esNC || (Number(f.total) || 0) < (Number(pMin) || 0) ? 0 : (Number(f.total) || 0) * (Number(pGS) || 0)))).toFixed(2)}" 
                     onchange="actualizarRetManual('${id}','retGS_manual',this.value)" class="input-ret">
             </td>
 
@@ -520,8 +534,6 @@ async function renderizarTodo() {
         agrupadoOS[os].totalPendienteOS += valorParaSumar;
         
         if (valorParaSumar > 0.5) {
-            globalPendiente += valorParaSumar;
-            
             let m = "CD"; 
             let infoFila = JSON.stringify(f).toUpperCase();
 
@@ -604,11 +616,19 @@ async function renderizarTodo() {
         elemDetalleBolsaUnico.innerHTML = htmlBolsaDetalle || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
     }
     
-    // CORRECCIÓN: Restamos correctamente la variable unificada _totalBolsaCiego
-    globalPendiente = Math.max(0, globalPendiente - _totalBolsaCiego);
+    // --- LÓGICA CONDICIONAL DE CASH FLOW (Global vs Filtrado) ---
+    let cashFlowFinal = 0;
+    const hayFiltrosActivos = (txtBuscar !== "" || mesFiltro !== "");
+
+    if (hayFiltrosActivos) {
+        // Si filtras por O.S. o mes, mostramos el pendiente exacto de esa selección sin restarle la bolsa general
+        cashFlowFinal = filtradoPendienteBruto;
+    } else {
+        // Si no hay filtros, se muestra el global restándole correctamente la bolsa general
+        cashFlowFinal = Math.max(0, globalPendienteBruto - _totalBolsaCiego);
+    }
     
-    // --- ACTUALIZACIÓN DE LA TARJETA (CASH FLOW + PORCENTAJE) ---
-    document.getElementById('cashFlowNeto').innerText = `$ ${globalPendiente.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+    document.getElementById('cashFlowNeto').innerText = `$ ${cashFlowFinal.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
     
     const _efectivoReal = globalCobradoEfectivo + _totalBolsaCiego;
     const porcentajeCobro = globalFacturadoNeto > 0 ? (_efectivoReal / globalFacturadoNeto) * 100 : 0;
