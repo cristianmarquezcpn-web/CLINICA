@@ -69,6 +69,21 @@
             <h1 style="margin:0; color: var(--primary);">💎 Auditoría de Fondos</h1>
             <small style="color: #7f8c8d;">Gestión de Cuentas Corrientes, Jineteo y Retenciones (Solo Valores Netos)</small>
         </div>
+		<div style="background: #34495e; padding: 12px; border-radius: 6px; margin-bottom: 10px; color: white; font-family: sans-serif; font-size: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            📦 <b>Pagos sin imputar (Bolsa):</b> <span id="totalBolsaSinAsignar" style="color: #f39c12; font-weight: bold; font-size: 14px;">$ 0,00</span>
+        </div>
+        <div style="display: flex; gap: 5px;">
+            <button onclick="window.toggleDetalleBolsa()" id="btnVerBolsa" style="background: #2980b9; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px;">📂 Ver Detalle</button>
+            <button onclick="window.abrirModalBolsa()" style="background: #e67e22; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px;">+ Cargar Pago Ciego</button>
+        </div>
+    </div>
+    <!-- Contenedor desplegable con todos los pagos cargados -->
+    <div id="contenedorDetalleBolsa" style="display: none; margin-top: 10px; border-top: 1px solid #4e6d8c; padding-top: 8px; max-height: 200px; overflow-y: auto;">
+        <!-- Aquí se inyectan dinámicamente todos los pagos ciegos -->
+    </div>
+</div>
        <div style="display:flex; gap:10px; align-items: center;">
     <button class="btn" style="background:var(--success)" onclick="cargarManual()">➕ CARGA MANUAL</button>
     
@@ -256,13 +271,13 @@ if (!firebase.apps.length) {
 
     return bruto - rIIBB - rGS;
 }
-
     // --- 3. MOTOR PRINCIPAL ---
-	async function renderizarTodo() {
-    const [snapGral, snapSaei, snapCobros] = await Promise.all([
+async function renderizarTodo() {
+    const [snapGral, snapSaei, snapCobros, snapCiegos] = await Promise.all([
         db.ref('facturas_emitidas').once('value'),
         db.ref('facturas_emitidas_saei').once('value'),
-        db.ref('cobranzas').once('value')
+        db.ref('cobranzas').once('value'),
+        db.ref('pagos_ciegos').once('value') // <--- NUEVO: Trae la bolsa de pagos ciegos
     ]);
 	// ASIGNAMOS A LAS GLOBALES
     const dataGral = snapGral.val() || {};
@@ -289,7 +304,7 @@ if (!firebase.apps.length) {
     let modulosNeto = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
     let statsJineteo = {};
     let globalPendiente = 0;
-	let globalFacturadoNeto = 0; 
+	let globalFacturadoNeto = 0;	
     let globalCobradoEfectivo = 0;	
 
     // FUNCIÓN INTERNA AUXILIAR: Estandariza la fecha visual a DD/MM/AAAA sin importar cómo venga de Firebase
@@ -448,7 +463,7 @@ if (!firebase.apps.length) {
             <td style="font-size:11px; font-weight:500;">${formatearFechaEmision(f.fecha_emision)}</td>
             <td style="white-space:nowrap;">
             <span style="font-weight:bold;">${esNC ? '🔙 NC' : comprobanteFormateado}</span>
-			${f.id_nc_vinculada ? `<br><small style="color:#27ae60;">✅ Anulada por ${f.nro_nc_vinculada || 'NC'}</small>` : ''}    
+			${f.id_nc_vinculada ? `<br><small style="color:#27ae60;">✅ Anulada por ${f.nro_nc_vinculada || 'NC'}</small>` : ''}   
 			<br>
                 <small style="color:#7f8c8d; font-size:10px;">${periodoTexto}</small>
             </td>
@@ -477,7 +492,7 @@ if (!firebase.apps.length) {
             <td>
                 <button onclick="eliminarFactura('${id}')" style="background:none;border:none;cursor:pointer;font-size:14px" title="Borrar">🗑️</button>
 				<button onclick="window.agregarAMemoria('${id}', '${os.replace(/'/g, "")}', ${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Sumar a calculadora">🧮</button>
-                ${mostrarBotonCobro ? `<button onclick="registrarCobroFull('${id}', ${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Cobrar">💰</button>` : ''}
+                ${mostrarBotonCobro ? `<button onclick="registrarCobroFull('${id}',${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Cobrar">💰</button>` : ''}
                 ${!esNC ? `<button onclick="vincularNC('${id}')" style="background:none;border:none;cursor:pointer;font-size:14px" title="Vincular con NC">🔗</button>` : ''}
                 <!-- Botón de gestión de comentarios dinámico -->
                 <button onclick="gestionarComentario('${id}', '${tieneComentario ? f.comentario.replace(/'/g, "\\'") : ''}')" 
@@ -560,7 +575,7 @@ if (!firebase.apps.length) {
         <td style="font-size:16px;">${moraMaxima >= 75 ? '🚨' : '🟢'}</td> `;
         tbodyF.appendChild(trF);
     });
-
+	
     // F. Renderizar Módulos y Totales
     let hMod = "";
     for(let m in modulosNeto) {
@@ -569,13 +584,48 @@ if (!firebase.apps.length) {
     }
     divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
     
+    // --- NUEVO: PROCESAMIENTO DE LA BOLSA DE PAGOS CIEGOS ---
+    const pagosCiegos = snapCiegos.val() || {};
+    let totalBolsa = 0;
+    let htmlBolsaDetalle = "";
+
+    Object.keys(pagosCiegos).forEach(idCiego => {
+        const item = pagosCiegos[idCiego];
+        totalBolsa += parseFloat(item.monto) || 0;
+        
+        let fechaVisual = item.fecha;
+        if (item.fecha && item.fecha.includes('-')) {
+            const pF = item.fecha.split('-');
+            if (pF.length === 3) fechaVisual = `${pF[2]}/${pF[1]}/${pF[0]}`;
+        }
+
+        htmlBolsaDetalle += `<div style="font-size:11px; color:#f1c40f; margin-bottom:6px; background: #2c3e50; padding: 6px; border-radius: 4px; border-left: 3px solid #f39c12;">
+            <b>📅 ${fechaVisual} - ${item.obra_social}</b>: <span style="color:#2ecc71; font-weight:bold;">$${parseFloat(item.monto).toLocaleString('es-AR', {minimumFractionDigits:2})}</span> 
+            <button onclick="window.eliminarPagoCiego('${idCiego}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-weight:bold; float:right;" title="Borrar pago ciego">🗑️ Eliminar</button>
+            <br><small style="color:#bdc3c7;"><b>Ref:</b> ${item.referencia} ${item.comentario ? '| 💬 ' + item.comentario : ''}</small>
+        </div>`;
+    });
+
+    const elemBolsa = document.getElementById('totalBolsaSinAsignar');
+    if (elemBolsa) {
+        elemBolsa.innerText = `$ ${totalBolsa.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    }
+
+    const elemDetalleBolsa = document.getElementById('contenedorDetalleBolsa');
+    if (elemDetalleBolsa) {
+        elemDetalleBolsa.innerHTML = htmlBolsaDetalle || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
+    }
+
+    // 🔑 RESTAMOS LA BOLSA DEL TOTAL PENDIENTE GENERAL
+    globalPendiente = Math.max(0, globalPendiente - totalBolsa);
+    
     // --- ACTUALIZACIÓN DE LA TARJETA (CASH FLOW + PORCENTAJE DE COBRO DINÁMICO) ---
     document.getElementById('cashFlowNeto').innerText = `$ ${globalPendiente.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
     
-    // Calculamos el porcentaje de cobro en base a los filtros actuales
-    const porcentajeCobro = globalFacturadoNeto > 0 ? (globalCobradoEfectivo / globalFacturadoNeto) * 100 : 0;
+    // 💡 Sumamos lo cobrado en efectivo por facturas + la bolsa para el porcentaje real
+    const totalEfectivoReal = globalCobradoEfectivo + totalBolsa;
+    const porcentajeCobro = globalFacturadoNeto > 0 ? (totalEfectivoReal / globalFacturadoNeto) * 100 : 0;
     
-    // Si agregaste el elemento pequeño con id 'porcentajeCobro' en tu HTML, se actualizará solo:
     const elemPorcentaje = document.getElementById('porcentajeCobro');
     if (elemPorcentaje) {
         elemPorcentaje.innerText = `Efectivizado: ${porcentajeCobro.toFixed(1)}%`;
@@ -1751,6 +1801,65 @@ window.operarMemoria = function(tipo) {
     }
 
     alert(`🧮 Resultado:\n$ ${resultadoFinal.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`);
+};	
+window.toggleDetalleBolsa = function() {
+    const contenedor = document.getElementById('contenedorDetalleBolsa');
+    const boton = document.getElementById('btnVerBolsa');
+    
+    if (contenedor.style.display === 'none') {
+        contenedor.style.display = 'block';
+        boton.innerText = '📁 Ocultar Detalle';
+    } else {
+        contenedor.style.display = 'none';
+        boton.innerText = '📂 Ver Detalle';
+    }
+};
+
+window.abrirModalBolsa = async function() {
+    let osNombre = prompt("🏢 Ingrese el nombre de la Obra Social que mandó el pago:", "");
+    if (!osNombre || osNombre.trim() === "") return;
+
+    let montoStr = prompt(`💰 Ingrese el monto total recibido de ${osNombre.toUpperCase()}:`, "0");
+    let monto = parseFloat(montoStr);
+    if (isNaN(monto) || monto <= 0) {
+        alert("❌ Monto inválido.");
+        return;
+    }
+
+    let referencia = prompt("📝 Referencia (Nro de transferencia o liquidación):", "S/D");
+
+    let hoySugerido = new Date().toLocaleDateString('es-AR');
+    let fechaIngresada = prompt("📅 Fecha del Pago Ciego (DD/MM/AAAA):", hoySugerido);
+    if (fechaIngresada === null) return;
+    if (fechaIngresada.trim() === "") fechaIngresada = hoySugerido;
+
+    const partes = fechaIngresada.split('/');
+    let fechaISO = partes.length === 3 ? `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}` : new Date().toISOString().slice(0, 10);
+
+    let comentario = prompt("💬 Comentario u observaciones (ej: 'Pago parcial de julio, falta auditar'):", "");
+
+    const idPagoCiego = "ciego_" + Date.now();
+    await db.ref(`pagos_ciegos/${idPagoCiego}`).set({
+        obra_social: osNombre.toUpperCase().trim(),
+        monto: monto,
+        referencia: referencia || "S/D",
+        fecha: fechaISO,
+        comentario: comentario || ""
+    });
+
+    alert("✅ Pago ciego guardado en la bolsa correctamente.");
+    if (typeof window.renderizarTodo === 'function') {
+        window.renderizarTodo(); 
+    }
+};
+
+window.eliminarPagoCiego = async function(id) {
+    if (confirm("¿Estás seguro de eliminar este pago ciego de la bolsa? (Hacerlo solo si ya lo asignaste a las facturas correspondientes).")) {
+        await db.ref(`pagos_ciegos/${id}`).remove();
+        if (typeof window.renderizarTodo === 'function') {
+            window.renderizarTodo();
+        }
+    }
 };	
 </script>
 </body>
