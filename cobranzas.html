@@ -288,7 +288,6 @@ async function renderizarTodo() {
         return;
     }
 
-    // ASIGNAMOS A LAS GLOBALES
     const dataGral = snapGral.val() || {};
     const dataSaei = snapSaei.val() || {};
     
@@ -309,86 +308,12 @@ async function renderizarTodo() {
     
     tbodyM.innerHTML = ''; tbodyF.innerHTML = ''; divModulos.innerHTML = '';
 
-    // --- 1. CÁLCULO GLOBAL REAL (Independiente de los filtros de la tabla) ---
-    let globalPendienteReal = 0;
-    let globalFacturadoNeto = 0;    
-    let globalCobradoEfectivo = 0;  
-
-    const facturasOrdenadasIds = Object.keys(facturas).sort((a, b) => {
-        const fechaA = parseFecha(facturas[a].fecha_emision || "01/01/2000");
-        const fechaB = parseFecha(facturas[b].fecha_emision || "01/01/2000");
-        return fechaB - fechaA;
-    });
-
-    facturasOrdenadasIds.forEach(id => {
-        const f = facturas[id];
-        f.netoCalc = calcularNetoFila(f, pIIBB, pGS, pMin);
-        const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
-        const cobro = cobros[id] || null;
-        const pagado = cobro ? parseFloat(cobro.monto_cobrado || 0) : 0;
-        const debito = cobro ? parseFloat(cobro.monto_debito || 0) : 0; 
-        const estaAnuladaPorNC = !!f.id_nc_vinculada;
-        const saldoGlobalItem = (esNC || estaAnuladaPorNC) ? 0 : Math.max(0, (f.netoCalc || 0) - pagado - debito); 
-
-        if (!esNC && !estaAnuladaPorNC) {
-            globalFacturadoNeto += (f.netoCalc || 0);
-            globalCobradoEfectivo += pagado;
-            if (saldoGlobalItem > 0.5) {
-                globalPendienteReal += saldoGlobalItem;
-            }
-        }
-    });
-
-    // Procesamiento de Bolsa Ciega Global
-    const pagosCiegosDataLocal = snapCiegos ? snapCiegos.val() || {} : {};
-    let totalBolsaCiegaLocal = 0;
-    let htmlBolsaDetalleLocal = "";
-
-    Object.keys(pagosCiegosDataLocal).forEach(idCiego => {
-        const item = pagosCiegosDataLocal[idCiego];
-        totalBolsaCiegaLocal += parseFloat(item.monto) || 0;
-        
-        let fechaVisual = item.fecha;
-        if (item.fecha && item.fecha.includes('-')) {
-            const pF = item.fecha.split('-');
-            if (pF.length === 3) fechaVisual = `${pF[2]}/${pF[1]}/${pF[0]}`;
-        }
-
-        htmlBolsaDetalleLocal += `<div style="font-size:11px; color:#f1c40f; margin-bottom:6px; background: #2c3e50; padding: 6px; border-radius: 4px; border-left: 3px solid #f39c12;">
-            <b>📅 ${fechaVisual} - ${item.obra_social}</b>: <span style="color:#2ecc71; font-weight:bold;">$${parseFloat(item.monto).toLocaleString('es-AR', {minimumFractionDigits:2})}</span> 
-            <button onclick="window.eliminarPagoCiego('${idCiego}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-weight:bold; float:right;" title="Borrar pago ciego">🗑️ Eliminar</button>
-            <br><small style="color:#bdc3c7;"><b>Ref:</b> ${item.referencia} ${item.comentario ? '| 💬 ' + item.comentario : ''}</small>
-        </div>`;
-    });
-
-    let elemBolsaUnico = document.getElementById('totalBolsaSinAsignar');
-    if (elemBolsaUnico) {
-        elemBolsaUnico.innerText = `$ ${totalBolsaCiegaLocal.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
-    }
-
-    let elemDetalleBolsaUnico = document.getElementById('contenedorDetalleBolsa');
-    if (elemDetalleBolsaUnico) {
-        elemDetalleBolsaUnico.innerHTML = htmlBolsaDetalleLocal || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
-    }
-
-    // Cash Flow Global real
-    let globalPendienteFinal = Math.max(0, globalPendienteReal - totalBolsaCiegaLocal);
-    let elemCashFlow = document.getElementById('cashFlowNeto');
-    if (elemCashFlow) {
-        elemCashFlow.innerText = `$ ${globalPendienteFinal.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
-    }
-    
-    const totalEfectivoReal_definitivo = globalCobradoEfectivo + totalBolsaCiegaLocal;
-    const porcentajeCobro_definitivo = globalFacturadoNeto > 0 ? (totalEfectivoReal_definitivo / globalFacturadoNeto) * 100 : 0;
-    
-    let elemPorcentajeUnico = document.getElementById('porcentajeCobro');
-    if (elemPorcentajeUnico) {
-        elemPorcentajeUnico.innerText = `Efectivizado: ${porcentajeCobro_definitivo.toFixed(1)}%`;
-    }
-
     let agrupadoOS = {};
     let modulosNeto = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
     let statsJineteo = {};
+    let globalPendiente = 0;
+    let globalFacturadoNeto = 0;    
+    let globalCobradoEfectivo = 0;    
 
     function formatearFechaEmision(fechaRaw) {
         if (!fechaRaw) return 'S/D';
@@ -419,6 +344,12 @@ async function renderizarTodo() {
                 statsJineteo[os].cant++;
             }
         }
+    });
+
+    const facturasOrdenadasIds = Object.keys(facturas).sort((a, b) => {
+        const fechaA = parseFecha(facturas[a].fecha_emision || "01/01/2000");
+        const fechaB = parseFecha(facturas[b].fecha_emision || "01/01/2000");
+        return fechaB - fechaA;
     });
 
     facturasOrdenadasIds.forEach(id => {
@@ -455,7 +386,9 @@ async function renderizarTodo() {
 
         if (!cumpleFiltro) return; 
 
+        f.netoCalc = calcularNetoFila(f, pIIBB, pGS, pMin);
         const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
+
         const cobro = cobros[id] || null;
         const pagado = cobro ? parseFloat(cobro.monto_cobrado || 0) : 0;
         const debito = cobro ? parseFloat(cobro.monto_debito || 0) : 0; 
@@ -463,6 +396,11 @@ async function renderizarTodo() {
         const estaAnuladaPorNC = !!f.id_nc_vinculada;
         const saldo = (esNC || estaAnuladaPorNC) ? 0 : Math.max(0, f.netoCalc - pagado - debito); 
         
+        if (!esNC && !estaAnuladaPorNC) {
+            globalFacturadoNeto += f.netoCalc;
+            globalCobradoEfectivo += pagado;
+        }
+
         const os = f.receptor_nombre || "SIN O.S.";
         if (!agrupadoOS[os]) agrupadoOS[os] = { filas: [], totalPendienteOS: 0, moraMax: 0, fechaMasVieja: new Date(2100,0,1) };
 
@@ -582,6 +520,8 @@ async function renderizarTodo() {
         agrupadoOS[os].totalPendienteOS += valorParaSumar;
         
         if (valorParaSumar > 0.5) {
+            globalPendiente += valorParaSumar;
+            
             let m = "CD"; 
             let infoFila = JSON.stringify(f).toUpperCase();
 
@@ -631,14 +571,15 @@ async function renderizarTodo() {
             <span class="tag-mod">${m}</span> <strong style="color:#333">$${modulosNeto[m].toLocaleString('es-AR')}</strong></div>`;
     }
     divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
-	// --- PROCESAMIENTO DE LA BOLSA DE PAGOS CIEGOS ---
+    
+    // --- PROCESAMIENTO DE LA BOLSA DE PAGOS CIEGOS ---
     const pagosCiegos = snapCiegos ? snapCiegos.val() || {} : {};
-    let totalBolsa = 0;
+    let _totalBolsaCiego = 0;
     let htmlBolsaDetalle = "";
 
     Object.keys(pagosCiegos).forEach(idCiego => {
         const item = pagosCiegos[idCiego];
-        totalBolsa += parseFloat(item.monto) || 0;
+        _totalBolsaCiego += parseFloat(item.monto) || 0;
         
         let fechaVisual = item.fecha;
         if (item.fecha && item.fecha.includes('-')) {
@@ -655,20 +596,22 @@ async function renderizarTodo() {
 
     const elemBolsaUnico = document.getElementById('totalBolsaSinAsignar');
     if (elemBolsaUnico) {
-        elemBolsaUnico.innerText = `$ ${totalBolsa.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+        elemBolsaUnico.innerText = `$ ${_totalBolsaCiego.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
     }
 
     const elemDetalleBolsaUnico = document.getElementById('contenedorDetalleBolsa');
     if (elemDetalleBolsaUnico) {
         elemDetalleBolsaUnico.innerHTML = htmlBolsaDetalle || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
     }
-    globalPendiente = Math.max(0, globalPendiente - totalBolsa);
+    
+    // CORRECCIÓN: Restamos correctamente la variable unificada _totalBolsaCiego
+    globalPendiente = Math.max(0, globalPendiente - _totalBolsaCiego);
     
     // --- ACTUALIZACIÓN DE LA TARJETA (CASH FLOW + PORCENTAJE) ---
     document.getElementById('cashFlowNeto').innerText = `$ ${globalPendiente.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
     
-    const totalEfectivoReal = globalCobradoEfectivo + totalBolsaCiega;
-    const porcentajeCobro = globalFacturadoNeto > 0 ? (totalEfectivoReal / globalFacturadoNeto) * 100 : 0;
+    const _efectivoReal = globalCobradoEfectivo + _totalBolsaCiego;
+    const porcentajeCobro = globalFacturadoNeto > 0 ? (_efectivoReal / globalFacturadoNeto) * 100 : 0;
     
     const elemPorcentaje = document.getElementById('porcentajeCobro');
     if (elemPorcentaje) {
