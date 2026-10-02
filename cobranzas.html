@@ -354,7 +354,7 @@ async function renderizarTodo() {
         return fechaB - fechaA;
     });
 
-    // --- 1. CÁLCULO GLOBAL REAL (Independiente de los filtros visuales) ---
+    // --- 1. CÁLCULO GLOBAL REAL ---
     facturasOrdenadasIds.forEach(id => {
         const f = facturas[id];
         f.netoCalc = calcularNetoFila(f, pIIBB, pGS, pMin);
@@ -396,25 +396,26 @@ async function renderizarTodo() {
         </div>`;
     });
 
-    const elemBolsa = document.getElementById('totalBolsaSinAsignar');
-    if (elemBolsa) {
-        elemBolsa.innerText = `$ ${totalBolsaCiegaLocal.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    const elemBolsaUnico = document.getElementById('totalBolsaSinAsignar');
+    if (elemBolsaUnico) {
+        elemBolsaUnico.innerText = `$ ${totalBolsaCiegaLocal.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
     }
 
-    const elemDetalleBolsa = document.getElementById('contenedorDetalleBolsa');
-    if (elemDetalleBolsa) {
-        elemDetalleBolsa.innerHTML = htmlBolsaDetalleLocal || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
+    const elemDetalleBolsaUnico = document.getElementById('contenedorDetalleBolsa');
+    if (elemDetalleBolsaUnico) {
+        elemDetalleBolsaUnico.innerHTML = htmlBolsaDetalleLocal || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
     }
 
     let globalPendienteFinal = Math.max(0, globalPendienteReal - totalBolsaCiegaLocal);
     document.getElementById('cashFlowNeto').innerText = `$ ${globalPendienteFinal.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
     
-    const totalEfectivoReal = globalCobradoEfectivo + totalBolsaCiegaLocal;
-    const porcentajeCobro = globalFacturadoNeto > 0 ? (totalEfectivoReal / globalFacturadoNeto) * 100 : 0;
+    // Variables con sufijo _definitivo para evitar cualquier conflicto con el resto del archivo
+    const totalEfectivoReal_definitivo = globalCobradoEfectivo + totalBolsaCiegaLocal;
+    const porcentajeCobro_definitivo = globalFacturadoNeto > 0 ? (totalEfectivoReal_definitivo / globalFacturadoNeto) * 100 : 0;
     
-    const elemPorcentaje = document.getElementById('porcentajeCobro');
-    if (elemPorcentaje) {
-        elemPorcentaje.innerText = `Efectivizado: ${porcentajeCobro.toFixed(1)}%`;
+    const elemPorcentajeUnico = document.getElementById('porcentajeCobro');
+    if (elemPorcentajeUnico) {
+        elemPorcentajeUnico.innerText = `Efectivizado: ${porcentajeCobro_definitivo.toFixed(1)}%`;
     }
 
     // --- 2. FILTRADO Y RENDERIZADO DE TABLAS ---
@@ -535,7 +536,7 @@ async function renderizarTodo() {
             
             <td>
                 <input type="number" step="0.01" 
-                    value="${(f.retGS_manual !== undefined ? f.retGS_manual : (esNC || (Number(f.total) || 0) < (Number(pMin) || 0) ? 0 : (Number(f.total) || 0) * (Number(pGS) || 0))).toFixed(2)}" 
+                    value="${(f.retGS_manual !== undefined ? f.retGS_manual : (esNC || (Number(f.total) || 0) < (Number(pMin) || 0) ? 0 : (Number(f.total) || 0) * (Number(pGS) || 0)))).toFixed(2)}" 
                     onchange="actualizarRetManual('${id}','retGS_manual',this.value)" class="input-ret">
             </td>
 
@@ -631,7 +632,6 @@ async function renderizarTodo() {
             <span class="tag-mod">${m}</span> <strong style="color:#333">$${modulosNeto[m].toLocaleString('es-AR')}</strong></div>`;
     }
     divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
-
 	// --- PROCESAMIENTO DE LA BOLSA DE PAGOS CIEGOS ---
     const pagosCiegos = snapCiegos ? snapCiegos.val() || {} : {};
     let totalBolsa = 0;
