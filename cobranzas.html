@@ -311,7 +311,7 @@ async function renderizarTodo() {
     let agrupadoOS = {};
     let modulosNeto = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
     let statsJineteo = {};
-
+    
     let globalPendienteReal = 0;
     let globalFacturadoNeto = 0;    
     let globalCobradoEfectivo = 0;    
@@ -354,7 +354,7 @@ async function renderizarTodo() {
         return fechaB - fechaA;
     });
 
-    // --- 1. CÁLCULO GLOBAL (Sin importar filtros, para las tarjetas superiores) ---
+    // --- 1. CÁLCULO GLOBAL REAL (Independiente de los filtros visuales) ---
     facturasOrdenadasIds.forEach(id => {
         const f = facturas[id];
         f.netoCalc = calcularNetoFila(f, pIIBB, pGS, pMin);
@@ -374,6 +374,7 @@ async function renderizarTodo() {
         }
     });
 
+    // Procesamiento de Bolsa Ciega
     const pagosCiegosDataLocal = snapCiegos ? snapCiegos.val() || {} : {};
     let totalBolsaCiegaLocal = 0;
     let htmlBolsaDetalleLocal = "";
@@ -405,7 +406,6 @@ async function renderizarTodo() {
         elemDetalleBolsa.innerHTML = htmlBolsaDetalleLocal || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
     }
 
-    // Actualización de las tarjetas superiores globales
     let globalPendienteFinal = Math.max(0, globalPendienteReal - totalBolsaCiegaLocal);
     document.getElementById('cashFlowNeto').innerText = `$ ${globalPendienteFinal.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
     
@@ -606,7 +606,7 @@ async function renderizarTodo() {
 
     // E. Renderizar Flujo de Fondos (Ranking)
     const ranking = Object.keys(agrupadoOS).filter(os => agrupadoOS[os].totalPendienteOS > 0.5)
-        .sort((a,b) => (statsJineteo[a]?.suma/statsJinteo[a]?.cant || 60) - (statsJineteo[b]?.suma/statsJineteo[b]?.cant || 60));
+        .sort((a,b) => (statsJineteo[a]?.suma/statsJineteo[a]?.cant || 60) - (statsJineteo[b]?.suma/statsJineteo[b]?.cant || 60));
 
     ranking.forEach((os, i) => {
         const prom = Math.round(statsJineteo[os]?.suma / statsJineteo[os]?.cant) || 60;
@@ -631,7 +631,7 @@ async function renderizarTodo() {
             <span class="tag-mod">${m}</span> <strong style="color:#333">$${modulosNeto[m].toLocaleString('es-AR')}</strong></div>`;
     }
     divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
-	}
+
 	// --- PROCESAMIENTO DE LA BOLSA DE PAGOS CIEGOS ---
     const pagosCiegos = snapCiegos ? snapCiegos.val() || {} : {};
     let totalBolsa = 0;
