@@ -361,19 +361,19 @@ async function renderizarTodo() {
         </div>`;
     });
 
-    const elemBolsaUnico = document.getElementById('totalBolsaSinAsignar');
+    let elemBolsaUnico = document.getElementById('totalBolsaSinAsignar');
     if (elemBolsaUnico) {
         elemBolsaUnico.innerText = `$ ${totalBolsaCiegaLocal.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
     }
 
-    const elemDetalleBolsaUnico = document.getElementById('contenedorDetalleBolsa');
+    let elemDetalleBolsaUnico = document.getElementById('contenedorDetalleBolsa');
     if (elemDetalleBolsaUnico) {
         elemDetalleBolsaUnico.innerHTML = htmlBolsaDetalleLocal || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
     }
 
-    // Cash Flow Global real (Pendiente total menos la bolsa total sin asignar)
+    // Cash Flow Global real
     let globalPendienteFinal = Math.max(0, globalPendienteReal - totalBolsaCiegaLocal);
-    const elemCashFlow = document.getElementById('cashFlowNeto');
+    let elemCashFlow = document.getElementById('cashFlowNeto');
     if (elemCashFlow) {
         elemCashFlow.innerText = `$ ${globalPendienteFinal.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
     }
@@ -381,7 +381,7 @@ async function renderizarTodo() {
     const totalEfectivoReal_definitivo = globalCobradoEfectivo + totalBolsaCiegaLocal;
     const porcentajeCobro_definitivo = globalFacturadoNeto > 0 ? (totalEfectivoReal_definitivo / globalFacturadoNeto) * 100 : 0;
     
-    const elemPorcentajeUnico = document.getElementById('porcentajeCobro');
+    let elemPorcentajeUnico = document.getElementById('porcentajeCobro');
     if (elemPorcentajeUnico) {
         elemPorcentajeUnico.innerText = `Efectivizado: ${porcentajeCobro_definitivo.toFixed(1)}%`;
     }
@@ -390,7 +390,6 @@ async function renderizarTodo() {
     let modulosNeto = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
     let statsJineteo = {};
 
-    // FUNCIÓN INTERNA AUXILIAR: Estandariza la fecha visual a DD/MM/AAAA
     function formatearFechaEmision(fechaRaw) {
         if (!fechaRaw) return 'S/D';
         if (fechaRaw.includes('-')) {
@@ -406,7 +405,6 @@ async function renderizarTodo() {
         return fechaRaw;
     }
 
-    // A. Análisis de Jineteo (Histórico)
     Object.keys(cobros).forEach(id => {
         if(facturas[id] && !String(facturas[id].nro_comp).includes('NC')) {
             const fEmi = parseFecha(facturas[id].fecha_emision);
@@ -423,7 +421,6 @@ async function renderizarTodo() {
         }
     });
 
-    // B. Procesamiento de Facturas (con Filtros para la Tabla)
     facturasOrdenadasIds.forEach(id => {
         const f = facturas[id];
         let cumpleFiltro = true;
@@ -600,7 +597,6 @@ async function renderizarTodo() {
         } 
     }); 
 
-    // D. Renderizar Tabla Maestra
     Object.keys(agrupadoOS).sort().forEach(os => {
         if(agrupadoOS[os].filas.length === 0) return;
         const trH = document.createElement('tr');
@@ -610,7 +606,6 @@ async function renderizarTodo() {
         agrupadoOS[os].filas.forEach(fila => tbodyM.appendChild(fila));
     });
 
-    // E. Renderizar Flujo de Fondos (Ranking)
     const ranking = Object.keys(agrupadoOS).filter(os => agrupadoOS[os].totalPendienteOS > 0.5)
         .sort((a,b) => (statsJineteo[a]?.suma/statsJineteo[a]?.cant || 60) - (statsJineteo[b]?.suma/statsJineteo[b]?.cant || 60));
 
@@ -630,14 +625,12 @@ async function renderizarTodo() {
         tbodyF.appendChild(trF);
     });
     
-    // F. Renderizar Módulos y Totales
     let hMod = "";
     for(let m in modulosNeto) {
         hMod += `<div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:4px;">
             <span class="tag-mod">${m}</span> <strong style="color:#333">$${modulosNeto[m].toLocaleString('es-AR')}</strong></div>`;
     }
     divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
-
 	// --- PROCESAMIENTO DE LA BOLSA DE PAGOS CIEGOS ---
     const pagosCiegos = snapCiegos ? snapCiegos.val() || {} : {};
     let totalBolsa = 0;
