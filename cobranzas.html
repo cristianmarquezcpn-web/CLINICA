@@ -630,7 +630,6 @@ async function renderizarTodo() {
             <span class="tag-mod">${m}</span> <strong style="color:#333">$${modulosNeto[m].toLocaleString('es-AR')}</strong></div>`;
     }
     divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
-
 	// --- PROCESAMIENTO DE LA BOLSA DE PAGOS CIEGOS ---
     const pagosCiegos = snapCiegos ? snapCiegos.val() || {} : {};
     let totalBolsa = 0;
