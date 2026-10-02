@@ -296,17 +296,19 @@ async function renderizarTodo() {
     facturas = { ...dataGral, ...dataSaei };
     cobros = snapCobros.val() || {};    
 
-    const pIIBB = parseFloat(document.getElementById('pIIBB').value || 0) / 100;
-    const pGS = parseFloat(document.getElementById('pGS').value || 0) / 100;
-    const pMin = parseFloat(document.getElementById('pMinimo').value || 0);
-    const txtBuscar = document.getElementById('buscador').value.toLowerCase();
-    const mesFiltro = document.getElementById('filtroMes').value;
+    const pIIBB = parseFloat(document.getElementById('pIIBB')?.value || 0) / 100;
+    const pGS = parseFloat(document.getElementById('pGS')?.value || 0) / 100;
+    const pMin = parseFloat(document.getElementById('pMinimo')?.value || 0);
+    const txtBuscar = (document.getElementById('buscador')?.value || '').toLowerCase();
+    const mesFiltro = document.getElementById('filtroMes')?.value || '';
 
     const tbodyM = document.getElementById('cuerpoMaestro');
     const tbodyF = document.getElementById('cuerpoFlujo');
     const divModulos = document.getElementById('incidenciaMod');
     
-    tbodyM.innerHTML = ''; tbodyF.innerHTML = ''; divModulos.innerHTML = '';
+    if (tbodyM) tbodyM.innerHTML = ''; 
+    if (tbodyF) tbodyF.innerHTML = ''; 
+    if (divModulos) divModulos.innerHTML = '';
 
     let agrupadoOS = {};
     let modulosNeto = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
@@ -315,6 +317,7 @@ async function renderizarTodo() {
     let globalPendienteReal = 0;
     let globalFacturadoNeto = 0;    
     let globalCobradoEfectivo = 0;    
+    const hoy = new Date();
 
     function formatearFechaEmision(fechaRaw) {
         if (!fechaRaw) return 'S/D';
@@ -407,7 +410,10 @@ async function renderizarTodo() {
     }
 
     let globalPendienteFinal = Math.max(0, globalPendienteReal - totalBolsaCiegaLocal);
-    document.getElementById('cashFlowNeto').innerText = `$ ${globalPendienteFinal.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+    const elemCashFlow = document.getElementById('cashFlowNeto');
+    if (elemCashFlow) {
+        elemCashFlow.innerText = `$ ${globalPendienteFinal.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+    }
     
     const totalEfectivoReal_definitivo = globalCobradoEfectivo + totalBolsaCiegaLocal;
     const porcentajeCobro_definitivo = globalFacturadoNeto > 0 ? (totalEfectivoReal_definitivo / globalFacturadoNeto) * 100 : 0;
@@ -467,7 +473,7 @@ async function renderizarTodo() {
         const mora = (esNC || saldo <= 0.5) ? 0 : Math.floor((hoy - fEmi) / 86400000);
         const estaPagada = esNC || saldo <= 0.5;
         
-        const verSoloPendientes = document.getElementById('filtroSoloPendientes').checked;
+        const verSoloPendientes = document.getElementById('filtroSoloPendientes')?.checked || false;
         if (verSoloPendientes && estaPagada) return;
 
         let iconoEstado = '⏳'; 
@@ -514,7 +520,6 @@ async function renderizarTodo() {
         const osSegura = (os || "").replace(/'/g, "\\'");
         const comentarioSeguro = (f.comentario || "").replace(/'/g, "\\'");
 
-        // --- CONSTRUCCIÓN SEGURA SIN PLANTILLAS ANIDADAS ---
         let textoAnuladaHTML = '';
         if (f.id_nc_vinculada) {
             textoAnuladaHTML = `<br><small style="color:#27ae60;">✅ Anulada por ${f.nro_nc_vinculada || 'NC'}</small>`;
@@ -595,7 +600,7 @@ async function renderizarTodo() {
             <td style="font-size:10px; color:#e67e22; font-style:italic;">${cobro?.motivo_debito || '-'}</td> 
         `;
         
-        agrupadoOS[os].filas.push(tr);
+        if (tbodyM) agrupadoOS[os].filas.push(tr);
         
         let saldoLimpio = 0;
         if (typeof saldo === 'number') {
@@ -625,43 +630,49 @@ async function renderizarTodo() {
     }); 
 
     // D. Renderizar Tabla Maestra
-    Object.keys(agrupadoOS).sort().forEach(os => {
-        if(agrupadoOS[os].filas.length === 0) return;
-        const trH = document.createElement('tr');
-        trH.innerHTML = `<td colspan="15" style="background:#ecf0f1; font-weight:bold; text-align:left; padding:8px 15px; border-left:4px solid var(--primary); font-size:13px;">
-            🏢 ${os} <span style="float:right; color:#c0392b">Pendiente OS: $${agrupadoOS[os].totalPendienteOS.toLocaleString('es-AR', {minimumFractionDigits:2})}</span></td>`;
-        tbodyM.appendChild(trH);
-        agrupadoOS[os].filas.forEach(fila => tbodyM.appendChild(fila));
-    });
+    if (tbodyM) {
+        Object.keys(agrupadoOS).sort().forEach(os => {
+            if(agrupadoOS[os].filas.length === 0) return;
+            const trH = document.createElement('tr');
+            trH.innerHTML = `<td colspan="15" style="background:#ecf0f1; font-weight:bold; text-align:left; padding:8px 15px; border-left:4px solid var(--primary); font-size:13px;">
+                🏢 ${os} <span style="float:right; color:#c0392b">Pendiente OS: $${agrupadoOS[os].totalPendienteOS.toLocaleString('es-AR', {minimumFractionDigits:2})}</span></td>`;
+            tbodyM.appendChild(trH);
+            agrupadoOS[os].filas.forEach(fila => tbodyM.appendChild(fila));
+        });
+    }
 
     // E. Renderizar Flujo de Fondos (Ranking)
-    const ranking = Object.keys(agrupadoOS).filter(os => agrupadoOS[os].totalPendienteOS > 0.5)
-        .sort((a,b) => (statsJineteo[a]?.suma/statsJineteo[a]?.cant || 60) - (statsJineteo[b]?.suma/statsJineteo[b]?.cant || 60));
+    if (tbodyF) {
+        const ranking = Object.keys(agrupadoOS).filter(os => agrupadoOS[os].totalPendienteOS > 0.5)
+            .sort((a,b) => (statsJineteo[a]?.suma/statsJineteo[a]?.cant || 60) - (statsJineteo[b]?.suma/statsJineteo[b]?.cant || 60));
 
-    ranking.forEach((os, i) => {
-        const prom = Math.round(statsJineteo[os]?.suma / statsJineteo[os]?.cant) || 60;
-        const fEst = new Date(agrupadoOS[os].fechaMasVieja);
-        fEst.setDate(fEst.getDate() + prom);
-    
-        const moraMaxima = agrupadoOS[os].moraMax || 0; 
+        ranking.forEach((os, i) => {
+            const prom = Math.round(statsJineteo[os]?.suma / statsJineteo[os]?.cant) || 60;
+            const fEst = new Date(agrupadoOS[os].fechaMasVieja);
+            fEst.setDate(fEst.getDate() + prom);
+        
+            const moraMaxima = agrupadoOS[os].moraMax || 0; 
 
-        const trF = document.createElement('tr');
-        trF.innerHTML = `
-        <td style="text-align:left; font-size:11px;"><b>${i+1}. ${os}</b><br><small style="color:#7f8c8d">Demora prom: ${prom} d.</small></td>
-        <td style="font-weight:bold; color:#2980b9">$${agrupadoOS[os].totalPendienteOS.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
-        <td style="font-weight:bold; font-size:11px; background:#f9ebea;">📅 ${fEst.toLocaleDateString('es-AR')}</td>
-        <td style="font-size:16px;">${moraMaxima >= 75 ? '🚨' : '🟢'}</td> `;
-        tbodyF.appendChild(trF);
-    });
+            const trF = document.createElement('tr');
+            trF.innerHTML = `
+            <td style="text-align:left; font-size:11px;"><b>${i+1}. ${os}</b><br><small style="color:#7f8c8d">Demora prom: ${prom} d.</small></td>
+            <td style="font-weight:bold; color:#2980b9">$${agrupadoOS[os].totalPendienteOS.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
+            <td style="font-weight:bold; font-size:11px; background:#f9ebea;">📅 ${fEst.toLocaleDateString('es-AR')}</td>
+            <td style="font-size:16px;">${moraMaxima >= 75 ? '🚨' : '🟢'}</td> `;
+            tbodyF.appendChild(trF);
+        });
+    }
     
     // F. Renderizar Módulos y Totales
-    let hMod = "";
-    for(let m in modulosNeto) {
-        hMod += `<div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:4px;">
-            <span class="tag-mod">${m}</span> <strong style="color:#333">$${modulosNeto[m].toLocaleString('es-AR')}</strong></div>`;
+    if (divModulos) {
+        let hMod = "";
+        for(let m in modulosNeto) {
+            hMod += `<div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:4px;">
+                <span class="tag-mod">${m}</span> <strong style="color:#333">$${modulosNeto[m].toLocaleString('es-AR')}</strong></div>`;
+        }
+        divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
     }
-    divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
-
+}
 	// --- PROCESAMIENTO DE LA BOLSA DE PAGOS CIEGOS ---
     const pagosCiegos = snapCiegos ? snapCiegos.val() || {} : {};
     let totalBolsa = 0;
