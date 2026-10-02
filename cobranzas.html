@@ -374,13 +374,13 @@ async function renderizarTodo() {
         }
     });
 
-    const pagosCiegosData = snapCiegos ? snapCiegos.val() || {} : {};
-    let totalBolsaCiega = 0;
-    let htmlBolsaDetalle = "";
+    const pagosCiegosDataLocal = snapCiegos ? snapCiegos.val() || {} : {};
+    let totalBolsaCiegaLocal = 0;
+    let htmlBolsaDetalleLocal = "";
 
-    Object.keys(pagosCiegosData).forEach(idCiego => {
-        const item = pagosCiegosData[idCiego];
-        totalBolsaCiega += parseFloat(item.monto) || 0;
+    Object.keys(pagosCiegosDataLocal).forEach(idCiego => {
+        const item = pagosCiegosDataLocal[idCiego];
+        totalBolsaCiegaLocal += parseFloat(item.monto) || 0;
         
         let fechaVisual = item.fecha;
         if (item.fecha && item.fecha.includes('-')) {
@@ -388,7 +388,7 @@ async function renderizarTodo() {
             if (pF.length === 3) fechaVisual = `${pF[2]}/${pF[1]}/${pF[0]}`;
         }
 
-        htmlBolsaDetalle += `<div style="font-size:11px; color:#f1c40f; margin-bottom:6px; background: #2c3e50; padding: 6px; border-radius: 4px; border-left: 3px solid #f39c12;">
+        htmlBolsaDetalleLocal += `<div style="font-size:11px; color:#f1c40f; margin-bottom:6px; background: #2c3e50; padding: 6px; border-radius: 4px; border-left: 3px solid #f39c12;">
             <b>📅 ${fechaVisual} - ${item.obra_social}</b>: <span style="color:#2ecc71; font-weight:bold;">$${parseFloat(item.monto).toLocaleString('es-AR', {minimumFractionDigits:2})}</span> 
             <button onclick="window.eliminarPagoCiego('${idCiego}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-weight:bold; float:right;" title="Borrar pago ciego">🗑️ Eliminar</button>
             <br><small style="color:#bdc3c7;"><b>Ref:</b> ${item.referencia} ${item.comentario ? '| 💬 ' + item.comentario : ''}</small>
@@ -397,19 +397,19 @@ async function renderizarTodo() {
 
     const elemBolsa = document.getElementById('totalBolsaSinAsignar');
     if (elemBolsa) {
-        elemBolsa.innerText = `$ ${totalBolsaCiega.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+        elemBolsa.innerText = `$ ${totalBolsaCiegaLocal.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
     }
 
     const elemDetalleBolsa = document.getElementById('contenedorDetalleBolsa');
     if (elemDetalleBolsa) {
-        elemDetalleBolsa.innerHTML = htmlBolsaDetalle || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
+        elemDetalleBolsa.innerHTML = htmlBolsaDetalleLocal || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
     }
 
     // Actualización de las tarjetas superiores globales
-    let globalPendienteFinal = Math.max(0, globalPendienteReal - totalBolsaCiega);
+    let globalPendienteFinal = Math.max(0, globalPendienteReal - totalBolsaCiegaLocal);
     document.getElementById('cashFlowNeto').innerText = `$ ${globalPendienteFinal.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
     
-    const totalEfectivoReal = globalCobradoEfectivo + totalBolsaCiega;
+    const totalEfectivoReal = globalCobradoEfectivo + totalBolsaCiegaLocal;
     const porcentajeCobro = globalFacturadoNeto > 0 ? (totalEfectivoReal / globalFacturadoNeto) * 100 : 0;
     
     const elemPorcentaje = document.getElementById('porcentajeCobro');
@@ -606,7 +606,7 @@ async function renderizarTodo() {
 
     // E. Renderizar Flujo de Fondos (Ranking)
     const ranking = Object.keys(agrupadoOS).filter(os => agrupadoOS[os].totalPendienteOS > 0.5)
-        .sort((a,b) => (statsJineteo[a]?.suma/statsJineteo[a]?.cant || 60) - (statsJineteo[b]?.suma/statsJineteo[b]?.cant || 60));
+        .sort((a,b) => (statsJineteo[a]?.suma/statsJinteo[a]?.cant || 60) - (statsJineteo[b]?.suma/statsJineteo[b]?.cant || 60));
 
     ranking.forEach((os, i) => {
         const prom = Math.round(statsJineteo[os]?.suma / statsJineteo[os]?.cant) || 60;
