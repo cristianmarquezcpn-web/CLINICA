@@ -456,7 +456,7 @@ async function renderizarTodo() {
             <td style="font-size:11px; font-weight:500;">${formatearFechaEmision(f.fecha_emision)}</td>
             <td style="white-space:nowrap;">
             <span style="font-weight:bold;">${esNC ? '🔙 NC' : comprobanteFormateado}</span>
-            ${f.id_nc_vinculada ? `<br><small style="color:#27ae60;">✅ Anulada por ${f.nro_nc_vinculada || 'NC'}</small>` : ''}   
+            ${f.id_nc_vinculada ? `<br><small style="color:#27ae60;">✅ Anulada por ${f.nro_nc_vinculada || 'NC'}</small>` : ''}    
             <br>
                 <small style="color:#7f8c8d; font-size:10px;">${periodoTexto}</small>
             </td>
@@ -476,7 +476,7 @@ async function renderizarTodo() {
             
             <td>
                 <input type="number" step="0.01" 
-                    value="${(f.retGS_manual !== undefined ? f.retGS_manual : (esNC || (Number(f.total) || 0) < (Number(pMin) || 0) ? 0 : (Number(f.total) || 0) * (Number(pGS) || 0)))).toFixed(2)}" 
+                    value="${(f.retGS_manual !== undefined ? f.retGS_manual : (esNC || (Number(f.total) || 0) < (Number(pMin) || 0) ? 0 : (Number(f.total) || 0) * (Number(pGS) || 0))).toFixed(2)}" 
                     onchange="actualizarRetManual('${id}','retGS_manual',this.value)" class="input-ret">
             </td>
 
@@ -604,8 +604,9 @@ async function renderizarTodo() {
         elemDetalleBolsaUnico.innerHTML = htmlBolsaDetalle || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
     }
     
-    // CORRECCIÓN: Restamos correctamente la variable unificada _totalBolsaCiego
-    globalPendiente = Math.max(0, globalPendiente - _totalBolsaCiego);
+    // CORRECCIÓN: Restamos la bolsa ciega solo si no hay filtros activos (txtBuscar o mesFiltro)
+    const hayFiltrosActivos = Boolean(txtBuscar || mesFiltro);
+    globalPendiente = Math.max(0, globalPendiente - (hayFiltrosActivos ? 0 : _totalBolsaCiego));
     
     // --- ACTUALIZACIÓN DE LA TARJETA (CASH FLOW + PORCENTAJE) ---
     document.getElementById('cashFlowNeto').innerText = `$ ${globalPendiente.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
