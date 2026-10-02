@@ -281,27 +281,27 @@ async function renderizarTodo() {
             db.ref('facturas_emitidas').once('value'),
             db.ref('facturas_emitidas_saei').once('value'),
             db.ref('cobranzas').once('value'),
-            db.ref('pagos_ciegos').once('value').catch(() => ({ val: () => ({}) })) // Si falla o no existe, devuelve vacío sin romper nada
+            db.ref('pagos_ciegos').once('value').catch(() => ({ val: () => ({}) }))
         ]);
     } catch (e) {
         console.error("Error al cargar datos de Firebase:", e);
         return;
     }
 
-	// ASIGNAMOS A LAS GLOBALES
+    // ASIGNAMOS A LAS GLOBALES
     const dataGral = snapGral.val() || {};
     const dataSaei = snapSaei.val() || {};
     
     if (dataGral.saei) delete dataGral.saei;
     
-	facturas = { ...dataGral, ...dataSaei };
-    cobros = snapCobros.val() || {};	
+    facturas = { ...dataGral, ...dataSaei };
+    cobros = snapCobros.val() || {};    
     
     const pIIBB = parseFloat(document.getElementById('pIIBB').value || 0) / 100;
     const pGS = parseFloat(document.getElementById('pGS').value || 0) / 100;
     const pMin = parseFloat(document.getElementById('pMinimo').value || 0);
     const txtBuscar = document.getElementById('buscador').value.toLowerCase();
-    const mesFiltro = document.getElementById('filtroMes').value; // Formato YYYY-MM
+    const mesFiltro = document.getElementById('filtroMes').value;
 
     const tbodyM = document.getElementById('cuerpoMaestro');
     const tbodyF = document.getElementById('cuerpoFlujo');
@@ -309,14 +309,88 @@ async function renderizarTodo() {
     
     tbodyM.innerHTML = ''; tbodyF.innerHTML = ''; divModulos.innerHTML = '';
 
+    // --- 1. CÁLCULO GLOBAL REAL (Independiente de los filtros de la tabla) ---
+    let globalPendienteReal = 0;
+    let globalFacturadoNeto = 0;    
+    let globalCobradoEfectivo = 0;  
+
+    const facturasOrdenadasIds = Object.keys(facturas).sort((a, b) => {
+        const fechaA = parseFecha(facturas[a].fecha_emision || "01/01/2000");
+        const fechaB = parseFecha(facturas[b].fecha_emision || "01/01/2000");
+        return fechaB - fechaA;
+    });
+
+    facturasOrdenadasIds.forEach(id => {
+        const f = facturas[id];
+        f.netoCalc = calcularNetoFila(f, pIIBB, pGS, pMin);
+        const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
+        const cobro = cobros[id] || null;
+        const pagado = cobro ? parseFloat(cobro.monto_cobrado || 0) : 0;
+        const debito = cobro ? parseFloat(cobro.monto_debito || 0) : 0; 
+        const estaAnuladaPorNC = !!f.id_nc_vinculada;
+        const saldoGlobalItem = (esNC || estaAnuladaPorNC) ? 0 : Math.max(0, (f.netoCalc || 0) - pagado - debito); 
+
+        if (!esNC && !estaAnuladaPorNC) {
+            globalFacturadoNeto += (f.netoCalc || 0);
+            globalCobradoEfectivo += pagado;
+            if (saldoGlobalItem > 0.5) {
+                globalPendienteReal += saldoGlobalItem;
+            }
+        }
+    });
+
+    // Procesamiento de Bolsa Ciega Global
+    const pagosCiegosDataLocal = snapCiegos ? snapCiegos.val() || {} : {};
+    let totalBolsaCiegaLocal = 0;
+    let htmlBolsaDetalleLocal = "";
+
+    Object.keys(pagosCiegosDataLocal).forEach(idCiego => {
+        const item = pagosCiegosDataLocal[idCiego];
+        totalBolsaCiegaLocal += parseFloat(item.monto) || 0;
+        
+        let fechaVisual = item.fecha;
+        if (item.fecha && item.fecha.includes('-')) {
+            const pF = item.fecha.split('-');
+            if (pF.length === 3) fechaVisual = `${pF[2]}/${pF[1]}/${pF[0]}`;
+        }
+
+        htmlBolsaDetalleLocal += `<div style="font-size:11px; color:#f1c40f; margin-bottom:6px; background: #2c3e50; padding: 6px; border-radius: 4px; border-left: 3px solid #f39c12;">
+            <b>📅 ${fechaVisual} - ${item.obra_social}</b>: <span style="color:#2ecc71; font-weight:bold;">$${parseFloat(item.monto).toLocaleString('es-AR', {minimumFractionDigits:2})}</span> 
+            <button onclick="window.eliminarPagoCiego('${idCiego}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-weight:bold; float:right;" title="Borrar pago ciego">🗑️ Eliminar</button>
+            <br><small style="color:#bdc3c7;"><b>Ref:</b> ${item.referencia} ${item.comentario ? '| 💬 ' + item.comentario : ''}</small>
+        </div>`;
+    });
+
+    const elemBolsaUnico = document.getElementById('totalBolsaSinAsignar');
+    if (elemBolsaUnico) {
+        elemBolsaUnico.innerText = `$ ${totalBolsaCiegaLocal.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    }
+
+    const elemDetalleBolsaUnico = document.getElementById('contenedorDetalleBolsa');
+    if (elemDetalleBolsaUnico) {
+        elemDetalleBolsaUnico.innerHTML = htmlBolsaDetalleLocal || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
+    }
+
+    // Cash Flow Global real (Pendiente total menos la bolsa total sin asignar)
+    let globalPendienteFinal = Math.max(0, globalPendienteReal - totalBolsaCiegaLocal);
+    const elemCashFlow = document.getElementById('cashFlowNeto');
+    if (elemCashFlow) {
+        elemCashFlow.innerText = `$ ${globalPendienteFinal.toLocaleString('es-AR', {minimumFractionDigits:2})}`;
+    }
+    
+    const totalEfectivoReal_definitivo = globalCobradoEfectivo + totalBolsaCiegaLocal;
+    const porcentajeCobro_definitivo = globalFacturadoNeto > 0 ? (totalEfectivoReal_definitivo / globalFacturadoNeto) * 100 : 0;
+    
+    const elemPorcentajeUnico = document.getElementById('porcentajeCobro');
+    if (elemPorcentajeUnico) {
+        elemPorcentajeUnico.innerText = `Efectivizado: ${porcentajeCobro_definitivo.toFixed(1)}%`;
+    }
+
     let agrupadoOS = {};
     let modulosNeto = { "CD": 0, "CET": 0, "REHAB": 0, "SAEI": 0 };
     let statsJineteo = {};
-    let globalPendiente = 0;
-	let globalFacturadoNeto = 0;	
-    let globalCobradoEfectivo = 0;	
 
-    // FUNCIÓN INTERNA AUXILIAR: Estandariza la fecha visual a DD/MM/AAAA sin importar cómo venga de Firebase
+    // FUNCIÓN INTERNA AUXILIAR: Estandariza la fecha visual a DD/MM/AAAA
     function formatearFechaEmision(fechaRaw) {
         if (!fechaRaw) return 'S/D';
         if (fechaRaw.includes('-')) {
@@ -349,13 +423,7 @@ async function renderizarTodo() {
         }
     });
 
-    const facturasOrdenadasIds = Object.keys(facturas).sort((a, b) => {
-        const fechaA = parseFecha(facturas[a].fecha_emision || "01/01/2000");
-        const fechaB = parseFecha(facturas[b].fecha_emision || "01/01/2000");
-        return fechaB - fechaA;
-    });
-
-    // B. Procesamiento de Facturas
+    // B. Procesamiento de Facturas (con Filtros para la Tabla)
     facturasOrdenadasIds.forEach(id => {
         const f = facturas[id];
         let cumpleFiltro = true;
@@ -390,26 +458,21 @@ async function renderizarTodo() {
 
         if (!cumpleFiltro) return; 
 
-		f.netoCalc = calcularNetoFila(f, pIIBB, pGS, pMin);
-		const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
+        const esNC = (f.tipo_comp == 8 || f.tipo_comp == 3 || String(f.nro_comp).toUpperCase().includes('NC'));
+        const cobro = cobros[id] || null;
+        const pagado = cobro ? parseFloat(cobro.monto_cobrado || 0) : 0;
+        const debito = cobro ? parseFloat(cobro.monto_debito || 0) : 0; 
 
-		const cobro = cobros[id] || null;
-		const pagado = cobro ? parseFloat(cobro.monto_cobrado || 0) : 0;
-		const debito = cobro ? parseFloat(cobro.monto_debito || 0) : 0; 
-
-		const estaAnuladaPorNC = !!f.id_nc_vinculada;
-		const saldo = (esNC || estaAnuladaPorNC) ? 0 : Math.max(0, f.netoCalc - pagado - debito); 
-        if (!esNC && !estaAnuladaPorNC) {
-            globalFacturadoNeto += f.netoCalc;
-            globalCobradoEfectivo += pagado;
-        }
+        const estaAnuladaPorNC = !!f.id_nc_vinculada;
+        const saldo = (esNC || estaAnuladaPorNC) ? 0 : Math.max(0, f.netoCalc - pagado - debito); 
+        
         const os = f.receptor_nombre || "SIN O.S.";
         if (!agrupadoOS[os]) agrupadoOS[os] = { filas: [], totalPendienteOS: 0, moraMax: 0, fechaMasVieja: new Date(2100,0,1) };
 
         const fEmi = parseFecha(f.fecha_emision);
         const mora = (esNC || saldo <= 0.5) ? 0 : Math.floor((hoy - fEmi) / 86400000);
         const estaPagada = esNC || saldo <= 0.5;
-		
+        
         const verSoloPendientes = document.getElementById('filtroSoloPendientes').checked;
         if (verSoloPendientes && estaPagada) return;
 
@@ -458,8 +521,8 @@ async function renderizarTodo() {
             <td style="font-size:11px; font-weight:500;">${formatearFechaEmision(f.fecha_emision)}</td>
             <td style="white-space:nowrap;">
             <span style="font-weight:bold;">${esNC ? '🔙 NC' : comprobanteFormateado}</span>
-			${f.id_nc_vinculada ? `<br><small style="color:#27ae60;">✅ Anulada por ${f.nro_nc_vinculada || 'NC'}</small>` : ''}   
-			<br>
+            ${f.id_nc_vinculada ? `<br><small style="color:#27ae60;">✅ Anulada por ${f.nro_nc_vinculada || 'NC'}</small>` : ''}   
+            <br>
                 <small style="color:#7f8c8d; font-size:10px;">${periodoTexto}</small>
             </td>
             <td style="font-weight:bold; color:${mora >= 75 && saldo > 0.5 ? '#c0392b' : '#333'}">${estaPagada ? '-' : mora + ' d.'}</td>
@@ -486,7 +549,7 @@ async function renderizarTodo() {
 
             <td>
                 <button onclick="eliminarFactura('${id}')" style="background:none;border:none;cursor:pointer;font-size:14px" title="Borrar">🗑️</button>
-				<button onclick="window.agregarAMemoria('${id}', '${os.replace(/'/g, "")}', ${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Sumar a calculadora">🧮</button>
+                <button onclick="window.agregarAMemoria('${id}', '${os.replace(/'/g, "")}', ${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Sumar a calculadora">🧮</button>
                 ${mostrarBotonCobro ? `<button onclick="registrarCobroFull('${id}',${saldo})" style="background:none;border:none;cursor:pointer;font-size:14px" title="Cobrar">💰</button>` : ''}
                 ${!esNC ? `<button onclick="vincularNC('${id}')" style="background:none;border:none;cursor:pointer;font-size:14px" title="Vincular con NC">🔗</button>` : ''}
                 <button onclick="gestionarComentario('${id}', '${tieneComentario ? f.comentario.replace(/'/g, "\\'") : ''}')" 
@@ -498,9 +561,9 @@ async function renderizarTodo() {
             
             <td style="font-weight:bold; color:#c0392b">${saldo <= 0.5 ? '-' : '$' + saldo.toLocaleString('es-AR', {minimumFractionDigits:2})}</td>
             <td style="font-size:10px; color:#95a5a6">
-    		${cobro?.fecha_pago ? `<strong style="color:#2c3e50;">${cobro.fecha_pago}</strong><br>` : ''}
-    		${cobro?.transferencia || '-'}
-			</td>
+            ${cobro?.fecha_pago ? `<strong style="color:#2c3e50;">${cobro.fecha_pago}</strong><br>` : ''}
+            ${cobro?.transferencia || '-'}
+            </td>
             <td style="font-weight:bold; color:#27ae60">
                 ${pagado > 0 ? '$' + pagado.toLocaleString('es-AR') : '-'}
                 ${debito > 0 ? `<br><small style="color:#e74c3c">(-$${debito.toLocaleString('es-AR')} DÉBITO)</small>` : ''}
@@ -517,13 +580,11 @@ async function renderizarTodo() {
             let s = String(saldo || "0").replace(/[^0-9,-]/g, '').replace(',', '.');
             saldoLimpio = parseFloat(s) || 0;
         }
-		const valorParaSumar = esNC ? 0 : saldoLimpio;
+        const valorParaSumar = esNC ? 0 : saldoLimpio;
         
         agrupadoOS[os].totalPendienteOS += valorParaSumar;
         
         if (valorParaSumar > 0.5) {
-            globalPendiente += valorParaSumar;
-            
             let m = "CD"; 
             let infoFila = JSON.stringify(f).toUpperCase();
 
@@ -568,7 +629,7 @@ async function renderizarTodo() {
         <td style="font-size:16px;">${moraMaxima >= 75 ? '🚨' : '🟢'}</td> `;
         tbodyF.appendChild(trF);
     });
-	
+    
     // F. Renderizar Módulos y Totales
     let hMod = "";
     for(let m in modulosNeto) {
@@ -576,6 +637,7 @@ async function renderizarTodo() {
             <span class="tag-mod">${m}</span> <strong style="color:#333">$${modulosNeto[m].toLocaleString('es-AR')}</strong></div>`;
     }
     divModulos.innerHTML = hMod || "<p style='color:#999; text-align:center'>No hay deuda pendiente</p>";
+
 	// --- PROCESAMIENTO DE LA BOLSA DE PAGOS CIEGOS ---
     const pagosCiegos = snapCiegos ? snapCiegos.val() || {} : {};
     let totalBolsa = 0;
