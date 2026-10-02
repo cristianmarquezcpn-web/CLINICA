@@ -654,16 +654,15 @@ async function renderizarTodo() {
         </div>`;
     });
 
-    const elemBolsa = document.getElementById('totalBolsaSinAsignar');
-    if (elemBolsa) {
-        elemBolsa.innerText = `$ ${totalBolsa.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    const elemBolsaUnico = document.getElementById('totalBolsaSinAsignar');
+    if (elemBolsaUnico) {
+        elemBolsaUnico.innerText = `$ ${totalBolsaCiegaLocal.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
     }
 
-    const elemDetalleBolsa = document.getElementById('contenedorDetalleBolsa');
-    if (elemDetalleBolsa) {
-        elemDetalleBolsa.innerHTML = htmlBolsaDetalle || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
+    const elemDetalleBolsaUnico = document.getElementById('contenedorDetalleBolsa');
+    if (elemDetalleBolsaUnico) {
+        elemDetalleBolsaUnico.innerHTML = htmlBolsaDetalleLocal || "<p style='color:#95a5a6; text-align:center; margin:5px 0; font-size:11px;'>No hay pagos ciegos cargados en la bolsa.</p>";
     }
-
     globalPendiente = Math.max(0, globalPendiente - totalBolsa);
     
     // --- ACTUALIZACIÓN DE LA TARJETA (CASH FLOW + PORCENTAJE) ---
