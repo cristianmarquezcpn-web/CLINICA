@@ -1898,11 +1898,9 @@ function actualizarFechaTurno(idPaciente, docClave, nuevaFecha) {
     });
 }
 async function subirDocModuloDirecto(idPaciente, docClave) {
-    // 1. Buscamos el input del archivo y el input del texto de la gestión por su ID único
     const inputArchivo = document.getElementById(`file_acta_${idPaciente}_${docClave}`);
     const inputTexto = document.getElementById(`texto_acta_${idPaciente}_${docClave}`);
     
-    // 2. Validamos que el archivo esté seleccionado
     if (!inputArchivo || !inputArchivo.files || !inputArchivo.files[0]) {
         alert("Por favor, selecciona un archivo antes de guardar.");
         return;
@@ -1910,8 +1908,6 @@ async function subirDocModuloDirecto(idPaciente, docClave) {
     
     const file = inputArchivo.files[0];
     const textoGestion = inputTexto ? inputTexto.value.trim() : "";
-    
-    // Si escribieron un detalle, lo usaremos de descripción; si no, pedimos uno por prompt o usamos el nombre del archivo
     let descripcion = textoGestion || prompt("Descripción del archivo:", file.name) || "Archivo subido";
     let fechaActa = new Date().toISOString().split('T')[0];
 
@@ -1927,19 +1923,19 @@ async function subirDocModuloDirecto(idPaciente, docClave) {
         if(data.secure_url) {
             let p = pacs[idPaciente];
             
-            // Actualizamos el documento principal (archivo)
-            let actualArrayDocs = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [p[docClave]] : []);
-            actualArrayDocs.push({ fecha: fechaActa, descripcion: descripcion, archivo: data.secure_url });
-
-            // También actualizamos el historial de actas para que aparezca en "Historial de Actas"
+            // SOLO actualizamos el historial de actas, SIN TOCAR `p[docClave]`
             let actualArrayActas = Array.isArray(p[docClave + '_actas']) ? [...p[docClave + '_actas']] : [];
             actualArrayActas.push({ fecha: fechaActa, texto: descripcion, archivoLink: data.secure_url });
 
             database.child(`pacientes/${idPaciente}`).update({
-                [docClave]: actualArrayDocs,
                 [docClave + '_actas']: actualArrayActas,
-                [`${docClave}_estado`]: 'Documento Subido',
-                ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Subió archivo y registró acta para ${docClave}` }
+                // Opcional: si quieres que pase a Turno Solicitado o mantenga el estado de gestión
+                [`${docClave}_estado`]: 'Turno Solicitado', 
+                ultimaModificacion: { 
+                    usuario: obtenerUsuarioActual(), 
+                    fecha: new Date().toISOString(), 
+                    accion: `Registró acta y adjuntó archivo para ${docClave}` 
+                }
             }).then(() => {
                 alert("¡Subido con éxito!");
                 abrirLegajoCompletoPaciente(idPaciente);
