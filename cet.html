@@ -1897,12 +1897,23 @@ function actualizarFechaTurno(idPaciente, docClave, nuevaFecha) {
         abrirLegajoCompletoPaciente(idPaciente);
     });
 }
-async function subirDocModuloDirecto(idPaciente, docClave, input) {
-    if(!input.files[0]) return;
-    const file = input.files[0];
-    let fechaActa = prompt("Fecha asociada al documento (YYYY-MM-DD):", new Date().toISOString().split('T')[0]);
-    if (!fechaActa) return;
-    let descripcion = prompt("Descripción del archivo:", file.name) || "Archivo subido";
+async function subirDocModuloDirecto(idPaciente, docClave) {
+    // 1. Buscamos el input del archivo y el input del texto de la gestión por su ID único
+    const inputArchivo = document.getElementById(`file_acta_${idPaciente}_${docClave}`);
+    const inputTexto = document.getElementById(`texto_acta_${idPaciente}_${docClave}`);
+    
+    // 2. Validamos que el archivo esté seleccionado
+    if (!inputArchivo || !inputArchivo.files || !inputArchivo.files[0]) {
+        alert("Por favor, selecciona un archivo antes de guardar.");
+        return;
+    }
+    
+    const file = inputArchivo.files[0];
+    const textoGestion = inputTexto ? inputTexto.value.trim() : "";
+    
+    // Si escribieron un detalle, lo usaremos de descripción; si no, pedimos uno por prompt o usamos el nombre del archivo
+    let descripcion = textoGestion || prompt("Descripción del archivo:", file.name) || "Archivo subido";
+    let fechaActa = new Date().toISOString().split('T')[0];
 
     const formData = new FormData();
     formData.append('file', file);
@@ -1915,13 +1926,20 @@ async function subirDocModuloDirecto(idPaciente, docClave, input) {
         
         if(data.secure_url) {
             let p = pacs[idPaciente];
-            let actualArray = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [p[docClave]] : []);
-            actualArray.push({ fecha: fechaActa, descripcion: descripcion, archivo: data.secure_url });
+            
+            // Actualizamos el documento principal (archivo)
+            let actualArrayDocs = Array.isArray(p[docClave]) ? [...p[docClave]] : (p[docClave] ? [p[docClave]] : []);
+            actualArrayDocs.push({ fecha: fechaActa, descripcion: descripcion, archivo: data.secure_url });
+
+            // También actualizamos el historial de actas para que aparezca en "Historial de Actas"
+            let actualArrayActas = Array.isArray(p[docClave + '_actas']) ? [...p[docClave + '_actas']] : [];
+            actualArrayActas.push({ fecha: fechaActa, texto: descripcion, archivoLink: data.secure_url });
 
             database.child(`pacientes/${idPaciente}`).update({
-                [docClave]: actualArray,
+                [docClave]: actualArrayDocs,
+                [docClave + '_actas']: actualArrayActas,
                 [`${docClave}_estado`]: 'Documento Subido',
-                ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Subió archivo real y registró acta` }
+                ultimaModificacion: { usuario: obtenerUsuarioActual(), fecha: new Date().toISOString(), accion: `Subió archivo y registró acta para ${docClave}` }
             }).then(() => {
                 alert("¡Subido con éxito!");
                 abrirLegajoCompletoPaciente(idPaciente);
