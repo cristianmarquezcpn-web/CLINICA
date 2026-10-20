@@ -127,6 +127,18 @@
                 <select id="p-sala" style="flex:1"><option value="1">Sala 1</option><option value="2">Sala 2</option><option value="3">Sala 3</option><option value="4">Sala 4</option></select>
             </div>
             <label>CUD Vence:</label><input type="date" id="p-cud">
+            <div style="background:#f0f7ff; border:1px solid #bae6fd; border-left:4px solid #0284c7; padding:8px; margin-top:8px; border-radius:6px;">
+        <label style="font-size: 11px; font-weight:bold; color:#0369a1; display: block; margin-bottom:4px;">📋 AUDITORÍA / GESTIÓN O.S.</label>
+        
+        <label style="font-size: 10px; display:block; font-weight:bold; color:#1e293b;">Fecha Solicitud O.S.:</label>
+        <input type="date" id="p-fecha-solicitud" style="width:100%; font-size:11px; margin-bottom:6px; padding:3px; box-sizing:border-box;">
+
+        <label style="font-size: 10px; display:block; font-weight:bold; color:#1e293b;">Lo Solicitado:</label>
+        <textarea id="p-solicitado-os" rows="2" placeholder="Escribí lo solicitado..." style="width:100%; font-size:10px; box-sizing:border-box; margin-bottom:6px; resize:vertical;"></textarea>
+
+        <label style="font-size: 10px; display:block; font-weight:bold; color:#1e293b;">Lo Autorizado / Diferencias:</label>
+        <textarea id="p-autorizado-os" rows="2" placeholder="Escribí lo autorizado..." style="width:100%; font-size:10px; box-sizing:border-box; resize:vertical;"></textarea>
+         </div>
             <label style="font-size: 11px; margin-top: 5px; display: block;">Autorizado por O.S:</label>
             <div style="display:flex; gap:5px; align-items:center;">
             <span style="font-size:10px;">Desde:</span><input type="date" id="p-cob-desde" style="flex:1">
@@ -530,6 +542,9 @@
         document.getElementById('ed-cob-desde').value = p.cobertura_desde || "";
         document.getElementById('ed-cob-hasta').value = p.cobertura_hasta || "";
         document.getElementById('m-foto').src = p.foto || ""; 
+    if(document.getElementById('fechaSolicitudOS')) document.getElementById('fechaSolicitudOS').value = p.fechaSolicitudOS || "";
+    if(document.getElementById('solicitadoOS')) document.getElementById('solicitadoOS').value = p.solicitadoOS || "";
+    if(document.getElementById('autorizadoOS')) document.getElementById('autorizadoOS').value = p.autorizadoOS || "";
         
         const g = document.getElementById('f-grid-main'); g.innerHTML = "";
         legajosDef.forEach(l => { 
@@ -595,7 +610,10 @@
             turno: document.getElementById('ed-turno').value,
             sala: document.getElementById('ed-sala').value,
             cobertura_desde: document.getElementById('ed-cob-desde').value,
-            cobertura_hasta: document.getElementById('ed-cob-hasta').value
+            cobertura_hasta: document.getElementById('ed-cob-hasta').value,
+            fechaSolicitudOS: document.getElementById('fechaSolicitudOS') ? document.getElementById('fechaSolicitudOS').value : "",
+            solicitadoOS: document.getElementById('solicitadoOS') ? document.getElementById('solicitadoOS').value : "",
+            autorizadoOS: document.getElementById('autorizadoOS') ? document.getElementById('autorizadoOS').value : ""
         };
 
         // Si cambiamos el turno o sala desde el legajo, busca fila libre nueva
@@ -689,7 +707,10 @@
             fila: filaLibre, 
             audit: 'P',
             cobertura_desde: document.getElementById('p-cob-desde')?.value || "",
-            cobertura_hasta: document.getElementById('p-cob-hasta')?.value || ""
+            cobertura_hasta: document.getElementById('p-cob-hasta')?.value || "",
+            fechaSolicitudOS: document.getElementById('p-fecha-solicitud')?.value || "",
+            solicitadoOS: document.getElementById('p-solicitado-os')?.value || "",
+            autorizadoOS: document.getElementById('p-autorizado-os')?.value || ""
         };
 
         // 4. GUARDADO CORRECTO: Usamos .child(nom).update() para no borrar a los demás
@@ -705,6 +726,9 @@
                 document.getElementById('p-diag').value = "";
                 document.getElementById('p-cob-desde').value = "";
                 document.getElementById('p-cob-hasta').value = "";
+                if(document.getElementById('p-fecha-solicitud')) document.getElementById('p-fecha-solicitud').value = "";
+                if(document.getElementById('p-solicitado-os')) document.getElementById('p-solicitado-os').value = "";
+                if(document.getElementById('p-autorizado-os')) document.getElementById('p-autorizado-os').value = "";
             })
             .catch(error => {
                 console.error("Error Firebase:", error);
