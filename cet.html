@@ -503,12 +503,19 @@
         if(!estabaActivo) el.classList.add('active'); 
     }
 
-    function actualizarEdad(f, id) { 
-        if(!f) return;
-        const hoy = new Date(); const nac = new Date(f); let e = hoy.getFullYear() - nac.getFullYear();
-        if (hoy.getMonth() < nac.getMonth() || (hoy.getMonth() === nac.getMonth() && hoy.getDate() < nac.getDate())) e--; document.getElementById(id).value = e;
+function actualizarEdad(f, id) { 
+    if(!f) return;
+    const partes = f.split('-'); // Separa "AAAA-MM-DD" en [AAAA, MM, DD]
+    const hoy = new Date(); 
+    // Se resta 1 al mes porque en JavaScript enero es 0 y diciembre es 11
+    const nac = new Date(partes[0], partes[1] - 1, partes[2]); 
+    
+    let e = hoy.getFullYear() - nac.getFullYear();
+    if (hoy.getMonth() < nac.getMonth() || (hoy.getMonth() === nac.getMonth() && hoy.getDate() < nac.getDate())) {
+        e--;
     }
-
+    document.getElementById(id).value = e;
+}
     function renderTableros() {
         const turnosArr = ['manana', 'tarde', 'vespertino'];
         const hoy = new Date();
