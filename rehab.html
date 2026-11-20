@@ -1015,47 +1015,69 @@ function abrirPanelRenov() {
         XLSX.writeFile(wb, `Informe_General_${fecha}.xlsx`);
     }
 
-    function abrirModuloSAEI() { 
-        const c = document.getElementById('lista-saei-exclusiva'); c.innerHTML = ""; 
-        const listaSaei = Object.keys(pacs).filter(n => pacs[n].pres === "SAEI").sort();
-        c.innerHTML = `<div style="background:var(--violeta); color:white; padding:10px; border-radius:8px; margin-bottom:10px; text-align:center"><strong>MODULO SAEI - TOTAL: ${listaSaei.length}</strong></div>`;
-        listaSaei.forEach((n, index) => { 
-            let b = ""; 
-            legajosSAEI.forEach(l => { 
-                const cargado = (pacs[n][l.id] || pacs[n][l.id+'_link']) ? "cargado" : ""; 
-                b += `<button onclick="verArchP('${l.id}','${n}')" title="${l.n}" style="background:${cargado?'#2ecc71':'#ccc'}; border:none; color:white; font-size:7px; width:22px; height:22px; margin:1px; border-radius:4px">${l.s}</button>`; 
-            }); 
-            c.innerHTML += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee; align-items:center"><span><b>${index + 1}.</b> ${n}</span><div style="display:flex; gap:10px; align-items:center"><div>${b}</div><button class="btn" style="background:var(--azul)" onclick="abrirGestionSaei('${n}')">CARGAR SAEI</button></div></div>`; 
+let modalOriginalHTML = "";
+
+function abrirModuloSAEI() { 
+    const c = document.getElementById('lista-saei-exclusiva'); c.innerHTML = ""; 
+    const listaSaei = Object.keys(pacs).filter(n => pacs[n].pres === "SAEI").sort();
+    c.innerHTML = `<div style="background:var(--violeta); color:white; padding:10px; border-radius:8px; margin-bottom:10px; text-align:center"><strong>MODULO SAEI - TOTAL: ${listaSaei.length}</strong></div>`;
+    listaSaei.forEach((n, index) => { 
+        let b = ""; 
+        legajosSAEI.forEach(l => { 
+            const cargado = (pacs[n][l.id] || pacs[n][l.id+'_link']) ? "cargado" : ""; 
+            b += `<button onclick="verArchP('${l.id}','${n}')" title="${l.n}" style="background:${cargado?'#2ecc71':'#ccc'}; border:none; color:white; font-size:7px; width:22px; height:22px; margin:1px; border-radius:4px">${l.s}</button>`; 
         }); 
-        document.getElementById('panel-saei').style.display="block"; document.getElementById('overlay').style.display="block"; 
+        c.innerHTML += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee; align-items:center"><span><b>${index + 1}.</b> ${n}</span><div style="display:flex; gap:10px; align-items:center"><div>${b}</div><button class="btn" style="background:var(--azul)" onclick="abrirGestionSaei('${n}')">CARGAR SAEI</button></div></div>`; 
+    }); 
+    document.getElementById('panel-saei').style.display="block"; document.getElementById('overlay').style.display="block"; 
+}
+
+function abrirGestionSaei(n) {
+    nF = n; const p = pacs[n]; tempFiles = {}; 
+    document.getElementById('panel-saei').style.display = "none";
+    const modal = document.getElementById('modal');
+
+    // Guardamos el HTML original del modal solo si todavía tiene #m-titulo
+    if (document.getElementById('m-titulo')) {
+        modalOriginalHTML = modal.innerHTML;
     }
 
-    function abrirGestionSaei(n) {
-        nF = n; const p = pacs[n]; tempFiles = {}; 
-        document.getElementById('panel-saei').style.display = "none";
-        const modal = document.getElementById('modal');
-        modal.innerHTML = `<div style="padding:10px"><div style="display:flex; justify-content:space-between; align-items:center"><h2 style="color:var(--violeta); margin:0">📂 CARGA SAEI: ${n}</h2><button onclick="cerrarYSaei()" style="background:none; border:none; cursor:pointer; font-size:20px">✕</button></div><div id="campos-saei-dinamicos" style="margin-top:15px"></div><button class="btn" id="btn-save-saei" style="background:var(--verde); width:100%; margin-top:20px; height:40px" onclick="guardarCambiosSaei()">💾 GUARDAR SAEI</button><button class="btn" style="background:var(--oscuro); width:100%; margin-top:10px" onclick="cerrarYSaei()">VOLVER A LISTA SAEI</button></div>`;
-        const contenedor = modal.querySelector('#campos-saei-dinamicos');
-        legajosSAEI.forEach(l => {
-            const link = p[l.id + "_link"] || ""; const tiene = (p[l.id] || link);
-            contenedor.innerHTML += `<div style="background:#f9f9f9; padding:10px; border:1px solid #ddd; border-radius:8px; margin-top:10px"><div style="display:flex; justify-content:space-between"><b>${l.n}</b><span id="st-${l.id}" style="font-weight:bold; color:${tiene?'#2ecc71':'#aaa'}">${tiene?'● CARGADO':'○ VACÍO'}</span></div><input type="file" style="margin-top:5px" onchange="subPre('${l.id}',this)"><input type="text" placeholder="Link Drive (Opcional)" value="${link}" style="margin-top:5px" onchange="tempFiles['${l.id}_link']=this.value"></div>`;
-        });
-        modal.style.display = "block"; document.getElementById('overlay').style.display = "block";
+    modal.innerHTML = `<div style="padding:10px"><div style="display:flex; justify-content:space-between; align-items:center"><h2 style="color:var(--violeta); margin:0">📂 CARGA SAEI: ${n}</h2><button onclick="cerrarYSaei()" style="background:none; border:none; cursor:pointer; font-size:20px">✕</button></div><div id="campos-saei-dinamicos" style="margin-top:15px"></div><button class="btn" id="btn-save-saei" style="background:var(--verde); width:100%; margin-top:20px; height:40px" onclick="guardarCambiosSaei()">💾 GUARDAR SAEI</button><button class="btn" style="background:var(--oscuro); width:100%; margin-top:10px" onclick="cerrarYSaei()">VOLVER A LISTA SAEI</button></div>`;
+    const contenedor = modal.querySelector('#campos-saei-dinamicos');
+    legajosSAEI.forEach(l => {
+        const link = p[l.id + "_link"] || ""; const tiene = (p[l.id] || link);
+        contenedor.innerHTML += `<div style="background:#f9f9f9; padding:10px; border:1px solid #ddd; border-radius:8px; margin-top:10px"><div style="display:flex; justify-content:space-between"><b>${l.n}</b><span id="st-${l.id}" style="font-weight:bold; color:${tiene?'#2ecc71':'#aaa'}">${tiene?'● CARGADO':'○ VACÍO'}</span></div><input type="file" style="margin-top:5px" onchange="subPre('${l.id}',this)"><input type="text" placeholder="Link Drive (Opcional)" value="${link}" style="margin-top:5px" onchange="tempFiles['${l.id}_link']=this.value"></div>`;
+    });
+    modal.style.display = "block"; document.getElementById('overlay').style.display = "block";
+}
+
+function cerrarYSaei() { 
+    const modal = document.getElementById('modal');
+    modal.style.display = "none"; 
+    if (modalOriginalHTML) {
+        modal.innerHTML = modalOriginalHTML;
     }
+    abrirModuloSAEI(); 
+}
 
-    function cerrarYSaei() { document.getElementById('modal').style.display = "none"; abrirModuloSAEI(); }
-
-    async function guardarCambiosSaei() {
-        const btn = document.getElementById('btn-save-saei'); btn.disabled = true; btn.innerText = "⏳ SUBIENDO...";
-        let up = {};
-        for (let key in tempFiles) {
-            if (tempFiles[key] && tempFiles[key].startsWith('data:')) {
-                const url = await subirACloudinary(tempFiles[key]);
-                if (url) up[key + "_link"] = url;
-            } else { up[key] = tempFiles[key]; }
+async function guardarCambiosSaei() {
+    const btn = document.getElementById('btn-save-saei'); btn.disabled = true; btn.innerText = "⏳ SUBIENDO...";
+    let up = {};
+    for (let key in tempFiles) {
+        if (tempFiles[key] && tempFiles[key].startsWith('data:')) {
+            const url = await subirACloudinary(tempFiles[key]);
+            if (url) up[key + "_link"] = url;
+        } else { up[key] = tempFiles[key]; }
+    }
+    database.child('pacientes').child(nF).update(up).then(() => { 
+        alert("✅ SAEI ACTUALIZADO"); 
+        if (modalOriginalHTML) {
+            document.getElementById('modal').innerHTML = modalOriginalHTML;
         }
-        database.child('pacientes').child(nF).update(up).then(() => { alert("✅ SAEI ACTUALIZADO"); cerrar(); abrirModuloSAEI(); });
-    }
+        cerrar(); 
+        abrirModuloSAEI(); 
+    });
+}
 
     function actualizarHorasLibresExtra() {
         const d = document.getElementById('ex-dia').value, c = document.getElementById('ex-cons').value, hSel = document.getElementById('ex-hora');
