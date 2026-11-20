@@ -60,7 +60,7 @@
 <div class="header">
     <strong>C.D. PRO - CENTRO DE DÍA</strong>
     <div style="display:flex; gap:8px">
-		<button onclick="window.abrirCronograma()" style="background:#8e44ad; color:white; padding:6px 12px; border-radius:4px; border:none; font-weight:bold; cursor:pointer; margin-left:5px;">📋 Agenda y Vencimientos</button>
+		<button onclick="window.abrirCronograma(); window.initModuloEventos();" style="background:#8e44ad; color:white; padding:6px 12px; border-radius:4px; border:none; font-weight:bold; cursor:pointer; margin-left:5px;">📋 Agenda y Vencimientos</button>
         <button class="btn" style="background:#6c5ce7" onclick="abrirPanelGeneralGestiones()">📊 GESTIÓN CUD</button>
         <button class="btn" style="background:var(--violeta)" onclick="abrirModuloSalas()">🏫 SALA POR TURNO</button>
         <button class="btn" style="background:var(--verde)" onclick="abrirPanelFac()">📂 VALIDAR</button>
@@ -2220,7 +2220,7 @@ window.cargarEventos = function(jornadaDatos = null) {
         </div>
     `;
 
-    databaseRef().ref('cet/pacientes').once('value').then(snap => {
+    databaseRef().ref('cd/pacientes').once('value').then(snap => {
         const combinado = snap.val() || {};
         window._padronJornada = Object.keys(combinado).map(k => {
             const item = combinado[k] || {};
@@ -2388,18 +2388,20 @@ window.descargarCSVNomina = function(seleccionados, eventoNombre, fechaStr) {
     document.body.removeChild(link);
 };
 
-window.cargarHistoricoJornadasSelect = async function(seleccionarKey = '') {
-    const sel = document.getElementById('sel-historico-jornadas');
-    try {
-        const snap = await databaseRef().ref('jornadas').once('value');
+window.cargarHistoricoJornadasSelect = function(seleccionarKey = '') {
+    databaseRef().ref('jornadas').on('value', snap => {
+        const sel = document.getElementById('sel-historico-jornadas');
         const data = snap.val() || {};
         window._historicoJornadas = data;
         
+        // Mantener seleccionada la opción actual si no se pasó una nueva
+        const valorActual = seleccionarKey || (sel ? sel.value : '');
+
         if (sel) {
             let html = '<option value="">-- Nueva Jornada / Seleccionar histórico --</option>';
             Object.keys(data).sort().reverse().forEach(key => {
                 const j = data[key];
-                const selAttr = key === seleccionarKey ? 'selected' : '';
+                const selAttr = key === valorActual ? 'selected' : '';
                 html += `<option value="${key}" ${selAttr}>[${j.fecha}] (${j.tipo || 'Jornada'}) ${j.nombre} - ${j.pacientes ? j.pacientes.length : 0} pas.</option>`;
             });
             sel.innerHTML = html;
@@ -2408,9 +2410,9 @@ window.cargarHistoricoJornadasSelect = async function(seleccionarKey = '') {
         if (typeof window.renderizarProximosEventos === 'function') {
             window.renderizarProximosEventos();
         }
-    } catch(e) {
+    }, e => {
         console.error("Error cargando histórico jornadas", e);
-    }
+    });
 };
 
 window.cargarJornadaHistorica = function(key) {
@@ -2425,7 +2427,10 @@ window.renderizarProximosEventos = function() {
     const contenedor = document.getElementById('contenedor-proximos-eventos');
     if (!contenedor || !window._historicoJornadas) return;
 
-    const hoyStr = new Date().toISOString().split('T')[0];
+    // Fecha de hoy en horario local (evita el salto a mañana después de las 21hs por UTC)
+    const hoy = new Date();
+    const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+    
     const data = window._historicoJornadas;
 
     const keysFuturas = Object.keys(data).filter(k => {
@@ -2461,8 +2466,7 @@ window.renderizarProximosEventos = function() {
     });
     html += '</div>';
     contenedor.innerHTML = html;
-};    
-
+};
 window.nuevaJornadaLimpia = function() {
     const sel = document.getElementById('sel-historico-jornadas');
     if (sel) sel.value = '';
